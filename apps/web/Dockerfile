@@ -32,11 +32,8 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app
-WORKDIR /app/apps/web
-ENV PATH="/app/node_modules/.bin:$PATH"
-RUN next build
-WORKDIR /app
+# Build Next.js app - run from root with explicit npm exec
+RUN cd /app && npm exec --workspace=@tfc/web -- next build
 
 # Production image
 FROM base AS runner
