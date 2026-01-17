@@ -4,7 +4,6 @@
  * Public endpoint (no auth required)
  */
 import { prisma } from '@/lib/server/db';
-import { FightStatus } from '@tfc/db';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
@@ -22,9 +21,9 @@ export async function GET() {
       prisma.$queryRaw<[{ total_volume: number }]>`
         SELECT COALESCE(SUM(amount * price), 0)::float as total_volume FROM trades
       `,
-      // Completed fights count
+      // Completed fights count (use string literal to avoid @tfc/db import)
       prisma.fight.count({
-        where: { status: FightStatus.FINISHED },
+        where: { status: 'FINISHED' },
       }),
       // Fight volume (sum of notional values from fight trades)
       prisma.$queryRaw<[{ fight_volume: number }]>`
