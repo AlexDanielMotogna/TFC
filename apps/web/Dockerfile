@@ -32,8 +32,9 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app - run from root with explicit npm exec
-RUN cd /app && npm exec --workspace=@tfc/web -- next build
+# Build Next.js app - use installed next binary directly (not npx/npm exec which downloads v16)
+WORKDIR /app/apps/web
+RUN node /app/node_modules/next/dist/bin/next build
 
 # Production image
 FROM base AS runner
