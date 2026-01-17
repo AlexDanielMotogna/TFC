@@ -115,7 +115,7 @@ export async function GET(request: Request) {
     }
 
     // Current exposure = sum of absolute notional values of open positions from THIS fight
-    const currentExposure = Object.values(positionsBySymbol).reduce((sum, pos) => {
+    const currentExposure = Object.values(positionsBySymbol).reduce((sum: number, pos: any) => {
       // Only count if there's still an open position
       if (Math.abs(pos.amount) < 0.0000001) {
         return sum;

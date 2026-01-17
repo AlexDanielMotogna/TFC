@@ -33,7 +33,7 @@ export async function GET(
     });
 
     const stats = participants.reduce(
-      (acc, p) => {
+      (acc: any, p: any) => {
         acc.totalFights++;
         if (p.fight.winnerId === params.id) acc.wins++;
         else if (p.fight.isDraw) acc.draws++;
