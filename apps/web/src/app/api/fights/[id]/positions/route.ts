@@ -58,7 +58,7 @@ export async function GET(
       });
 
       console.log(`[FightPositions] Found ${fightTrades.length} fight trades for user ${user.userId} in fight ${fightId}`);
-      fightTrades.forEach((t, i) => {
+      fightTrades.forEach((t: any, i: number) => {
         console.log(`[FightPositions] Trade ${i + 1}: ${t.side} ${t.amount} ${t.symbol} @ ${t.price}`);
       });
 
