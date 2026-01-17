@@ -1,0 +1,26 @@
+{
+  "name": "@tfc/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@tfc/db": "*",
+    "@tfc/shared": "*",
+    "@tfc/logger": "*",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@tfc/tsconfig": "*",
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "tradefightclub",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "clean": "turbo clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:generate": "turbo db:generate",
+    "db:push": "turbo db:push",
+    "db:migrate": "turbo db:migrate"
+  },
+  "devDependencies": {
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "ts-loader": "^9.5.4",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "npm@10.2.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

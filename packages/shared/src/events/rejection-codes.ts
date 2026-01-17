@@ -1,0 +1,46 @@
+/**
+ * Rejection reason codes for logging
+ * @see Master-doc.md Section 9.4
+ */
+
+/**
+ * Fight join rejection reasons
+ */
+export const FIGHT_JOIN_REJECTION = {
+  FIGHT_NOT_FOUND: 'FIGHT_NOT_FOUND',
+  FIGHT_ALREADY_LIVE: 'FIGHT_ALREADY_LIVE',
+  FIGHT_FULL: 'FIGHT_FULL',
+  NO_PACIFICA_CONNECTION: 'NO_PACIFICA_CONNECTION',
+  ALREADY_PARTICIPANT: 'ALREADY_PARTICIPANT',
+} as const;
+
+export type FightJoinRejection =
+  (typeof FIGHT_JOIN_REJECTION)[keyof typeof FIGHT_JOIN_REJECTION];
+
+/**
+ * Order rejection reasons
+ */
+export const ORDER_REJECTION = {
+  INVALID_LEVERAGE: 'INVALID_LEVERAGE',
+  INVALID_SIZE: 'INVALID_SIZE',
+  INVALID_SYMBOL: 'INVALID_SYMBOL',
+  INVALID_PRICE: 'INVALID_PRICE',
+  PACIFICA_ERROR: 'PACIFICA_ERROR',
+  RATE_LIMITED: 'RATE_LIMITED',
+  INSUFFICIENT_MARGIN: 'INSUFFICIENT_MARGIN',
+  NO_PACIFICA_CONNECTION: 'NO_PACIFICA_CONNECTION',
+} as const;
+
+export type OrderRejection = (typeof ORDER_REJECTION)[keyof typeof ORDER_REJECTION];
+
+/**
+ * Auth rejection reasons
+ */
+export const AUTH_REJECTION = {
+  INVALID_SIGNATURE: 'INVALID_SIGNATURE',
+  EXPIRED_SIGNATURE: 'EXPIRED_SIGNATURE',
+  ACCOUNT_NOT_FOUND: 'ACCOUNT_NOT_FOUND',
+  BUILDER_CODE_NOT_APPROVED: 'BUILDER_CODE_NOT_APPROVED',
+} as const;
+
+export type AuthRejection = (typeof AUTH_REJECTION)[keyof typeof AUTH_REJECTION];

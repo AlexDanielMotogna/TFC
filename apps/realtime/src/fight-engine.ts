@@ -1,0 +1,969 @@
+import { Server } from 'socket.io';
+import { prisma, FightStatus, Fight, FightParticipant, User } from '@tfc/db';
+import { createLogger } from '@tfc/logger';
+import { LOG_EVENTS, WS_EVENTS, PNL_TICK_INTERVAL_MS, type ArenaPnlTickPayload, type PlatformStatsPayload } from '@tfc/shared';
+import { getPrices, getTradeHistory, MarketPrice } from './pacifica-client.js';
+
+// External trades check interval (every 30 seconds)
+const EXTERNAL_TRADES_CHECK_INTERVAL = 30;
+
+// Max leverage per symbol (from Pacifica settings)
+// Used to calculate margin for ROI% calculation
+const MAX_LEVERAGE: Record<string, number> = {
+  'BTC-USD': 50, 'ETH-USD': 50, 'SOL-USD': 20, 'HYPE-USD': 20, 'XRP-USD': 20,
+  'DOGE-USD': 20, 'LINK-USD': 20, 'AVAX-USD': 20, 'SUI-USD': 10, 'BNB-USD': 10,
+  'AAVE-USD': 10, 'ARB-USD': 10, 'OP-USD': 10, 'APT-USD': 10, 'INJ-USD': 10,
+  'TIA-USD': 10, 'SEI-USD': 10, 'WIF-USD': 10, 'JUP-USD': 10, 'PENDLE-USD': 10,
+  'RENDER-USD': 10, 'FET-USD': 10, 'ZEC-USD': 10, 'PAXG-USD': 10, 'ENA-USD': 10,
+  'KPEPE-USD': 10,
+};
+
+// Type for Fight with participants and users
+type FightWithParticipants = Fight & {
+  participants: (FightParticipant & { user: User })[];
+  creator?: User | null;
+};
+
+const logger = createLogger({ service: 'realtime' });
+
+/**
+ * Calculate unrealized PnL for a specific fight from FightTrade records
+ * This ensures each fight has independent PnL tracking
+ *
+ * Formula:
+ * - For each symbol: Calculate net position from BUY/SELL trades
+ * - Unrealized PnL = (markPrice - avgEntryPrice) * netAmount
+ *
+ * @param fightId - The specific fight to calculate PnL for
+ * @param userId - The user's ID
+ * @param cachedPrices - Optional cached prices to avoid repeated API calls
+ */
+async function calculateUnrealizedPnlFromFightTrades(
+  fightId: string,
+  userId: string,
+  cachedPrices?: MarketPrice[]
+): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number }> {
+  try {
+    const [fightTrades, prices] = await Promise.all([
+      prisma.fightTrade.findMany({
+        where: { fightId, participantUserId: userId },
+      }),
+      cachedPrices ? Promise.resolve(cachedPrices) : getPrices(),
+    ]);
+
+    // Calculate net position per symbol from fight trades
+    // Also track leverage used for each symbol (use the first trade's leverage)
+    const positionsBySymbol: Record<string, { amount: number; totalCost: number; leverage: number | null }> = {};
+
+    for (const trade of fightTrades) {
+      const symbol = trade.symbol;
+      const amount = parseFloat(trade.amount.toString());
+      const price = parseFloat(trade.price.toString());
+      const tradeLeverage = trade.leverage;
+
+      if (!positionsBySymbol[symbol]) {
+        positionsBySymbol[symbol] = { amount: 0, totalCost: 0, leverage: tradeLeverage };
+      }
+
+      // Update leverage if this trade has one (use the most recent trade's leverage for opening positions)
+      if (tradeLeverage) {
+        positionsBySymbol[symbol].leverage = tradeLeverage;
+      }
+
+      if (trade.side === 'BUY') {
+        // BUY increases LONG position or closes SHORT
+        if (positionsBySymbol[symbol].amount < 0) {
+          // Closing SHORT position
+          const absShort = Math.abs(positionsBySymbol[symbol].amount);
+          const closeAmount = Math.min(amount, absShort);
+          const openAmount = amount - closeAmount;
+
+          // Reduce SHORT proportionally
+          if (absShort > 0) {
+            const avgShortEntry = positionsBySymbol[symbol].totalCost / absShort;
+            positionsBySymbol[symbol].totalCost -= closeAmount * avgShortEntry;
+          }
+          positionsBySymbol[symbol].amount += closeAmount;
+
+          // Any remaining opens a new LONG
+          if (openAmount > 0) {
+            positionsBySymbol[symbol].totalCost += openAmount * price;
+            positionsBySymbol[symbol].amount += openAmount;
+          }
+        } else {
+          // Opening/increasing LONG position
+          positionsBySymbol[symbol].totalCost += amount * price;
+          positionsBySymbol[symbol].amount += amount;
+        }
+      } else {
+        // SELL increases SHORT position or closes LONG
+        if (positionsBySymbol[symbol].amount > 0) {
+          // Closing LONG position
+          const closeAmount = Math.min(amount, positionsBySymbol[symbol].amount);
+          const openAmount = amount - closeAmount;
+
+          // Reduce LONG proportionally
+          const avgLongEntry = positionsBySymbol[symbol].totalCost / positionsBySymbol[symbol].amount;
+          positionsBySymbol[symbol].totalCost -= closeAmount * avgLongEntry;
+          positionsBySymbol[symbol].amount -= closeAmount;
+
+          // Any remaining opens a new SHORT
+          if (openAmount > 0) {
+            positionsBySymbol[symbol].totalCost += openAmount * price;
+            positionsBySymbol[symbol].amount -= openAmount;
+          }
+        } else {
+          // Opening/increasing SHORT position
+          // For SHORTs, totalCost tracks the entry price * amount (positive value)
+          positionsBySymbol[symbol].totalCost += amount * price;
+          positionsBySymbol[symbol].amount -= amount;
+        }
+      }
+    }
+
+    // Calculate unrealized PnL, position values, and margin for open positions
+    let unrealizedPnl = 0;
+    let totalPositionValue = 0;
+    let totalMargin = 0;
+
+    for (const [symbol, pos] of Object.entries(positionsBySymbol)) {
+      // Skip if no position
+      if (Math.abs(pos.amount) < 0.0000001) {
+        continue;
+      }
+
+      const price = prices.find((p) => p.symbol === symbol);
+      if (!price) continue;
+
+      const markPrice = parseFloat(price.mark);
+      // For both LONG and SHORT, totalCost is positive and represents entry_price * |amount|
+      // avgEntryPrice should always be positive
+      const avgEntryPrice = Math.abs(pos.amount) > 0 ? pos.totalCost / Math.abs(pos.amount) : 0;
+
+      // PnL calculation:
+      // LONG (amount > 0): profit when price goes UP -> (markPrice - entry) * amount
+      // SHORT (amount < 0): profit when price goes DOWN -> (entry - markPrice) * |amount|
+      //                     = (markPrice - entry) * amount (since amount is negative)
+      // So the formula works for both: (markPrice - avgEntryPrice) * pos.amount
+      unrealizedPnl += (markPrice - avgEntryPrice) * pos.amount;
+
+      // Position value at mark price
+      const positionValue = Math.abs(pos.amount) * markPrice;
+      totalPositionValue += positionValue;
+
+      // Use leverage from trade if available, otherwise fall back to MAX_LEVERAGE
+      const leverage = pos.leverage || MAX_LEVERAGE[symbol] || 10;
+      const margin = positionValue / leverage;
+      totalMargin += margin;
+    }
+
+    // Note: Funding is tracked per-position on Pacifica, not per-fight
+    // For fight-specific calculations, we don't include funding
+    return { unrealizedPnl, funding: 0, totalPositionValue, margin: totalMargin };
+  } catch (error) {
+    logger.error(LOG_EVENTS.API_ERROR, 'Failed to calculate unrealized PnL from fight trades', error as Error, {
+      fightId,
+      userId,
+    });
+    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0 };
+  }
+}
+
+/**
+ * Detect trades made outside TradeFightClub during a fight
+ * Compares Pacifica trade history with our FightTrade records
+ *
+ * @param fightId - The fight ID
+ * @param userId - The user ID
+ * @param accountAddress - The user's Pacifica account address
+ * @param fightStart - Fight start timestamp
+ * @param fightEnd - Fight end timestamp (or now if still live)
+ * @returns Object with detected flag and list of external trade IDs
+ */
+async function detectExternalTrades(
+  fightId: string,
+  userId: string,
+  accountAddress: string,
+  fightStart: Date,
+  fightEnd: Date
+): Promise<{ detected: boolean; externalTradeIds: string[] }> {
+  try {
+    const startTime = Math.floor(fightStart.getTime() / 1000);
+    const endTime = Math.floor(fightEnd.getTime() / 1000);
+
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Checking for external trades', {
+      fightId,
+      userId,
+      accountAddress,
+      startTime,
+      endTime,
+      startTimeDate: fightStart.toISOString(),
+      endTimeDate: fightEnd.toISOString(),
+    });
+
+    // 1. Get all trades from Pacifica in the fight time window
+    const pacificaTrades = await getTradeHistory({
+      accountAddress,
+      startTime,
+      endTime,
+      limit: 100,
+    });
+
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Pacifica trades fetched', {
+      fightId,
+      userId,
+      pacificaTradesCount: pacificaTrades.length,
+      pacificaTradeIds: pacificaTrades.map((t) => t.history_id),
+    });
+
+    // 2. Get the pacificaHistoryIds registered in our DB for this fight
+    const fightTrades = await prisma.fightTrade.findMany({
+      where: { fightId, participantUserId: userId },
+      select: { pacificaHistoryId: true },
+    });
+
+    // Convert BigInt to string for comparison (BigInt.toString() returns decimal string)
+    const registeredIds = new Set(
+      fightTrades.map((t) => String(t.pacificaHistoryId))
+    );
+
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'DB fight trades fetched', {
+      fightId,
+      userId,
+      dbTradesCount: fightTrades.length,
+      registeredIds: Array.from(registeredIds),
+    });
+
+    // 3. Find trades from Pacifica that are NOT in our DB
+    // Convert history_id to string for consistent comparison
+    const externalTrades = pacificaTrades.filter(
+      (t) => !registeredIds.has(String(t.history_id))
+    );
+
+    if (externalTrades.length > 0) {
+      logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected', {
+        fightId,
+        userId,
+        count: externalTrades.length,
+        tradeIds: externalTrades.map((t) => t.history_id.toString()),
+      });
+    } else {
+      logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'No external trades detected', {
+        fightId,
+        userId,
+      });
+    }
+
+    return {
+      detected: externalTrades.length > 0,
+      externalTradeIds: externalTrades.map((t) => t.history_id.toString()),
+    };
+  } catch (error) {
+    logger.error(LOG_EVENTS.API_ERROR, 'Failed to detect external trades', error as Error, {
+      fightId,
+      userId,
+    });
+    return { detected: false, externalTradeIds: [] };
+  }
+}
+
+export interface FightState {
+  fightId: string;
+  status: FightStatus;
+  durationMinutes: number;
+  stakeUsdc: number;
+  startedAt: Date | null;
+  endsAt: Date | null;
+  participantA: ParticipantState | null;
+  participantB: ParticipantState | null;
+  leader: string | null;
+  timeRemainingMs: number;
+}
+
+export interface ParticipantState {
+  userId: string;
+  handle: string;
+  slot: 'A' | 'B';
+  pnlPercent: number;
+  scoreUsdc: number;
+  tradesCount: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+  fees: number;
+  funding: number;
+  positionValue: number;
+  margin: number;
+}
+
+export class FightEngine {
+  private io: Server;
+  private activeFights: Map<string, FightState> = new Map();
+  private tickInterval: NodeJS.Timeout | null = null;
+  private tickCount: number = 0;
+
+  constructor(io: Server) {
+    this.io = io;
+  }
+
+  /**
+   * Start the PnL tick loop
+   * Emits PNL_TICK every second for all active fights
+   */
+  startTickLoop() {
+    logger.info(LOG_EVENTS.SCORING_RECALC_SUCCESS, 'Starting fight engine tick loop');
+
+    this.tickInterval = setInterval(async () => {
+      await this.processTick();
+    }, PNL_TICK_INTERVAL_MS);
+  }
+
+  stopTickLoop() {
+    if (this.tickInterval) {
+      clearInterval(this.tickInterval);
+      this.tickInterval = null;
+    }
+  }
+
+  /**
+   * Process a single tick for all active fights
+   */
+  private async processTick() {
+    this.tickCount++;
+
+    // Load active LIVE fights from database
+    const liveFights = await prisma.fight.findMany({
+      where: { status: FightStatus.LIVE },
+      include: {
+        participants: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    // Check for external trades every 30 seconds
+    const shouldCheckExternalTrades = this.tickCount % EXTERNAL_TRADES_CHECK_INTERVAL === 0;
+
+    if (shouldCheckExternalTrades) {
+      logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'External trades check triggered', {
+        tickCount: this.tickCount,
+        liveFightsCount: liveFights.length,
+      });
+    }
+
+    // Collect arena PnL data for all live fights
+    const arenaPnlData: ArenaPnlTickPayload['fights'] = [];
+
+    for (const fight of liveFights) {
+      try {
+        // Check for external trades periodically
+        if (shouldCheckExternalTrades && fight.startedAt) {
+          await this.checkExternalTrades(fight);
+        }
+
+        const state = await this.calculateFightState(fight);
+
+        if (state) {
+          // Update local cache
+          this.activeFights.set(fight.id, state);
+
+          // Emit PNL_TICK to all clients in the fight room
+          this.io.to(`fight:${fight.id}`).emit(WS_EVENTS.PNL_TICK, {
+            fightId: fight.id,
+            timestamp: Date.now(),
+            participantA: state.participantA
+              ? {
+                  userId: state.participantA.userId,
+                  pnlPercent: state.participantA.pnlPercent,
+                  scoreUsdc: state.participantA.scoreUsdc,
+                  tradesCount: state.participantA.tradesCount,
+                }
+              : null,
+            participantB: state.participantB
+              ? {
+                  userId: state.participantB.userId,
+                  pnlPercent: state.participantB.pnlPercent,
+                  scoreUsdc: state.participantB.scoreUsdc,
+                  tradesCount: state.participantB.tradesCount,
+                }
+              : null,
+            leader: state.leader,
+            timeRemainingMs: state.timeRemainingMs,
+          });
+
+          // Collect data for arena broadcast
+          arenaPnlData.push({
+            fightId: fight.id,
+            participantA: state.participantA
+              ? { userId: state.participantA.userId, pnlPercent: state.participantA.pnlPercent }
+              : null,
+            participantB: state.participantB
+              ? { userId: state.participantB.userId, pnlPercent: state.participantB.pnlPercent }
+              : null,
+            leader: state.leader,
+            timeRemainingMs: state.timeRemainingMs,
+          });
+
+          // Check if fight should end
+          if (state.timeRemainingMs <= 0) {
+            await this.endFight(fight.id, state);
+          }
+        }
+      } catch (error) {
+        logger.error(
+          LOG_EVENTS.SCORING_RECALC_FAILURE,
+          'Failed to process tick for fight',
+          error as Error,
+          { fightId: fight.id }
+        );
+      }
+    }
+
+    // Broadcast aggregated PnL data to arena subscribers
+    if (arenaPnlData.length > 0) {
+      this.io.to('arena').emit(WS_EVENTS.ARENA_PNL_TICK, {
+        fights: arenaPnlData,
+        timestamp: Date.now(),
+      } as ArenaPnlTickPayload);
+    }
+  }
+
+  /**
+   * Calculate current fight state from database trades and live positions
+   * - Realized PnL: from recorded trades (closed positions)
+   * - Unrealized PnL: from current open positions via Pacifica API
+   */
+  private async calculateFightState(fight: {
+    id: string;
+    status: FightStatus;
+    durationMinutes: number;
+    stakeUsdc: number;
+    startedAt: Date | null;
+    participants: Array<{
+      userId: string;
+      slot: string;
+      user: { id: string; handle: string };
+    }>;
+  }): Promise<FightState | null> {
+    if (!fight.startedAt) return null;
+
+    const now = Date.now();
+    const startTime = fight.startedAt.getTime();
+    const endTime = startTime + fight.durationMinutes * 60 * 1000;
+    const timeRemainingMs = Math.max(0, endTime - now);
+
+    // Fetch prices once for all participants (cached)
+    const prices = await getPrices();
+
+    // Get participant states from recorded trades and live positions
+    const participantStates = await Promise.all(
+      fight.participants.map(async (p) => {
+        // Get trades for this participant in this fight
+        const trades = await prisma.fightTrade.findMany({
+          where: {
+            fightId: fight.id,
+            participantUserId: p.userId,
+          },
+        });
+
+        // NOTE: Pacifica's trade.pnl field includes fees as negative value for opening trades
+        // So we DON'T add fees separately - they're already included in the pnl
+        //
+        // For opening trades: pnl = -fee (negative)
+        // For closing trades: pnl = realized profit/loss (already includes fees)
+        //
+        // Therefore: totalPnl = sum of trade.pnl + unrealizedPnl (no separate fee deduction)
+        const realizedPnl = trades.reduce((sum, t) => sum + (t.pnl ? Number(t.pnl) : 0), 0);
+        const fees = trades.reduce((sum, t) => sum + Number(t.fee), 0);
+        const tradesCount = trades.length;
+
+        // Get unrealized PnL from FightTrade records for THIS specific fight
+        // This ensures each fight has independent PnL tracking
+        const liveData = await calculateUnrealizedPnlFromFightTrades(fight.id, p.userId, prices);
+        const unrealizedPnl = liveData.unrealizedPnl;
+        const funding = liveData.funding;
+        const margin = liveData.margin;
+
+        // Calculate total PnL
+        // realizedPnl already includes fees (from Pacifica's pnl field)
+        // So we just add unrealizedPnl, don't subtract fees again
+        const totalPnl = realizedPnl + unrealizedPnl;
+
+        // For pnlPercent (ROI%), we use PnL / margin * 100
+        // This accounts for leverage and matches what the frontend displays
+        // margin = positionValue / leverage
+        const pnlPercent = margin > 0 ? (totalPnl / margin) * 100 : 0;
+
+        // scoreUsdc is the actual PnL in USD
+        const scoreUsdc = totalPnl;
+
+        return {
+          userId: p.userId,
+          handle: p.user.handle,
+          slot: p.slot as 'A' | 'B',
+          pnlPercent,
+          scoreUsdc,
+          tradesCount,
+          realizedPnl,
+          unrealizedPnl,
+          fees,
+          funding,
+          positionValue: liveData.totalPositionValue,
+          margin,
+        };
+      })
+    );
+
+    const participantA = participantStates.find((p) => p.slot === 'A') || null;
+    const participantB = participantStates.find((p) => p.slot === 'B') || null;
+
+    // Determine leader (use tolerance to avoid flickering due to float precision)
+    const EPSILON = 0.0001;
+    let leader: string | null = null;
+    if (participantA && participantB) {
+      const diff = participantA.pnlPercent - participantB.pnlPercent;
+      if (Math.abs(diff) >= EPSILON) {
+        // Only set leader if difference is significant
+        leader = diff > 0 ? participantA.userId : participantB.userId;
+      }
+      // If difference < EPSILON, leader stays null (tie)
+    }
+
+    return {
+      fightId: fight.id,
+      status: fight.status,
+      durationMinutes: fight.durationMinutes,
+      stakeUsdc: fight.stakeUsdc,
+      startedAt: fight.startedAt,
+      endsAt: new Date(endTime),
+      participantA,
+      participantB,
+      leader,
+      timeRemainingMs,
+    };
+  }
+
+  /**
+   * Get current fight state (for initial load)
+   */
+  async getFightState(fightId: string): Promise<FightState | null> {
+    // Check cache first
+    if (this.activeFights.has(fightId)) {
+      return this.activeFights.get(fightId)!;
+    }
+
+    // Load from database
+    const fight = await prisma.fight.findUnique({
+      where: { id: fightId },
+      include: {
+        participants: {
+          include: { user: true },
+        },
+      },
+    });
+
+    if (!fight) return null;
+
+    return this.calculateFightState(fight);
+  }
+
+  /**
+   * Handle fight start
+   */
+  async onFightStarted(fightId: string) {
+    const state = await this.getFightState(fightId);
+
+    if (state) {
+      this.activeFights.set(fightId, state);
+
+      // Emit FIGHT_STARTED to all clients in the fight room
+      this.io.to(`fight:${fightId}`).emit(WS_EVENTS.FIGHT_STARTED, {
+        fightId,
+        startedAt: state.startedAt,
+        endsAt: state.endsAt,
+        participantA: state.participantA
+          ? { userId: state.participantA.userId, handle: state.participantA.handle }
+          : null,
+        participantB: state.participantB
+          ? { userId: state.participantB.userId, handle: state.participantB.handle }
+          : null,
+      });
+
+      logger.info(LOG_EVENTS.FIGHT_START, 'Fight started', { fightId });
+    }
+  }
+
+  /**
+   * Check for external trades for all participants in a fight
+   */
+  private async checkExternalTrades(fight: {
+    id: string;
+    startedAt: Date | null;
+    participants: Array<{ id: string; userId: string; externalTradesDetected: boolean }>;
+  }) {
+    if (!fight.startedAt) return;
+
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Starting external trades check', {
+      fightId: fight.id,
+      participantCount: fight.participants.length,
+      participants: fight.participants.map((p) => ({
+        id: p.id,
+        userId: p.userId,
+        alreadyDetected: p.externalTradesDetected,
+      })),
+    });
+
+    for (const participant of fight.participants) {
+      // Skip if already detected
+      if (participant.externalTradesDetected) {
+        logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Skipping participant - already detected', {
+          fightId: fight.id,
+          participantId: participant.id,
+          userId: participant.userId,
+        });
+        continue;
+      }
+
+      // Get Pacifica connection for this user
+      const connection = await prisma.pacificaConnection.findUnique({
+        where: { userId: participant.userId },
+        select: { accountAddress: true },
+      });
+
+      if (!connection) {
+        logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'No Pacifica connection for user', {
+          fightId: fight.id,
+          userId: participant.userId,
+        });
+        continue;
+      }
+
+      const result = await detectExternalTrades(
+        fight.id,
+        participant.userId,
+        connection.accountAddress,
+        fight.startedAt,
+        new Date()
+      );
+
+      if (result.detected) {
+        // Update database
+        await prisma.fightParticipant.update({
+          where: { id: participant.id },
+          data: {
+            externalTradesDetected: true,
+            externalTradeIds: result.externalTradeIds,
+          },
+        });
+
+        // Emit event to fight room
+        this.io.to(`fight:${fight.id}`).emit(WS_EVENTS.EXTERNAL_TRADES_DETECTED, {
+          fightId: fight.id,
+          userId: participant.userId,
+          count: result.externalTradeIds.length,
+          tradeIds: result.externalTradeIds,
+        });
+
+        logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected and recorded', {
+          fightId: fight.id,
+          userId: participant.userId,
+          count: result.externalTradeIds.length,
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle lead change
+   */
+  private onLeadChanged(fightId: string, newLeader: string | null, previousLeader: string | null) {
+    this.io.to(`fight:${fightId}`).emit(WS_EVENTS.LEAD_CHANGED, {
+      fightId,
+      newLeader,
+      previousLeader,
+      timestamp: Date.now(),
+    });
+
+    logger.info(LOG_EVENTS.FIGHT_LEAD_CHANGED, 'Lead changed', {
+      fightId,
+      newLeader,
+      previousLeader,
+    });
+  }
+
+  /**
+   * End a fight
+   */
+  private async endFight(fightId: string, state: FightState) {
+    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Ending fight', { fightId });
+
+    // Final check for external trades before ending
+    const fight = await prisma.fight.findUnique({
+      where: { id: fightId },
+      include: {
+        participants: {
+          select: { id: true, userId: true, externalTradesDetected: true },
+        },
+      },
+    });
+
+    if (fight && fight.startedAt) {
+      await this.checkExternalTrades({
+        id: fight.id,
+        startedAt: fight.startedAt,
+        participants: fight.participants,
+      });
+    }
+
+    // Determine winner
+    // Use tolerance for floating point comparison to avoid false wins due to precision errors
+    // 0.0001% difference is considered a draw (both displayed as same percentage)
+    const EPSILON = 0.0001;
+    let winnerId: string | null = null;
+    let isDraw = false;
+
+    if (state.participantA && state.participantB) {
+      const diff = state.participantA.pnlPercent - state.participantB.pnlPercent;
+      if (Math.abs(diff) < EPSILON) {
+        // Difference is negligible - it's a draw
+        isDraw = true;
+      } else if (diff > 0) {
+        winnerId = state.participantA.userId;
+      } else {
+        winnerId = state.participantB.userId;
+      }
+    }
+
+    // Update database
+    await prisma.fight.update({
+      where: { id: fightId },
+      data: {
+        status: FightStatus.FINISHED,
+        endedAt: new Date(),
+        winnerId,
+        isDraw,
+      },
+    });
+
+    // Update participant final scores
+    if (state.participantA) {
+      await prisma.fightParticipant.updateMany({
+        where: { fightId, userId: state.participantA.userId },
+        data: {
+          finalPnlPercent: state.participantA.pnlPercent,
+          finalScoreUsdc: state.participantA.scoreUsdc,
+          tradesCount: state.participantA.tradesCount,
+        },
+      });
+    }
+
+    if (state.participantB) {
+      await prisma.fightParticipant.updateMany({
+        where: { fightId, userId: state.participantB.userId },
+        data: {
+          finalPnlPercent: state.participantB.pnlPercent,
+          finalScoreUsdc: state.participantB.scoreUsdc,
+          tradesCount: state.participantB.tradesCount,
+        },
+      });
+    }
+
+    // Remove from active fights
+    this.activeFights.delete(fightId);
+
+    // Emit FIGHT_FINISHED
+    this.io.to(`fight:${fightId}`).emit(WS_EVENTS.FIGHT_FINISHED, {
+      fightId,
+      winnerId,
+      isDraw,
+      finalScores: {
+        participantA: state.participantA
+          ? {
+              userId: state.participantA.userId,
+              pnlPercent: state.participantA.pnlPercent,
+              scoreUsdc: state.participantA.scoreUsdc,
+            }
+          : null,
+        participantB: state.participantB
+          ? {
+              userId: state.participantB.userId,
+              pnlPercent: state.participantB.pnlPercent,
+              scoreUsdc: state.participantB.scoreUsdc,
+            }
+          : null,
+      },
+    });
+
+    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Fight finished', {
+      fightId,
+      winnerId,
+      isDraw,
+    });
+
+    // Broadcast to arena subscribers
+    this.broadcastArenaFightEnded(fightId);
+
+    // Emit updated platform stats
+    this.emitPlatformStats().catch(err => {
+      logger.error(LOG_EVENTS.API_ERROR, 'Failed to emit platform stats after fight end', err as Error);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Platform Stats
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch and emit platform stats to all connected clients
+   */
+  async emitPlatformStats() {
+    try {
+      const [volumeResult, fightsCount, fightVolumeResult, totalFeesResult, activeUsersCount, totalTradesCount] =
+        await Promise.all([
+          prisma.$queryRaw<[{ total_volume: number }]>`
+            SELECT COALESCE(SUM(amount * price), 0)::float as total_volume FROM trades
+          `,
+          prisma.fight.count({
+            where: { status: FightStatus.FINISHED },
+          }),
+          prisma.$queryRaw<[{ fight_volume: number }]>`
+            SELECT COALESCE(SUM(stake_usdc), 0)::float as fight_volume FROM fights
+          `,
+          prisma.$queryRaw<[{ total_fees: number }]>`
+            SELECT COALESCE(SUM(fee), 0)::float as total_fees FROM trades
+          `,
+          prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(DISTINCT user_id) as count FROM trades
+          `,
+          prisma.trade.count(),
+        ]);
+
+      const stats: PlatformStatsPayload = {
+        tradingVolume: volumeResult[0]?.total_volume || 0,
+        fightVolume: fightVolumeResult[0]?.fight_volume || 0,
+        fightsCompleted: fightsCount,
+        totalFees: totalFeesResult[0]?.total_fees || 0,
+        activeUsers: Number(activeUsersCount[0]?.count || 0),
+        totalTrades: totalTradesCount,
+        timestamp: Date.now(),
+      };
+
+      // Emit to all connected clients
+      this.io.emit(WS_EVENTS.PLATFORM_STATS, stats);
+
+      logger.info(LOG_EVENTS.WS_BROADCAST, 'Platform stats emitted', {
+        tradingVolume: stats.tradingVolume,
+        fightsCompleted: stats.fightsCompleted,
+      });
+    } catch (error) {
+      logger.error(LOG_EVENTS.API_ERROR, 'Failed to emit platform stats', error as Error);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Arena broadcast methods (for lobby real-time updates)
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Broadcast fight created event to arena subscribers
+   */
+  async broadcastArenaFightCreated(fightId: string) {
+    const fight = await this.loadFightForArena(fightId);
+    if (fight) {
+      this.io.to('arena').emit(WS_EVENTS.ARENA_FIGHT_CREATED, this.formatFightForArena(fight));
+      logger.info(LOG_EVENTS.WS_SUBSCRIBE, 'Arena: Fight created broadcast', { fightId });
+    }
+  }
+
+  /**
+   * Broadcast fight updated event to arena subscribers
+   */
+  async broadcastArenaFightUpdated(fightId: string) {
+    const fight = await this.loadFightForArena(fightId);
+    if (fight) {
+      this.io.to('arena').emit(WS_EVENTS.ARENA_FIGHT_UPDATED, this.formatFightForArena(fight));
+      logger.info(LOG_EVENTS.WS_SUBSCRIBE, 'Arena: Fight updated broadcast', { fightId });
+    }
+  }
+
+  /**
+   * Broadcast fight started event to arena subscribers
+   */
+  async broadcastArenaFightStarted(fightId: string) {
+    const fight = await this.loadFightForArena(fightId);
+    if (fight) {
+      this.io.to('arena').emit(WS_EVENTS.ARENA_FIGHT_STARTED, this.formatFightForArena(fight));
+      logger.info(LOG_EVENTS.WS_SUBSCRIBE, 'Arena: Fight started broadcast', { fightId });
+    }
+  }
+
+  /**
+   * Broadcast fight ended event to arena subscribers
+   */
+  async broadcastArenaFightEnded(fightId: string) {
+    const fight = await this.loadFightForArena(fightId);
+    if (fight) {
+      this.io.to('arena').emit(WS_EVENTS.ARENA_FIGHT_ENDED, this.formatFightForArena(fight));
+      logger.info(LOG_EVENTS.WS_SUBSCRIBE, 'Arena: Fight ended broadcast', { fightId });
+    }
+  }
+
+  /**
+   * Broadcast fight deleted event to arena subscribers
+   */
+  broadcastArenaFightDeleted(fightId: string) {
+    this.io.to('arena').emit(WS_EVENTS.ARENA_FIGHT_DELETED, { fightId });
+    logger.info(LOG_EVENTS.WS_SUBSCRIBE, 'Arena: Fight deleted broadcast', { fightId });
+  }
+
+  /**
+   * Load fight data for arena broadcasting
+   */
+  private async loadFightForArena(fightId: string): Promise<FightWithParticipants | null> {
+    return prisma.fight.findUnique({
+      where: { id: fightId },
+      include: {
+        creator: true,
+        participants: {
+          include: { user: true },
+        },
+      },
+    });
+  }
+
+  /**
+   * Format fight data for arena events
+   */
+  private formatFightForArena(fight: FightWithParticipants) {
+    return {
+      id: fight.id,
+      status: fight.status,
+      durationMinutes: fight.durationMinutes,
+      stakeUsdc: fight.stakeUsdc,
+      createdAt: fight.createdAt,
+      startedAt: fight.startedAt,
+      endedAt: fight.endedAt,
+      winnerId: fight.winnerId,
+      isDraw: fight.isDraw,
+      creator: fight.creator ? {
+        id: fight.creator.id,
+        handle: fight.creator.handle,
+        avatarUrl: fight.creator.avatarUrl,
+      } : null,
+      participants: fight.participants.map(p => ({
+        id: p.id,
+        userId: p.userId,
+        slot: p.slot,
+        finalPnlPercent: p.finalPnlPercent,
+        finalScoreUsdc: p.finalScoreUsdc,
+        tradesCount: p.tradesCount,
+        user: {
+          id: p.user.id,
+          handle: p.user.handle,
+          avatarUrl: p.user.avatarUrl,
+        },
+      })),
+    };
+  }
+}

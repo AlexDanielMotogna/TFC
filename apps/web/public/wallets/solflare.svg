@@ -1,0 +1,10 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="128" height="128" rx="26" fill="#181818"/>
+  <path d="M89.8 38.4C88.2 36.8 85.8 36.8 84.2 38.4L72.4 50.2C71.2 51.4 69.6 52 67.8 52H44C41.8 52 40 53.8 40 56V72C40 74.2 41.8 76 44 76H67.8C69.6 76 71.2 76.6 72.4 77.8L84.2 89.6C85.8 91.2 88.2 91.2 89.8 89.6L98.6 80.8C100.2 79.2 100.2 76.8 98.6 75.2L90.2 66.8C89 65.6 89 63.6 90.2 62.4L98.6 54C100.2 52.4 100.2 50 98.6 48.4L89.8 38.4Z" fill="url(#solflare_grad)"/>
+  <defs>
+    <linearGradient id="solflare_grad" x1="40" y1="64" x2="100" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCC00F"/>
+      <stop offset="1" stop-color="#FC7C0F"/>
+    </linearGradient>
+  </defs>
+</svg>

@@ -1,0 +1,345 @@
+// Trading Fight Club - Database Schema
+// @see Master-doc.md Section 6
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────────────────────
+model User {
+  id            String   @id @default(uuid())
+  handle        String   @unique
+  walletAddress String?  @unique @map("wallet_address")
+  avatarUrl     String?  @map("avatar_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  pacificaConnection   PacificaConnection?
+  fightParticipants    FightParticipant[]
+  createdFights        Fight[]                @relation("FightCreator")
+  leaderboardSnapshots LeaderboardSnapshot[]
+  trades               Trade[]
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PACIFICA CONNECTION (server-side only)
+// @see Master-doc.md Section 5.1: Never expose keys to frontend
+// ─────────────────────────────────────────────────────────────
+model PacificaConnection {
+  id String @id @default(uuid())
+
+  userId String @unique @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Pacifica account (public address) - safe to log
+  accountAddress String @unique @map("account_address")
+
+  // Encrypted private key stored in vault/secret manager reference
+  // This field stores the vault path/reference, NOT the actual key
+  vaultKeyReference String @map("vault_key_reference")
+
+  // Builder code approval status
+  builderCodeApproved Boolean @default(false) @map("builder_code_approved")
+
+  isActive    Boolean  @default(true) @map("is_active")
+  connectedAt DateTime @default(now()) @map("connected_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("pacifica_connections")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIGHTS
+// @see Master-doc.md Section 2: Format, Duration, Stake
+// ─────────────────────────────────────────────────────────────
+enum FightStatus {
+  WAITING   // Created, waiting for opponent
+  LIVE      // Both participants joined, fight in progress
+  FINISHED  // Duration elapsed, winner determined
+  CANCELLED // Stale or manually cancelled
+}
+
+model Fight {
+  id String @id @default(uuid())
+
+  // Creator reference
+  creatorId String @map("creator_id")
+  creator   User   @relation("FightCreator", fields: [creatorId], references: [id])
+
+  // Fight configuration
+  // @see Master-doc.md Section 2.2: 5, 15, 30, 60, 120, 240 minutes
+  durationMinutes Int @map("duration_minutes")
+
+  // @see Master-doc.md Section 2.3: 100, 250, 500, 1000, 2500, 5000 USDC
+  stakeUsdc Int @map("stake_usdc")
+
+  // Lifecycle
+  status    FightStatus @default(WAITING)
+  createdAt DateTime    @default(now()) @map("created_at")
+  startedAt DateTime?   @map("started_at") // Set when LIVE
+  endedAt   DateTime?   @map("ended_at") // Set when FINISHED
+
+  // Result (set when FINISHED)
+  winnerId String? @map("winner_id")
+  isDraw   Boolean @default(false) @map("is_draw")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  participants FightParticipant[]
+  trades       FightTrade[]
+  snapshots    FightSnapshot[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("fights")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIGHT PARTICIPANTS
+// ─────────────────────────────────────────────────────────────
+model FightParticipant {
+  id String @id @default(uuid())
+
+  fightId String @map("fight_id")
+  fight   Fight  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Slot: 'A' or 'B' (first to join is A, second is B)
+  slot String
+
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  // Snapshot of positions when fight starts
+  // Used to exclude pre-existing positions from PnL calculation
+  // Format: [{ symbol: "BTC", amount: "0.001", entry_price: "90000" }, ...]
+  initialPositions Json? @map("initial_positions")
+
+  // Maximum capital exposure used during the fight (never decreases)
+  // Used to enforce stake limit - once capital is used, it can't be reused
+  maxExposureUsed Decimal  @default(0) @map("max_exposure_used") @db.Decimal(18, 6)
+
+  // Final results (set when FINISHED)
+  finalPnlPercent Decimal? @map("final_pnl_percent") @db.Decimal(18, 8)
+  finalScoreUsdc  Decimal? @map("final_score_usdc") @db.Decimal(18, 6)
+  tradesCount     Int      @default(0) @map("trades_count")
+
+  // External trades detection (trades made outside TradeFightClub during fight)
+  externalTradesDetected Boolean  @default(false) @map("external_trades_detected")
+  externalTradeIds       String[] @default([]) @map("external_trade_ids")
+
+  @@unique([fightId, userId])
+  @@unique([fightId, slot])
+  @@map("fight_participants")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIGHT TRADES
+// Fills during fight window
+// @see Master-doc.md Section 2.4: same fill can contribute to multiple fights
+// ─────────────────────────────────────────────────────────────
+model FightTrade {
+  id String @id @default(uuid())
+
+  fightId String @map("fight_id")
+  fight   Fight  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+
+  participantUserId String @map("participant_user_id")
+
+  // Pacifica fill data
+  pacificaHistoryId BigInt  @map("pacifica_history_id") // history_id from Pacifica
+  pacificaOrderId   BigInt? @map("pacifica_order_id")
+
+  symbol   String
+  side     String // BUY, SELL
+  amount   Decimal @db.Decimal(18, 8)
+  price    Decimal @db.Decimal(18, 8)
+  fee      Decimal @db.Decimal(18, 8)
+  pnl      Decimal? @db.Decimal(18, 8) // Realized PnL from this trade
+  leverage Int?     // Leverage used for this trade (from frontend)
+
+  executedAt DateTime @map("executed_at") // Pacifica's created_at
+  recordedAt DateTime @default(now()) @map("recorded_at")
+
+  @@unique([fightId, pacificaHistoryId])
+  @@index([fightId, participantUserId])
+  @@map("fight_trades")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ALL TRADES (for platform metrics)
+// Stores ALL trades executed through TFC, regardless of fight status
+// Used for: total volume, fee revenue, user activity metrics
+// ─────────────────────────────────────────────────────────────
+model Trade {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Pacifica fill data
+  pacificaHistoryId BigInt  @unique @map("pacifica_history_id")
+  pacificaOrderId   BigInt? @map("pacifica_order_id")
+
+  symbol   String
+  side     String  // BUY, SELL
+  amount   Decimal @db.Decimal(18, 8)
+  price    Decimal @db.Decimal(18, 8)
+  fee      Decimal @db.Decimal(18, 8)
+  pnl      Decimal? @db.Decimal(18, 8)
+  leverage Int?
+
+  // Optional fight reference (if trade was during a fight)
+  fightId String? @map("fight_id")
+
+  executedAt DateTime @map("executed_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([executedAt])
+  @@index([symbol])
+  @@map("trades")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIGHT SNAPSHOTS (for PnL timeline)
+// @see Master-doc.md Section 6
+// ─────────────────────────────────────────────────────────────
+model FightSnapshot {
+  id String @id @default(uuid())
+
+  fightId String @map("fight_id")
+  fight   Fight  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+
+  timestamp DateTime @default(now())
+
+  // Participant A scores
+  participantAUserId      String  @map("participant_a_user_id")
+  participantAPnlPercent  Decimal @map("participant_a_pnl_percent") @db.Decimal(18, 8)
+  participantAScoreUsdc   Decimal @map("participant_a_score_usdc") @db.Decimal(18, 6)
+  participantATradesCount Int     @map("participant_a_trades_count")
+
+  // Participant B scores
+  participantBUserId      String  @map("participant_b_user_id")
+  participantBPnlPercent  Decimal @map("participant_b_pnl_percent") @db.Decimal(18, 8)
+  participantBScoreUsdc   Decimal @map("participant_b_score_usdc") @db.Decimal(18, 6)
+  participantBTradesCount Int     @map("participant_b_trades_count")
+
+  // Leader at this point
+  leaderId String? @map("leader_id")
+
+  @@index([fightId, timestamp])
+  @@map("fight_snapshots")
+}
+
+// ─────────────────────────────────────────────────────────────
+// LEADERBOARD SNAPSHOT
+// @see Master-doc.md Section 6, 11
+// Materialized view refreshed by job
+// ─────────────────────────────────────────────────────────────
+model LeaderboardSnapshot {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  range String // 'weekly' | 'all_time'
+
+  // Aggregated stats from FINISHED fights
+  totalFights   Int     @default(0) @map("total_fights")
+  wins          Int     @default(0)
+  losses        Int     @default(0)
+  draws         Int     @default(0)
+  totalPnlUsdc  Decimal @default(0) @map("total_pnl_usdc") @db.Decimal(18, 6)
+  avgPnlPercent Decimal @default(0) @map("avg_pnl_percent") @db.Decimal(18, 8)
+
+  rank Int?
+
+  calculatedAt DateTime @default(now()) @map("calculated_at")
+
+  @@unique([userId, range])
+  @@index([range, rank])
+  @@map("leaderboard_snapshots")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WEEKLY PRIZE POOL
+// Tracks weekly fee collection and prize distribution
+// 1st: 5%, 2nd: 3%, 3rd: 2% of total weekly fees
+// ─────────────────────────────────────────────────────────────
+model WeeklyPrizePool {
+  id String @id @default(uuid())
+
+  // Week boundaries (Sunday 00:00:00 UTC to Saturday 23:59:59 UTC)
+  weekStartDate DateTime @map("week_start_date")
+  weekEndDate   DateTime @map("week_end_date")
+
+  // Fee totals for the week
+  totalFeesCollected Decimal @default(0) @map("total_fees_collected") @db.Decimal(18, 6)
+  totalPrizePool     Decimal @default(0) @map("total_prize_pool") @db.Decimal(18, 6) // 10% of fees
+
+  // Distribution status
+  isFinalized   Boolean   @default(false) @map("is_finalized") // Week ended, prizes calculated
+  isDistributed Boolean   @default(false) @map("is_distributed") // Prizes paid out
+  finalizedAt   DateTime? @map("finalized_at")
+  distributedAt DateTime? @map("distributed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  prizes WeeklyPrize[]
+
+  @@unique([weekStartDate])
+  @@index([isFinalized, isDistributed])
+  @@map("weekly_prize_pools")
+}
+
+enum PrizeStatus {
+  PENDING     // Prize calculated but week not ended
+  EARNED      // Week ended, prize confirmed
+  DISTRIBUTED // Prize paid out to user
+}
+
+model WeeklyPrize {
+  id String @id @default(uuid())
+
+  prizePoolId String          @map("prize_pool_id")
+  prizePool   WeeklyPrizePool @relation(fields: [prizePoolId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+
+  // Position (1, 2, or 3)
+  rank Int
+
+  // Prize details
+  prizePercentage Decimal @map("prize_percentage") @db.Decimal(5, 2) // 5.00, 3.00, 2.00
+  prizeAmount     Decimal @map("prize_amount") @db.Decimal(18, 6)
+
+  // User stats at time of winning (for display)
+  totalPnlUsdc  Decimal @map("total_pnl_usdc") @db.Decimal(18, 6)
+  totalFights   Int     @map("total_fights")
+  wins          Int
+  userHandle    String  @map("user_handle")
+
+  status        PrizeStatus @default(PENDING)
+  distributedAt DateTime?   @map("distributed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([prizePoolId, rank])
+  @@unique([prizePoolId, userId])
+  @@index([userId])
+  @@index([status])
+  @@map("weekly_prizes")
+}

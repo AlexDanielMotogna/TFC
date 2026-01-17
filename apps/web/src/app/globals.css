@@ -1,0 +1,942 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&family=Roboto+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================================
+   Professional Trading Platform Theme
+   Clean, neutral, institutional-grade design
+   =========================================================== */
+
+:root {
+  --background: #0c0c0e;
+  --foreground: #f4f4f5;
+  --surface: #111113;
+  --surface-elevated: #18181b;
+  --border: #27272a;
+  --muted: #71717a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ===========================================================
+   Scrollbar - Minimal
+   =========================================================== */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+/* ===========================================================
+   Card Styles
+   =========================================================== */
+
+@layer components {
+  .card {
+    @apply bg-surface-850 border border-surface-700 rounded-md;
+  }
+
+  .card-elevated {
+    @apply bg-surface-800 border border-surface-700 rounded-md shadow-card;
+  }
+
+  .card-interactive {
+    @apply card transition-colors duration-150 cursor-pointer;
+  }
+
+  .card-interactive:hover {
+    @apply bg-surface-800 border-surface-600;
+  }
+}
+
+/* ===========================================================
+   Button Styles
+   =========================================================== */
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 font-medium text-sm rounded transition-colors duration-150;
+    @apply disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-orange-500 text-white;
+    @apply hover:bg-orange-600;
+  }
+
+  .btn-secondary {
+    @apply btn bg-surface-700 text-zinc-200 border border-surface-600;
+    @apply hover:bg-surface-600;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-surface-400;
+    @apply hover:text-zinc-200 hover:bg-surface-800;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-500 text-white;
+    @apply hover:bg-red-600;
+  }
+
+  .btn-success {
+    @apply btn bg-green-500 text-white;
+    @apply hover:bg-green-600;
+  }
+
+  .btn-lg {
+    @apply px-6 py-3 text-base;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+}
+
+/* ===========================================================
+   Badge Styles
+   =========================================================== */
+
+@layer components {
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-medium rounded;
+  }
+
+  .badge-live {
+    @apply badge text-red-500;
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+
+  .badge-waiting {
+    @apply badge text-amber-500;
+    background-color: rgba(245, 158, 11, 0.1);
+  }
+
+  .badge-finished {
+    @apply badge bg-surface-700 text-surface-400;
+  }
+
+  .badge-win {
+    @apply badge text-green-500;
+    background-color: rgba(34, 197, 94, 0.1);
+  }
+
+  .badge-loss {
+    @apply badge text-red-500;
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+}
+
+/* ===========================================================
+   Input Styles
+   =========================================================== */
+
+@layer components {
+  .input {
+    @apply w-full bg-surface-900 border border-surface-700 rounded px-3 py-2 text-zinc-100;
+    @apply placeholder:text-surface-500 transition-colors duration-150;
+    @apply focus:outline-none focus:border-surface-500;
+  }
+
+  .select {
+    @apply input appearance-none cursor-pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2371717a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ===========================================================
+   Table Styles
+   =========================================================== */
+
+@layer components {
+  .table-pro {
+    @apply w-full text-sm;
+  }
+
+  .table-pro thead {
+    @apply bg-surface-800;
+  }
+
+  .table-pro th {
+    @apply px-3 py-2 text-left text-xs font-medium text-surface-400 uppercase tracking-wide;
+  }
+
+  .table-pro tbody tr {
+    @apply border-t border-surface-800;
+  }
+
+  .table-pro tbody tr:hover {
+    @apply bg-surface-850;
+  }
+
+  .table-pro td {
+    @apply px-3 py-2.5;
+  }
+}
+
+/* ===========================================================
+   PnL Colors
+   =========================================================== */
+
+.text-positive {
+  @apply text-green-500;
+}
+
+.text-negative {
+  @apply text-red-500;
+}
+
+.pnl-positive {
+  @apply text-green-500;
+}
+
+.pnl-negative {
+  @apply text-red-500;
+}
+
+.bg-positive-subtle {
+  background-color: rgba(34, 197, 94, 0.1);
+}
+
+.bg-negative-subtle {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* ===========================================================
+   Wallet Adapter Overrides - Pacifica Style
+   =========================================================== */
+
+/* Header Connect Button */
+.wallet-adapter-button {
+  background-color: transparent !important;
+  border: 1px solid #3f3f46 !important;
+  border-radius: 8px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  padding: 8px 16px !important;
+  color: #f4f4f5 !important;
+  transition: all 150ms !important;
+  height: auto !important;
+  line-height: 1.5 !important;
+}
+
+.wallet-adapter-button:hover {
+  background-color: #27272a !important;
+  border-color: #52525b !important;
+}
+
+/* Modal Background - Full screen with blur */
+.wallet-adapter-modal {
+  background: rgba(0, 0, 0, 0.5) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.wallet-adapter-modal-overlay {
+  background: transparent !important;
+}
+
+/* Modal Container - Centers the wrapper */
+.wallet-adapter-modal-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 20px !important;
+}
+
+/* Modal Wrapper - The actual modal box */
+.wallet-adapter-modal-wrapper {
+  background: #1f1f23 !important;
+  border: none !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5) !important;
+  max-width: 380px !important;
+  width: 100% !important;
+  padding: 0 !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Modal Title */
+.wallet-adapter-modal-title {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  text-align: center !important;
+  padding: 24px 48px 20px !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* Close Button - Top right */
+.wallet-adapter-modal-button-close {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  background: transparent !important;
+  border: none !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  transition: background 150ms !important;
+  z-index: 10 !important;
+}
+
+.wallet-adapter-modal-button-close:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.wallet-adapter-modal-button-close svg {
+  width: 14px !important;
+  height: 14px !important;
+  fill: #71717a !important;
+}
+
+/* Wallet List */
+.wallet-adapter-modal-list {
+  padding: 0 16px 16px !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.wallet-adapter-modal-list li {
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+/* Individual Wallet Buttons */
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 12px !important;
+  width: 100% !important;
+  padding: 14px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+  transition: background 150ms !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  height: auto !important;
+  line-height: 1.4 !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Wallet Icons */
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon,
+.wallet-adapter-modal-list .wallet-adapter-button-start-icon img {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 10px !important;
+  margin-right: 14px !important;
+}
+
+/* Detected text - Style as green badge */
+.wallet-adapter-modal-list .wallet-adapter-button span {
+  margin-left: auto !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  opacity: 1 !important;
+  background: rgba(34, 197, 94, 0.15) !important;
+  color: #22c55e !important;
+  padding: 4px 10px !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* More options button */
+.wallet-adapter-modal-list-more {
+  display: none !important;
+}
+
+/* Collapse Button */
+.wallet-adapter-modal-collapse-button {
+  display: none !important;
+}
+
+/* Middle section */
+.wallet-adapter-modal-middle {
+  display: none !important;
+}
+
+/* ===========================================================
+   Avatar
+   =========================================================== */
+
+.avatar {
+  @apply rounded-full bg-surface-700;
+  @apply flex items-center justify-center font-medium text-zinc-300;
+}
+
+/* ===========================================================
+   Modal
+   =========================================================== */
+
+.modal-overlay {
+  @apply fixed inset-0 bg-black/60;
+  @apply flex items-center justify-center z-50;
+}
+
+.modal-content {
+  @apply bg-surface-850 border border-surface-700 rounded-lg;
+  @apply shadow-elevated max-w-md w-full mx-4;
+}
+
+/* ===========================================================
+   Spinner
+   =========================================================== */
+
+.spinner {
+  @apply w-5 h-5 rounded-full animate-spin;
+  border-width: 2px;
+  border-color: #27272a;
+  border-top-color: #71717a;
+}
+
+/* ===========================================================
+   Navigation
+   =========================================================== */
+
+.nav-link {
+  @apply text-surface-400 hover:text-zinc-100 transition-colors duration-150 text-sm font-medium;
+}
+
+.nav-link.active {
+  @apply text-zinc-100;
+}
+
+/* ===========================================================
+   Utility Classes
+   =========================================================== */
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-mono {
+  font-family: 'SF Mono', Monaco, 'Inconsolata', 'Roboto Mono', monospace;
+}
+
+/* ===========================================================
+   Animations - Minimal
+   =========================================================== */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 150ms ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 200ms ease-out;
+}
+
+/* ===========================================================
+   Range Slider
+   =========================================================== */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  @apply h-2 rounded-full bg-surface-700;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  @apply w-4 h-4 rounded-full bg-primary-500 border-2 border-surface-800;
+  margin-top: -4px;
+  transition: transform 150ms ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+input[type="range"]::-moz-range-track {
+  @apply h-2 rounded-full bg-surface-700;
+}
+
+input[type="range"]::-moz-range-thumb {
+  @apply w-4 h-4 rounded-full bg-primary-500 border-2 border-surface-800;
+  border: none;
+}
+
+/* ===========================================================
+   CRYPT-Style Landing Page Utilities
+   =========================================================== */
+
+/* Gradient Text */
+.text-gradient-primary {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-primary-400 via-primary-500 to-violet-500;
+}
+
+.text-gradient-gold {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-500;
+}
+
+.text-gradient-orange {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-500;
+}
+
+/* Glass Morphism Cards */
+.glass-card {
+  @apply bg-surface-850/80 backdrop-blur-xl border border-surface-700/50;
+  @apply hover:border-surface-600/50 transition-all duration-300;
+}
+
+.glass-card-dark {
+  @apply bg-surface-900/90 backdrop-blur-xl border border-surface-800/50;
+}
+
+/* Glow Effects */
+.glow-border {
+  position: relative;
+}
+
+.glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(45deg, rgba(249, 115, 22, 0.3), rgba(245, 158, 11, 0.3));
+  filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.glow-border:hover::before {
+  opacity: 1;
+}
+
+/* Animated Gradient Border */
+.gradient-border {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f97316, #f59e0b, #f97316);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+/* CTA Button Styles */
+.btn-glow-primary {
+  @apply relative px-6 py-3 font-semibold rounded-lg transition-all duration-300;
+  @apply bg-gradient-to-r from-orange-500 to-amber-500 text-white;
+}
+
+.btn-glow-primary:hover {
+  @apply from-orange-400 to-amber-400;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+}
+
+.btn-glow-orange {
+  @apply relative px-6 py-3 font-semibold rounded-lg transition-all duration-300;
+  @apply bg-gradient-to-r from-orange-500 to-amber-500 text-white;
+}
+
+.btn-glow-orange:hover {
+  @apply from-orange-400 to-amber-400;
+  box-shadow: 0 0 20px rgba(249, 115, 22, 0.4);
+}
+
+.btn-outline-glow {
+  @apply relative px-6 py-3 font-semibold rounded-lg transition-all duration-300;
+  @apply bg-transparent border border-surface-600 text-white;
+  @apply hover:border-orange-500 hover:text-orange-400;
+}
+
+/* Feature Card */
+.feature-card {
+  @apply p-6 rounded-xl bg-surface-850 border border-surface-700;
+  @apply hover:border-surface-600 hover:bg-surface-800 transition-all duration-300;
+}
+
+.feature-card-glow {
+  @apply feature-card;
+}
+
+.feature-card-glow:hover {
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
+}
+
+/* Stats Card */
+.stats-card {
+  @apply p-6 rounded-xl bg-surface-850/50 border border-surface-700/50;
+  @apply backdrop-blur-sm;
+}
+
+/* Price Ticker Card */
+.ticker-card {
+  @apply p-4 rounded-xl bg-surface-850 border border-surface-700;
+  @apply hover:border-surface-600 transition-all duration-300;
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+  @apply absolute top-full left-0 mt-2 py-2 min-w-48;
+  @apply bg-surface-850 border border-surface-700 rounded-xl shadow-elevated;
+  @apply opacity-0 invisible translate-y-2 transition-all duration-200;
+}
+
+.dropdown-trigger:hover .dropdown-menu,
+.dropdown-menu:hover {
+  @apply opacity-100 visible translate-y-0;
+}
+
+.dropdown-item {
+  @apply block px-4 py-2 text-sm text-surface-300;
+  @apply hover:bg-surface-800 hover:text-white transition-colors;
+}
+
+/* FAQ Accordion */
+.faq-item {
+  @apply border-b border-surface-800;
+}
+
+.faq-trigger {
+  @apply w-full flex items-center justify-between py-5 text-left;
+  @apply text-white font-medium hover:text-orange-400 transition-colors;
+}
+
+.faq-content {
+  @apply overflow-hidden transition-all duration-300;
+}
+
+.faq-content[data-open="false"] {
+  max-height: 0;
+  opacity: 0;
+}
+
+.faq-content[data-open="true"] {
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* Newsletter Input */
+.newsletter-input {
+  @apply w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-3;
+  @apply text-white placeholder:text-surface-500;
+  @apply focus:outline-none focus:border-orange-500 transition-colors;
+}
+
+/* Blog Card */
+.blog-card {
+  @apply rounded-xl overflow-hidden bg-surface-850 border border-surface-700;
+  @apply hover:border-surface-600 transition-all duration-300;
+}
+
+.blog-card-image {
+  @apply w-full h-48 object-cover;
+}
+
+/* Hero Section Background */
+.hero-bg {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(249, 115, 22, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(245, 158, 11, 0.08), transparent);
+}
+
+/* Trading Chart Container */
+.chart-container {
+  @apply relative rounded-xl overflow-hidden;
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.05) 0%, transparent 100%);
+}
+
+/* Wallet/Crypto Logo Grid */
+.logo-grid {
+  @apply flex flex-wrap items-center gap-4;
+}
+
+.logo-badge {
+  @apply flex items-center gap-2 px-3 py-2 rounded-full;
+  @apply bg-surface-800 border border-surface-700;
+  @apply text-sm text-surface-300;
+}
+
+/* Trust Badge */
+.trust-badge {
+  @apply inline-flex items-center gap-2 px-4 py-2 rounded-full;
+  @apply bg-surface-800/50 border border-surface-700/50;
+  @apply text-sm text-surface-400;
+}
+
+/* Section Headers */
+.section-badge {
+  @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full;
+  @apply border border-surface-700 bg-surface-800/50;
+  @apply text-xs font-medium text-surface-300;
+}
+
+.section-title {
+  @apply text-3xl lg:text-4xl font-bold tracking-tight text-white;
+}
+
+.section-subtitle {
+  @apply text-surface-400 max-w-2xl;
+}
+
+/* ===========================================================
+   VS Arena Animations
+   =========================================================== */
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 10px rgba(249, 115, 22, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.8));
+  }
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes spark-1 {
+  0%, 100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-5px, -10px) scale(1);
+  }
+}
+
+@keyframes spark-2 {
+  0%, 100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translate(8px, -8px) scale(1.2);
+  }
+}
+
+@keyframes spark-3 {
+  0%, 100% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(0, 10px) scale(0.8);
+  }
+}
+
+@keyframes beam-left {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0%);
+    opacity: 1;
+  }
+}
+
+@keyframes beam-right {
+  0% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(0%);
+    opacity: 1;
+  }
+}
+
+@keyframes float-up {
+  0% {
+    opacity: 0;
+    transform: translateY(0) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-10px) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-40px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-60px) scale(0.8);
+  }
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.8s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.8s ease-out forwards;
+  animation-delay: 0.2s;
+  opacity: 0;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 3s ease infinite;
+}
+
+.animate-spark-1 {
+  animation: spark-1 2s ease-in-out infinite;
+}
+
+.animate-spark-2 {
+  animation: spark-2 2s ease-in-out infinite;
+  animation-delay: 0.3s;
+}
+
+.animate-spark-3 {
+  animation: spark-3 2s ease-in-out infinite;
+  animation-delay: 0.6s;
+}
+
+.animate-beam-left {
+  animation: beam-left 2s ease-out forwards;
+}
+
+.animate-beam-right {
+  animation: beam-right 2s ease-out forwards;
+  animation-delay: 0.1s;
+}
+
+.animate-float-up {
+  animation: float-up 3s ease-out forwards;
+}

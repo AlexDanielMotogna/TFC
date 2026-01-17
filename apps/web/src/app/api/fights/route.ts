@@ -1,0 +1,195 @@
+/**
+ * Fights endpoints
+ * GET /api/fights - List fights
+ * POST /api/fights - Create fight
+ */
+import { withAuth } from '@/lib/server/auth';
+import { prisma } from '@/lib/server/db';
+import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { getPositions } from '@/lib/server/pacifica';
+import { FeatureFlags, StakeLimits } from '@/lib/server/feature-flags';
+
+// Realtime server notification helper
+const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
+async function notifyRealtime(endpoint: string, fightId: string) {
+  try {
+    await fetch(`${REALTIME_URL}/internal/arena/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Key': INTERNAL_API_KEY,
+      },
+      body: JSON.stringify({ fightId }),
+    });
+  } catch (error) {
+    console.error(`[notifyRealtime] Failed to notify realtime: ${endpoint}`, { fightId, error });
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') as 'WAITING' | 'LIVE' | 'FINISHED' | null;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '20', 10);
+
+    const where = status ? { status } : {};
+
+    const [fights, total] = await Promise.all([
+      prisma.fight.findMany({
+        where,
+        include: {
+          creator: {
+            select: {
+              id: true,
+              handle: true,
+              avatarUrl: true,
+            },
+          },
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  handle: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.fight.count({ where }),
+    ]);
+
+    return Response.json({
+      success: true,
+      data: fights,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    return withAuth(request, async (user) => {
+      const body = await request.json();
+      const { durationMinutes, stakeUsdc } = body;
+
+      if (!durationMinutes || !stakeUsdc) {
+        throw new BadRequestError('durationMinutes and stakeUsdc are required');
+      }
+
+      // Feature flag: Check if fight creation is enabled
+      if (!FeatureFlags.isPoolCreationEnabled()) {
+        throw new BadRequestError('Fight creation is temporarily disabled');
+      }
+
+      // Stake limit validation
+      if (stakeUsdc > StakeLimits.maxPerFight()) {
+        throw new BadRequestError(`Maximum stake per fight is $${StakeLimits.maxPerFight()} USDC`);
+      }
+
+      // Check if user has active Pacifica connection
+      const connection = await prisma.pacificaConnection.findUnique({
+        where: { userId: user.userId },
+        select: { isActive: true, accountAddress: true },
+      });
+
+      if (!connection?.isActive) {
+        throw new BadRequestError('Active Pacifica connection required');
+      }
+
+      // Snapshot creator's current positions from Pacifica
+      // This is critical to exclude pre-fight positions from PnL calculation
+      // IMPORTANT: We save 'side' to distinguish LONG (bid) vs SHORT (ask) positions
+      let creatorPositions: Array<{ symbol: string; amount: string; entry_price: string; side: string }> = [];
+      if (connection.accountAddress) {
+        try {
+          const positions = await getPositions(connection.accountAddress);
+          creatorPositions = positions.map((p) => ({
+            symbol: p.symbol,
+            amount: p.amount,
+            entry_price: p.entry_price,
+            side: p.side, // 'bid' = LONG, 'ask' = SHORT
+          }));
+          console.log(`[CreateFight] Creator ${user.userId} has ${creatorPositions.length} open positions:`,
+            creatorPositions.map(p => `${p.symbol}: ${p.amount}`).join(', ') || 'none');
+        } catch (err) {
+          console.error(`[CreateFight] Failed to get creator positions for ${user.userId}:`, err);
+          // Continue with empty positions - better to log than fail silently
+        }
+      }
+
+      // Create fight and creator participant in transaction
+      const fight = await prisma.$transaction(async (tx) => {
+        const newFight = await tx.fight.create({
+          data: {
+            creatorId: user.userId,
+            durationMinutes,
+            stakeUsdc,
+            status: 'WAITING',
+          },
+        });
+
+        await tx.fightParticipant.create({
+          data: {
+            fightId: newFight.id,
+            userId: user.userId,
+            slot: 'A',
+            initialPositions: creatorPositions, // Save positions snapshot at fight creation
+          },
+        });
+
+        return tx.fight.findUnique({
+          where: { id: newFight.id },
+          include: {
+            creator: {
+              select: {
+                id: true,
+                handle: true,
+                avatarUrl: true,
+              },
+            },
+            participants: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    handle: true,
+                    avatarUrl: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+      });
+
+      console.log(`[CreateFight] Fight ${fight?.id} created by user ${user.userId}`);
+
+      // Notify realtime server for arena updates
+      if (fight?.id) {
+        notifyRealtime('fight-created', fight.id);
+      }
+
+      return fight;
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
