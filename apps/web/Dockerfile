@@ -41,9 +41,9 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Copy next module directly from builder (avoids npm resolution issues)
-COPY --from=builder /app/node_modules/next ./apps/web/node_modules/next
-COPY --from=builder /app/node_modules/@next ./apps/web/node_modules/@next
+# Copy next module from workspace node_modules
+COPY --from=builder /app/apps/web/node_modules/next ./apps/web/node_modules/next
+COPY --from=builder /app/apps/web/node_modules/@next ./apps/web/node_modules/@next
 
 USER nextjs
 
