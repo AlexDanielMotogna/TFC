@@ -57,12 +57,12 @@ export async function POST(
       }
 
       // Validate user is not already in fight
-      if (fight.participants.some((p) => p.userId === user.userId)) {
+      if (fight.participants.some((p: any) => p.userId === user.userId)) {
         throw new BadRequestError('You are already in this fight');
       }
 
       // Validate slot B is available
-      if (fight.participants.some((p) => p.slot === 'B')) {
+      if (fight.participants.some((p: any) => p.slot === 'B')) {
         throw new BadRequestError('Fight is already full');
       }
 
@@ -108,7 +108,7 @@ export async function POST(
       // Simplify position data for storage
       // IMPORTANT: Include 'side' to distinguish LONG (bid) vs SHORT (ask) positions
       const simplifyPositions = (positions: any[]) =>
-        positions.map((p) => ({
+        positions.map((p: any) => ({
           symbol: p.symbol,
           amount: p.amount,
           entry_price: p.entry_price,
