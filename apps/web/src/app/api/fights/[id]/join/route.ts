@@ -125,7 +125,7 @@ export async function POST(
         joinerInitialPositions.length > 0 ? JSON.stringify(joinerInitialPositions) : '(none)');
 
       // Join fight and start it
-      const updatedFight = await prisma.$transaction(async (tx) => {
+      const updatedFight = await prisma.$transaction(async (tx: any) => {
         // Update creator (participant A) with their CURRENT positions
         // Note: Creator's positions were also captured at fight creation time,
         // but we update them here in case they changed while waiting for a joiner
