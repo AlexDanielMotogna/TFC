@@ -23,9 +23,8 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app using node directly (avoids symlink issues)
-WORKDIR /app/apps/web
-RUN node ../../node_modules/next/dist/bin/next build
+# Build Next.js app (npm handles next resolution in workspace)
+RUN npm run build --workspace=@tfc/web
 
 # Production image
 FROM base AS runner
