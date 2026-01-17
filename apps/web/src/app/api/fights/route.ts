@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       }
 
       // Create fight and creator participant in transaction
-      const fight = await prisma.$transaction(async (tx) => {
+      const fight = await prisma.$transaction(async (tx: any) => {
         const newFight = await tx.fight.create({
           data: {
             creatorId: user.userId,

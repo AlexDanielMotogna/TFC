@@ -105,7 +105,7 @@ export async function DELETE(
       }
 
       // Cancel the fight (delete it)
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: any) => {
         // Delete participants first (foreign key constraint)
         await tx.fightParticipant.deleteMany({
           where: { fightId },
