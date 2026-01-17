@@ -34,7 +34,7 @@ RUN npm run build --workspace=@tfc/logger
 
 # Build Next.js app
 WORKDIR /app/apps/web
-RUN TURBOPACK=0 npx next build
+RUN npx next build --no-turbo
 WORKDIR /app
 
 # Production image
