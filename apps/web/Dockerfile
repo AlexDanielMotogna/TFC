@@ -1,8 +1,8 @@
 # TradeFightClub Web - Railway Deployment
 FROM node:20-alpine AS base
 
-# Install dependencies for Prisma
-RUN apk add --no-cache openssl libc6-compat
+# Install dependencies for Prisma and native modules
+RUN apk add --no-cache openssl libc6-compat python3 make g++
 
 # Set working directory
 WORKDIR /app
