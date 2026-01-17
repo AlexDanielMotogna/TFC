@@ -2,6 +2,7 @@
 const nextConfig = {
   transpilePackages: ['@tfc/shared'],
   reactStrictMode: true,
+  output: 'standalone',
   images: {
     unoptimized: true,
     remotePatterns: [
