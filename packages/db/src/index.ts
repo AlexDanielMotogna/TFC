@@ -6,10 +6,18 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+// Log DATABASE_URL availability for debugging
+if (!process.env.DATABASE_URL) {
+  console.error('[Prisma] WARNING: DATABASE_URL not found in environment');
+}
+
 export const prisma =
   global.prisma ||
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    datasources: process.env.DATABASE_URL ? {
+      db: { url: process.env.DATABASE_URL }
+    } : undefined,
   });
 
 if (process.env.NODE_ENV !== 'production') {
