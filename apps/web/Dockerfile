@@ -15,12 +15,6 @@ WORKDIR /app
 COPY . .
 RUN npm ci
 
-# Debug: check if next is installed
-RUN echo "=== Checking node_modules ===" && \
-    ls -la node_modules/.bin/ | head -30 && \
-    echo "=== npm list next ===" && \
-    npm list next || true
-
 # Generate Prisma Client
 RUN npx prisma generate --schema=./packages/db/prisma/schema.prisma
 
@@ -29,7 +23,7 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app - use npx with exact version
+# Build Next.js app (npx downloads next@14.2.20 since .bin symlink missing)
 WORKDIR /app/apps/web
 RUN npx next@14.2.20 build
 

@@ -10,6 +10,9 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-mono',
 });
 
+// Force dynamic rendering - pages use client-side hooks (WalletProvider)
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Trading Fight Club',
   description: '1v1 trading competitions on Pacifica perpetuals',
