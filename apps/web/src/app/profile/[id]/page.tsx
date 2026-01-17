@@ -10,7 +10,7 @@ import { ProfileSkeleton } from '@/components/Skeletons';
 
 export default function ProfilePage() {
   const params = useParams();
-  const userId = params.id as string;
+  const userId = params?.id as string;
   const { isAuthenticated, user: currentUser } = useAuth();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
