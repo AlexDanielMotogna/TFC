@@ -15,6 +15,12 @@ WORKDIR /app
 COPY . .
 RUN npm ci
 
+# Debug: check if next is installed
+RUN echo "=== Checking node_modules ===" && \
+    ls -la node_modules/.bin/ | head -30 && \
+    echo "=== npm list next ===" && \
+    npm list next || true
+
 # Generate Prisma Client
 RUN npx prisma generate --schema=./packages/db/prisma/schema.prisma
 
@@ -23,9 +29,9 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app (prisma already generated, just run next build)
+# Build Next.js app - use npx with exact version
 WORKDIR /app/apps/web
-RUN ../../node_modules/.bin/next build
+RUN npx next@14.2.20 build
 
 # Production image
 FROM base AS runner
