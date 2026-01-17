@@ -40,7 +40,7 @@ interface FightWithTrades extends Fight {
 export default function FightResultsPage() {
   const params = useParams();
   const router = useRouter();
-  const fightId = params.id as string;
+  const fightId = params?.id as string;
 
   const { isAuthenticated, user } = useAuth();
   const { token } = useAuthStore();
