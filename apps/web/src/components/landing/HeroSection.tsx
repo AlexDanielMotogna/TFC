@@ -126,7 +126,7 @@ export function HeroSection() {
           {/* Right Column - Bull vs Bear Image */}
           <div className="relative hidden lg:block">
             <Image
-              src="/images/landing/Hero-BullvsBear.png"
+              src="/images/landing/TFC-Bear-vs-Bull.png"
               alt="Bull vs Bear - Trade Fight Club"
               width={600}
               height={500}
