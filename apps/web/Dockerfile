@@ -23,12 +23,9 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Install next explicitly so it's available in node_modules for runner stage
-RUN npm install next@14.2.20 --legacy-peer-deps
-
-# Build Next.js app
+# Build Next.js app using node directly (avoids symlink issues)
 WORKDIR /app/apps/web
-RUN npx next@14.2.20 build
+RUN node ../../node_modules/next/dist/bin/next build
 
 # Production image
 FROM base AS runner
