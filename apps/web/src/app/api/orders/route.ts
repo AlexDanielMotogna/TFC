@@ -464,7 +464,7 @@ async function recordFightTradeWithDetails(
   // Get initial position info for this symbol
   const initialPositions = (activeFight.initialPositions as unknown as InitialPosition[]) || [];
   const baseSymbol = symbol.replace('-USD', ''); // Convert BTC-USD -> BTC
-  const initialPos = initialPositions.find((ip) => ip.symbol === baseSymbol);
+  const initialPos = initialPositions.find((ip: any) => ip.symbol === baseSymbol);
 
   // Make initialAmount signed: positive = LONG (bid), negative = SHORT (ask)
   // This is critical for correctly calculating which trades close pre-fight positions

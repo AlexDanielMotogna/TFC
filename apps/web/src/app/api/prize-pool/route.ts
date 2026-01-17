@@ -79,7 +79,7 @@ export async function GET() {
     });
 
     // Build prize data
-    const prizes = topUsers.map((entry) => {
+    const prizes = topUsers.map((entry: any) => {
       const rank = entry.rank || 0;
       const percentage = PRIZE_PERCENTAGES[rank as 1 | 2 | 3] || 0;
       const amount = (totalFees * percentage) / 100;

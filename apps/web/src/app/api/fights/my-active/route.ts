@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       });
 
       // Extract the fights from participants
-      const fights = participants.map((p) => p.fight);
+      const fights = participants.map((p: any) => p.fight);
 
       return Response.json({
         success: true,

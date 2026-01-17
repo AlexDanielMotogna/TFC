@@ -38,7 +38,7 @@ export async function GET(request: Request) {
       });
 
       const leaderboard = await Promise.all(
-        users.map(async (user) => {
+        users.map(async (user: any) => {
           const participants = await prisma.fightParticipant.findMany({
             where: {
               userId: user.id,
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
           });
 
           const stats = participants.reduce(
-            (acc, p) => {
+            (acc: any, p: any) => {
               acc.totalFights++;
               if (p.fight.winnerId === user.id) acc.wins++;
               else if (p.fight.isDraw) acc.draws++;
@@ -78,9 +78,9 @@ export async function GET(request: Request) {
       );
 
       // Sort by totalPnlUsdc descending
-      leaderboard.sort((a, b) => b.totalPnlUsdc - a.totalPnlUsdc);
+      leaderboard.sort((a: any, b: any) => b.totalPnlUsdc - a.totalPnlUsdc);
 
-      const entries = leaderboard.slice(0, limit).map((entry, index) => ({
+      const entries = leaderboard.slice(0, limit).map((entry: any, index: number) => ({
         rank: index + 1,
         ...entry,
       }));
@@ -89,7 +89,7 @@ export async function GET(request: Request) {
     }
 
     // Return cached snapshots
-    const entries = snapshots.map((snapshot) => ({
+    const entries = snapshots.map((snapshot: any) => ({
       rank: snapshot.rank,
       userId: snapshot.userId,
       handle: snapshot.user.handle,

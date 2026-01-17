@@ -51,7 +51,7 @@ export async function GET(
       });
 
       // Format trades for response
-      const formattedTrades = trades.map((trade) => {
+      const formattedTrades = trades.map((trade: any) => {
         const amount = parseFloat(trade.amount.toString());
         const price = parseFloat(trade.price.toString());
         const notional = amount * price;

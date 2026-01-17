@@ -27,14 +27,14 @@ export async function GET(request: Request) {
       },
     });
 
-    const history = prizePools.map((pool) => ({
+    const history = prizePools.map((pool: any) => ({
       weekStartDate: pool.weekStartDate.toISOString(),
       weekEndDate: pool.weekEndDate.toISOString(),
       totalFeesCollected: Number(pool.totalFeesCollected),
       totalPrizePool: Number(pool.totalPrizePool),
       isDistributed: pool.isDistributed,
       distributedAt: pool.distributedAt?.toISOString() || null,
-      prizes: pool.prizes.map((prize) => ({
+      prizes: pool.prizes.map((prize: any) => ({
         rank: prize.rank,
         userHandle: prize.userHandle,
         prizeAmount: Number(prize.prizeAmount),

@@ -121,14 +121,14 @@ export async function POST(request: Request) {
       if (connection.accountAddress) {
         try {
           const positions = await getPositions(connection.accountAddress);
-          creatorPositions = positions.map((p) => ({
+          creatorPositions = positions.map((p: any) => ({
             symbol: p.symbol,
             amount: p.amount,
             entry_price: p.entry_price,
             side: p.side, // 'bid' = LONG, 'ask' = SHORT
           }));
           console.log(`[CreateFight] Creator ${user.userId} has ${creatorPositions.length} open positions:`,
-            creatorPositions.map(p => `${p.symbol}: ${p.amount}`).join(', ') || 'none');
+            creatorPositions.map((p: any) => `${p.symbol}: ${p.amount}`).join(', ') || 'none');
         } catch (err) {
           console.error(`[CreateFight] Failed to get creator positions for ${user.userId}:`, err);
           // Continue with empty positions - better to log than fail silently
