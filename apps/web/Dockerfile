@@ -34,7 +34,8 @@ RUN npm run build --workspace=@tfc/logger
 
 # Build Next.js app
 WORKDIR /app/apps/web
-RUN node ../../node_modules/next/dist/bin/next build
+ENV PATH="/app/node_modules/.bin:$PATH"
+RUN next build
 WORKDIR /app
 
 # Production image
