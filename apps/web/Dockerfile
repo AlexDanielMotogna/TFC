@@ -43,10 +43,11 @@ COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
 # Install next module that server.js requires (standalone expects it at apps/web/node_modules/next)
+# Create a clean package.json to avoid resolving workspace dependencies
 RUN mkdir -p /app/apps/web/node_modules && \
     cd /app/apps/web && \
-    npm init -y && \
-    npm install next@14.2.20
+    echo '{"name":"web-runtime","private":true}' > package.json && \
+    npm install next@14.2.20 --legacy-peer-deps
 
 USER nextjs
 
