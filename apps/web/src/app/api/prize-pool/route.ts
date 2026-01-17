@@ -3,7 +3,7 @@
  * GET /api/prize-pool - Get current week's prize pool and top 3 winners
  * Public endpoint (no auth required)
  */
-import { prisma, PrizeStatus } from '@tfc/db';
+import { prisma } from '@/lib/server/db';
 import { NextResponse } from 'next/server';
 
 // Prize percentages for top 3

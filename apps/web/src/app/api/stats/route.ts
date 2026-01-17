@@ -3,7 +3,8 @@
  * GET /api/stats - Get platform-wide statistics for landing page
  * Public endpoint (no auth required)
  */
-import { prisma, FightStatus } from '@tfc/db';
+import { prisma } from '@/lib/server/db';
+import { FightStatus } from '@tfc/db';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
