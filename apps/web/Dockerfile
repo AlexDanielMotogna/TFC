@@ -42,6 +42,9 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
+# Copy next module that server.js requires
+COPY --from=builder /app/node_modules/next ./apps/web/node_modules/next
+
 USER nextjs
 
 EXPOSE 3000
