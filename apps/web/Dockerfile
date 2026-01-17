@@ -16,7 +16,7 @@ COPY packages/logger/package.json ./packages/logger/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 COPY apps/web/package.json ./apps/web/
 
-RUN npm ci --workspace=apps/web
+RUN npm ci
 
 # Build the application
 FROM base AS builder
