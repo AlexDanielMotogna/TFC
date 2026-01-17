@@ -45,6 +45,10 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/apps/web/node_modules/next ./apps/web/node_modules/next
 COPY --from=builder /app/apps/web/node_modules/@next ./apps/web/node_modules/@next
 
+# Copy Prisma client (required for database queries)
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
 USER nextjs
 
 EXPOSE 3000
