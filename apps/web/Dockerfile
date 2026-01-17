@@ -32,9 +32,9 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app - use .bin symlink to installed next
-WORKDIR /app/apps/web
-RUN /app/node_modules/.bin/next build
+# Build Next.js app
+WORKDIR /app
+RUN npm run build --workspace=@tfc/web
 
 # Production image
 FROM base AS runner
