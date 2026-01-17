@@ -58,9 +58,10 @@ export async function GET() {
   } catch (error) {
     console.error('[Stats] Error fetching stats:', error);
 
-    // Return zeros if there's an error (e.g., table doesn't exist yet)
+    // Return error details for debugging
     return NextResponse.json({
-      success: true,
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
       data: {
         tradingVolume: 0,
         fightVolume: 0,
