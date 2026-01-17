@@ -188,6 +188,6 @@ export function useAccount(): UseAccountReturn {
     openOrders,
     isLoading,
     error,
-    refetch: refetchAccount,
+    refetch: refetchAccount as () => Promise<void>,
   };
 }

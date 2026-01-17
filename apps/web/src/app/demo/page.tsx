@@ -83,14 +83,14 @@ export default function DemoPage() {
         {/* Terminal demo */}
         <div className="flex justify-center">
           {viewMode === 'full' ? (
-            <FullTerminalDemo highlightFeature={highlightFeature} />
+            <FullTerminalDemo highlightFeature={highlightFeature as any} />
           ) : (
             <TradeTerminalDemo
               price={97234.50}
               priceChange={2.34}
               fightStake={500}
               available={320}
-              highlightFeature={highlightFeature}
+              highlightFeature={highlightFeature as any}
             />
           )}
         </div>

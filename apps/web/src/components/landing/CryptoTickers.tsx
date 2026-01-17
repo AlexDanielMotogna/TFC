@@ -78,14 +78,14 @@ export function CryptoTickers() {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-800">
                       <Image
-                        src={tokenInfo.icon}
-                        alt={tokenInfo.name}
+                        src={tokenInfo?.icon || ''}
+                        alt={tokenInfo?.name || ''}
                         width={32}
                         height={32}
                         className="w-8 h-8"
                       />
                     </div>
-                    <span className="font-medium text-white">{tokenInfo.fullName}</span>
+                    <span className="font-medium text-white">{tokenInfo?.fullName}</span>
                   </div>
                   <span className={`w-2.5 h-2.5 rounded-full ${isPositive ? 'bg-green-500' : 'bg-red-500'}`} />
                 </div>

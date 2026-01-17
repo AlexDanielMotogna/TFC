@@ -74,10 +74,10 @@ export function TrustBadges() {
           {/* Left Column - Large Feature */}
           <div className="feature-card p-8">
             <div className="w-14 h-14 rounded-xl bg-orange-500/10 flex items-center justify-center mb-6">
-              <span className="text-orange-400">{features[0].icon}</span>
+              <span className="text-orange-400">{features[0]?.icon}</span>
             </div>
-            <h3 className="text-2xl font-bold text-white mb-3">{features[0].title}</h3>
-            <p className="text-surface-400 mb-8">{features[0].description}</p>
+            <h3 className="text-2xl font-bold text-white mb-3">{features[0]?.title}</h3>
+            <p className="text-surface-400 mb-8">{features[0]?.description}</p>
 
             {/* Trust Badges */}
             <div className="space-y-4">

@@ -159,8 +159,8 @@ export function useSocket(fightId?: string) {
 
       setCurrentFight({
         id: fightId,
-        participantA: data.participantA,
-        participantB: data.participantB,
+        participantA: data.participantA as any,
+        participantB: data.participantB as any,
         leader:
           data.participantA.pnlPercent === data.participantB.pnlPercent
             ? null
