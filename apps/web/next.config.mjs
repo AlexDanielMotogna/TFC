@@ -3,9 +3,6 @@ const nextConfig = {
   transpilePackages: ['@tfc/shared'],
   reactStrictMode: true,
   output: 'standalone',
-  turbopack: {
-    root: '../../',
-  },
   images: {
     unoptimized: true,
     remotePatterns: [
