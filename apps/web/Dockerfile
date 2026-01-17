@@ -7,22 +7,13 @@ RUN apk add --no-cache openssl libc6-compat python3 make g++ linux-headers eudev
 # Set working directory
 WORKDIR /app
 
-# Install dependencies
-FROM base AS deps
-COPY package.json package-lock.json ./
-COPY packages/db/package.json ./packages/db/
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/logger/package.json ./packages/logger/
-COPY packages/tsconfig/package.json ./packages/tsconfig/
-COPY apps/web/package.json ./apps/web/
-
-RUN npm ci
-
 # Build the application
 FROM base AS builder
 WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+
+# Copy everything and install
 COPY . .
+RUN npm ci
 
 # Generate Prisma Client
 RUN npx prisma generate --schema=./packages/db/prisma/schema.prisma
@@ -32,9 +23,9 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app
-WORKDIR /app
-RUN npm run build --workspace=@tfc/web
+# Build Next.js app (prisma already generated, just run next build)
+WORKDIR /app/apps/web
+RUN ../../node_modules/.bin/next build
 
 # Production image
 FROM base AS runner
