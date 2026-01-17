@@ -62,14 +62,14 @@ export const StakeLimits = {
  * Check if we're in staging environment
  */
 export function isStaging(): boolean {
-  return process.env.NODE_ENV === 'staging' || process.env.VERCEL_ENV === 'preview';
+  return process.env.VERCEL_ENV === 'preview';
 }
 
 /**
  * Get environment name for display
  */
 export function getEnvironmentName(): string {
-  if (process.env.NODE_ENV === 'production') return 'production';
-  if (process.env.NODE_ENV === 'staging') return 'staging';
+  if (process.env.VERCEL_ENV === 'production') return 'production';
+  if (process.env.VERCEL_ENV === 'preview') return 'staging';
   return 'development';
 }

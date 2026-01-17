@@ -127,7 +127,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                 // Get live PnL from WebSocket if available
                 const isParticipantA = p.slot === 'A';
                 const pnlData = isParticipantA ? livePnl?.participantA : livePnl?.participantB;
-                const pnlPercent = pnlData?.pnlPercent ?? p.finalPnlPercent ?? 0;
+                const pnlPercent = Number(pnlData?.pnlPercent ?? p.finalPnlPercent ?? 0);
 
                 return (
                   <div key={i} className="flex items-center gap-1 flex-1 min-w-0">
@@ -255,7 +255,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
               // Get live PnL from WebSocket if available, otherwise use finalPnlPercent
               const isParticipantA = p.slot === 'A';
               const pnlData = isParticipantA ? livePnl?.participantA : livePnl?.participantB;
-              const pnlPercent = pnlData?.pnlPercent ?? p.finalPnlPercent ?? 0;
+              const pnlPercent = Number(pnlData?.pnlPercent ?? p.finalPnlPercent ?? 0);
 
               return (
                 <div
