@@ -2,7 +2,7 @@
 FROM node:20-alpine AS base
 
 # Install dependencies for Prisma and native modules
-RUN apk add --no-cache openssl libc6-compat python3 make g++
+RUN apk add --no-cache openssl libc6-compat python3 make g++ linux-headers eudev-dev libusb-dev
 
 # Set working directory
 WORKDIR /app
