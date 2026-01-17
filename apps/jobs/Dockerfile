@@ -33,4 +33,5 @@ RUN npm run build --workspace=@tfc/logger
 RUN npm run build --workspace=@tfc/jobs
 
 # Start jobs
-CMD ["npm", "run", "start", "--workspace=@tfc/jobs"]
+WORKDIR /app/apps/jobs
+CMD ["node", "dist/index.js"]

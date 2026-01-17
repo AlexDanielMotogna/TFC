@@ -36,4 +36,5 @@ RUN npm run build --workspace=@tfc/realtime
 EXPOSE 3002
 
 # Start server
-CMD ["npm", "run", "start", "--workspace=@tfc/realtime"]
+WORKDIR /app/apps/realtime
+CMD ["node", "dist/index.js"]
