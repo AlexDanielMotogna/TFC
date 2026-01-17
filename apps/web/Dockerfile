@@ -42,12 +42,9 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Install next module that server.js requires (standalone expects it at apps/web/node_modules/next)
-# Create a clean package.json to avoid resolving workspace dependencies
-RUN mkdir -p /app/apps/web/node_modules && \
-    cd /app/apps/web && \
-    echo '{"name":"web-runtime","private":true}' > package.json && \
-    npm install next@14.2.20 --legacy-peer-deps
+# Copy next module directly from builder (avoids npm resolution issues)
+COPY --from=builder /app/node_modules/next ./apps/web/node_modules/next
+COPY --from=builder /app/node_modules/@next ./apps/web/node_modules/@next
 
 USER nextjs
 
