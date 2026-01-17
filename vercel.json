@@ -1,5 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npx turbo run build --filter=@tfc/web",
-  "installCommand": "npm install"
+  "buildCommand": "cd ../.. && npm install && npx turbo run build --filter=@tfc/web",
+  "installCommand": "cd ../.. && npm install"
 }
