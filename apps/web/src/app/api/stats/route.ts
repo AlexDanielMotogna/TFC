@@ -6,6 +6,9 @@
 import { prisma } from '@/lib/server/db';
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering - don't pre-render at build time
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     console.log('[Stats] Fetching platform stats...');
