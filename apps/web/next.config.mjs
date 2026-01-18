@@ -3,6 +3,8 @@ const nextConfig = {
   transpilePackages: ['@tfc/shared'],
   reactStrictMode: true,
   output: 'standalone',
+  // Exclude Prisma from bundling - let it use native Node.js require at runtime
+  serverExternalPackages: ['@prisma/client', 'prisma'],
   images: {
     unoptimized: true,
     remotePatterns: [

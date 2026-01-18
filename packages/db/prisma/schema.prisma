@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -342,4 +343,70 @@ model WeeklyPrize {
   @@index([userId])
   @@index([status])
   @@map("weekly_prizes")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TFC ORDER ACTIONS
+// Logs ALL order-related actions made through TradeFightClub
+// Used for: full audit trail, TFC-only filtering, analytics
+// ─────────────────────────────────────────────────────────────
+enum OrderActionType {
+  MARKET_ORDER      // Market order placed
+  LIMIT_ORDER       // Limit order placed
+  CANCEL_ORDER      // Order cancelled
+  CANCEL_ALL        // All orders cancelled
+  SET_TPSL          // TP/SL set on position
+  CANCEL_STOP       // Stop order (TP/SL) cancelled
+  ORDER_FILLED      // Order was filled (links to Trade)
+  ORDER_PARTIAL     // Order was partially filled
+}
+
+model TfcOrderAction {
+  id String @id @default(uuid())
+
+  // User who performed the action
+  userId        String @map("user_id")
+  walletAddress String @map("wallet_address")
+
+  // Action details
+  actionType OrderActionType @map("action_type")
+
+  // Order information
+  symbol    String
+  side      String?  // bid/ask or LONG/SHORT
+  orderType String?  @map("order_type") // MARKET, LIMIT, etc.
+  amount    Decimal? @db.Decimal(18, 8)
+  price     Decimal? @db.Decimal(18, 8)  // For limit orders
+
+  // TP/SL information
+  takeProfit Decimal? @map("take_profit") @db.Decimal(18, 8)
+  stopLoss   Decimal? @map("stop_loss") @db.Decimal(18, 8)
+
+  // Pacifica response data
+  pacificaOrderId   BigInt?  @map("pacifica_order_id")
+  pacificaHistoryId BigInt?  @map("pacifica_history_id")
+
+  // Fill information (if applicable)
+  filledAmount Decimal? @map("filled_amount") @db.Decimal(18, 8)
+  filledPrice  Decimal? @map("filled_price") @db.Decimal(18, 8)
+  fee          Decimal? @db.Decimal(18, 8)
+  pnl          Decimal? @db.Decimal(18, 8)
+
+  // Additional context
+  leverage Int?
+  fightId  String? @map("fight_id") // If during a fight
+
+  // Success/failure
+  success      Boolean  @default(true)
+  errorMessage String?  @map("error_message")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([walletAddress])
+  @@index([createdAt])
+  @@index([actionType])
+  @@index([symbol])
+  @@map("tfc_order_actions")
 }

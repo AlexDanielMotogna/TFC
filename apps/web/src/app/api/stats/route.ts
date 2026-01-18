@@ -8,6 +8,9 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
+    console.log('[Stats] Fetching platform stats...');
+    console.log('[Stats] DATABASE_URL exists:', !!process.env.DATABASE_URL);
+
     // Get all stats in parallel for performance
     const [
       volumeResult,
@@ -51,17 +54,22 @@ export async function GET() {
       totalTrades: totalTradesCount,
     };
 
+    console.log('[Stats] Stats fetched successfully:', stats);
+
     return NextResponse.json({
       success: true,
       data: stats,
     });
   } catch (error) {
     console.error('[Stats] Error fetching stats:', error);
+    console.error('[Stats] DATABASE_URL exists:', !!process.env.DATABASE_URL);
 
     // Return error details for debugging
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
+      errorStack: error instanceof Error ? error.stack : undefined,
+      dbUrlExists: !!process.env.DATABASE_URL,
       data: {
         tradingVolume: 0,
         fightVolume: 0,

@@ -3,6 +3,7 @@
  * POST /api/orders/stop/cancel
  */
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { recordOrderAction } from '@/lib/server/order-actions';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -53,6 +54,15 @@ export async function POST(request: Request) {
       symbol,
       order_id,
     });
+
+    // Record cancel stop action (non-blocking)
+    recordOrderAction({
+      walletAddress: account,
+      actionType: 'CANCEL_STOP',
+      symbol,
+      pacificaOrderId: order_id,
+      success: true,
+    }).catch(err => console.error('Failed to record cancel stop action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

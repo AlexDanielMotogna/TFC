@@ -63,6 +63,9 @@ COPY --from=builder /app/apps/web/node_modules/@next ./apps/web/node_modules/@ne
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
+# Copy Prisma schema (required for runtime validation)
+COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
+
 USER nextjs
 
 EXPOSE 3000

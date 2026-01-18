@@ -3,6 +3,7 @@
  * DELETE /api/orders/[orderId]
  */
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { recordOrderAction } from '@/lib/server/order-actions';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -60,6 +61,15 @@ export async function DELETE(
       symbol,
       orderId,
     });
+
+    // Record cancel action (non-blocking)
+    recordOrderAction({
+      walletAddress: account,
+      actionType: 'CANCEL_ORDER',
+      symbol,
+      pacificaOrderId: parseInt(orderId, 10),
+      success: true,
+    }).catch(err => console.error('Failed to record cancel action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

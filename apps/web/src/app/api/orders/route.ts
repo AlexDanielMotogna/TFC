@@ -5,6 +5,7 @@
  */
 import { errorResponse, BadRequestError, StakeLimitError } from '@/lib/server/errors';
 import { validateStakeLimit, calculateFightExposure } from '@/lib/server/orders';
+import { recordOrderAction } from '@/lib/server/order-actions';
 import { prisma, FightStatus } from '@tfc/db';
 import { FeatureFlags } from '@/lib/server/feature-flags';
 
@@ -238,6 +239,23 @@ export async function POST(request: Request) {
         console.error('Failed to record trades:', err);
       });
     }
+
+    // Record order action to TfcOrderAction table (non-blocking)
+    recordOrderAction({
+      walletAddress: account,
+      actionType: type === 'MARKET' ? 'MARKET_ORDER' : 'LIMIT_ORDER',
+      symbol,
+      side,
+      orderType: type,
+      amount,
+      price: type === 'LIMIT' ? price : undefined,
+      takeProfit: take_profit?.stop_price,
+      stopLoss: stop_loss?.stop_price,
+      pacificaOrderId: result.data?.order_id,
+      leverage,
+      fightId: fight_id,
+      success: true,
+    }).catch(err => console.error('Failed to record order action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {
@@ -808,6 +826,14 @@ export async function DELETE(request: Request) {
       account,
       symbol: symbol || 'all',
     });
+
+    // Record cancel all action (non-blocking)
+    recordOrderAction({
+      walletAddress: account,
+      actionType: 'CANCEL_ALL',
+      symbol: symbol || 'ALL',
+      success: true,
+    }).catch(err => console.error('Failed to record cancel all action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

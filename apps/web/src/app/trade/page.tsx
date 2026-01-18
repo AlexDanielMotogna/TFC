@@ -693,7 +693,7 @@ export default function TradePage() {
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
-                    Trades
+                    Trade History
                   </button>
                   <button
                     onClick={() => setBottomTab('history')}
@@ -702,7 +702,7 @@ export default function TradePage() {
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
-                    History
+                    Order History
                   </button>
                 </div>
 
@@ -1464,20 +1464,30 @@ export default function TradePage() {
                     const refPrice = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
                     const effectiveLev = Math.min(leverage, maxLeverage);
 
+                    // Round price to tick size (Pacifica requires prices to be multiples of tick size)
+                    const roundToTickSize = (price: number) => {
+                      const rounded = Math.round(price / tickSize) * tickSize;
+                      // Determine decimal places from tick size
+                      const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
+                      return rounded.toFixed(decimals);
+                    };
+
                     // Calculate TP price from percentage gain
                     const calcTpPrice = (gainPercent: number) => {
                       const priceMove = (gainPercent / 100 / effectiveLev) * refPrice;
-                      return selectedSide === 'LONG'
-                        ? (refPrice + priceMove).toFixed(2)
-                        : (refPrice - priceMove).toFixed(2);
+                      const rawPrice = selectedSide === 'LONG'
+                        ? refPrice + priceMove
+                        : refPrice - priceMove;
+                      return roundToTickSize(rawPrice);
                     };
 
                     // Calculate SL price from percentage loss
                     const calcSlPrice = (lossPercent: number) => {
                       const priceMove = (Math.abs(lossPercent) / 100 / effectiveLev) * refPrice;
-                      return selectedSide === 'LONG'
-                        ? (refPrice - priceMove).toFixed(2)
-                        : (refPrice + priceMove).toFixed(2);
+                      const rawPrice = selectedSide === 'LONG'
+                        ? refPrice - priceMove
+                        : refPrice + priceMove;
+                      return roundToTickSize(rawPrice);
                     };
 
                     return (
@@ -1510,7 +1520,7 @@ export default function TradePage() {
                                 type="number"
                                 value={takeProfit}
                                 onChange={(e) => setTakeProfit(e.target.value)}
-                                placeholder={selectedSide === 'LONG' ? `> ${refPrice.toFixed(2)}` : `< ${refPrice.toFixed(2)}`}
+                                placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`}
                                 disabled={!canTrade}
                                 className="input text-sm w-full mb-2"
                               />
@@ -1559,7 +1569,7 @@ export default function TradePage() {
                                 type="number"
                                 value={stopLoss}
                                 onChange={(e) => setStopLoss(e.target.value)}
-                                placeholder={selectedSide === 'LONG' ? `< ${refPrice.toFixed(2)}` : `> ${refPrice.toFixed(2)}`}
+                                placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`}
                                 disabled={!canTrade}
                                 className="input text-sm w-full mb-2"
                               />

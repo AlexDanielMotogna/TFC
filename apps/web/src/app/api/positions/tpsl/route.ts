@@ -3,6 +3,7 @@
  * POST /api/positions/tpsl - Set take profit and stop loss for existing position
  */
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { recordOrderAction } from '@/lib/server/order-actions';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -100,6 +101,17 @@ export async function POST(request: Request) {
       take_profit: take_profit?.stop_price,
       stop_loss: stop_loss?.stop_price,
     });
+
+    // Record TP/SL action (non-blocking)
+    recordOrderAction({
+      walletAddress: account,
+      actionType: 'SET_TPSL',
+      symbol,
+      side,
+      takeProfit: take_profit?.stop_price,
+      stopLoss: stop_loss?.stop_price,
+      success: true,
+    }).catch(err => console.error('Failed to record TP/SL action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {
