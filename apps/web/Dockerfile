@@ -11,6 +11,20 @@ WORKDIR /app
 FROM base AS builder
 WORKDIR /app
 
+# Build-time args for NEXT_PUBLIC_ variables (embedded at build time)
+ARG NEXT_PUBLIC_WS_URL=wss://tfcrealtime-staging.up.railway.app
+ARG NEXT_PUBLIC_REALTIME_URL=wss://tfcrealtime-staging.up.railway.app
+ARG NEXT_PUBLIC_PACIFICA_API_URL=https://api.pacifica.fi
+ARG NEXT_PUBLIC_PACIFICA_WS_URL=wss://ws.pacifica.fi/ws
+ARG NEXT_PUBLIC_SOLANA_NETWORK=devnet
+
+# Set as ENV for build process
+ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
+ENV NEXT_PUBLIC_REALTIME_URL=$NEXT_PUBLIC_REALTIME_URL
+ENV NEXT_PUBLIC_PACIFICA_API_URL=$NEXT_PUBLIC_PACIFICA_API_URL
+ENV NEXT_PUBLIC_PACIFICA_WS_URL=$NEXT_PUBLIC_PACIFICA_WS_URL
+ENV NEXT_PUBLIC_SOLANA_NETWORK=$NEXT_PUBLIC_SOLANA_NETWORK
+
 # Copy everything and install
 COPY . .
 RUN npm ci
