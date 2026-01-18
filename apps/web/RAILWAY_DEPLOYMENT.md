@@ -70,12 +70,14 @@ const id = params?.id;
 ```dockerfile
 # El standalone no incluye next
 COPY --from=builder /app/apps/web/.next/standalone ./
+# Next está en workspace, no en root
+COPY --from=builder /app/node_modules/next ./apps/web/node_modules/next
 ```
 
-**Solución:** Copiar next del builder:
+**Solución:** Copiar next del workspace node_modules:
 ```dockerfile
-COPY --from=builder /app/node_modules/next ./apps/web/node_modules/next
-COPY --from=builder /app/node_modules/@next ./apps/web/node_modules/@next
+COPY --from=builder /app/apps/web/node_modules/next ./apps/web/node_modules/next
+COPY --from=builder /app/apps/web/node_modules/@next ./apps/web/node_modules/@next
 ```
 
 ### 7. `@tfc/shared is not in this registry`
@@ -128,9 +130,8 @@ RUN npm run build --workspace=@tfc/db
 RUN npm run build --workspace=@tfc/shared
 RUN npm run build --workspace=@tfc/logger
 
-# Build Next.js app using node directly (avoids symlink issues)
-WORKDIR /app/apps/web
-RUN node ../../node_modules/next/dist/bin/next build
+# Build Next.js app (npm handles next resolution in workspace)
+RUN npm run build --workspace=@tfc/web
 
 # Production image
 FROM base AS runner
@@ -147,9 +148,9 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Copy next module directly from builder (avoids npm resolution issues)
-COPY --from=builder /app/node_modules/next ./apps/web/node_modules/next
-COPY --from=builder /app/node_modules/@next ./apps/web/node_modules/@next
+# Copy next module from workspace node_modules (NOT root node_modules)
+COPY --from=builder /app/apps/web/node_modules/next ./apps/web/node_modules/next
+COPY --from=builder /app/apps/web/node_modules/@next ./apps/web/node_modules/@next
 
 USER nextjs
 

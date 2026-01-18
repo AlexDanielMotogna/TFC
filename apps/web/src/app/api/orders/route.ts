@@ -193,6 +193,8 @@ export async function POST(request: Request) {
 
       // Only include optional fields if they have values
       if (builder_code) requestBody.builder_code = builder_code;
+      if (take_profit) requestBody.take_profit = take_profit;
+      if (stop_loss) requestBody.stop_loss = stop_loss;
     }
 
     console.log('Sending order to Pacifica:', { endpoint, requestBody });

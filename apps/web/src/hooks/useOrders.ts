@@ -32,6 +32,8 @@ interface CreateLimitOrderParams {
   postOnly?: boolean;
   tif?: 'GTC' | 'IOC' | 'ALO' | 'TOB';
   builder_code?: string;
+  take_profit?: { stop_price: string };
+  stop_loss?: { stop_price: string };
 }
 
 interface CancelOrderParams {
@@ -165,7 +167,7 @@ export function useCreateLimitOrder() {
 
       const builderCode = params.builder_code || BUILDER_CODE;
 
-      // Sign the operation with wallet - must include builder_code and tif in signed data
+      // Sign the operation with wallet - must include builder_code, tif, and TP/SL in signed data
       // Note: post_only is NOT a valid Pacifica parameter for limit orders
       const tif = params.tif || 'GTC';
       const { signature, timestamp } = await createSignedLimitOrder(wallet, {
@@ -176,6 +178,8 @@ export function useCreateLimitOrder() {
         reduce_only: params.reduceOnly || false,
         builder_code: builderCode,
         tif,
+        take_profit: params.take_profit,
+        stop_loss: params.stop_loss,
       });
 
       // Send to backend proxy
@@ -195,6 +199,8 @@ export function useCreateLimitOrder() {
           post_only: params.postOnly || false,
           tif: params.tif || 'GTC',
           builder_code: builderCode,
+          take_profit: params.take_profit,
+          stop_loss: params.stop_loss,
           signature,
           timestamp,
         }),

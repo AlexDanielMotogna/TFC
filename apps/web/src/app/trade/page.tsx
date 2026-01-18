@@ -151,9 +151,9 @@ export default function TradePage() {
       const rawAmount = effectivePositionSize / priceForCalc;
       const orderAmount = roundToLotSize(rawAmount, lotSize);
 
-      // Build TP/SL params if enabled (only for market orders)
-      const tpParam = orderType === 'market' && tpEnabled && takeProfit ? { stop_price: takeProfit } : undefined;
-      const slParam = orderType === 'market' && slEnabled && stopLoss ? { stop_price: stopLoss } : undefined;
+      // Build TP/SL params if enabled (for market and limit orders)
+      const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit ? { stop_price: takeProfit } : undefined;
+      const slParam = (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss ? { stop_price: stopLoss } : undefined;
 
       const symbol = selectedMarket.replace('-USD', ''); // Convert BTC-USD to BTC
       const side = selectedSide === 'LONG' ? 'bid' : 'ask';
@@ -184,6 +184,8 @@ export default function TradePage() {
           amount: orderAmount,
           reduceOnly: false,
           tif: 'GTC',
+          take_profit: tpParam,
+          stop_loss: slParam,
         });
       } else if (orderType === 'stop-market' || orderType === 'stop-limit') {
         // Stop orders - not yet implemented
@@ -1373,76 +1375,147 @@ export default function TradePage() {
                 </div>
               </div>
 
-              {/* Take Profit / Stop Loss - Only for Market orders */}
-              {orderType === 'market' && (
+              {/* Take Profit / Stop Loss - For Market and Limit orders */}
+              {(orderType === 'market' || orderType === 'limit') && (
                 <div className="mb-4 space-y-3">
-                  {/* Take Profit */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-surface-400 flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={tpEnabled}
-                          onChange={(e) => setTpEnabled(e.target.checked)}
-                          disabled={!canTrade}
-                          className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-win-500 focus:ring-win-500"
-                        />
-                        Take Profit
-                      </label>
-                      {tpEnabled && takeProfit && (
-                        <span className="text-xs text-win-400">
-                          {selectedSide === 'LONG'
-                            ? `+${(((parseFloat(takeProfit) - currentPrice) / currentPrice) * 100 * Math.min(leverage, maxLeverage)).toFixed(1)}%`
-                            : `+${(((currentPrice - parseFloat(takeProfit)) / currentPrice) * 100 * Math.min(leverage, maxLeverage)).toFixed(1)}%`
-                          }
-                        </span>
-                      )}
-                    </div>
-                    {tpEnabled && (
-                      <input
-                        type="number"
-                        value={takeProfit}
-                        onChange={(e) => setTakeProfit(e.target.value)}
-                        placeholder={selectedSide === 'LONG' ? `> ${currentPrice.toFixed(2)}` : `< ${currentPrice.toFixed(2)}`}
-                        disabled={!canTrade}
-                        className="input text-sm w-full"
-                      />
-                    )}
+                  {/* TP/SL Toggle Header */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={tpEnabled || slEnabled}
+                      onChange={(e) => {
+                        setTpEnabled(e.target.checked);
+                        setSlEnabled(e.target.checked);
+                      }}
+                      disabled={!canTrade}
+                      className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500"
+                    />
+                    <span className="text-xs font-medium text-surface-400">Take Profit / Stop Loss</span>
                   </div>
 
-                  {/* Stop Loss */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-surface-400 flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={slEnabled}
-                          onChange={(e) => setSlEnabled(e.target.checked)}
-                          disabled={!canTrade}
-                          className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-loss-500 focus:ring-loss-500"
-                        />
-                        Stop Loss
-                      </label>
-                      {slEnabled && stopLoss && (
-                        <span className="text-xs text-loss-400">
-                          {selectedSide === 'LONG'
-                            ? `-${(((currentPrice - parseFloat(stopLoss)) / currentPrice) * 100 * Math.min(leverage, maxLeverage)).toFixed(1)}%`
-                            : `-${(((parseFloat(stopLoss) - currentPrice) / currentPrice) * 100 * Math.min(leverage, maxLeverage)).toFixed(1)}%`
-                          }
-                        </span>
-                      )}
-                    </div>
-                    {slEnabled && (
-                      <input
-                        type="number"
-                        value={stopLoss}
-                        onChange={(e) => setStopLoss(e.target.value)}
-                        placeholder={selectedSide === 'LONG' ? `< ${currentPrice.toFixed(2)}` : `> ${currentPrice.toFixed(2)}`}
-                        disabled={!canTrade}
-                        className="input text-sm w-full"
-                      />
-                    )}
-                  </div>
+                  {(tpEnabled || slEnabled) && (() => {
+                    // Reference price for percentage calculations
+                    const refPrice = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
+                    const effectiveLev = Math.min(leverage, maxLeverage);
+
+                    // Calculate TP price from percentage gain
+                    const calcTpPrice = (gainPercent: number) => {
+                      const priceMove = (gainPercent / 100 / effectiveLev) * refPrice;
+                      return selectedSide === 'LONG'
+                        ? (refPrice + priceMove).toFixed(2)
+                        : (refPrice - priceMove).toFixed(2);
+                    };
+
+                    // Calculate SL price from percentage loss
+                    const calcSlPrice = (lossPercent: number) => {
+                      const priceMove = (Math.abs(lossPercent) / 100 / effectiveLev) * refPrice;
+                      return selectedSide === 'LONG'
+                        ? (refPrice - priceMove).toFixed(2)
+                        : (refPrice + priceMove).toFixed(2);
+                    };
+
+                    return (
+                      <>
+                        {/* Take Profit */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-medium text-surface-400 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={tpEnabled}
+                                onChange={(e) => setTpEnabled(e.target.checked)}
+                                disabled={!canTrade}
+                                className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-win-500 focus:ring-win-500"
+                              />
+                              TP Price
+                            </label>
+                            {tpEnabled && takeProfit && (
+                              <span className="text-xs text-win-400">
+                                {selectedSide === 'LONG'
+                                  ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                  : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                }
+                              </span>
+                            )}
+                          </div>
+                          {tpEnabled && (
+                            <>
+                              <input
+                                type="number"
+                                value={takeProfit}
+                                onChange={(e) => setTakeProfit(e.target.value)}
+                                placeholder={selectedSide === 'LONG' ? `> ${refPrice.toFixed(2)}` : `< ${refPrice.toFixed(2)}`}
+                                disabled={!canTrade}
+                                className="input text-sm w-full mb-2"
+                              />
+                              {/* TP Percentage Buttons */}
+                              <div className="flex gap-1">
+                                {[25, 50, 75, 100].map((pct) => (
+                                  <button
+                                    key={pct}
+                                    onClick={() => setTakeProfit(calcTpPrice(pct))}
+                                    disabled={!canTrade}
+                                    className="flex-1 py-1 text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    {pct}%
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Stop Loss */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-medium text-surface-400 flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={slEnabled}
+                                onChange={(e) => setSlEnabled(e.target.checked)}
+                                disabled={!canTrade}
+                                className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-loss-500 focus:ring-loss-500"
+                              />
+                              SL Price
+                            </label>
+                            {slEnabled && stopLoss && (
+                              <span className="text-xs text-loss-400">
+                                {selectedSide === 'LONG'
+                                  ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                  : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                }
+                              </span>
+                            )}
+                          </div>
+                          {slEnabled && (
+                            <>
+                              <input
+                                type="number"
+                                value={stopLoss}
+                                onChange={(e) => setStopLoss(e.target.value)}
+                                placeholder={selectedSide === 'LONG' ? `< ${refPrice.toFixed(2)}` : `> ${refPrice.toFixed(2)}`}
+                                disabled={!canTrade}
+                                className="input text-sm w-full mb-2"
+                              />
+                              {/* SL Percentage Buttons */}
+                              <div className="flex gap-1">
+                                {[-25, -50, -75, -100].map((pct) => (
+                                  <button
+                                    key={pct}
+                                    onClick={() => setStopLoss(calcSlPrice(pct))}
+                                    disabled={!canTrade}
+                                    className="flex-1 py-1 text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    {pct}%
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
