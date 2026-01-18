@@ -38,6 +38,12 @@ export default function LeaderboardPage() {
     return { icon: `#${rank}`, color: 'text-surface-400', bg: '' };
   };
 
+  // Get actual top 3 for podium (entries are sorted by rank, so first 3 are top 3)
+  const podiumEntries = entries.slice(0, 3);
+  const first = podiumEntries[0];
+  const second = podiumEntries[1];
+  const third = podiumEntries[2];
+
   return (
     <AppShell>
       <div className="container mx-auto px-4 md:px-6 py-8 animate-fadeIn">
@@ -103,32 +109,32 @@ export default function LeaderboardPage() {
         ) : (
           <div className="animate-fadeIn">
             {/* Top 3 Podium (Desktop) */}
-            {entries.length >= 3 && (
+            {first && second && third && (
               <div className="hidden md:grid grid-cols-3 gap-4 mb-8 max-w-3xl mx-auto">
                 {/* 2nd Place */}
                 <div className="card p-6 text-center mt-8 animate-slideUp" style={{ animationDelay: '0.1s' }}>
                   <div className="relative inline-block mb-4">
                     <div className="avatar w-20 h-20 text-2xl mx-auto">
-                      {entries[1]?.handle[0]?.toUpperCase() || '?'}
+                      {second.handle[0]?.toUpperCase() || '?'}
                     </div>
                     <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-2xl">🥈</span>
                   </div>
                   <Link
-                    href={`/profile/${entries[1]?.userId}`}
+                    href={`/profile/${second.userId}`}
                     className="font-semibold text-white hover:text-primary-400 transition-colors"
                   >
-                    {entries[1]?.handle}
+                    {second.handle}
                   </Link>
                   <p
                     className={`font-mono text-xl font-bold mt-2 ${
-                      (entries[1]?.totalPnlUsdc ?? 0) >= 0 ? 'pnl-positive' : 'pnl-negative'
+                      second.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
                     }`}
                   >
-                    {(entries[1]?.totalPnlUsdc ?? 0) >= 0 ? '+' : ''}$
-                    {Math.abs(entries[1]?.totalPnlUsdc ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {second.totalPnlUsdc >= 0 ? '+' : ''}$
+                    {Math.abs(second.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <p className="text-sm text-surface-400 mt-1">
-                    {entries[1]?.wins}W / {entries[1]?.losses}L
+                    {second.wins}W / {second.losses}L
                   </p>
                 </div>
 
@@ -140,27 +146,27 @@ export default function LeaderboardPage() {
                   <div className="relative inline-block mb-4 mt-4">
                     <div className="p-1 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500">
                       <div className="avatar w-24 h-24 text-3xl bg-surface-850">
-                        {entries[0]?.handle[0]?.toUpperCase() || '?'}
+                        {first.handle[0]?.toUpperCase() || '?'}
                       </div>
                     </div>
                     <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-3xl">🥇</span>
                   </div>
                   <Link
-                    href={`/profile/${entries[0]?.userId}`}
+                    href={`/profile/${first.userId}`}
                     className="font-display font-bold text-xl text-white hover:text-primary-400 transition-colors"
                   >
-                    {entries[0]?.handle}
+                    {first.handle}
                   </Link>
                   <p
                     className={`font-mono text-2xl font-bold mt-2 ${
-                      (entries[0]?.totalPnlUsdc ?? 0) >= 0 ? 'pnl-positive' : 'pnl-negative'
+                      first.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
                     }`}
                   >
-                    {(entries[0]?.totalPnlUsdc ?? 0) >= 0 ? '+' : ''}$
-                    {Math.abs(entries[0]?.totalPnlUsdc ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {first.totalPnlUsdc >= 0 ? '+' : ''}$
+                    {Math.abs(first.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <p className="text-sm text-surface-400 mt-1">
-                    {entries[0]?.wins}W / {entries[0]?.losses}L
+                    {first.wins}W / {first.losses}L
                   </p>
                 </div>
 
@@ -168,26 +174,26 @@ export default function LeaderboardPage() {
                 <div className="card p-6 text-center mt-12 animate-slideUp" style={{ animationDelay: '0.2s' }}>
                   <div className="relative inline-block mb-4">
                     <div className="avatar w-18 h-18 text-xl mx-auto">
-                      {entries[2]?.handle[0]?.toUpperCase() || '?'}
+                      {third.handle[0]?.toUpperCase() || '?'}
                     </div>
                     <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-2xl">🥉</span>
                   </div>
                   <Link
-                    href={`/profile/${entries[2]?.userId}`}
+                    href={`/profile/${third.userId}`}
                     className="font-semibold text-white hover:text-primary-400 transition-colors"
                   >
-                    {entries[2]?.handle}
+                    {third.handle}
                   </Link>
                   <p
                     className={`font-mono text-lg font-bold mt-2 ${
-                      (entries[2]?.totalPnlUsdc ?? 0) >= 0 ? 'pnl-positive' : 'pnl-negative'
+                      third.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
                     }`}
                   >
-                    {(entries[2]?.totalPnlUsdc ?? 0) >= 0 ? '+' : ''}$
-                    {Math.abs(entries[2]?.totalPnlUsdc ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {third.totalPnlUsdc >= 0 ? '+' : ''}$
+                    {Math.abs(third.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <p className="text-sm text-surface-400 mt-1">
-                    {entries[2]?.wins}W / {entries[2]?.losses}L
+                    {third.wins}W / {third.losses}L
                   </p>
                 </div>
               </div>
