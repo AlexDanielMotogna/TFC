@@ -149,8 +149,17 @@ export const usePacificaWsStore = create<PacificaWsState>((set, get) => ({
 
   updateOrders: (wsOrders) => {
     // Filter out empty/cancelled orders (amount = filled + cancelled)
+    // BUT keep TP/SL orders regardless of amount - they're conditional orders
     const normalized = wsOrders
       .filter(o => {
+        // Always keep TP/SL orders - they work differently from regular orders
+        const isTpSlOrder = o.ot && (
+          o.ot.includes('take_profit') ||
+          o.ot.includes('stop_loss')
+        );
+        if (isTpSlOrder) return true;
+
+        // For regular orders, filter out if fully filled/cancelled
         const remaining = parseFloat(o.a) - parseFloat(o.f) - parseFloat(o.c);
         return remaining > 0;
       })
