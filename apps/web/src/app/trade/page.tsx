@@ -907,9 +907,75 @@ export default function TradePage() {
                   )
                 )}
                 {bottomTab === 'history' && (
-                  <div className="text-center py-4 text-surface-500 text-sm">
-                    Order history - switch to full view below
-                  </div>
+                  orderHistoryData.length > 0 ? (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-surface-400 text-xs">
+                          <th className="text-left py-2 px-3 font-medium">Time</th>
+                          <th className="text-left py-2 px-3 font-medium">Type</th>
+                          <th className="text-left py-2 px-3 font-medium">Token</th>
+                          <th className="text-left py-2 px-3 font-medium">Side</th>
+                          <th className="text-right py-2 px-3 font-medium">Size</th>
+                          <th className="text-right py-2 px-3 font-medium">Price</th>
+                          <th className="text-right py-2 px-3 font-medium">Filled</th>
+                          <th className="text-left py-2 px-3 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderHistoryData.slice(0, 20).map((order: any, index: number) => {
+                          const orderSide = order.side === 'bid' ? 'LONG' : 'SHORT';
+                          const orderType = order.order_type?.replace(/_/g, ' ').toUpperCase() || 'LIMIT';
+                          const filledAmount = parseFloat(order.filled_amount || '0');
+                          const initialAmount = parseFloat(order.initial_amount || order.amount || '0');
+                          const cancelledAmount = parseFloat(order.cancelled_amount || '0');
+
+                          let status = 'OPEN';
+                          if (filledAmount >= initialAmount) status = 'FILLED';
+                          else if (cancelledAmount > 0 && filledAmount === 0) status = 'CANCELLED';
+                          else if (cancelledAmount > 0) status = 'PARTIAL';
+                          else if (filledAmount > 0) status = 'PARTIAL';
+
+                          return (
+                            <tr key={order.order_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                              <td className="py-2 px-3 text-surface-300 text-xs">
+                                {order.created_at ? new Date(order.created_at).toLocaleString(undefined, {
+                                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                                }) : '-'}
+                              </td>
+                              <td className="py-2 px-3 text-surface-300 text-xs">{orderType}</td>
+                              <td className="py-2 px-3 font-medium text-white">{order.symbol}</td>
+                              <td className={`py-2 px-3 font-medium ${orderSide === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>
+                                {orderSide}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-surface-200">
+                                {initialAmount.toFixed(6)}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-surface-200">
+                                ${parseFloat(order.price || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-surface-200">
+                                {filledAmount.toFixed(6)}
+                              </td>
+                              <td className="py-2 px-3">
+                                <span className={`text-xs px-2 py-0.5 rounded ${
+                                  status === 'FILLED' ? 'bg-win-500/20 text-win-400' :
+                                  status === 'CANCELLED' ? 'bg-surface-600/50 text-surface-400' :
+                                  status === 'PARTIAL' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-primary-500/20 text-primary-400'
+                                }`}>
+                                  {status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="text-center py-4 text-surface-500 text-sm">
+                      No order history
+                    </div>
+                  )
                 )}
               </div>
             </div>
