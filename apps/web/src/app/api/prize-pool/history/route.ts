@@ -3,8 +3,11 @@
  * GET /api/prize-pool/history - Get past weeks' prize pools and winners
  * Public endpoint (no auth required)
  */
-import { prisma } from '@tfc/db';
+import { prisma } from '@/lib/server/db';
 import { NextResponse } from 'next/server';
+
+// Force dynamic rendering - don't pre-render at build time
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {

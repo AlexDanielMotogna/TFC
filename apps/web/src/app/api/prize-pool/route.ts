@@ -6,6 +6,9 @@
 import { prisma } from '@/lib/server/db';
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering - don't pre-render at build time
+export const dynamic = 'force-dynamic';
+
 // Prize percentages for top 3
 const PRIZE_PERCENTAGES = {
   1: 5.0,  // 1st place: 5%
