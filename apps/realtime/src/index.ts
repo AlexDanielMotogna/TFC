@@ -53,11 +53,14 @@ async function main() {
   // HTTP server with internal API endpoints
   const httpServer = createServer(async (req, res) => {
     // CORS headers - use request origin if allowed, otherwise first allowed origin
-    const requestOrigin = req.headers.origin;
+    // Note: origin header can be string | string[] | undefined, normalize to string
+    const requestOrigin = Array.isArray(req.headers.origin)
+      ? req.headers.origin[0]
+      : req.headers.origin;
     const allowedOrigin = requestOrigin && isAllowedOrigin(requestOrigin)
       ? requestOrigin
       : CORS_ORIGINS[0];
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin || '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Internal-Key');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
