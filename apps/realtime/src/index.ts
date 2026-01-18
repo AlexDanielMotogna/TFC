@@ -8,8 +8,19 @@ import { FightEngine } from './fight-engine.js';
 const logger = createLogger({ service: 'realtime' });
 
 const PORT = parseInt(process.env.REALTIME_PORT || '3002', 10);
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3001';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
+// Support multiple CORS origins (comma-separated in env var)
+// Default: localhost for development
+const CORS_ORIGINS = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
+  : ['http://localhost:3001', 'http://localhost:3000'];
+
+// For Socket.IO, we need a function to validate origins
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return true; // Allow requests without origin (like server-to-server)
+  return CORS_ORIGINS.some(allowed => origin.startsWith(allowed) || allowed === '*');
+}
 
 // Helper to parse JSON body
 async function parseBody(req: IncomingMessage): Promise<unknown> {
@@ -41,10 +52,15 @@ async function main() {
 
   // HTTP server with internal API endpoints
   const httpServer = createServer(async (req, res) => {
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
+    // CORS headers - use request origin if allowed, otherwise first allowed origin
+    const requestOrigin = req.headers.origin;
+    const allowedOrigin = requestOrigin && isAllowedOrigin(requestOrigin)
+      ? requestOrigin
+      : CORS_ORIGINS[0];
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Internal-Key');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
@@ -161,11 +177,22 @@ async function main() {
 
   const io = new Server(httpServer, {
     cors: {
-      origin: CORS_ORIGIN,
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin || isAllowedOrigin(origin)) {
+          callback(null, true);
+        } else {
+          logger.warn(LOG_EVENTS.WS_SUBSCRIBE, 'CORS blocked origin', { origin, allowed: CORS_ORIGINS });
+          callback(new Error('CORS not allowed'), false);
+        }
+      },
       methods: ['GET', 'POST'],
+      credentials: true,
     },
     transports: ['websocket', 'polling'],
   });
+
+  logger.info(LOG_EVENTS.API_START, 'CORS configured', { origins: CORS_ORIGINS });
 
   // Initialize fight engine
   fightEngine = new FightEngine(io);
