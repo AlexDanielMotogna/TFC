@@ -184,14 +184,14 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
 
       {/* Asks (sells) - show from bottom, no extra space */}
       <div className="flex flex-col justify-end gap-0.5">
-        {processedAsks.map((level, i) => (
+        {processedAsks.map((level) => (
           <div
-            key={`ask-${level.price}-${i}`}
+            key={`ask-${level.price}`}
             className="relative grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-0.5 cursor-pointer hover:bg-surface-700/30"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-loss-500/20 transition-[width] duration-150 ease-out"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-[width] duration-[50ms] ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-loss-400 font-mono">
@@ -216,14 +216,14 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
 
       {/* Bids (buys) */}
       <div className="flex flex-col gap-0.5">
-        {processedBids.map((level, i) => (
+        {processedBids.map((level) => (
           <div
-            key={`bid-${level.price}-${i}`}
+            key={`bid-${level.price}`}
             className="relative grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-0.5 cursor-pointer hover:bg-surface-700/30"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-win-500/20 transition-[width] duration-150 ease-out"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10 transition-[width] duration-[50ms] ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-win-400 font-mono">
@@ -241,19 +241,23 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
 
       {/* Buy/Sell percentage bar */}
       <div className="flex-shrink-0 px-2 py-1.5 border-t border-surface-700">
-        <div className="flex items-center justify-between text-[10px] mb-1">
-          <span className="text-win-400 font-medium">B {buyPercent.toFixed(1)}%</span>
-          <span className="text-loss-400 font-medium">{sellPercent.toFixed(1)}% S</span>
-        </div>
-        <div className="h-1 flex rounded-full overflow-hidden">
-          <div
-            className="bg-win-500 transition-all duration-300"
-            style={{ width: `${buyPercent}%` }}
-          />
-          <div
-            className="bg-loss-500 transition-all duration-300"
-            style={{ width: `${sellPercent}%` }}
-          />
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-win-400 font-medium tabular-nums">
+            {buyPercent.toFixed(1)}%
+          </span>
+          <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden flex">
+            <div
+              className="bg-win-500 transition-all duration-300"
+              style={{ width: `${buyPercent}%` }}
+            />
+            <div
+              className="bg-loss-500 transition-all duration-300"
+              style={{ width: `${sellPercent}%` }}
+            />
+          </div>
+          <span className="text-[10px] text-loss-400 font-medium tabular-nums">
+            {sellPercent.toFixed(1)}%
+          </span>
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ import { ActiveFightsSwitcher } from '@/components/ActiveFightsSwitcher';
 import { AppShell } from '@/components/AppShell';
 import { CloseOppositeModal } from '@/components/CloseOppositeModal';
 import { MarketSelector } from '@/components/MarketSelector';
+import { Toggle } from '@/components/Toggle';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
 
@@ -108,6 +109,11 @@ export default function TradePage() {
 
   // Bottom tabs
   const [bottomTab, setBottomTab] = useState<'positions' | 'orders' | 'trades' | 'history'>('positions');
+
+  // Sort directions for tables
+  const [ordersSortDesc, setOrdersSortDesc] = useState(true);
+  const [tradesSortDesc, setTradesSortDesc] = useState(true);
+  const [orderHistorySortDesc, setOrderHistorySortDesc] = useState(true);
 
   // Fight filter toggle (only visible when in active fight)
   const [showFightOnly, setShowFightOnly] = useState(true);
@@ -747,18 +753,23 @@ export default function TradePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="text-xs text-surface-400 uppercase tracking-wider">
-                            <th className="text-left py-2 px-2">Time</th>
-                            <th className="text-left py-2 px-2">Order Type</th>
-                            <th className="text-left py-2 px-2">Token</th>
-                            <th className="text-left py-2 px-2">Side</th>
-                            <th className="text-right py-2 px-2">Original Size</th>
-                            <th className="text-right py-2 px-2">Filled Size</th>
-                            <th className="text-right py-2 px-2">Price</th>
-                            <th className="text-right py-2 px-2">Order Value</th>
-                            <th className="text-center py-2 px-2">Reduce Only</th>
-                            <th className="text-center py-2 px-2">Trigger Condition</th>
-                            <th className="text-center py-2 px-2">
+                          <tr className="text-xs text-surface-400 tracking-wider">
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none"
+                              onClick={() => setOrdersSortDesc(!ordersSortDesc)}
+                            >
+                              Time {ordersSortDesc ? '↓' : '↑'}
+                            </th>
+                            <th className="text-left py-2 px-2 font-medium">Order Type</th>
+                            <th className="text-left py-2 px-2 font-medium">Token</th>
+                            <th className="text-left py-2 px-2 font-medium">Side</th>
+                            <th className="text-right py-2 px-2 font-medium">Original Size</th>
+                            <th className="text-right py-2 px-2 font-medium">Filled Size</th>
+                            <th className="text-right py-2 px-2 font-medium">Price</th>
+                            <th className="text-right py-2 px-2 font-medium">Order Value</th>
+                            <th className="text-center py-2 px-2 font-medium">Reduce Only</th>
+                            <th className="text-center py-2 px-2 font-medium">Trigger Condition</th>
+                            <th className="text-center py-2 px-2 font-medium">
                               <button
                                 onClick={() => cancelAllOrders.mutate({})}
                                 disabled={cancelAllOrders.isPending}
@@ -770,7 +781,11 @@ export default function TradePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {openOrders.map((order) => {
+                          {[...openOrders].sort((a, b) => {
+                            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                            return ordersSortDesc ? timeB - timeA : timeA - timeB;
+                          }).map((order) => {
                             const price = parseFloat(order.price) || 0;
                             const originalSize = parseFloat(order.size) || 0;
                             const filledSize = parseFloat(order.filled) || 0;
@@ -789,8 +804,8 @@ export default function TradePage() {
 
                             return (
                               <tr key={order.id} className="border-t border-surface-700/50 hover:bg-surface-800/30">
-                                <td className="py-2 px-2 text-surface-400 whitespace-nowrap">
-                                  {timestamp.toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' })}, {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
+                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">
                                   {order.type === 'LIMIT' ? 'Limit Order' : order.type}
@@ -857,40 +872,70 @@ export default function TradePage() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
-                          <tr className="text-xs text-surface-400 uppercase tracking-wider">
-                            <th className="text-left py-2 px-2">Time</th>
-                            <th className="text-left py-2 px-2">Token</th>
-                            <th className="text-left py-2 px-2">Side</th>
-                            <th className="text-right py-2 px-2">Size</th>
-                            <th className="text-right py-2 px-2">Price</th>
-                            <th className="text-right py-2 px-2">PnL</th>
+                          <tr className="text-xs text-surface-400 tracking-wider">
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none"
+                              onClick={() => setTradesSortDesc(!tradesSortDesc)}
+                            >
+                              Time {tradesSortDesc ? '↓' : '↑'}
+                            </th>
+                            <th className="text-left py-2 px-2 font-medium">Token</th>
+                            <th className="text-left py-2 px-2 font-medium">Side</th>
+                            <th className="text-left py-2 px-2 font-medium">Order Type</th>
+                            <th className="text-right py-2 px-2 font-medium">Size</th>
+                            <th className="text-right py-2 px-2 font-medium">Price</th>
+                            <th className="text-right py-2 px-2 font-medium">Trade Value</th>
+                            <th className="text-right py-2 px-2 font-medium">Fees</th>
+                            <th className="text-right py-2 px-2 font-medium">Realized PnL</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {activeTrades.slice(0, 10).map((trade: any, index: number) => {
+                          {[...activeTrades].sort((a: any, b: any) => {
+                            const timeA = a.created_at || 0;
+                            const timeB = b.created_at || 0;
+                            return tradesSortDesc ? timeB - timeA : timeA - timeB;
+                          }).slice(0, 10).map((trade: any, index: number) => {
                             const price = parseFloat(trade.price) || 0;
                             const amount = parseFloat(trade.amount) || 0;
                             const realizedPnl = parseFloat(trade.pnl) || 0;
+                            const fee = parseFloat(trade.fee) || 0;
+                            const tradeValue = price * amount;
                             const timestamp = trade.created_at ? new Date(trade.created_at) : new Date();
-                            let sideColor = trade.side?.includes('long') ? 'text-win-400' : 'text-loss-400';
+                            // Format side: close_long -> Close Long, open_short -> Open Short
+                            const sideFormatted = trade.side?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '';
+                            const isLong = trade.side?.includes('long');
+                            const isClose = trade.side?.includes('close');
+                            // Close positions with profit are green, losses are red
+                            const sideColor = isClose
+                              ? (realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400')
+                              : (isLong ? 'text-win-400' : 'text-loss-400');
+                            // Extract token from symbol (BTC-USD -> BTC)
+                            const token = trade.symbol?.replace('-USD', '') || '';
 
                             return (
                               <tr key={trade.history_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
-                                <td className="py-2 px-2 text-surface-400 whitespace-nowrap">
-                                  {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
+                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                                 </td>
-                                <td className="py-2 px-2 font-medium text-white">{trade.symbol}</td>
+                                <td className="py-2 px-2 text-surface-300">{token}</td>
                                 <td className="py-2 px-2">
-                                  <span className={`font-medium ${sideColor}`}>{trade.side}</span>
+                                  <span className={`font-medium ${sideColor}`}>{sideFormatted}</span>
                                 </td>
-                                <td className="py-2 px-2 text-right font-mono text-white">
-                                  {amount.toFixed(amount < 0.01 ? 5 : 2)}
+                                <td className="py-2 px-2 text-surface-300">Fulfill Taker</td>
+                                <td className="py-2 px-2 text-right font-mono text-surface-300 whitespace-nowrap">
+                                  {amount.toFixed(amount < 0.01 ? 5 : 4)} {token}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono text-surface-300">
-                                  ${price.toLocaleString()}
+                                  {price.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                </td>
+                                <td className="py-2 px-2 text-right font-mono text-surface-300">
+                                  ${tradeValue.toFixed(2)}
+                                </td>
+                                <td className="py-2 px-2 text-right font-mono text-surface-300">
+                                  ${fee.toFixed(2)}
                                 </td>
                                 <td className="py-2 px-2 text-right">
-                                  <span className={`font-mono font-semibold ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                                  <span className={`font-mono ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                                     {realizedPnl >= 0 ? '+' : ''}${realizedPnl.toFixed(2)}
                                   </span>
                                 </td>
@@ -911,7 +956,12 @@ export default function TradePage() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-surface-400 text-xs">
-                          <th className="text-left py-2 px-3 font-medium">Time</th>
+                          <th
+                            className="text-left py-2 px-3 font-medium cursor-pointer hover:text-surface-200 select-none"
+                            onClick={() => setOrderHistorySortDesc(!orderHistorySortDesc)}
+                          >
+                            Time {orderHistorySortDesc ? '↓' : '↑'}
+                          </th>
                           <th className="text-left py-2 px-3 font-medium">Type</th>
                           <th className="text-left py-2 px-3 font-medium">Token</th>
                           <th className="text-left py-2 px-3 font-medium">Side</th>
@@ -922,7 +972,11 @@ export default function TradePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {orderHistoryData.slice(0, 20).map((order: any, index: number) => {
+                        {[...orderHistoryData].sort((a: any, b: any) => {
+                          const timeA = a.created_at || 0;
+                          const timeB = b.created_at || 0;
+                          return orderHistorySortDesc ? timeB - timeA : timeA - timeB;
+                        }).slice(0, 20).map((order: any, index: number) => {
                           const orderSide = order.side === 'bid' ? 'LONG' : 'SHORT';
                           const orderType = order.order_type?.replace(/_/g, ' ').toUpperCase() || 'LIMIT';
                           const filledAmount = parseFloat(order.filled_amount || '0');
@@ -937,10 +991,8 @@ export default function TradePage() {
 
                           return (
                             <tr key={order.order_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
-                              <td className="py-2 px-3 text-surface-300 text-xs">
-                                {order.created_at ? new Date(order.created_at).toLocaleString(undefined, {
-                                  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
-                                }) : '-'}
+                              <td className="py-2 px-3 text-surface-300 text-xs font-mono whitespace-nowrap">
+                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}` : '-'}
                               </td>
                               <td className="py-2 px-3 text-surface-300 text-xs">{orderType}</td>
                               <td className="py-2 px-3 font-medium text-white">{order.symbol}</td>
@@ -1445,19 +1497,15 @@ export default function TradePage() {
               {(orderType === 'market' || orderType === 'limit') && (
                 <div className="mb-4 space-y-3">
                   {/* TP/SL Toggle Header */}
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={tpEnabled || slEnabled}
-                      onChange={(e) => {
-                        setTpEnabled(e.target.checked);
-                        setSlEnabled(e.target.checked);
-                      }}
-                      disabled={!canTrade}
-                      className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-primary-500 focus:ring-primary-500"
-                    />
-                    <span className="text-xs font-medium text-surface-400">Take Profit / Stop Loss</span>
-                  </div>
+                  <Toggle
+                    checked={tpEnabled || slEnabled}
+                    onChange={(checked) => {
+                      setTpEnabled(checked);
+                      setSlEnabled(checked);
+                    }}
+                    disabled={!canTrade}
+                    label="Take Profit / Stop Loss"
+                  />
 
                   {(tpEnabled || slEnabled) && (() => {
                     // Reference price for percentage calculations
@@ -1495,16 +1543,13 @@ export default function TradePage() {
                         {/* Take Profit */}
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-medium text-surface-400 flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={tpEnabled}
-                                onChange={(e) => setTpEnabled(e.target.checked)}
-                                disabled={!canTrade}
-                                className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-win-500 focus:ring-win-500"
-                              />
-                              TP Price
-                            </label>
+                            <Toggle
+                              checked={tpEnabled}
+                              onChange={setTpEnabled}
+                              disabled={!canTrade}
+                              variant="win"
+                              label="TP Price"
+                            />
                             {tpEnabled && takeProfit && (
                               <span className="text-xs text-win-400">
                                 {selectedSide === 'LONG'
@@ -1544,16 +1589,13 @@ export default function TradePage() {
                         {/* Stop Loss */}
                         <div>
                           <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs font-medium text-surface-400 flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={slEnabled}
-                                onChange={(e) => setSlEnabled(e.target.checked)}
-                                disabled={!canTrade}
-                                className="w-3.5 h-3.5 rounded border-surface-600 bg-surface-800 text-loss-500 focus:ring-loss-500"
-                              />
-                              SL Price
-                            </label>
+                            <Toggle
+                              checked={slEnabled}
+                              onChange={setSlEnabled}
+                              disabled={!canTrade}
+                              variant="loss"
+                              label="SL Price"
+                            />
                             {slEnabled && stopLoss && (
                               <span className="text-xs text-loss-400">
                                 {selectedSide === 'LONG'
