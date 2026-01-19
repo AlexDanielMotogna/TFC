@@ -5,9 +5,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks';
+import { WalletButton } from '@/components/WalletButton';
 import { api } from '@/lib/api';
 
 interface NavLinkProps {
@@ -104,7 +104,7 @@ export function AppShell({ children }: AppShellProps) {
 
             {/* Wallet */}
             <div className="flex items-center">
-              <WalletMultiButton />
+              <WalletButton />
             </div>
           </div>
         </div>

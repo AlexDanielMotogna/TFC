@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { FIGHT_DURATIONS_MINUTES, FIGHT_STAKES_USDC } from '@tfc/shared';
 import { useAuth, useFights } from '@/hooks';
 import { useGlobalSocket } from '@/hooks/useGlobalSocket';
@@ -13,7 +13,8 @@ import { ArenaSkeleton } from '@/components/Skeletons';
 type ArenaTab = 'live' | 'pending' | 'finished' | 'my-fights';
 
 export default function LobbyPage() {
-  const { connected } = useWallet();
+  const { connected, connecting } = useWallet();
+  const { setVisible: setWalletModalVisible } = useWalletModal();
   const { isAuthenticated, isAuthenticating, user } = useAuth();
   const {
     fights,
@@ -122,7 +123,13 @@ export default function LobbyPage() {
   };
 
   const handleCreateClick = () => {
-    if (!connected || !isAuthenticated) return;
+    // If not connected, open wallet modal
+    if (!connected) {
+      setWalletModalVisible(true);
+      return;
+    }
+    // If connected but not authenticated, wait for auth
+    if (!isAuthenticated) return;
     setShowCreateModal(true);
   };
 
@@ -199,20 +206,26 @@ export default function LobbyPage() {
             </div>
           </div>
 
-          {/* Create Button */}
-          {connected && isAuthenticated ? (
+          {/* Create Button - Always shows "Create Fight", opens wallet modal if not connected */}
+          {connecting ? (
+            <button disabled className="btn-primary opacity-50">
+              Connecting...
+            </button>
+          ) : connected && isAuthenticating ? (
+            <button disabled className="btn-primary opacity-50">
+              Signing...
+            </button>
+          ) : connected && !isAuthenticated ? (
+            <button disabled className="btn-primary opacity-50">
+              Authenticating...
+            </button>
+          ) : (
             <button
               onClick={handleCreateClick}
               className="btn-primary"
             >
               + Create Fight
             </button>
-          ) : connected && isAuthenticating ? (
-            <button disabled className="btn-primary opacity-50">
-              Authenticating...
-            </button>
-          ) : (
-            <WalletMultiButton className="btn-primary" />
           )}
         </div>
 

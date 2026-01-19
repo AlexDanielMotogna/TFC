@@ -252,8 +252,18 @@ export function usePacificaWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isConnectingRef = useRef(false);
+  // Use refs for wallet state to avoid stale closures in WebSocket callbacks
+  const connectedRef = useRef(connected);
+  const publicKeyRef = useRef(publicKey);
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    connectedRef.current = connected;
+    publicKeyRef.current = publicKey;
+  }, [connected, publicKey]);
 
   const {
     isConnected,
@@ -317,9 +327,28 @@ export function usePacificaWebSocket() {
       return;
     }
 
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current || wsRef.current?.readyState === WebSocket.OPEN) {
+      return;
+    }
+
     const account = publicKey.toBase58();
 
-    cleanup();
+    // Clean up any existing connection first
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current);
+      pingIntervalRef.current = null;
+    }
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    isConnectingRef.current = true;
 
     try {
       console.log('[PacificaWS] Connecting to', PACIFICA_WS_URL);
@@ -328,6 +357,7 @@ export function usePacificaWebSocket() {
 
       ws.onopen = () => {
         console.log('[PacificaWS] Connected');
+        isConnectingRef.current = false;
         setConnected(true);
         setError(null);
         subscribe(ws, account);
@@ -385,11 +415,14 @@ export function usePacificaWebSocket() {
 
       ws.onerror = (event) => {
         console.error('[PacificaWS] WebSocket error:', event);
+        isConnectingRef.current = false;
         setError('WebSocket connection error');
       };
 
       ws.onclose = (event) => {
         console.log('[PacificaWS] Disconnected:', event.code, event.reason);
+        isConnectingRef.current = false;
+        wsRef.current = null;
         setConnected(false);
 
         // Clear ping interval
@@ -398,25 +431,36 @@ export function usePacificaWebSocket() {
           pingIntervalRef.current = null;
         }
 
-        // Attempt reconnect if not intentional close
-        if (event.code !== 1000 && connected && publicKey) {
-          console.log('[PacificaWS] Scheduling reconnect...');
+        // Only reconnect if it wasn't an intentional close (1000)
+        // and we still have a connected wallet (use refs for current state)
+        if (event.code !== 1000) {
+          console.log('[PacificaWS] Scheduling reconnect in', RECONNECT_DELAY, 'ms...');
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            // Use refs to check current wallet state (not stale closure values)
+            if (publicKeyRef.current && connectedRef.current) {
+              connect();
+            }
           }, RECONNECT_DELAY);
         }
       };
     } catch (err) {
       console.error('[PacificaWS] Connection error:', err);
+      isConnectingRef.current = false;
       setError('Failed to connect to Pacifica WebSocket');
     }
-  }, [publicKey, connected, cleanup, subscribe, setConnected, updatePositions, updateOrders, addTrades, queryClient]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicKey, connected, subscribe, setConnected, updatePositions, updateOrders, addTrades, queryClient]);
 
   // Connect when wallet connects
   useEffect(() => {
     if (connected && publicKey) {
-      connect();
+      // Small delay to ensure state is stable before connecting
+      const timeoutId = setTimeout(() => {
+        connect();
+      }, 100);
+      return () => clearTimeout(timeoutId);
     } else {
+      // Cleanup when wallet disconnects
       cleanup();
       clearAll();
     }
@@ -424,7 +468,8 @@ export function usePacificaWebSocket() {
     return () => {
       cleanup();
     };
-  }, [connected, publicKey, connect, cleanup, clearAll]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, publicKey?.toBase58()]);
 
   // Force refresh method
   const refresh = useCallback(() => {

@@ -13,7 +13,7 @@ let globalAuthInProgress = false;
 let globalHasAttempted = false;
 
 export function useAuth() {
-  const { publicKey, signMessage, connected, disconnect } = useWallet();
+  const { publicKey, signMessage, connected, connecting, disconnect } = useWallet();
   const { token, user, isAuthenticated, pacificaConnected, setAuth, setPacificaConnected, clearAuth, _hasHydrated } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const hasAttemptedAuth = useRef(false);
@@ -107,6 +107,7 @@ export function useAuth() {
     isAuthenticated,
     pacificaConnected,
     isAuthenticating,
+    isConnecting: connecting,
     isWalletConnected: connected,
     walletAddress: publicKey?.toBase58() || null,
     login,
