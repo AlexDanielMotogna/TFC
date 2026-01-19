@@ -389,6 +389,79 @@ export async function cancelAllOrders(token: string, symbol?: string): Promise<n
 }
 
 // ─────────────────────────────────────────────────────────────
+// Notifications
+// ─────────────────────────────────────────────────────────────
+
+export interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export async function getNotifications(
+  token: string,
+  limit = 50,
+  offset = 0
+): Promise<Notification[]> {
+  try {
+    return fetchApi<Notification[]>(`/notifications?limit=${limit}&offset=${offset}`, { token });
+  } catch {
+    return [];
+  }
+}
+
+export async function getUnreadNotificationCount(token: string): Promise<number> {
+  try {
+    const response = await fetchApi<{ count: number }>('/notifications/unread-count', { token });
+    return response.count;
+  } catch {
+    return 0;
+  }
+}
+
+export async function createNotification(
+  token: string,
+  data: { type: string; title: string; message: string }
+): Promise<Notification | null> {
+  try {
+    return fetchApi<Notification>('/notifications', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(data),
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function markNotificationAsRead(token: string, id: string): Promise<boolean> {
+  try {
+    await fetchApi<{ success: boolean }>(`/notifications/${id}/read`, {
+      method: 'POST',
+      token,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function markAllNotificationsAsRead(token: string): Promise<boolean> {
+  try {
+    await fetchApi<{ success: boolean }>('/notifications/read-all', {
+      method: 'POST',
+      token,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // Unified API object for easier imports
 // ─────────────────────────────────────────────────────────────
 
@@ -424,4 +497,10 @@ export const api = {
   placeOrder,
   cancelOrder,
   cancelAllOrders,
+  // Notifications
+  getNotifications,
+  getUnreadNotificationCount,
+  createNotification,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
 };

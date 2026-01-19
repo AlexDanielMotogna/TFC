@@ -146,6 +146,7 @@ export function useAccount(): UseAccountReturn {
     return ordersData.map((order: any) => {
       // Order type display
       let typeDisplay = 'LIMIT';
+      const isTpSlOrder = order.order_type?.includes('take_profit') || order.order_type?.includes('stop_loss');
       if (order.order_type === 'limit') typeDisplay = 'LIMIT';
       else if (order.order_type === 'market') typeDisplay = 'MARKET';
       else if (order.order_type === 'take_profit_market') typeDisplay = 'TP MARKET';
@@ -154,13 +155,36 @@ export function useAccount(): UseAccountReturn {
       else if (order.order_type === 'stop_loss_limit') typeDisplay = 'SL LIMIT';
       else if (order.order_type) typeDisplay = order.order_type.toUpperCase();
 
-      // Debug: log the size field resolution
-      const resolvedSize = order.initial_amount || order.amount || order.size || '0';
-      console.log(`useAccount: Order ${order.order_id} size resolution:`, {
+      // Get size from order data
+      let resolvedSize = order.initial_amount || order.amount || order.size || '0';
+
+      // For TP/SL orders, if size is 0, try to get it from the matching position
+      // TP/SL orders have opposite side: LONG position → ask orders, SHORT position → bid orders
+      if (isTpSlOrder && (!resolvedSize || resolvedSize === '0' || parseFloat(resolvedSize) === 0)) {
+        // Find matching position: same symbol, opposite side
+        // Order side 'ask' = selling = closing a LONG position
+        // Order side 'bid' = buying = closing a SHORT position
+        const positionSide = order.side === 'ask' ? 'bid' : 'ask';
+        const orderSymbol = order.symbol?.includes('-') ? order.symbol.replace('-USD', '') : order.symbol;
+
+        const matchingPosition = positionsData?.find((pos: any) => {
+          const posSymbol = pos.symbol?.includes('-') ? pos.symbol.replace('-USD', '') : pos.symbol;
+          return posSymbol === orderSymbol && pos.side === positionSide;
+        });
+
+        if (matchingPosition) {
+          resolvedSize = matchingPosition.amount || '0';
+          console.log(`useAccount: TP/SL order ${order.order_id} - using position size:`, resolvedSize);
+        }
+      }
+
+      console.log(`useAccount: Order ${order.order_id} (${order.order_type}) data:`, {
         initial_amount: order.initial_amount,
         amount: order.amount,
         size: order.size,
-        resolved: resolvedSize,
+        resolved_size: resolvedSize,
+        stop_price: order.stop_price,
+        price: order.price,
       });
 
       return {
@@ -177,7 +201,7 @@ export function useAccount(): UseAccountReturn {
         createdAt: order.created_at || Date.now(),
       };
     });
-  }, [ordersData]);
+  }, [ordersData, positionsData]);
 
   const isLoading = accountLoading || positionsLoading || ordersLoading;
   const error = null; // Individual hooks handle their own errors

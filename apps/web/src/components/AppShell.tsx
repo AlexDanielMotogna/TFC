@@ -6,9 +6,19 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '@/hooks';
+import { useAuth, useAccount } from '@/hooks';
 import { WalletButton } from '@/components/WalletButton';
+import { NotificationBell } from '@/components/NotificationBell';
 import { api } from '@/lib/api';
+
+// Wallet icon for balance
+function WalletIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" />
+    </svg>
+  );
+}
 
 interface NavLinkProps {
   href: string;
@@ -45,7 +55,11 @@ export function AppShell({ children }: AppShellProps) {
   const router = useRouter();
   const { connected } = useWallet();
   const { isAuthenticated, user } = useAuth();
+  const { account } = useAccount();
   const queryClient = useQueryClient();
+
+  // Get Pacifica balance
+  const pacificaBalance = account?.accountEquity ? parseFloat(account.accountEquity) : null;
 
   const prefetchLeaderboard = useCallback(() => {
     queryClient.prefetchQuery({
@@ -75,7 +89,7 @@ export function AppShell({ children }: AppShellProps) {
     <div className="min-h-screen bg-surface-900 text-zinc-100 flex flex-col">
       {/* Header */}
       <header className="border-b border-surface-700 bg-surface-850 sticky top-0 z-50">
-        <div className="max-w-screen-2xl mx-auto px-4">
+        <div className="w-full px-4">
           <div className="flex items-center justify-between h-12">
             {/* Logo */}
             <Link href="/lobby">
@@ -102,8 +116,20 @@ export function AppShell({ children }: AppShellProps) {
               )}
             </nav>
 
-            {/* Wallet */}
-            <div className="flex items-center">
+            {/* Right side: Balance, Notifications, Wallet */}
+            <div className="flex items-center gap-3">
+              {/* Balance Display */}
+              <div className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 rounded text-sm">
+                <WalletIcon className="w-4 h-4 text-surface-400" />
+                <span className="text-surface-200 font-mono">
+                  {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
+                </span>
+              </div>
+
+              {/* Notifications Bell */}
+              <NotificationBell />
+
+              {/* Wallet Connect Button */}
               <WalletButton />
             </div>
           </div>
@@ -117,14 +143,9 @@ export function AppShell({ children }: AppShellProps) {
 
       {/* Footer */}
       <footer className="border-t border-surface-800 py-3">
-        <div className="max-w-screen-2xl mx-auto px-4">
-          <div className="flex items-center justify-between text-xs text-surface-500">
+        <div className="w-full px-4">
+          <div className="flex items-center justify-center text-xs text-surface-500">
             <span>Trading Fight Club</span>
-            <div className="flex items-center gap-4">
-              <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="hover:text-surface-400 transition-colors">
-                Built on Pacifica
-              </a>
-            </div>
           </div>
         </div>
       </footer>

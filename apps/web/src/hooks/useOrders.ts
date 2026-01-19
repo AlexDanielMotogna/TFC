@@ -4,8 +4,8 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl } from '@/lib/pacifica/signing';
-import { toast } from 'sonner';
+import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedUpdateLeverage, createSignedWithdraw } from '@/lib/pacifica/signing';
+import { notify } from '@/lib/notify';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
 
@@ -48,8 +48,14 @@ interface CancelAllOrdersParams {
 interface SetPositionTpSlParams {
   symbol: string;
   side: 'LONG' | 'SHORT';
+  size: string; // Size in token units (e.g., "0.00123" for BTC)
   take_profit?: { stop_price: string; limit_price?: string } | null; // null to remove
   stop_loss?: { stop_price: string; limit_price?: string } | null; // null to remove
+}
+
+interface SetLeverageParams {
+  symbol: string;
+  leverage: number;
 }
 
 /**
@@ -141,11 +147,11 @@ export function useCreateMarketOrder() {
 
       // Format like Pacifica: "0.00082 BTC filled at 93300"
       const avgPrice = data.avg_price || data.price || 'market';
-      toast.success(`${variables.amount} ${variables.symbol} filled at ${avgPrice}`);
+      notify('TRADE', 'Order Filled', `${variables.amount} ${variables.symbol} filled at ${avgPrice}`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to create market order:', error);
-      toast.error(`Order failed: ${error.message}`);
+      notify('TRADE', 'Order Failed', `Order failed: ${error.message}`, { variant: 'error' });
     },
   });
 }
@@ -218,11 +224,11 @@ export function useCreateLimitOrder() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
       // Format: "Limit order: 0.001 BTC at 93000"
-      toast.success(`Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`);
+      notify('ORDER', 'Limit Order', `Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to create limit order:', error);
-      toast.error(`Limit order failed: ${error.message}`);
+      notify('ORDER', 'Limit Order Failed', `Limit order failed: ${error.message}`, { variant: 'error' });
     },
   });
 }
@@ -267,11 +273,11 @@ export function useCancelOrder() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
-      toast.success(`Order #${variables.orderId} cancelled`);
+      notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel order:', error);
-      toast.error(`Cancel failed: ${error.message}`);
+      notify('ORDER', 'Cancel Failed', `Cancel failed: ${error.message}`, { variant: 'error' });
     },
   });
 }
@@ -324,11 +330,11 @@ export function useCancelStopOrder() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['positions'] });
 
-      toast.success(`TP/SL order cancelled`);
+      notify('ORDER', 'TP/SL Cancelled', `TP/SL order cancelled`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel stop order:', error);
-      toast.error(`Cancel failed: ${error.message}`);
+      notify('ORDER', 'Cancel Failed', `Cancel failed: ${error.message}`, { variant: 'error' });
     },
   });
 }
@@ -382,11 +388,11 @@ export function useCancelAllOrders() {
       const msg = params?.symbol
         ? `All ${params.symbol} orders cancelled`
         : 'All orders cancelled';
-      toast.success(msg);
+      notify('ORDER', 'Orders Cancelled', msg, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel orders:', error);
-      toast.error(`Failed to cancel orders: ${error.message}`);
+      notify('ORDER', 'Cancel Failed', `Failed to cancel orders: ${error.message}`, { variant: 'error' });
     },
   });
 }
@@ -406,22 +412,25 @@ export function useSetPositionTpSl() {
 
       const account = wallet.publicKey.toBase58();
 
-      // Convert LONG/SHORT to the OPPOSITE side for TP/SL
+      // Convert LONG/SHORT to CLOSING order side (opposite of position)
       // TP/SL orders close the position, so they need the opposite side:
       // - LONG position → need to SELL (ask) to close
       // - SHORT position → need to BUY (bid) to close
       const side = params.side === 'LONG' ? 'ask' : 'bid';
 
       // Build params for signing - account is NOT in signed data (same as market orders)
+      // NOTE: size is NOT included for full position TP/SL (per Pacifica API)
       const signParams: {
         symbol: string;
         side: 'bid' | 'ask';
+        size?: string;
         take_profit?: { stop_price: string; limit_price?: string } | null;
         stop_loss?: { stop_price: string; limit_price?: string } | null;
       } = {
         symbol: params.symbol.replace('-USD', ''),
         side,
       };
+      // Size is only for partial TP/SL - omit for full position
 
       // Handle take_profit: null means remove, undefined means don't change, object means set
       if (params.take_profit === null) {
@@ -444,10 +453,13 @@ export function useSetPositionTpSl() {
       }
 
       // Sign the operation
+      console.log('TP/SL signParams:', JSON.stringify(signParams, null, 2));
       const { signature, timestamp } = await createSignedSetPositionTpsl(wallet, signParams);
+      console.log('TP/SL signed with timestamp:', timestamp);
 
       // Build request body - must match exactly what was signed
       // NOTE: builder_code is NOT a valid field for TP/SL endpoint per Pacifica docs
+      // NOTE: size is NOT included for full position TP/SL (per Pacifica API)
       const requestBody: Record<string, any> = {
         account,
         symbol: params.symbol.replace('-USD', ''),
@@ -504,11 +516,126 @@ export function useSetPositionTpSl() {
       if (variables.stop_loss) {
         parts.push(`SL: $${variables.stop_loss.stop_price}`);
       }
-      toast.success(`${variables.symbol} ${parts.join(', ')} set`);
+      notify('ORDER', 'TP/SL Set', `${variables.symbol} ${parts.join(', ')} set`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to set TP/SL:', error);
-      toast.error(`Failed to set TP/SL: ${error.message}`);
+      notify('ORDER', 'TP/SL Failed', `Failed to set TP/SL: ${error.message}`, { variant: 'error' });
+    },
+  });
+}
+
+/**
+ * Hook to set leverage for a trading pair
+ */
+export function useSetLeverage() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: SetLeverageParams) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedUpdateLeverage(wallet, {
+        symbol,
+        leverage: params.leverage.toString(),
+      });
+
+      // Send to backend proxy
+      const response = await fetch('/api/account/leverage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account,
+          symbol,
+          leverage: params.leverage.toString(),
+          signature,
+          timestamp,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['account-settings'] });
+      const symbol = variables.symbol.replace('-USD', '');
+      notify('ORDER', 'Leverage Set', `Leverage set to ${variables.leverage}x for ${symbol}`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to set leverage:', error);
+      // Provide friendlier error messages for common cases
+      if (error.message.includes('InvalidLeverage')) {
+        notify('ORDER', 'Leverage Failed', 'Cannot decrease leverage while position is open', { variant: 'error' });
+      } else {
+        notify('ORDER', 'Leverage Failed', `Failed to set leverage: ${error.message}`, { variant: 'error' });
+      }
+    },
+  });
+}
+
+interface WithdrawParams {
+  amount: string;
+}
+
+/**
+ * Hook to withdraw funds from Pacifica
+ */
+export function useWithdraw() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: WithdrawParams) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedWithdraw(wallet, {
+        amount: params.amount,
+      });
+
+      // Send to backend proxy
+      const response = await fetch('/api/account/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account,
+          amount: params.amount,
+          signature,
+          timestamp,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      // Refresh account data after withdrawal
+      queryClient.invalidateQueries({ queryKey: ['account'] });
+      queryClient.invalidateQueries({ queryKey: ['pacifica-account'] });
+      notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to withdraw:', error);
+      notify('ORDER', 'Withdrawal Failed', `Failed to withdraw: ${error.message}`, { variant: 'error' });
     },
   });
 }

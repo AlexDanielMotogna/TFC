@@ -38,12 +38,12 @@ body {
 }
 
 /* ===========================================================
-   Scrollbar - Minimal
+   Scrollbar - Almost Invisible
    =========================================================== */
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -51,12 +51,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
 /* ===========================================================
@@ -168,6 +174,16 @@ body {
     @apply w-full bg-surface-900 border border-surface-700 rounded px-3 py-2 text-zinc-100;
     @apply placeholder:text-surface-500 transition-colors duration-150;
     @apply focus:outline-none focus:border-surface-500;
+  }
+
+  /* Hide native number input spinners (they look dated) */
+  .input[type="number"]::-webkit-outer-spin-button,
+  .input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .input[type="number"] {
+    -moz-appearance: textfield;
   }
 
   .select {

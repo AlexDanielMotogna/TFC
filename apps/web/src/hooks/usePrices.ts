@@ -73,6 +73,9 @@ interface PacificaApiResponse<T> {
 // Cache for market info (leverage, etc.) - doesn't change often
 let marketInfoCache: Record<string, PacificaMarketInfo> = {};
 let marketInfoLoaded = false;
+let marketInfoRetryCount = 0;
+const MAX_MARKET_INFO_RETRIES = 3;
+const MARKET_INFO_RETRY_DELAY = 2000;
 
 // Exported market interface for components
 export interface Market {
@@ -145,12 +148,14 @@ export function usePrices(_options: UsePricesOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch market info (for leverage limits) - only once via REST
-  const fetchMarketInfo = useCallback(async () => {
-    if (marketInfoLoaded) return;
+  // Fetch market info (for leverage limits) - with retry logic
+  const fetchMarketInfo = useCallback(async (): Promise<boolean> => {
+    if (marketInfoLoaded) return true;
 
     try {
-      const response = await fetch(`${PACIFICA_API_BASE}/api/v1/info`);
+      const response = await fetch(`${PACIFICA_API_BASE}/api/v1/info`, {
+        signal: AbortSignal.timeout(10000), // 10s timeout
+      });
       const result: PacificaApiResponse<PacificaMarketInfo[]> = await response.json();
 
       if (result.success && result.data) {
@@ -171,15 +176,30 @@ export function usePrices(_options: UsePricesOptions = {}) {
         // Sort by volume (will be updated when prices come in)
         setMarkets(marketList);
         marketInfoLoaded = true;
+        marketInfoRetryCount = 0;
+        return true;
       }
+      return false;
     } catch (err) {
       console.error('Failed to fetch market info:', err);
+
+      // Retry logic
+      if (marketInfoRetryCount < MAX_MARKET_INFO_RETRIES) {
+        marketInfoRetryCount++;
+        console.log(`Retrying market info fetch (${marketInfoRetryCount}/${MAX_MARKET_INFO_RETRIES})...`);
+        await new Promise(resolve => setTimeout(resolve, MARKET_INFO_RETRY_DELAY));
+        return fetchMarketInfo();
+      }
+
+      return false;
     }
   }, []);
 
   // Process WebSocket price data - now processes ALL symbols from API
+  // Also builds markets list from WS data if REST hasn't loaded yet
   const processPriceData = useCallback((data: PacificaWsPriceData[]) => {
     const newPrices: Record<string, PriceData> = {};
+    const wsMarkets: Market[] = [];
 
     data.forEach((priceData) => {
       const ourSymbol = pacificaToSymbol(priceData.symbol);
@@ -208,9 +228,30 @@ export function usePrices(_options: UsePricesOptions = {}) {
         tickSize: marketInfo?.tick_size ? parseFloat(marketInfo.tick_size) : 0.01,
         lotSize: marketInfo?.lot_size ? parseFloat(marketInfo.lot_size) : 0.00001,
       };
+
+      // Build market list from WS data (fallback if REST hasn't loaded)
+      wsMarkets.push({
+        symbol: ourSymbol,
+        name: symbolNames[priceData.symbol] || priceData.symbol,
+        maxLeverage: marketInfo?.max_leverage || 10,
+      });
     });
 
     setPrices(prev => ({ ...prev, ...newPrices }));
+
+    // If REST hasn't loaded markets yet, use WS data to build the list
+    // This ensures markets are available immediately even if REST is slow
+    setMarkets(prev => {
+      if (prev.length === 0 && wsMarkets.length > 0) {
+        // Sort by volume for initial display
+        return wsMarkets.sort((a, b) => {
+          const volA = newPrices[a.symbol]?.volume24h || 0;
+          const volB = newPrices[b.symbol]?.volume24h || 0;
+          return volB - volA;
+        });
+      }
+      return prev;
+    });
   }, []);
 
   // Connect to WebSocket
@@ -262,12 +303,13 @@ export function usePrices(_options: UsePricesOptions = {}) {
     }
   }, [processPriceData]);
 
-  // Initial setup
+  // Initial setup - connect WebSocket immediately, fetch market info in parallel
   useEffect(() => {
-    // Fetch market info first, then connect WebSocket
-    fetchMarketInfo().then(() => {
-      connect();
-    });
+    // Start both in parallel for faster initial load
+    // WebSocket will provide price data immediately
+    // REST will provide market info (leverage limits, tick sizes)
+    fetchMarketInfo();
+    connect();
 
     return () => {
       if (wsRef.current) {

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, usePacificaWsStore } from '@/hooks';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { PacificaChart } from '@/components/PacificaChart';
 import { OrderBook } from '@/components/OrderBook';
@@ -14,6 +14,7 @@ import { AppShell } from '@/components/AppShell';
 import { CloseOppositeModal } from '@/components/CloseOppositeModal';
 import { MarketSelector } from '@/components/MarketSelector';
 import { Toggle } from '@/components/Toggle';
+import { WithdrawModal } from '@/components/WithdrawModal';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
 
@@ -54,6 +55,10 @@ export default function TradePage() {
   const cancelStopOrder = useCancelStopOrder();
   const cancelAllOrders = useCancelAllOrders();
   const setPositionTpSl = useSetPositionTpSl();
+  const setLeverageMutation = useSetLeverage();
+
+  // Account settings (for leverage per symbol)
+  const { data: accountSettings } = useAccountSettings();
 
   // History hooks
   const { data: tradeHistory = [] } = useTradeHistory();
@@ -84,6 +89,7 @@ export default function TradePage() {
   const [selectedSide, setSelectedSide] = useState<'LONG' | 'SHORT'>('LONG');
   const [orderSize, setOrderSize] = useState('');
   const [leverage, setLeverage] = useState(5);
+  const [savedLeverage, setSavedLeverage] = useState(5); // Track server-saved leverage
   const [orderError, setOrderError] = useState<string | null>(null);
 
   // Order type state
@@ -107,13 +113,29 @@ export default function TradePage() {
     oppositePosition: Position | null;
   } | null>(null);
 
+  // Withdraw modal state
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+
   // Bottom tabs
   const [bottomTab, setBottomTab] = useState<'positions' | 'orders' | 'trades' | 'history'>('positions');
 
-  // Sort directions for tables
-  const [ordersSortDesc, setOrdersSortDesc] = useState(true);
-  const [tradesSortDesc, setTradesSortDesc] = useState(true);
-  const [orderHistorySortDesc, setOrderHistorySortDesc] = useState(true);
+  // Sort state for tables: { column, desc }
+  const [ordersSort, setOrdersSort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
+  const [tradesSort, setTradesSort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
+  const [orderHistorySort, setOrderHistorySort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
+
+  // Helper to toggle sort column
+  const toggleSort = (
+    current: { col: string; desc: boolean },
+    setter: (val: { col: string; desc: boolean }) => void,
+    column: string
+  ) => {
+    if (current.col === column) {
+      setter({ col: column, desc: !current.desc });
+    } else {
+      setter({ col: column, desc: true });
+    }
+  };
 
   // Fight filter toggle (only visible when in active fight)
   const [showFightOnly, setShowFightOnly] = useState(true);
@@ -141,6 +163,59 @@ export default function TradePage() {
     const rounded = Math.floor(amount / lotSize) * lotSize;
     return rounded.toFixed(precision);
   };
+
+  // Check if leverage can be set (validates against open positions)
+  const canSetLeverage = useCallback((lev: number): { valid: boolean; error?: string } => {
+    const marketSymbol = selectedMarket.replace('-USD', '');
+    const openPosition = apiPositions?.find(
+      (p: any) => p.symbol.replace('-USD', '') === marketSymbol
+    );
+
+    if (openPosition) {
+      const positionLeverage = openPosition.leverage || 1;
+      // Pacifica only allows INCREASING leverage on open positions
+      if (lev < positionLeverage) {
+        return {
+          valid: false,
+          error: `Cannot decrease leverage below ${positionLeverage}x while ${marketSymbol} position is open`
+        };
+      }
+    }
+    return { valid: true };
+  }, [selectedMarket, apiPositions]);
+
+  // Handle Set Leverage button click
+  const handleSetLeverage = useCallback(() => {
+    const check = canSetLeverage(leverage);
+    if (!check.valid) {
+      toast.error(check.error);
+      return;
+    }
+    setLeverageMutation.mutate(
+      { symbol: selectedMarket, leverage },
+      {
+        onSuccess: () => {
+          setSavedLeverage(leverage); // Update saved leverage on success
+        }
+      }
+    );
+  }, [leverage, selectedMarket, canSetLeverage, setLeverageMutation]);
+
+  // Initialize leverage from account settings when market changes
+  useEffect(() => {
+    if (accountSettings && Array.isArray(accountSettings)) {
+      const marketSymbol = selectedMarket.replace('-USD', '');
+      const setting = accountSettings.find((s: any) => s.symbol === marketSymbol);
+      if (setting?.leverage) {
+        setLeverage(setting.leverage);
+        setSavedLeverage(setting.leverage);
+      } else {
+        // Default to max leverage if no setting saved
+        setLeverage(maxLeverage);
+        setSavedLeverage(maxLeverage);
+      }
+    }
+  }, [selectedMarket, accountSettings, maxLeverage]);
 
   // Execute order (called directly or after modal confirmation)
   const executeOrder = useCallback(async () => {
@@ -416,6 +491,7 @@ export default function TradePage() {
       await setPositionTpSl.mutateAsync({
         symbol: params.symbol,
         side: params.side,
+        size: params.size,
         take_profit: takeProfit,
         stop_loss: stopLoss,
       });
@@ -480,6 +556,43 @@ export default function TradePage() {
     // Ensure liq price is positive
     liquidationPrice = Math.max(0, liquidationPrice);
 
+    // Find TP/SL orders for this position
+    // TP/SL orders have opposite side: LONG position → SHORT (ask) orders, SHORT position → LONG (bid) orders
+    const posSymbol = pos.symbol.replace('-USD', '');
+    const oppositeOrderSide = pos.side === 'LONG' ? 'SHORT' : 'LONG';
+
+    // Find ALL Take Profit orders for this position
+    const tpOrders = openOrders.filter(order => {
+      const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
+      const isTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
+      return orderSymbol === posSymbol && order.side === oppositeOrderSide && isTP;
+    }).map(order => ({
+      orderId: order.id,
+      type: 'TP' as const,
+      triggerPrice: parseFloat(order.stopPrice || order.price) || 0,
+      amount: parseFloat(order.size) || 0,
+      orderType: (order.type?.includes('MARKET') ? 'market' : 'limit') as 'market' | 'limit',
+      limitPrice: order.type?.includes('LIMIT') ? parseFloat(order.price) : undefined,
+    }));
+
+    // Find ALL Stop Loss orders for this position
+    const slOrders = openOrders.filter(order => {
+      const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
+      const isSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
+      return orderSymbol === posSymbol && order.side === oppositeOrderSide && isSL;
+    }).map(order => ({
+      orderId: order.id,
+      type: 'SL' as const,
+      triggerPrice: parseFloat(order.stopPrice || order.price) || 0,
+      amount: parseFloat(order.size) || 0,
+      orderType: (order.type?.includes('MARKET') ? 'market' : 'limit') as 'market' | 'limit',
+      limitPrice: order.type?.includes('LIMIT') ? parseFloat(order.price) : undefined,
+    }));
+
+    // Extract trigger prices from first TP/SL orders (for backward compatibility)
+    const takeProfit = tpOrders[0]?.triggerPrice;
+    const stopLoss = slOrders[0]?.triggerPrice;
+
     return {
       id: `${pos.symbol}-${pos.side}`,
       symbol: pos.symbol,
@@ -495,8 +608,10 @@ export default function TradePage() {
       margin,
       marginType: isolated ? 'Isolated' : 'Cross' as const,
       funding,
-      takeProfit: undefined,
-      stopLoss: undefined,
+      takeProfit,
+      stopLoss,
+      tpOrders: tpOrders.length > 0 ? tpOrders : undefined,
+      slOrders: slOrders.length > 0 ? slOrders : undefined,
     };
   });
 
@@ -597,7 +712,7 @@ export default function TradePage() {
                     {/* Last Traded Price (Oracle) */}
                     <div className="flex flex-col">
                       <span className="text-xs text-surface-300">Last Price</span>
-                      <span className="text-white font-mono font-medium">
+                      <span className="text-xs text-white font-mono font-medium">
                         {formatPrice(currentPrice)}
                       </span>
                     </div>
@@ -605,7 +720,7 @@ export default function TradePage() {
                     {/* Mark Price */}
                     <div className="flex flex-col">
                       <span className="text-xs text-surface-300">Mark</span>
-                      <span className="text-white font-mono font-medium">
+                      <span className="text-xs text-white font-mono font-medium">
                         {formatPrice(markPrice)}
                       </span>
                     </div>
@@ -613,7 +728,7 @@ export default function TradePage() {
                     {/* 24h Change */}
                     <div className="flex flex-col">
                       <span className="text-xs text-surface-300">24h Change</span>
-                      <span className={`font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                      <span className={`text-xs font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                         {formatPercent(priceChange)}
                       </span>
                     </div>
@@ -621,7 +736,7 @@ export default function TradePage() {
                     {/* 24h Volume */}
                     <div className="flex flex-col">
                       <span className="text-xs text-surface-300">24h Volume</span>
-                      <span className="text-white font-mono font-medium">
+                      <span className="text-xs text-white font-mono font-medium">
                         {formatUSD(volume24h)}
                       </span>
                     </div>
@@ -629,7 +744,7 @@ export default function TradePage() {
                     {/* Open Interest */}
                     <div className="flex flex-col">
                       <span className="text-xs text-surface-300">Open Interest</span>
-                      <span className="text-white font-mono font-medium">
+                      <span className="text-xs text-white font-mono font-medium">
                         {formatUSD(openInterest)}
                       </span>
                     </div>
@@ -637,7 +752,7 @@ export default function TradePage() {
                     {/* Next Funding */}
                     <div className="flex flex-col">
                       <span className="text-xs text-surface-300">Next Funding / Countdown</span>
-                      <span className={`font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                      <span className={`text-xs font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                         {formatFundingRate(nextFundingRate)} <span className="text-surface-400">/1h</span>
                       </span>
                     </div>
@@ -676,7 +791,7 @@ export default function TradePage() {
                 <div className="flex items-center gap-6">
                   <button
                     onClick={() => setBottomTab('positions')}
-                    className={`py-3 text-sm font-medium border-b-2 transition-colors ${bottomTab === 'positions'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'positions'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
@@ -685,7 +800,7 @@ export default function TradePage() {
                   </button>
                   <button
                     onClick={() => setBottomTab('orders')}
-                    className={`py-3 text-sm font-medium border-b-2 transition-colors ${bottomTab === 'orders'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'orders'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
@@ -694,7 +809,7 @@ export default function TradePage() {
                   </button>
                   <button
                     onClick={() => setBottomTab('trades')}
-                    className={`py-3 text-sm font-medium border-b-2 transition-colors ${bottomTab === 'trades'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'trades'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
@@ -703,7 +818,7 @@ export default function TradePage() {
                   </button>
                   <button
                     onClick={() => setBottomTab('history')}
-                    className={`py-3 text-sm font-medium border-b-2 transition-colors ${bottomTab === 'history'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'history'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
@@ -744,6 +859,7 @@ export default function TradePage() {
                     positions={activePositions}
                     onClosePosition={handleClosePosition}
                     onSetTpSl={handleSetTpSl}
+                    onCancelOrder={handleCancelOrder}
                     readOnly={showFightOnly && !!fightId}
                     readOnlyMessage="Fight positions - switch to 'All' to close"
                   />
@@ -755,20 +871,65 @@ export default function TradePage() {
                         <thead>
                           <tr className="text-xs text-surface-400 tracking-wider">
                             <th
-                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none"
-                              onClick={() => setOrdersSortDesc(!ordersSortDesc)}
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'time')}
                             >
-                              Time {ordersSortDesc ? '↓' : '↑'}
+                              Time {ordersSort.col === 'time' && (ordersSort.desc ? '↓' : '↑')}
                             </th>
-                            <th className="text-left py-2 px-2 font-medium">Order Type</th>
-                            <th className="text-left py-2 px-2 font-medium">Token</th>
-                            <th className="text-left py-2 px-2 font-medium">Side</th>
-                            <th className="text-right py-2 px-2 font-medium">Original Size</th>
-                            <th className="text-right py-2 px-2 font-medium">Filled Size</th>
-                            <th className="text-right py-2 px-2 font-medium">Price</th>
-                            <th className="text-right py-2 px-2 font-medium">Order Value</th>
-                            <th className="text-center py-2 px-2 font-medium">Reduce Only</th>
-                            <th className="text-center py-2 px-2 font-medium">Trigger Condition</th>
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'type')}
+                            >
+                              Order Type {ordersSort.col === 'type' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'token')}
+                            >
+                              Token {ordersSort.col === 'token' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'side')}
+                            >
+                              Side {ordersSort.col === 'side' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'originalSize')}
+                            >
+                              Original Size {ordersSort.col === 'originalSize' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'filledSize')}
+                            >
+                              Filled Size {ordersSort.col === 'filledSize' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'price')}
+                            >
+                              Price {ordersSort.col === 'price' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'value')}
+                            >
+                              Order Value {ordersSort.col === 'value' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-center py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'reduceOnly')}
+                            >
+                              Reduce Only {ordersSort.col === 'reduceOnly' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-center py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(ordersSort, setOrdersSort, 'trigger')}
+                            >
+                              Trigger {ordersSort.col === 'trigger' && (ordersSort.desc ? '↓' : '↑')}
+                            </th>
                             <th className="text-center py-2 px-2 font-medium">
                               <button
                                 onClick={() => cancelAllOrders.mutate({})}
@@ -782,9 +943,27 @@ export default function TradePage() {
                         </thead>
                         <tbody>
                           {[...openOrders].sort((a, b) => {
-                            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-                            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-                            return ordersSortDesc ? timeB - timeA : timeA - timeB;
+                            const getValue = (order: any) => {
+                              switch (ordersSort.col) {
+                                case 'time': return order.createdAt ? new Date(order.createdAt).getTime() : 0;
+                                case 'type': return order.type || '';
+                                case 'token': return order.symbol || '';
+                                case 'side': return order.side || '';
+                                case 'originalSize': return parseFloat(order.size) || 0;
+                                case 'filledSize': return parseFloat(order.filled) || 0;
+                                case 'price': return parseFloat(order.price) || 0;
+                                case 'value': return (parseFloat(order.size) || 0) * (parseFloat(order.price) || 0);
+                                case 'reduceOnly': return order.reduceOnly ? 1 : 0;
+                                case 'trigger': return order.stopPrice ? parseFloat(order.stopPrice) : 0;
+                                default: return 0;
+                              }
+                            };
+                            const valA = getValue(a);
+                            const valB = getValue(b);
+                            if (typeof valA === 'string') {
+                              return ordersSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+                            }
+                            return ordersSort.desc ? valB - valA : valA - valB;
                           }).map((order) => {
                             const price = parseFloat(order.price) || 0;
                             const originalSize = parseFloat(order.size) || 0;
@@ -805,7 +984,7 @@ export default function TradePage() {
                             return (
                               <tr key={order.id} className="border-t border-surface-700/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
-                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">
                                   {order.type === 'LIMIT' ? 'Limit Order' : order.type}
@@ -864,7 +1043,7 @@ export default function TradePage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-surface-500 text-sm">No open orders</div>
+                    <div className="text-center py-4 text-surface-500 text-xs">No open orders</div>
                   )
                 )}
                 {bottomTab === 'trades' && (
@@ -874,26 +1053,77 @@ export default function TradePage() {
                         <thead>
                           <tr className="text-xs text-surface-400 tracking-wider">
                             <th
-                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none"
-                              onClick={() => setTradesSortDesc(!tradesSortDesc)}
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'time')}
                             >
-                              Time {tradesSortDesc ? '↓' : '↑'}
+                              Time {tradesSort.col === 'time' && (tradesSort.desc ? '↓' : '↑')}
                             </th>
-                            <th className="text-left py-2 px-2 font-medium">Token</th>
-                            <th className="text-left py-2 px-2 font-medium">Side</th>
-                            <th className="text-left py-2 px-2 font-medium">Order Type</th>
-                            <th className="text-right py-2 px-2 font-medium">Size</th>
-                            <th className="text-right py-2 px-2 font-medium">Price</th>
-                            <th className="text-right py-2 px-2 font-medium">Trade Value</th>
-                            <th className="text-right py-2 px-2 font-medium">Fees</th>
-                            <th className="text-right py-2 px-2 font-medium">Realized PnL</th>
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'token')}
+                            >
+                              Token {tradesSort.col === 'token' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'side')}
+                            >
+                              Side {tradesSort.col === 'side' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th className="text-left py-2 px-2 font-medium whitespace-nowrap">Order Type</th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'size')}
+                            >
+                              Size {tradesSort.col === 'size' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'price')}
+                            >
+                              Price {tradesSort.col === 'price' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'value')}
+                            >
+                              Trade Value {tradesSort.col === 'value' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'fee')}
+                            >
+                              Fees {tradesSort.col === 'fee' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
+                            <th
+                              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                              onClick={() => toggleSort(tradesSort, setTradesSort, 'pnl')}
+                            >
+                              Realized PnL {tradesSort.col === 'pnl' && (tradesSort.desc ? '↓' : '↑')}
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
                           {[...activeTrades].sort((a: any, b: any) => {
-                            const timeA = a.created_at || 0;
-                            const timeB = b.created_at || 0;
-                            return tradesSortDesc ? timeB - timeA : timeA - timeB;
+                            const getValue = (trade: any) => {
+                              switch (tradesSort.col) {
+                                case 'time': return trade.created_at || 0;
+                                case 'token': return trade.symbol?.replace('-USD', '') || '';
+                                case 'side': return trade.side || '';
+                                case 'size': return parseFloat(trade.amount) || 0;
+                                case 'price': return parseFloat(trade.price) || 0;
+                                case 'value': return (parseFloat(trade.price) || 0) * (parseFloat(trade.amount) || 0);
+                                case 'fee': return parseFloat(trade.fee) || 0;
+                                case 'pnl': return parseFloat(trade.pnl) || 0;
+                                default: return 0;
+                              }
+                            };
+                            const valA = getValue(a);
+                            const valB = getValue(b);
+                            if (typeof valA === 'string') {
+                              return tradesSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+                            }
+                            return tradesSort.desc ? valB - valA : valA - valB;
                           }).slice(0, 10).map((trade: any, index: number) => {
                             const price = parseFloat(trade.price) || 0;
                             const amount = parseFloat(trade.amount) || 0;
@@ -915,7 +1145,7 @@ export default function TradePage() {
                             return (
                               <tr key={trade.history_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
-                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">{token}</td>
                                 <td className="py-2 px-2">
@@ -946,77 +1176,193 @@ export default function TradePage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-surface-500 text-sm">
+                    <div className="text-center py-4 text-surface-500 text-xs">
                       {showFightOnly && fightId ? 'No trades during this fight' : 'No trade history'}
                     </div>
                   )
                 )}
                 {bottomTab === 'history' && (
                   orderHistoryData.length > 0 ? (
-                    <table className="w-full text-sm">
+                    <table className="w-full text-xs">
                       <thead>
                         <tr className="text-surface-400 text-xs">
                           <th
-                            className="text-left py-2 px-3 font-medium cursor-pointer hover:text-surface-200 select-none"
-                            onClick={() => setOrderHistorySortDesc(!orderHistorySortDesc)}
+                            className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'time')}
                           >
-                            Time {orderHistorySortDesc ? '↓' : '↑'}
+                            Time {orderHistorySort.col === 'time' && (orderHistorySort.desc ? '↓' : '↑')}
                           </th>
-                          <th className="text-left py-2 px-3 font-medium">Type</th>
-                          <th className="text-left py-2 px-3 font-medium">Token</th>
-                          <th className="text-left py-2 px-3 font-medium">Side</th>
-                          <th className="text-right py-2 px-3 font-medium">Size</th>
-                          <th className="text-right py-2 px-3 font-medium">Price</th>
-                          <th className="text-right py-2 px-3 font-medium">Filled</th>
-                          <th className="text-left py-2 px-3 font-medium">Status</th>
+                          <th
+                            className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'token')}
+                          >
+                            Token {orderHistorySort.col === 'token' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'side')}
+                          >
+                            Side {orderHistorySort.col === 'side' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'type')}
+                          >
+                            Order Type {orderHistorySort.col === 'type' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'originalSize')}
+                          >
+                            Original Size {orderHistorySort.col === 'originalSize' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'filledSize')}
+                          >
+                            Filled Size {orderHistorySort.col === 'filledSize' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'initialPrice')}
+                          >
+                            Initial Price {orderHistorySort.col === 'initialPrice' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'avgPrice')}
+                          >
+                            Avg Filled Price {orderHistorySort.col === 'avgPrice' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'value')}
+                          >
+                            Order Value {orderHistorySort.col === 'value' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-center py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'status')}
+                          >
+                            Status {orderHistorySort.col === 'status' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
+                          <th
+                            className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                            onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'orderId')}
+                          >
+                            Order ID {orderHistorySort.col === 'orderId' && (orderHistorySort.desc ? '↓' : '↑')}
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {[...orderHistoryData].sort((a: any, b: any) => {
-                          const timeA = a.created_at || 0;
-                          const timeB = b.created_at || 0;
-                          return orderHistorySortDesc ? timeB - timeA : timeA - timeB;
-                        }).slice(0, 20).map((order: any, index: number) => {
-                          const orderSide = order.side === 'bid' ? 'LONG' : 'SHORT';
-                          const orderType = order.order_type?.replace(/_/g, ' ').toUpperCase() || 'LIMIT';
+                          const getValue = (order: any) => {
+                            switch (orderHistorySort.col) {
+                              case 'time': return order.created_at || 0;
+                              case 'token': return order.symbol || '';
+                              case 'side': return order.side || '';
+                              case 'type': return order.order_type || '';
+                              case 'originalSize': return parseFloat(order.amount) || 0;
+                              case 'filledSize': return parseFloat(order.filled_amount) || 0;
+                              case 'initialPrice': return parseFloat(order.initial_price || order.stop_price) || 0;
+                              case 'avgPrice': return parseFloat(order.average_filled_price) || 0;
+                              case 'value': {
+                                const filled = parseFloat(order.filled_amount) || 0;
+                                const avgPrice = parseFloat(order.average_filled_price) || 0;
+                                return filled * avgPrice;
+                              }
+                              case 'status': return order.order_status || '';
+                              case 'orderId': return order.order_id || 0;
+                              default: return 0;
+                            }
+                          };
+                          const valA = getValue(a);
+                          const valB = getValue(b);
+                          if (typeof valA === 'string') {
+                            return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
+                          }
+                          return orderHistorySort.desc ? valB - valA : valA - valB;
+                        }).slice(0, 50).map((order: any, index: number) => {
+                          const orderSide = order.side === 'bid' ? 'Long' : 'Short';
+                          // Capitalize first letter of each word (e.g., "stop_loss_market" -> "Stop Loss Market")
+                          const rawOrderType = order.order_type || 'limit';
+                          const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                           const filledAmount = parseFloat(order.filled_amount || '0');
-                          const initialAmount = parseFloat(order.initial_amount || order.amount || '0');
-                          const cancelledAmount = parseFloat(order.cancelled_amount || '0');
+                          const initialAmount = parseFloat(order.amount || '0');
+                          const avgFilledPrice = parseFloat(order.average_filled_price || '0');
+                          const stopPrice = parseFloat(order.stop_price || '0');
+                          const initialPrice = parseFloat(order.initial_price || '0');
 
-                          let status = 'OPEN';
-                          if (filledAmount >= initialAmount) status = 'FILLED';
-                          else if (cancelledAmount > 0 && filledAmount === 0) status = 'CANCELLED';
-                          else if (cancelledAmount > 0) status = 'PARTIAL';
-                          else if (filledAmount > 0) status = 'PARTIAL';
+                          // Check if this is a TP/SL order (stop_loss_market, take_profit_market, stop_loss_limit, take_profit_limit)
+                          const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
+                          // Check if it's a regular market order (just "market", not stop_loss_market)
+                          const isRegularMarketOrder = rawOrderType === 'market';
+
+                          // Calculate order value only for filled regular orders
+                          const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
+
+                          // Use API order_status field (per Pacifica API docs)
+                          // Values: "open", "partially_filled", "filled", "cancelled", "rejected"
+                          let status = 'Open';
+                          const rawStatus = order.order_status || '';
+                          if (rawStatus) {
+                            // Map API status to display status
+                            switch (rawStatus.toLowerCase()) {
+                              case 'open': status = 'Open'; break;
+                              case 'partially_filled': status = 'Partial'; break;
+                              case 'filled': status = 'Filled'; break;
+                              case 'cancelled': status = 'Cancelled'; break;
+                              case 'rejected': status = 'Rejected'; break;
+                              default: status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
+                            }
+                          }
+
+                          // Format price helper
+                          const formatPrice = (price: number) => {
+                            if (price === 0) return 'N/A';
+                            if (price >= 1000) return price.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                            if (price >= 1) return price.toLocaleString(undefined, { maximumFractionDigits: 2 });
+                            return price.toLocaleString(undefined, { maximumFractionDigits: 4 });
+                          };
 
                           return (
                             <tr key={order.order_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
-                              <td className="py-2 px-3 text-surface-300 text-xs font-mono whitespace-nowrap">
-                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}` : '-'}
+                              <td className="py-2 px-2 text-surface-300 font-mono whitespace-nowrap">
+                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}
                               </td>
-                              <td className="py-2 px-3 text-surface-300 text-xs">{orderType}</td>
-                              <td className="py-2 px-3 font-medium text-white">{order.symbol}</td>
-                              <td className={`py-2 px-3 font-medium ${orderSide === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>
+                              <td className="py-2 px-2 font-medium text-white">{order.symbol}</td>
+                              <td className={`py-2 px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>
                                 {orderSide}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-surface-200">
-                                {initialAmount.toFixed(6)}
+                              <td className="py-2 px-2 text-surface-300">{orderType}</td>
+                              <td className="py-2 px-2 text-right font-mono text-surface-200 whitespace-nowrap">
+                                {isTpSlOrder ? 'N/A' : `${initialAmount.toFixed(5)} ${order.symbol}`}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-surface-200">
-                                ${parseFloat(order.price || '0').toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <td className="py-2 px-2 text-right font-mono text-surface-200 whitespace-nowrap">
+                                {isTpSlOrder ? 'N/A' : `${filledAmount.toFixed(5)} ${order.symbol}`}
                               </td>
-                              <td className="py-2 px-3 text-right font-mono text-surface-200">
-                                {filledAmount.toFixed(6)}
+                              <td className="py-2 px-2 text-right font-mono text-surface-200">
+                                {isTpSlOrder ? formatPrice(stopPrice) : (isRegularMarketOrder ? 'Market' : formatPrice(initialPrice))}
                               </td>
-                              <td className="py-2 px-3">
+                              <td className="py-2 px-2 text-right font-mono text-surface-200">
+                                {isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A')}
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono text-win-400">
+                                {isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}
+                              </td>
+                              <td className="py-2 px-2 text-center">
                                 <span className={`text-xs px-2 py-0.5 rounded ${
-                                  status === 'FILLED' ? 'bg-win-500/20 text-win-400' :
-                                  status === 'CANCELLED' ? 'bg-surface-600/50 text-surface-400' :
-                                  status === 'PARTIAL' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  status === 'Filled' ? 'bg-win-500/20 text-win-400' :
+                                  status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' :
+                                  status === 'Triggered' ? 'bg-primary-500/20 text-primary-400' :
+                                  status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' :
                                   'bg-primary-500/20 text-primary-400'
                                 }`}>
                                   {status}
                                 </span>
+                              </td>
+                              <td className="py-2 px-2 text-right font-mono text-surface-400">
+                                {order.order_id || '-'}
                               </td>
                             </tr>
                           );
@@ -1024,7 +1370,7 @@ export default function TradePage() {
                       </tbody>
                     </table>
                   ) : (
-                    <div className="text-center py-4 text-surface-500 text-sm">
+                    <div className="text-center py-4 text-surface-500 text-xs">
                       No order history
                     </div>
                   )
@@ -1111,14 +1457,12 @@ export default function TradePage() {
                       >
                         Deposit
                       </a>
-                      <a
-                        href="https://app.pacifica.fi/trade/BTC"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => setShowWithdrawModal(true)}
                         className="flex-1 py-2 text-center text-sm font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded-lg transition-colors"
                       >
                         Withdraw
-                      </a>
+                      </button>
                     </div>
 
                     {/* Account stats */}
@@ -1473,16 +1817,30 @@ export default function TradePage() {
 
               {/* Leverage Slider */}
               <div className="mb-4">
-                <div className="flex justify-between mb-2">
+                <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-medium text-surface-400">Leverage</label>
-                  <span className="text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
+                    {leverage !== savedLeverage && (
+                      <button
+                        onClick={handleSetLeverage}
+                        disabled={!canTrade || setLeverageMutation.isPending}
+                        className="px-2 py-0.5 text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {setLeverageMutation.isPending ? '...' : 'Set'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <input
                   type="range"
                   min="1"
                   max={maxLeverage}
                   value={Math.min(leverage, maxLeverage)}
-                  onChange={(e) => setLeverage(Number(e.target.value))}
+                  onChange={(e) => {
+                    const newLev = Number(e.target.value);
+                    setLeverage(newLev); // Only update local state, no API call
+                  }}
                   disabled={!canTrade}
                   className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50"
                 />
@@ -1697,10 +2055,17 @@ export default function TradePage() {
                 );
               })()}
 
+              {/* Leverage warning */}
+              {leverage !== savedLeverage && canTrade && (
+                <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-xs text-yellow-400 text-center">
+                  Click "Set" to confirm leverage before placing order
+                </div>
+              )}
+
               {/* Submit Button */}
               <button
                 onClick={handlePlaceOrder}
-                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending}
+                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || leverage !== savedLeverage}
                 className={`w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
                   ? 'bg-gradient-to-r from-win-600 to-win-500 hover:from-win-500 hover:to-win-400 text-white'
                   : 'bg-gradient-to-r from-loss-600 to-loss-500 hover:from-loss-500 hover:to-loss-400 text-white'
@@ -1750,6 +2115,13 @@ export default function TradePage() {
           isLoading={createMarketOrder.isPending}
         />
       )}
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
+        isOpen={showWithdrawModal}
+        onClose={() => setShowWithdrawModal(false)}
+        availableBalance={account?.availableToSpend ? parseFloat(account.availableToSpend) : null}
+      />
     </AppShell>
   );
 }

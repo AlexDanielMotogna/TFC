@@ -6,6 +6,16 @@ import { FlipPositionModal } from './FlipPositionModal';
 import { MarketCloseModal, type MarketCloseParams } from './MarketCloseModal';
 import { TpSlModal, type TpSlParams } from './TpSlModal';
 
+// TP/SL order attached to a position
+export interface TpSlOrder {
+  orderId: string;
+  type: 'TP' | 'SL';
+  triggerPrice: number;
+  amount: number; // Size in token units
+  orderType: 'market' | 'limit';
+  limitPrice?: number;
+}
+
 export interface Position {
   id: string;
   symbol: string;
@@ -21,8 +31,12 @@ export interface Position {
   margin: number;
   marginType: 'Cross' | 'Isolated';
   funding: number;
+  // Legacy single TP/SL (for backward compatibility, uses first order if exists)
   takeProfit?: number;
   stopLoss?: number;
+  // Multiple TP/SL orders support
+  tpOrders?: TpSlOrder[];
+  slOrders?: TpSlOrder[];
 }
 
 export interface LimitCloseParams {
@@ -39,13 +53,14 @@ interface PositionsProps {
   positions: Position[];
   onClosePosition?: (positionId: string, closeType?: 'market' | 'limit' | 'flip', params?: LimitCloseParams | MarketCloseParams) => void;
   onSetTpSl?: (params: TpSlParams) => Promise<void>;
+  onCancelOrder?: (orderId: string, symbol: string, orderType: string) => Promise<void>;
   /** When true, hides close buttons and shows info banner (for fight-only view) */
   readOnly?: boolean;
   /** Optional message to show when in read-only mode */
   readOnlyMessage?: string;
 }
 
-export function Positions({ positions, onClosePosition, onSetTpSl, readOnly = false, readOnlyMessage }: PositionsProps) {
+export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder, readOnly = false, readOnlyMessage }: PositionsProps) {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closingType, setClosingType] = useState<'market' | 'limit' | 'flip' | null>(null);
   const [marketClosePosition, setMarketClosePosition] = useState<Position | null>(null);
@@ -194,20 +209,20 @@ export function Positions({ positions, onClosePosition, onSetTpSl, readOnly = fa
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      <table className="w-full text-sm">
+      <table className="w-full text-xs">
         <thead>
-          <tr className="text-xs text-surface-400 uppercase tracking-wider">
-            <th className="text-left py-2 px-2">Token</th>
-            <th className="text-right py-2 px-2">Size</th>
-            <th className="text-right py-2 px-2">Position Value</th>
-            <th className="text-right py-2 px-2">Entry Price</th>
-            <th className="text-right py-2 px-2">Mark Price</th>
-            <th className="text-right py-2 px-2">PnL (ROI%)</th>
-            <th className="text-right py-2 px-2">Liq Price</th>
-            <th className="text-right py-2 px-2">Margin</th>
-            <th className="text-right py-2 px-2">Funding</th>
-            <th className="text-center py-2 px-2">TP/SL</th>
-            {!readOnly && <th className="text-center py-2 px-2">Close</th>}
+          <tr className="text-xs text-surface-400">
+            <th className="text-left py-2 px-2 font-medium">Token</th>
+            <th className="text-right py-2 px-2 font-medium">Size</th>
+            <th className="text-right py-2 px-2 font-medium">Position Value</th>
+            <th className="text-right py-2 px-2 font-medium">Entry Price</th>
+            <th className="text-right py-2 px-2 font-medium">Mark Price</th>
+            <th className="text-right py-2 px-2 font-medium">PnL (ROI%)</th>
+            <th className="text-right py-2 px-2 font-medium">Liq Price</th>
+            <th className="text-right py-2 px-2 font-medium">Margin</th>
+            <th className="text-right py-2 px-2 font-medium">Funding</th>
+            <th className="text-center py-2 px-2 font-medium">TP/SL</th>
+            {!readOnly && <th className="text-center py-2 px-2 font-medium">Close</th>}
           </tr>
         </thead>
         <tbody>
@@ -255,16 +270,16 @@ export function Positions({ positions, onClosePosition, onSetTpSl, readOnly = fa
               {/* PnL with ROI% */}
               <td className="py-3 px-2 text-right">
                 <div
-                  className={`font-mono font-semibold ${
+                  className={`font-mono font-medium ${
                     pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
                   }`}
                 >
                   {pos.unrealizedPnl >= 0 ? '+' : ''}{pos.unrealizedPnl < 1 && pos.unrealizedPnl > -1
                     ? `$${pos.unrealizedPnl.toFixed(4)}`
                     : `$${pos.unrealizedPnl.toFixed(2)}`}
-                  <span className="text-xs ml-1">
+                  <span className="ml-1">
                     ({pos.unrealizedPnlPercent >= 0 ? '+' : ''}
-                    {pos.unrealizedPnlPercent.toFixed(4)}%)
+                    {pos.unrealizedPnlPercent.toFixed(2)}%)
                   </span>
                 </div>
               </td>
@@ -295,55 +310,83 @@ export function Positions({ positions, onClosePosition, onSetTpSl, readOnly = fa
 
               {/* TP/SL */}
               <td className="py-3 px-2 text-center">
-                {!readOnly && onSetTpSl ? (
-                  <button
-                    onClick={() => setTpSlPosition(pos)}
-                    className="flex items-center justify-center gap-1 text-xs hover:bg-surface-700/50 rounded px-2 py-1 transition-colors"
-                    title="Set TP/SL"
-                  >
-                    <span className={pos.takeProfit ? 'text-win-400' : 'text-surface-500'}>
-                      {pos.takeProfit ? formatPrice(pos.takeProfit) : '-'}
+                {(() => {
+                  const tpCount = pos.tpOrders?.length || 0;
+                  const slCount = pos.slOrders?.length || 0;
+                  const hasMultiple = tpCount > 1 || slCount > 1;
+
+                  // Display content based on number of orders
+                  const displayContent = hasMultiple ? (
+                    // Show counts when multiple orders exist (like Pacifica)
+                    <span className="font-mono">
+                      <span className={tpCount > 0 ? 'text-win-400' : 'text-surface-500'}>
+                        {tpCount > 0 ? `${tpCount} TP${tpCount > 1 ? 's' : ''}` : '-'}
+                      </span>
+                      <span className="text-surface-500 mx-1">/</span>
+                      <span className={slCount > 0 ? 'text-loss-400' : 'text-surface-500'}>
+                        {slCount > 0 ? `${slCount} SL${slCount > 1 ? 's' : ''}` : '-'}
+                      </span>
                     </span>
-                    <span className="text-surface-600">/</span>
-                    <span className={pos.stopLoss ? 'text-loss-400' : 'text-surface-500'}>
-                      {pos.stopLoss ? formatPrice(pos.stopLoss) : '-'}
+                  ) : (
+                    // Show single price when only one order each (or none)
+                    <span className="font-mono">
+                      <span className={pos.takeProfit ? 'text-win-400' : 'text-surface-500'}>
+                        {pos.takeProfit ? formatPrice(pos.takeProfit) : '-'}
+                      </span>
+                      <span className="text-surface-500 mx-1">/</span>
+                      <span className={pos.stopLoss ? 'text-loss-400' : 'text-surface-500'}>
+                        {pos.stopLoss ? formatPrice(pos.stopLoss) : '-'}
+                      </span>
                     </span>
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-center gap-1 text-xs">
-                    <span className={pos.takeProfit ? 'text-win-400' : 'text-surface-500'}>
-                      {pos.takeProfit ? formatPrice(pos.takeProfit) : '-'}
-                    </span>
-                    <span className="text-surface-600">/</span>
-                    <span className={pos.stopLoss ? 'text-loss-400' : 'text-surface-500'}>
-                      {pos.stopLoss ? formatPrice(pos.stopLoss) : '-'}
-                    </span>
-                  </div>
-                )}
+                  );
+
+                  return !readOnly && onSetTpSl ? (
+                    <button
+                      onClick={() => setTpSlPosition(pos)}
+                      className="inline-flex items-center gap-1.5 text-xs hover:bg-surface-700/50 rounded px-2 py-1 transition-colors group"
+                      title="Set TP/SL"
+                    >
+                      {displayContent}
+                      {/* Edit icon */}
+                      <svg
+                        className="w-3.5 h-3.5 text-surface-500 group-hover:text-primary-400 transition-colors"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="inline-flex items-center gap-1.5 text-xs">
+                      {displayContent}
+                    </div>
+                  );
+                })()}
               </td>
 
               {/* Close actions - hidden in read-only mode */}
               {!readOnly && (
                 <td className="py-3 px-2">
-                  <div className="flex items-center justify-center gap-1">
+                  <div className="flex items-center justify-center gap-1.5">
                     <button
                       onClick={() => handleClose(pos.id, 'market')}
                       disabled={closingId === pos.id}
-                      className="px-2 py-1 text-xs font-semibold bg-surface-700 hover:bg-surface-600 rounded transition-colors disabled:opacity-50"
+                      className="px-2 py-1 text-xs font-medium bg-surface-700 hover:bg-surface-600 rounded transition-colors disabled:opacity-50"
                     >
                       {closingId === pos.id && closingType === 'market' ? '...' : 'Market'}
                     </button>
                     <button
                       onClick={() => handleClose(pos.id, 'limit')}
                       disabled={closingId === pos.id}
-                      className="px-2 py-1 text-xs font-semibold bg-surface-700 hover:bg-surface-600 rounded transition-colors disabled:opacity-50"
+                      className="px-2 py-1 text-xs font-medium bg-surface-700 hover:bg-surface-600 rounded transition-colors disabled:opacity-50"
                     >
                       {closingId === pos.id && closingType === 'limit' ? '...' : 'Limit'}
                     </button>
                     <button
                       onClick={() => handleClose(pos.id, 'flip')}
                       disabled={closingId === pos.id}
-                      className="px-2 py-1 text-xs font-semibold bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 rounded transition-colors disabled:opacity-50"
+                      className="px-2 py-1 text-xs font-medium bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 rounded transition-colors disabled:opacity-50"
                     >
                       {closingId === pos.id && closingType === 'flip' ? '...' : 'Flip'}
                     </button>
@@ -356,14 +399,14 @@ export function Positions({ positions, onClosePosition, onSetTpSl, readOnly = fa
       </table>
 
       {/* Summary */}
-      <div className="mt-4 pt-4 border-t border-surface-700 flex items-center justify-between px-2">
-        <div className="text-sm text-surface-400">
+      <div className="mt-3 pt-3 border-t border-surface-700 flex items-center justify-between px-2">
+        <div className="text-xs text-surface-400">
           Total Positions: <span className="text-white">{positions.length}</span>
         </div>
-        <div className="text-sm">
+        <div className="text-xs">
           <span className="text-surface-400">Total PnL: </span>
           <span
-            className={`font-mono font-semibold ${
+            className={`font-mono font-medium ${
               positions.reduce((sum, p) => sum + p.unrealizedPnl, 0) >= 0
                 ? 'text-win-400'
                 : 'text-loss-400'
@@ -410,6 +453,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, readOnly = fa
           position={tpSlPosition}
           onClose={() => setTpSlPosition(null)}
           onConfirm={handleTpSlConfirm}
+          onCancelOrder={onCancelOrder}
           isSubmitting={isSubmittingTpSl}
         />
       )}

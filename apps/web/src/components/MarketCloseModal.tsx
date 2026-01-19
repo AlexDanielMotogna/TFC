@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { usePrices } from '@/hooks/usePrices';
 import type { Position } from './Positions';
 
 // Lot sizes per symbol (from Pacifica)
@@ -54,6 +55,10 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
   const tokenSymbol = position.symbol.replace('-USD', '');
   const lotSize = LOT_SIZES[tokenSymbol] || 0.00001;
 
+  // Get live mark price from WebSocket
+  const { getPrice } = usePrices();
+  const livePrice = getPrice(position.symbol)?.price || position.markPrice;
+
   // Memoize helper functions
   const { roundToLotSize, formatAmount } = useMemo(() => ({
     roundToLotSize: (value: number): number => {
@@ -73,11 +78,11 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
     return p.toFixed(6);
   };
 
-  // Calculate USD value
+  // Calculate USD value using live price
   const usdValue = useMemo(() => {
     const numAmount = parseFloat(amount) || 0;
-    return numAmount * position.markPrice;
-  }, [amount, position.markPrice]);
+    return numAmount * livePrice;
+  }, [amount, livePrice]);
 
   // Update amount when percentage changes
   const handlePercentageChange = useCallback((pct: number) => {
@@ -106,17 +111,17 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
     }
   };
 
-  // Calculate estimated PnL based on amount being closed
+  // Calculate estimated PnL based on amount being closed using live price
   const estimatedPnl = useMemo(() => {
     const closeAmount = parseFloat(amount) || 0;
     if (!closeAmount) return 0;
 
     const priceDiff = position.side === 'LONG'
-      ? position.markPrice - position.entryPrice
-      : position.entryPrice - position.markPrice;
+      ? livePrice - position.entryPrice
+      : position.entryPrice - livePrice;
 
     return priceDiff * closeAmount;
-  }, [amount, position]);
+  }, [amount, position.side, position.entryPrice, livePrice]);
 
   const handleConfirm = () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -163,10 +168,15 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
         <div className="p-4 space-y-4">
           <p className="text-sm text-surface-400">Attempt to close position immediately.</p>
 
-          {/* Mark Price Display */}
-          <div className="flex items-center justify-between">
-            <span className="text-surface-400 font-mono">{formatPrice(position.markPrice)}</span>
-            <span className="text-surface-500">USD</span>
+          {/* Live Price Display */}
+          <div className="flex items-center justify-between bg-surface-900/50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-white font-mono text-lg tabular-nums">{formatPrice(livePrice)}</span>
+              <span className="text-surface-500 text-sm">USD</span>
+            </div>
+            <span className="text-[10px] text-win-400 bg-win-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
+              LIVE
+            </span>
           </div>
 
           {/* Amount Input */}

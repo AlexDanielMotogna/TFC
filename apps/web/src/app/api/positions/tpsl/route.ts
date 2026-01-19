@@ -14,6 +14,7 @@ export async function POST(request: Request) {
       account,
       symbol,
       side,
+      size,
       take_profit,
       stop_loss,
       signature,
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
     }
 
     // Build request body for Pacifica
+    // NOTE: size is NOT included for full position TP/SL (per Pacifica API)
     const requestBody: Record<string, any> = {
       account,
       symbol,
@@ -39,6 +41,11 @@ export async function POST(request: Request) {
       timestamp,
       expiry_window: 5000,
     };
+
+    // Only include size if provided (for partial TP/SL)
+    if (size) {
+      requestBody.size = size;
+    }
 
     // Handle take_profit: null = remove, object = set, undefined = don't include
     if (take_profit === null) {
@@ -69,7 +76,8 @@ export async function POST(request: Request) {
       requestBody.builder_code = builder_code;
     }
 
-    console.log('Setting position TP/SL:', { account, symbol, side, take_profit, stop_loss });
+    console.log('Setting position TP/SL:', { account, symbol, side, size, take_profit, stop_loss });
+    console.log('Full request body to Pacifica:', JSON.stringify(requestBody, null, 2));
 
     // Proxy to Pacifica API
     const response = await fetch(`${PACIFICA_API_URL}/api/v1/positions/tpsl`, {

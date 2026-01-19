@@ -152,31 +152,49 @@ export function useOpenOrders(symbol?: string) {
     retryDelay: 2000,
   });
 
-  // If WebSocket is connected and has data, prefer it
+  // If WebSocket is connected and has data, merge with HTTP data
+  // WebSocket provides real-time updates but may be missing some fields (like stop_price)
+  // HTTP provides complete data, so we merge to preserve fields WebSocket might not have
   if (wsConnected && wsOrders.length > 0) {
     // Filter by symbol if provided
     const filteredOrders = symbol
       ? wsOrders.filter(o => o.symbol === symbol)
       : wsOrders;
 
+    // Create a map of HTTP orders by order_id for quick lookup
+    const httpOrdersMap = new Map<number, any>();
+    if (query.data && Array.isArray(query.data)) {
+      query.data.forEach((order: any) => {
+        if (order.order_id) {
+          httpOrdersMap.set(order.order_id, order);
+        }
+      });
+    }
+
     return {
       ...query,
-      data: filteredOrders.map(o => ({
-        order_id: o.order_id,
-        client_order_id: o.client_order_id,
-        symbol: o.symbol,
-        side: o.side,
-        price: o.price,
-        initial_amount: o.initial_amount,
-        amount: o.initial_amount, // Also provide as 'amount' for compatibility
-        filled_amount: o.filled_amount,
-        cancelled_amount: o.cancelled_amount,
-        order_type: o.order_type,
-        stop_price: o.stop_price,
-        reduce_only: o.reduce_only,
-        created_at: o.created_at,
-        updated_at: o.created_at,
-      })),
+      data: filteredOrders.map(o => {
+        // Get corresponding HTTP order data if available
+        const httpOrder = httpOrdersMap.get(o.order_id);
+
+        return {
+          order_id: o.order_id,
+          client_order_id: o.client_order_id,
+          symbol: o.symbol,
+          side: o.side,
+          price: o.price,
+          initial_amount: o.initial_amount,
+          amount: o.initial_amount, // Also provide as 'amount' for compatibility
+          filled_amount: o.filled_amount,
+          cancelled_amount: o.cancelled_amount,
+          order_type: o.order_type,
+          // Prefer WebSocket stop_price, fall back to HTTP if WebSocket has null
+          stop_price: o.stop_price || httpOrder?.stop_price || null,
+          reduce_only: o.reduce_only,
+          created_at: o.created_at,
+          updated_at: o.created_at,
+        };
+      }),
       isLoading: false,
     };
   }

@@ -241,6 +241,7 @@ export async function createSignedCancelAllOrders(
 /**
  * Sign leverage update
  * NOTE: account is NOT included in signed data
+ * NOTE: leverage must be an integer in the signed data (not a string)
  */
 export async function createSignedUpdateLeverage(
   wallet: WalletContextState,
@@ -249,7 +250,11 @@ export async function createSignedUpdateLeverage(
     leverage: string;
   }
 ): Promise<SignedOperation> {
-  return signPacificaOperation(wallet, 'update_leverage', params);
+  // Convert leverage to integer for signing - must match what's sent to API
+  return signPacificaOperation(wallet, 'update_leverage', {
+    symbol: params.symbol,
+    leverage: parseInt(params.leverage, 10),
+  });
 }
 
 /**
@@ -262,16 +267,23 @@ export async function createSignedSetPositionTpsl(
   params: {
     symbol: string;
     side: 'bid' | 'ask';
+    size?: string; // Optional - only for partial TP/SL
     take_profit?: { stop_price: string; limit_price?: string } | null;
     stop_loss?: { stop_price: string; limit_price?: string } | null;
   }
 ): Promise<SignedOperation> {
   // Build params - account is NOT in signed data (same as other operations)
   // null = remove, undefined = don't include
+  // NOTE: size is only included if provided (for partial TP/SL)
   const cleanParams: Record<string, any> = {
     symbol: params.symbol,
     side: params.side,
   };
+
+  // Only include size if provided (for partial TP/SL)
+  if (params.size) {
+    cleanParams.size = params.size;
+  }
 
   // Include null explicitly to remove, include object to set, skip if undefined
   if (params.take_profit === null) {
@@ -316,4 +328,17 @@ export async function createSignedRevokeBuilderCode(
   }
 ): Promise<SignedOperation> {
   return signPacificaOperation(wallet, 'revoke_builder_code', params);
+}
+
+/**
+ * Sign withdrawal request
+ * NOTE: account is NOT included in signed data (same as other operations)
+ */
+export async function createSignedWithdraw(
+  wallet: WalletContextState,
+  params: {
+    amount: string;
+  }
+): Promise<SignedOperation> {
+  return signPacificaOperation(wallet, 'withdraw', params);
 }

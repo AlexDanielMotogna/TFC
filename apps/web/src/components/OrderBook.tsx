@@ -194,13 +194,13 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
               className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-[width] duration-[50ms] ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
-            <span className="relative text-loss-400 font-mono">
+            <span className="relative text-loss-400 tabular-nums tracking-tight">
               {formatPrice(level.price)}
             </span>
-            <span className="relative hidden sm:block text-right text-surface-300 font-mono">
+            <span className="relative hidden sm:block text-right text-surface-300 tabular-nums tracking-tight">
               {formatSize(level.displaySize)}
             </span>
-            <span className="relative text-right text-surface-400 font-mono">
+            <span className="relative text-right text-surface-400 tabular-nums tracking-tight">
               {formatSize(level.total)}
             </span>
           </div>
@@ -210,8 +210,8 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       {/* Spread */}
       <div className="flex-shrink-0 px-2 py-1 border-y border-surface-700 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
         <span>Spread</span>
-        <span className="font-mono">{spread > 0 ? formatPrice(spread) : '-'}</span>
-        <span className="font-mono">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
+        <span className="tabular-nums tracking-tight">{spread > 0 ? formatPrice(spread) : '-'}</span>
+        <span className="tabular-nums tracking-tight">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
       </div>
 
       {/* Bids (buys) */}
@@ -226,13 +226,13 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
               className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10 transition-[width] duration-[50ms] ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
-            <span className="relative text-win-400 font-mono">
+            <span className="relative text-win-400 tabular-nums tracking-tight">
               {formatPrice(level.price)}
             </span>
-            <span className="relative hidden sm:block text-right text-surface-300 font-mono">
+            <span className="relative hidden sm:block text-right text-surface-300 tabular-nums tracking-tight">
               {formatSize(level.displaySize)}
             </span>
-            <span className="relative text-right text-surface-400 font-mono">
+            <span className="relative text-right text-surface-400 tabular-nums tracking-tight">
               {formatSize(level.total)}
             </span>
           </div>

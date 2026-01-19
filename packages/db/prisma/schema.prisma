@@ -27,6 +27,7 @@ model User {
   createdFights        Fight[]                @relation("FightCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
   trades               Trade[]
+  notifications        Notification[]
 
   @@map("users")
 }
@@ -409,4 +410,26 @@ model TfcOrderAction {
   @@index([actionType])
   @@index([symbol])
   @@map("tfc_order_actions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// User notifications persisted from toast messages
+// ─────────────────────────────────────────────────────────────
+model Notification {
+  id String @id @default(uuid())
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    String  // "TRADE", "ORDER", "FIGHT", "SYSTEM"
+  title   String
+  message String
+
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }

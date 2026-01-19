@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { usePrices } from '@/hooks/usePrices';
 import type { Position } from './Positions';
 
 // Lot sizes per symbol (from Pacifica)
@@ -48,6 +49,10 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
   // Get token symbol without -USD
   const tokenSymbol = position.symbol.replace('-USD', '');
   const lotSize = LOT_SIZES[tokenSymbol] || 0.00001;
+
+  // Get live mark price from WebSocket
+  const { getPrice } = usePrices();
+  const livePrice = getPrice(position.symbol)?.price || position.markPrice;
 
   // Memoize helper functions
   const { roundToLotSize, formatAmount } = useMemo(() => ({
@@ -163,6 +168,17 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
         <div className="p-4 space-y-4">
           <p className="text-sm text-surface-400">Send limit order to close position.</p>
 
+          {/* Live Price Display */}
+          <div className="flex items-center justify-between bg-surface-900/50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-white font-mono text-lg tabular-nums">{formatPrice(livePrice)}</span>
+              <span className="text-surface-500 text-sm">USD</span>
+            </div>
+            <span className="text-[10px] text-win-400 bg-win-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
+              LIVE
+            </span>
+          </div>
+
           {/* Price Input */}
           <div>
             <label className="block text-sm text-surface-400 mb-2">Price</label>
@@ -175,7 +191,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 placeholder="0.00"
               />
               <button
-                onClick={() => setPrice(formatPrice(position.markPrice))}
+                onClick={() => setPrice(formatPrice(livePrice))}
                 className="px-3 py-2 text-sm text-primary-400 hover:text-primary-300 transition-colors"
               >
                 Mid

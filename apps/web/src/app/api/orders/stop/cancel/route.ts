@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       order_id,
       signature,
       timestamp,
+      expiry_window: 5000,
     };
 
     console.log('Cancelling stop order:', requestBody);

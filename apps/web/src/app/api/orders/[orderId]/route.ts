@@ -29,6 +29,7 @@ export async function DELETE(
       order_id: parseInt(orderId, 10),
       signature,
       timestamp: parseInt(timestamp, 10),
+      expiry_window: 5000,
     };
 
     console.log('Cancelling order:', requestBody);

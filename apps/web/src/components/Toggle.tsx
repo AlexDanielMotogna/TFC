@@ -33,15 +33,12 @@ export function Toggle({
   const variants = {
     default: {
       checked: 'bg-primary-500',
-      glow: 'shadow-[0_0_8px_rgba(168,85,247,0.5)]',
     },
     win: {
       checked: 'bg-win-500',
-      glow: 'shadow-[0_0_8px_rgba(34,197,94,0.5)]',
     },
     loss: {
       checked: 'bg-loss-500',
-      glow: 'shadow-[0_0_8px_rgba(239,68,68,0.5)]',
     },
   };
 
@@ -59,7 +56,7 @@ export function Toggle({
         className={`
           relative inline-flex items-center rounded-full transition-all duration-200 ease-in-out
           ${s.track}
-          ${checked ? `${v.checked} ${v.glow}` : 'bg-surface-700'}
+          ${checked ? v.checked : 'bg-surface-700'}
           ${disabled ? '' : 'hover:brightness-110'}
           focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-1 focus:ring-offset-surface-900
         `}
