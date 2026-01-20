@@ -182,6 +182,22 @@ export async function POST(
       // Notify realtime server - fight has started
       notifyRealtime('fight-started', params.id);
 
+      // Get joiner's handle for the notification message
+      const joiner = await prisma.user.findUnique({
+        where: { id: user.userId },
+        select: { handle: true },
+      });
+
+      // Create notification for the fight creator
+      await prisma.notification.create({
+        data: {
+          userId: fight.creatorId,
+          type: 'FIGHT',
+          title: 'Opponent Joined!',
+          message: `${joiner?.handle || 'Someone'} joined your ${fight.durationMinutes}m fight - Game on!`,
+        },
+      });
+
       return Response.json({ success: true, data: updatedFight });
     });
   } catch (error) {

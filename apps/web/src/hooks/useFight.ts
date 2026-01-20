@@ -8,6 +8,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useAuthStore, useFightStore } from '@/lib/store';
 import { useSocket } from './useSocket';
 import { api, type StakeInfo } from '@/lib/api';
+import { notify } from '@/lib/notify';
 
 interface FightParticipant {
   userId: string;
@@ -57,6 +58,9 @@ export function useFight() {
 
   // Track previous status to detect when fight ends
   const prevStatusRef = useRef<string | null>(null);
+  // Track if we've already sent notifications for this fight (to prevent duplicates)
+  const fightStartNotifiedRef = useRef<string | null>(null);
+  const fightEndNotifiedRef = useRef<string | null>(null);
 
   // Connect to WebSocket for real-time updates
   const { isConnected } = useSocket(fightId || undefined);
@@ -162,9 +166,35 @@ export function useFight() {
     // Update ref for next comparison
     prevStatusRef.current = currentStatus;
 
+    // Notify when fight starts (WAITING -> LIVE)
+    if (prevStatus === 'WAITING' && currentStatus === 'LIVE' && fightStartNotifiedRef.current !== fightId) {
+      fightStartNotifiedRef.current = fightId;
+      notify('FIGHT', 'Fight Started!', `${fight.durationMinutes}m fight is now LIVE - Go trade!`, { variant: 'success' });
+    }
+
     // If fight just ended (was LIVE, now is FINISHED or CANCELLED)
     // OR if user navigates to a fight that's already ended
     if (currentStatus === 'FINISHED' || currentStatus === 'CANCELLED') {
+      // Notify only if the fight just ended (was LIVE) AND we haven't already notified for this fight
+      if (prevStatus === 'LIVE' && fightEndNotifiedRef.current !== fightId) {
+        // Mark this fight as notified to prevent duplicates
+        fightEndNotifiedRef.current = fightId;
+
+        if (currentStatus === 'FINISHED') {
+          const isWinner = fight.winnerId === user?.id;
+          const isDraw = fight.isDraw;
+          if (isDraw) {
+            notify('FIGHT', 'Fight Ended - Draw', 'The fight ended in a draw!', { variant: 'info' });
+          } else if (isWinner) {
+            notify('FIGHT', 'Victory!', 'Congratulations, you won the fight!', { variant: 'success' });
+          } else {
+            notify('FIGHT', 'Fight Ended', 'Better luck next time!', { variant: 'info' });
+          }
+        } else {
+          notify('FIGHT', 'Fight Cancelled', 'The fight was cancelled', { variant: 'warning' });
+        }
+      }
+
       // Only auto-redirect from /trade page
       if (pathname === '/trade') {
         // Small delay to let user see the final state
@@ -176,7 +206,7 @@ export function useFight() {
         return () => clearTimeout(timer);
       }
     }
-  }, [fight, fightId, pathname, router]);
+  }, [fight, fightId, pathname, router, user?.id]);
 
   // Get opponent info
   const opponent = useMemo(() => {

@@ -90,20 +90,22 @@ export function AppShell({ children }: AppShellProps) {
       {/* Header */}
       <header className="border-b border-surface-700 bg-surface-850 sticky top-0 z-50">
         <div className="w-full px-4">
-          <div className="flex items-center justify-between h-12">
-            {/* Logo */}
-            <Link href="/lobby">
-              <Image
-                src="/images/landing/TFC-Logo.png"
-                alt="Trade Fight Club"
-                width={36}
-                height={36}
-                className="rounded-lg"
-              />
-            </Link>
+          <div className="flex items-center h-12 relative">
+            {/* Logo - Left */}
+            <div className="flex-shrink-0">
+              <Link href="/lobby">
+                <Image
+                  src="/images/landing/TFC-Logo.png"
+                  alt="Trade Fight Club"
+                  width={36}
+                  height={36}
+                  className="rounded-lg"
+                />
+              </Link>
+            </div>
 
-            {/* Navigation */}
-            <nav className="flex items-center gap-1">
+            {/* Navigation - Centered */}
+            <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
               <NavLink href="/trade">Trade</NavLink>
               <NavLink href="/lobby">Arena</NavLink>
               <NavLink href="/leaderboard" prefetch={prefetchLeaderboard}>
@@ -117,7 +119,7 @@ export function AppShell({ children }: AppShellProps) {
             </nav>
 
             {/* Right side: Balance, Notifications, Wallet */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 ml-auto">
               {/* Balance Display */}
               <div className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 rounded text-sm">
                 <WalletIcon className="w-4 h-4 text-surface-400" />

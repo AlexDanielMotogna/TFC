@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, usePacificaWsStore } from '@/hooks';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { PacificaChart } from '@/components/PacificaChart';
 import { OrderBook } from '@/components/OrderBook';
@@ -79,6 +79,8 @@ export default function TradePage() {
   // Fight-specific data hooks
   const { positions: fightPositions } = useFightPositions(fightId);
   const { trades: fightTrades } = useFightTrades(fightId);
+  const { orders: fightOpenOrders } = useFightOrders(fightId);
+  const { orderHistory: fightOrderHistory } = useFightOrderHistory(fightId);
 
   // Pacifica WebSocket connection status (for real-time updates)
   const pacificaWsConnected = usePacificaWsStore((state) => state.isConnected);
@@ -652,9 +654,11 @@ export default function TradePage() {
     };
   });
 
-  // Choose which positions/trades to display based on toggle
+  // Choose which positions/trades/orders to display based on toggle
   const activePositions = showFightOnly && fightId ? displayFightPositions : displayPositions;
   const activeTrades = showFightOnly && fightId ? fightTrades : tradeHistory;
+  const activeOpenOrders = showFightOnly && fightId ? fightOpenOrders : openOrders;
+  const activeOrderHistory = showFightOnly && fightId ? fightOrderHistory : orderHistoryData;
 
   // Calculate real-time unrealized PnL from positions (updates with WebSocket prices)
   const realtimeUnrealizedPnl = displayPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
@@ -865,7 +869,7 @@ export default function TradePage() {
                   />
                 )}
                 {bottomTab === 'orders' && (
-                  openOrders.length > 0 ? (
+                  activeOpenOrders.length > 0 ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
@@ -942,7 +946,7 @@ export default function TradePage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {[...openOrders].sort((a, b) => {
+                          {[...activeOpenOrders].sort((a, b) => {
                             const getValue = (order: any) => {
                               switch (ordersSort.col) {
                                 case 'time': return order.createdAt ? new Date(order.createdAt).getTime() : 0;
@@ -1043,7 +1047,9 @@ export default function TradePage() {
                       </table>
                     </div>
                   ) : (
-                    <div className="text-center py-4 text-surface-500 text-xs">No open orders</div>
+                    <div className="text-center py-4 text-surface-500 text-xs">
+                      {showFightOnly && fightId ? 'No open orders during this fight' : 'No open orders'}
+                    </div>
                   )
                 )}
                 {bottomTab === 'trades' && (
@@ -1166,7 +1172,7 @@ export default function TradePage() {
                                 </td>
                                 <td className="py-2 px-2 text-right">
                                   <span className={`font-mono ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                                    {realizedPnl >= 0 ? '+' : ''}${realizedPnl.toFixed(2)}
+                                    {realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}
                                   </span>
                                 </td>
                               </tr>
@@ -1182,7 +1188,7 @@ export default function TradePage() {
                   )
                 )}
                 {bottomTab === 'history' && (
-                  orderHistoryData.length > 0 ? (
+                  activeOrderHistory.length > 0 ? (
                     <table className="w-full text-xs">
                       <thead>
                         <tr className="text-surface-400 text-xs">
@@ -1255,7 +1261,7 @@ export default function TradePage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {[...orderHistoryData].sort((a: any, b: any) => {
+                        {[...activeOrderHistory].sort((a: any, b: any) => {
                           const getValue = (order: any) => {
                             switch (orderHistorySort.col) {
                               case 'time': return order.created_at || 0;
@@ -1351,13 +1357,12 @@ export default function TradePage() {
                                 {isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}
                               </td>
                               <td className="py-2 px-2 text-center">
-                                <span className={`text-xs px-2 py-0.5 rounded ${
-                                  status === 'Filled' ? 'bg-win-500/20 text-win-400' :
+                                <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' :
                                   status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' :
-                                  status === 'Triggered' ? 'bg-primary-500/20 text-primary-400' :
-                                  status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' :
-                                  'bg-primary-500/20 text-primary-400'
-                                }`}>
+                                    status === 'Triggered' ? 'bg-primary-500/20 text-primary-400' :
+                                      status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-primary-500/20 text-primary-400'
+                                  }`}>
                                   {status}
                                 </span>
                               </td>
@@ -1371,7 +1376,7 @@ export default function TradePage() {
                     </table>
                   ) : (
                     <div className="text-center py-4 text-surface-500 text-xs">
-                      No order history
+                      {showFightOnly && fightId ? 'No order history during this fight' : 'No order history'}
                     </div>
                   )
                 )}
@@ -1498,7 +1503,7 @@ export default function TradePage() {
                       <div className="flex justify-between group relative">
                         <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Unrealized PnL</span>
                         <span className={`font-mono ${realtimeUnrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                          {realtimeUnrealizedPnl >= 0 ? '+' : ''}${realtimeUnrealizedPnl.toFixed(2)}
+                          {realtimeUnrealizedPnl >= 0 ? '+' : '-'}${Math.abs(realtimeUnrealizedPnl).toFixed(2)}
                         </span>
                         <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
                           Profit or loss from open positions at current mark price
@@ -1602,7 +1607,7 @@ export default function TradePage() {
                 <button
                   onClick={() => setSelectedSide('LONG')}
                   disabled={!canTrade}
-                  className={`py-3 rounded-lg font-semibold transition-all ${selectedSide === 'LONG'
+                  className={`py-3 rounded-lg font-semibold transition-all text-sm ${selectedSide === 'LONG'
                     ? 'bg-win-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -1612,7 +1617,7 @@ export default function TradePage() {
                 <button
                   onClick={() => setSelectedSide('SHORT')}
                   disabled={!canTrade}
-                  className={`py-3 rounded-lg font-semibold transition-all ${selectedSide === 'SHORT'
+                  className={`py-3 rounded-lg font-semibold transition-all text-sm ${selectedSide === 'SHORT'
                     ? 'bg-loss-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}

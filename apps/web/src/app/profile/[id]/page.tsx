@@ -259,7 +259,7 @@ export default function ProfilePage() {
                                 pnlIsPositive ? 'text-emerald-400' : 'text-red-400'
                               }`}
                             >
-                              {pnlIsPositive ? '+' : ''}${pnl.toFixed(2)}
+                              {pnlIsPositive ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
                             </span>
                           )}
                         </td>

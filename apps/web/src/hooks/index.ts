@@ -17,6 +17,8 @@ export { useStakeInfo } from './useStakeInfo';
 export { useMyActiveFights } from './useMyActiveFights';
 export { useFightPositions } from './useFightPositions';
 export { useFightTrades } from './useFightTrades';
+export { useFightOrders } from './useFightOrders';
+export { useFightOrderHistory } from './useFightOrderHistory';
 export { useGlobalSocket, useGlobalSocketStore, useFightRoom } from './useGlobalSocket';
 export { usePacificaWebSocket, usePacificaWsStore } from './usePacificaWebSocket';
 export type { Position as PacificaPosition, Order as PacificaOrder, Trade as PacificaTrade } from './usePacificaWebSocket';

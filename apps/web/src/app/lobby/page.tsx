@@ -162,9 +162,31 @@ export default function LobbyPage() {
     return (
       <AppShell>
         <div className="container mx-auto px-4 md:px-6 py-6">
-          <div className="mb-6">
-            <h2 className="font-display text-2xl font-bold text-white">Arena</h2>
-            <p className="text-surface-400 text-sm">Challenge traders to 1v1 battles. Win weekly prizes.</p>
+          {/* Header matches actual layout - title left, stats center, button right */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            {/* Title - Left */}
+            <div>
+              <h2 className="font-display text-2xl font-bold text-white">Arena</h2>
+              <p className="text-surface-400 text-sm">Challenge traders to 1v1 battles. Win weekly prizes.</p>
+            </div>
+
+            {/* Stats - Center */}
+            <div className="flex items-center gap-4 md:gap-6">
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-surface-500 animate-pulse" />
+                <span className="text-xs text-surface-500">...</span>
+              </div>
+              <div className="w-px h-4 bg-surface-700" />
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-surface-500 rounded-full" />
+                <span className="text-sm text-surface-400">- Live</span>
+              </div>
+              <span className="text-sm text-surface-400">- Pending</span>
+              <span className="text-sm text-surface-400 hidden sm:block">- Fighters</span>
+            </div>
+
+            {/* Create Fight button - Right */}
+            <div className="w-28 h-10 rounded-lg bg-surface-700 animate-pulse" />
           </div>
           <ArenaSkeleton />
         </div>

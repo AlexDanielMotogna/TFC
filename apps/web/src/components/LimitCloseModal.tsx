@@ -262,7 +262,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
             <span className={`font-mono font-semibold ${
               estimatedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
             }`}>
-              {estimatedPnl >= 0 ? '+' : ''}${estimatedPnl.toFixed(4)}
+              {estimatedPnl >= 0 ? '+' : '-'}${Math.abs(estimatedPnl).toFixed(4)}
             </span>
           </div>
         </div>

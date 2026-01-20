@@ -38,6 +38,25 @@ export async function POST(request: Request) {
         throw new BadRequestError('type, title, and message are required');
       }
 
+      // Deduplicate: Check if a similar notification was created in the last 30 seconds
+      const thirtySecondsAgo = new Date(Date.now() - 30 * 1000);
+      const existingNotification = await prisma.notification.findFirst({
+        where: {
+          userId: user.userId,
+          type,
+          title,
+          message,
+          createdAt: { gte: thirtySecondsAgo },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // If duplicate exists, return the existing one without creating a new one
+      if (existingNotification) {
+        console.log(`[Notifications] Deduplicated notification for user ${user.userId}: "${title}"`);
+        return existingNotification;
+      }
+
       const notification = await prisma.notification.create({
         data: {
           userId: user.userId,

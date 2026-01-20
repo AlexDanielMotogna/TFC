@@ -3,6 +3,7 @@
 import { useCallback, useEffect } from 'react';
 import { useStore, useAuthStore } from '@/lib/store';
 import { api, type Fight } from '@/lib/api';
+import { notify } from '@/lib/notify';
 
 export function useFights() {
   const { fights, isLoading, error, setFights, setLoading, setError } = useStore();
@@ -14,7 +15,7 @@ export function useFights() {
 
     try {
       const data = await api.getFights(status);
-      setFights(data);
+      setFights(data || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch fights');
     } finally {
@@ -35,10 +36,12 @@ export function useFights() {
         const newFight = await api.createFight(token, params);
         // Add new fight to the list
         setFights([newFight, ...fights]);
+        notify('FIGHT', 'Fight Created', `Created ${params.durationMinutes}m fight with $${params.stakeUsdc} stake`, { variant: 'success' });
         return newFight;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to create fight';
         setError(message);
+        notify('FIGHT', 'Fight Creation Failed', message, { variant: 'error' });
         throw err;
       } finally {
         setLoading(false);
@@ -62,10 +65,12 @@ export function useFights() {
         setFights(
           fights.map((f) => (f.id === fightId ? updatedFight : f))
         );
+        notify('FIGHT', 'Fight Joined', `Joined ${updatedFight.durationMinutes}m fight - Good luck!`, { variant: 'success' });
         return updatedFight;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to join fight';
         setError(message);
+        notify('FIGHT', 'Join Failed', message, { variant: 'error' });
         throw err;
       } finally {
         setLoading(false);
@@ -87,9 +92,11 @@ export function useFights() {
         await api.cancelFight(token, fightId);
         // Remove fight from the list
         setFights(fights.filter((f) => f.id !== fightId));
+        notify('FIGHT', 'Fight Cancelled', 'Your fight has been cancelled', { variant: 'success' });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to cancel fight';
         setError(message);
+        notify('FIGHT', 'Cancel Failed', message, { variant: 'error' });
         throw err;
       } finally {
         setLoading(false);
@@ -103,10 +110,11 @@ export function useFights() {
     fetchFights();
   }, [fetchFights]);
 
-  // Filter helpers
-  const waitingFights = fights.filter((f) => f.status === 'WAITING');
-  const liveFights = fights.filter((f) => f.status === 'LIVE');
-  const finishedFights = fights.filter((f) => f.status === 'FINISHED');
+  // Filter helpers (with safeguard for undefined)
+  const safeFights = fights || [];
+  const waitingFights = safeFights.filter((f) => f.status === 'WAITING');
+  const liveFights = safeFights.filter((f) => f.status === 'LIVE');
+  const finishedFights = safeFights.filter((f) => f.status === 'FINISHED');
 
   return {
     fights,

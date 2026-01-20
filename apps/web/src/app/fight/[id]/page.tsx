@@ -430,7 +430,7 @@ export default function FightResultsPage() {
                     <span className="text-surface-400">Position PnL</span>
                   </Tooltip>
                   <span className={`font-mono ${(parseDecimal(participantA?.finalScoreUsdc) + pnlBreakdownA.totalFees) >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                    {(parseDecimal(participantA?.finalScoreUsdc) + pnlBreakdownA.totalFees) >= 0 ? '+' : ''}${(parseDecimal(participantA?.finalScoreUsdc) + pnlBreakdownA.totalFees).toFixed(4)}
+                    {(parseDecimal(participantA?.finalScoreUsdc) + pnlBreakdownA.totalFees) >= 0 ? '+' : '-'}${Math.abs(parseDecimal(participantA?.finalScoreUsdc) + pnlBreakdownA.totalFees).toFixed(4)}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -445,7 +445,7 @@ export default function FightResultsPage() {
                       <span className="text-white font-semibold">Final Result</span>
                     </Tooltip>
                     <span className={`font-mono font-bold ${parseDecimal(participantA?.finalScoreUsdc) >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                      {parseDecimal(participantA?.finalScoreUsdc) >= 0 ? '+' : ''}${parseDecimal(participantA?.finalScoreUsdc).toFixed(4)}
+                      {parseDecimal(participantA?.finalScoreUsdc) >= 0 ? '+' : '-'}${Math.abs(parseDecimal(participantA?.finalScoreUsdc)).toFixed(4)}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs mt-1">
@@ -482,7 +482,7 @@ export default function FightResultsPage() {
                       <span className="text-surface-400">Position PnL</span>
                     </Tooltip>
                     <span className={`font-mono ${(parseDecimal(participantB?.finalScoreUsdc) + pnlBreakdownB.totalFees) >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                      {(parseDecimal(participantB?.finalScoreUsdc) + pnlBreakdownB.totalFees) >= 0 ? '+' : ''}${(parseDecimal(participantB?.finalScoreUsdc) + pnlBreakdownB.totalFees).toFixed(4)}
+                      {(parseDecimal(participantB?.finalScoreUsdc) + pnlBreakdownB.totalFees) >= 0 ? '+' : '-'}${Math.abs(parseDecimal(participantB?.finalScoreUsdc) + pnlBreakdownB.totalFees).toFixed(4)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -497,7 +497,7 @@ export default function FightResultsPage() {
                         <span className="text-white font-semibold">Final Result</span>
                       </Tooltip>
                       <span className={`font-mono font-bold ${parseDecimal(participantB?.finalScoreUsdc) >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                        {parseDecimal(participantB?.finalScoreUsdc) >= 0 ? '+' : ''}${parseDecimal(participantB?.finalScoreUsdc).toFixed(4)}
+                        {parseDecimal(participantB?.finalScoreUsdc) >= 0 ? '+' : '-'}${Math.abs(parseDecimal(participantB?.finalScoreUsdc)).toFixed(4)}
                       </span>
                     </div>
                     <div className="flex justify-between text-xs mt-1">

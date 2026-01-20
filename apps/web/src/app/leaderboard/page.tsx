@@ -6,6 +6,17 @@ import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { LeaderboardSkeleton, LeaderboardRowSkeleton } from '@/components/Skeletons';
 import { api } from '@/lib/api';
+import { usePrizePool } from '@/hooks/usePrizePool';
+
+// Format currency for display
+const formatCurrency = (amount: number): string => {
+  if (amount >= 1000000) {
+    return `$${(amount / 1000000).toFixed(2)}M`;
+  } else if (amount >= 10000) {
+    return `$${(amount / 1000).toFixed(1)}K`;
+  }
+  return `$${amount.toFixed(2)}`;
+};
 
 interface LeaderboardEntry {
   userId: string;
@@ -31,6 +42,9 @@ export default function LeaderboardPage() {
     staleTime: 30000, // 30 seconds
   });
 
+  // Prize pool data (for weekly view)
+  const { prizePool } = usePrizePool();
+
   const getRankDisplay = (rank: number) => {
     if (rank === 1) return { icon: '🥇', color: 'text-yellow-400', bg: 'bg-yellow-400/10' };
     if (rank === 2) return { icon: '🥈', color: 'text-gray-300', bg: 'bg-gray-300/10' };
@@ -48,20 +62,50 @@ export default function LeaderboardPage() {
     <AppShell>
       <div className="container mx-auto px-4 md:px-6 py-8 animate-fadeIn">
         {/* Page Header */}
-        <div className="text-center mb-10">
-          <h1 className="font-display text-4xl md:text-5xl font-bold mb-4 tracking-tight">
-            <span className="text-white">TOP </span>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-accent-400">
-              FIGHTERS
-            </span>
-          </h1>
-          <p className="text-surface-400 max-w-xl mx-auto">
-            The elite traders dominating the arena. Rankings based on total PnL performance.
-          </p>
+        <div className="mb-6">
+          {/* Title */}
+          <div className="text-center mb-4">
+            <h1 className="font-display text-3xl md:text-4xl font-bold mb-2 tracking-tight">
+              <span className="text-white">TOP </span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-accent-400">
+                FIGHTERS
+              </span>
+            </h1>
+            <p className="text-surface-400 text-sm">
+              Rankings based on total PnL performance
+            </p>
+          </div>
+
+          {/* Prize Pool Badge (Weekly only) - Below title, responsive */}
+          {range === 'weekly' && prizePool && (
+            <div className="flex justify-center">
+              <div className="inline-flex flex-wrap justify-center items-center gap-4 sm:gap-5 px-4 sm:px-5 py-2.5 sm:py-3 bg-surface-900/50 border border-surface-700 rounded-xl">
+                <div className="text-center">
+                  <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Weekly Fees</p>
+                  <p className="text-sm sm:text-base font-bold text-white">{formatCurrency(prizePool.totalFeesCollected)}</p>
+                </div>
+                <div className="w-px h-6 sm:h-8 bg-surface-700" />
+                <div className="text-center">
+                  <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Prize Pool</p>
+                  <p className="text-sm sm:text-base font-bold text-gradient-orange">{formatCurrency(prizePool.totalPrizePool)}</p>
+                </div>
+                <div className="w-px h-6 sm:h-8 bg-surface-700" />
+                <div className="flex items-center gap-1.5 sm:gap-2 text-surface-400">
+                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div>
+                    <p className="text-[10px] sm:text-xs text-surface-500">Ends in</p>
+                    <p className="text-xs sm:text-sm font-mono font-bold text-white">{prizePool.timeRemaining.formatted}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Range Toggle */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-6">
           <div className="bg-surface-800 rounded-xl p-1.5 flex border border-surface-700">
             <button
               onClick={() => setRange('weekly')}
@@ -108,93 +152,118 @@ export default function LeaderboardPage() {
           </div>
         ) : (
           <div className="animate-fadeIn">
-            {/* Top 3 Podium (Desktop) */}
+            {/* Top 3 Podium - Card design like landing page but smaller */}
             {first && second && third && (
-              <div className="hidden md:grid grid-cols-3 gap-4 mb-8 max-w-3xl mx-auto">
+              <div className="hidden md:grid grid-cols-3 gap-3 mb-6 max-w-3xl mx-auto items-end">
                 {/* 2nd Place */}
-                <div className="card p-6 text-center mt-8 animate-slideUp" style={{ animationDelay: '0.1s' }}>
-                  <div className="relative inline-block mb-4">
-                    <div className="avatar w-20 h-20 text-2xl mx-auto">
-                      {second.handle[0]?.toUpperCase() || '?'}
+                <div className="bg-gradient-to-b from-slate-400/20 to-slate-500/10 border border-slate-400/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-full bg-slate-400/30 flex items-center justify-center">
+                      <span className="text-slate-300 text-xs font-bold">2</span>
                     </div>
-                    <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-2xl">🥈</span>
+                    <div>
+                      <p className="text-slate-300 font-semibold text-sm">2nd Place</p>
+                      <p className="text-surface-500 text-xs">3% of fees</p>
+                    </div>
                   </div>
-                  <Link
-                    href={`/profile/${second.userId}`}
-                    className="font-semibold text-white hover:text-primary-400 transition-colors"
-                  >
-                    {second.handle}
-                  </Link>
-                  <p
-                    className={`font-mono text-xl font-bold mt-2 ${
-                      second.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
-                    }`}
-                  >
-                    {second.totalPnlUsdc >= 0 ? '+' : ''}$
-                    {Math.abs(second.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-surface-400 mt-1">
-                    {second.wins}W / {second.losses}L
-                  </p>
-                </div>
-
-                {/* 1st Place */}
-                <div className="card p-6 text-center relative glow-border animate-slideUp">
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="text-3xl">👑</span>
+                  <div className="mb-3">
+                    <p className="text-surface-500 text-xs mb-0.5">Prize</p>
+                    <p className="font-bold text-gradient-orange text-xl">
+                      {formatCurrency((prizePool?.totalFeesCollected || 0) * 0.03)}
+                    </p>
                   </div>
-                  <div className="relative inline-block mb-4 mt-4">
-                    <div className="p-1 rounded-full bg-gradient-to-r from-yellow-400 to-amber-500">
-                      <div className="avatar w-24 h-24 text-3xl bg-surface-850">
-                        {first.handle[0]?.toUpperCase() || '?'}
+                  <div className="border-t border-surface-700/50 pt-3">
+                    <p className="text-surface-500 text-[10px] mb-1.5 uppercase tracking-wide">Current Leader</p>
+                    <div className="flex items-center gap-2">
+                      <div className="avatar w-8 h-8 text-xs">{second.handle[0]?.toUpperCase() || '?'}</div>
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/profile/${second.userId}`} className="text-white text-sm font-medium truncate block hover:text-primary-400">
+                          {second.handle}
+                        </Link>
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className={second.totalPnlUsdc >= 0 ? 'text-win-400' : 'text-loss-400'}>
+                            {second.totalPnlUsdc >= 0 ? '+' : ''}{formatCurrency(second.totalPnlUsdc)} PnL
+                          </span>
+                          <span className="text-surface-500">•</span>
+                          <span className="text-surface-400">{second.wins}W {second.losses}L</span>
+                        </div>
                       </div>
                     </div>
-                    <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-3xl">🥇</span>
                   </div>
-                  <Link
-                    href={`/profile/${first.userId}`}
-                    className="font-display font-bold text-xl text-white hover:text-primary-400 transition-colors"
-                  >
-                    {first.handle}
-                  </Link>
-                  <p
-                    className={`font-mono text-2xl font-bold mt-2 ${
-                      first.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
-                    }`}
-                  >
-                    {first.totalPnlUsdc >= 0 ? '+' : ''}$
-                    {Math.abs(first.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-surface-400 mt-1">
-                    {first.wins}W / {first.losses}L
-                  </p>
+                </div>
+
+                {/* 1st Place - Featured */}
+                <div className="bg-gradient-to-b from-amber-500/20 to-yellow-600/10 border border-amber-500/50 rounded-xl p-5 shadow-lg shadow-amber-500/10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-full bg-amber-500/30 flex items-center justify-center">
+                      <span className="text-amber-400 text-sm font-bold">1</span>
+                    </div>
+                    <div>
+                      <p className="text-amber-400 font-bold">1st Place</p>
+                      <p className="text-surface-500 text-xs">5% of fees</p>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <p className="text-surface-500 text-xs mb-0.5">Prize</p>
+                    <p className="font-bold text-gradient-orange text-2xl">
+                      {formatCurrency((prizePool?.totalFeesCollected || 0) * 0.05)}
+                    </p>
+                  </div>
+                  <div className="border-t border-surface-700/50 pt-3">
+                    <p className="text-surface-500 text-[10px] mb-1.5 uppercase tracking-wide">Current Leader</p>
+                    <div className="flex items-center gap-2">
+                      <div className="avatar w-9 h-9 text-sm">{first.handle[0]?.toUpperCase() || '?'}</div>
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/profile/${first.userId}`} className="text-white font-semibold truncate block hover:text-primary-400">
+                          {first.handle}
+                        </Link>
+                        <div className="flex items-center gap-1.5 text-xs">
+                          <span className={first.totalPnlUsdc >= 0 ? 'text-win-400' : 'text-loss-400'}>
+                            {first.totalPnlUsdc >= 0 ? '+' : ''}{formatCurrency(first.totalPnlUsdc)} PnL
+                          </span>
+                          <span className="text-surface-500">•</span>
+                          <span className="text-surface-400">{first.wins}W {first.losses}L</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 3rd Place */}
-                <div className="card p-6 text-center mt-12 animate-slideUp" style={{ animationDelay: '0.2s' }}>
-                  <div className="relative inline-block mb-4">
-                    <div className="avatar w-18 h-18 text-xl mx-auto">
-                      {third.handle[0]?.toUpperCase() || '?'}
+                <div className="bg-gradient-to-b from-orange-700/20 to-amber-800/10 border border-orange-600/50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-7 h-7 rounded-full bg-orange-600/30 flex items-center justify-center">
+                      <span className="text-orange-400 text-xs font-bold">3</span>
                     </div>
-                    <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-2xl">🥉</span>
+                    <div>
+                      <p className="text-orange-400 font-semibold text-sm">3rd Place</p>
+                      <p className="text-surface-500 text-xs">2% of fees</p>
+                    </div>
                   </div>
-                  <Link
-                    href={`/profile/${third.userId}`}
-                    className="font-semibold text-white hover:text-primary-400 transition-colors"
-                  >
-                    {third.handle}
-                  </Link>
-                  <p
-                    className={`font-mono text-lg font-bold mt-2 ${
-                      third.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
-                    }`}
-                  >
-                    {third.totalPnlUsdc >= 0 ? '+' : ''}$
-                    {Math.abs(third.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-surface-400 mt-1">
-                    {third.wins}W / {third.losses}L
-                  </p>
+                  <div className="mb-3">
+                    <p className="text-surface-500 text-xs mb-0.5">Prize</p>
+                    <p className="font-bold text-gradient-orange text-xl">
+                      {formatCurrency((prizePool?.totalFeesCollected || 0) * 0.02)}
+                    </p>
+                  </div>
+                  <div className="border-t border-surface-700/50 pt-3">
+                    <p className="text-surface-500 text-[10px] mb-1.5 uppercase tracking-wide">Current Leader</p>
+                    <div className="flex items-center gap-2">
+                      <div className="avatar w-8 h-8 text-xs">{third.handle[0]?.toUpperCase() || '?'}</div>
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/profile/${third.userId}`} className="text-white text-sm font-medium truncate block hover:text-primary-400">
+                          {third.handle}
+                        </Link>
+                        <div className="flex items-center gap-1.5 text-[10px]">
+                          <span className={third.totalPnlUsdc >= 0 ? 'text-win-400' : 'text-loss-400'}>
+                            {third.totalPnlUsdc >= 0 ? '+' : ''}{formatCurrency(third.totalPnlUsdc)} PnL
+                          </span>
+                          <span className="text-surface-500">•</span>
+                          <span className="text-surface-400">{third.wins}W {third.losses}L</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -294,7 +363,7 @@ export default function LeaderboardPage() {
                               entry.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
                             }`}
                           >
-                            {entry.totalPnlUsdc >= 0 ? '+' : ''}$
+                            {entry.totalPnlUsdc >= 0 ? '+' : '-'}$
                             {Math.abs(entry.totalPnlUsdc).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </td>

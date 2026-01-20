@@ -36,7 +36,14 @@ async function fetchApi<T>(endpoint: string, options: ApiOptions = {}): Promise<
     throw new Error(errorBody.message || errorBody.error || `HTTP error ${response.status}`);
   }
 
-  return response.json();
+  const json = await response.json();
+
+  // Handle wrapped response format { success: true, data: T }
+  if (json && typeof json === 'object' && 'success' in json && 'data' in json) {
+    return json.data as T;
+  }
+
+  return json as T;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -60,15 +67,14 @@ export interface PacificaConnectionStatus {
 }
 
 export async function getPacificaStatus(token: string): Promise<PacificaConnectionStatus> {
-  const response = await fetchApi<ApiResponse<PacificaConnectionStatus>>('/auth/pacifica/me', { token });
-  return response.data;
+  return fetchApi<PacificaConnectionStatus>('/auth/pacifica/me', { token });
 }
 
 export async function linkPacificaAccount(
   token: string,
   pacificaAddress: string
 ): Promise<{ connected: boolean; pacificaAddress: string }> {
-  const response = await fetchApi<ApiResponse<{ connected: boolean; pacificaAddress: string }>>(
+  return fetchApi<{ connected: boolean; pacificaAddress: string }>(
     '/auth/pacifica/link',
     {
       method: 'POST',
@@ -76,7 +82,6 @@ export async function linkPacificaAccount(
       body: JSON.stringify({ pacificaAddress }),
     }
   );
-  return response.data;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -124,13 +129,11 @@ interface FightsResponse {
 
 export async function getFights(status?: string): Promise<Fight[]> {
   const params = status ? `?status=${status}` : '';
-  const response = await fetchApi<FightsResponse>(`/fights${params}`);
-  return response.data;
+  return fetchApi<Fight[]>(`/fights${params}`);
 }
 
 export async function getFight(id: string): Promise<Fight> {
-  const response = await fetchApi<ApiResponse<Fight>>(`/fights/${id}`);
-  return response.data;
+  return fetchApi<Fight>(`/fights/${id}`);
 }
 
 export async function createFight(
@@ -145,19 +148,17 @@ export async function createFight(
 }
 
 export async function joinFight(token: string, fightId: string): Promise<Fight> {
-  const response = await fetchApi<ApiResponse<Fight>>(`/fights/${fightId}/join`, {
+  return fetchApi<Fight>(`/fights/${fightId}/join`, {
     method: 'POST',
     token,
   });
-  return response.data;
 }
 
 export async function cancelFight(token: string, fightId: string): Promise<{ id: string }> {
-  const response = await fetchApi<ApiResponse<{ id: string }>>(`/fights/${fightId}`, {
+  return fetchApi<{ id: string }>(`/fights/${fightId}`, {
     method: 'DELETE',
     token,
   });
-  return response.data;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -238,13 +239,11 @@ export async function getMyProfile(token: string): Promise<UserProfile> {
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {
-  const response = await fetchApi<ApiResponse<UserProfile>>(`/users/${userId}`);
-  return response.data;
+  return fetchApi<UserProfile>(`/users/${userId}`);
 }
 
 export async function getUserFights(userId: string): Promise<Fight[]> {
-  const response = await fetchApi<ApiResponse<Fight[]>>(`/users/${userId}/fights`);
-  return response.data;
+  return fetchApi<Fight[]>(`/users/${userId}/fights`);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -295,8 +294,7 @@ export interface OpenOrder {
 
 export async function getAccountSummary(token: string): Promise<AccountSummary | null> {
   try {
-    const response = await fetchApi<ApiResponse<AccountSummary>>('/account/summary', { token });
-    return response.data;
+    return fetchApi<AccountSummary>('/account/summary', { token });
   } catch {
     return null;
   }
@@ -304,8 +302,7 @@ export async function getAccountSummary(token: string): Promise<AccountSummary |
 
 export async function getPositions(token: string): Promise<Position[]> {
   try {
-    const response = await fetchApi<ApiResponse<Position[]>>('/account/positions', { token });
-    return response.data || [];
+    return fetchApi<Position[]>('/account/positions', { token });
   } catch {
     return [];
   }
@@ -313,8 +310,7 @@ export async function getPositions(token: string): Promise<Position[]> {
 
 export async function getOpenOrders(token: string): Promise<OpenOrder[]> {
   try {
-    const response = await fetchApi<ApiResponse<OpenOrder[]>>('/account/orders/open', { token });
-    return response.data || [];
+    return fetchApi<OpenOrder[]>('/account/orders/open', { token });
   } catch {
     return [];
   }
@@ -338,8 +334,7 @@ export async function getStakeInfo(account: string, fightId?: string): Promise<S
   if (fightId) {
     params.append('fightId', fightId);
   }
-  const response = await fetchApi<ApiResponse<StakeInfo>>(`/fights/stake-info?${params.toString()}`);
-  return response.data;
+  return fetchApi<StakeInfo>(`/fights/stake-info?${params.toString()}`);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -363,29 +358,28 @@ export interface PlaceOrderResult {
 }
 
 export async function placeOrder(token: string, params: PlaceOrderParams): Promise<PlaceOrderResult> {
-  const response = await fetchApi<ApiResponse<PlaceOrderResult>>('/orders', {
+  return fetchApi<PlaceOrderResult>('/orders', {
     method: 'POST',
     token,
     body: JSON.stringify(params),
   });
-  return response.data;
 }
 
 export async function cancelOrder(token: string, orderId: number, symbol: string): Promise<boolean> {
-  const response = await fetchApi<ApiResponse<{ success: boolean }>>(`/orders/${orderId}?symbol=${symbol}`, {
+  const response = await fetchApi<{ success: boolean }>(`/orders/${orderId}?symbol=${symbol}`, {
     method: 'DELETE',
     token,
   });
-  return response.data.success;
+  return response.success;
 }
 
 export async function cancelAllOrders(token: string, symbol?: string): Promise<number> {
   const query = symbol ? `?symbol=${symbol}` : '';
-  const response = await fetchApi<ApiResponse<{ cancelled_count: number }>>(`/orders${query}`, {
+  const response = await fetchApi<{ cancelled_count: number }>(`/orders${query}`, {
     method: 'DELETE',
     token,
   });
-  return response.data.cancelled_count;
+  return response.cancelled_count;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -482,8 +476,8 @@ export const api = {
   getPrices,
   // Leaderboard
   getLeaderboard: async (range: 'weekly' | 'all_time' = 'weekly') => {
-    const result = await getLeaderboard(range) as unknown as { success: boolean; data: { range: string; entries: LeaderboardEntry[] } };
-    return result.data?.entries || [];
+    const result = await getLeaderboard(range);
+    return result.entries || [];
   },
   // Users
   getMyProfile,
