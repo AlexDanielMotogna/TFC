@@ -8,7 +8,6 @@ import { validateStakeLimit, calculateFightExposure } from '@/lib/server/orders'
 import { recordOrderAction } from '@/lib/server/order-actions';
 import { prisma, FightStatus } from '@tfc/db';
 import { FeatureFlags } from '@/lib/server/feature-flags';
-import { getUserFriendlyError } from '@/lib/errors/order-errors';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -220,9 +219,9 @@ export async function POST(request: Request) {
     }
 
     if (!response.ok || !result.success) {
-      const technicalError = result.error || `Pacifica API error: ${response.status}`;
-      console.error('Pacifica order error (technical):', technicalError);
-      throw new BadRequestError(getUserFriendlyError(technicalError));
+      const errorMessage = result.error || `Pacifica API error: ${response.status}`;
+      console.error('Pacifica order error:', errorMessage);
+      throw new BadRequestError(errorMessage);
     }
 
     console.log('Order placed successfully', {
@@ -853,9 +852,9 @@ export async function DELETE(request: Request) {
     }
 
     if (!response.ok || !result.success) {
-      const technicalError = result.error || `Pacifica API error: ${response.status}`;
-      console.error('Pacifica cancel error (technical):', technicalError);
-      throw new BadRequestError(getUserFriendlyError(technicalError));
+      const errorMessage = result.error || `Pacifica API error: ${response.status}`;
+      console.error('Pacifica cancel error:', errorMessage);
+      throw new BadRequestError(errorMessage);
     }
 
     console.log('All orders cancelled', {
