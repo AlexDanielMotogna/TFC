@@ -96,21 +96,48 @@ export async function GET(request: Request) {
         positionsBySymbol[symbol] = { amount: 0, totalNotional: 0 };
       }
 
+      const pos = positionsBySymbol[symbol];
+
       if (trade.side === 'BUY') {
-        positionsBySymbol[symbol].amount += amount;
-        positionsBySymbol[symbol].totalNotional += amount * price;
-      } else {
-        // SELL reduces the position
-        positionsBySymbol[symbol].amount -= amount;
-        // Reduce notional proportionally (we're closing part of the position)
-        if (positionsBySymbol[symbol].amount > 0) {
-          // Still have long position, reduce notional
-          const avgEntryPrice = positionsBySymbol[symbol].totalNotional / (positionsBySymbol[symbol].amount + amount);
-          positionsBySymbol[symbol].totalNotional = positionsBySymbol[symbol].amount * avgEntryPrice;
+        // Opening/adding to LONG, or closing SHORT
+        if (pos.amount < 0) {
+          // Closing SHORT position
+          const shortToClose = Math.min(amount, Math.abs(pos.amount));
+          const longToOpen = amount - shortToClose;
+          // Reduce short notional proportionally
+          if (Math.abs(pos.amount) > 0) {
+            const avgShortEntry = pos.totalNotional / Math.abs(pos.amount);
+            pos.totalNotional -= shortToClose * avgShortEntry;
+          }
+          // Add new long notional if opening long
+          if (longToOpen > 0) {
+            pos.totalNotional += longToOpen * price;
+          }
         } else {
-          // Position closed or went short
-          positionsBySymbol[symbol].totalNotional = 0;
+          // Opening/adding to LONG
+          pos.totalNotional += amount * price;
         }
+        pos.amount += amount;
+      } else {
+        // SELL: Opening/adding to SHORT, or closing LONG
+        if (pos.amount > 0) {
+          // Closing LONG position
+          const longToClose = Math.min(amount, pos.amount);
+          const shortToOpen = amount - longToClose;
+          // Reduce long notional proportionally
+          if (pos.amount > 0) {
+            const avgLongEntry = pos.totalNotional / pos.amount;
+            pos.totalNotional -= longToClose * avgLongEntry;
+          }
+          // Add new short notional if opening short
+          if (shortToOpen > 0) {
+            pos.totalNotional += shortToOpen * price;
+          }
+        } else {
+          // Opening/adding to SHORT
+          pos.totalNotional += amount * price;
+        }
+        pos.amount -= amount;
       }
     }
 

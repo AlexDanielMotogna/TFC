@@ -8,6 +8,7 @@ import { validateStakeLimit, calculateFightExposure } from '@/lib/server/orders'
 import { recordOrderAction } from '@/lib/server/order-actions';
 import { prisma, FightStatus } from '@tfc/db';
 import { FeatureFlags } from '@/lib/server/feature-flags';
+import { getUserFriendlyError } from '@/lib/errors/order-errors';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -219,7 +220,9 @@ export async function POST(request: Request) {
     }
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || `Pacifica API error: ${response.status}`);
+      const technicalError = result.error || `Pacifica API error: ${response.status}`;
+      console.error('Pacifica order error (technical):', technicalError);
+      throw new BadRequestError(getUserFriendlyError(technicalError));
     }
 
     console.log('Order placed successfully', {
@@ -256,6 +259,21 @@ export async function POST(request: Request) {
       fightId: fight_id,
       success: true,
     }).catch(err => console.error('Failed to record order action:', err));
+
+    // If TP/SL was included with the order, also record a SET_TPSL action
+    // This allows Fight Only filter to find TP/SL orders by symbol
+    if ((take_profit || stop_loss) && fight_id) {
+      recordOrderAction({
+        walletAddress: account,
+        actionType: 'SET_TPSL',
+        symbol,
+        side,
+        takeProfit: take_profit?.stop_price,
+        stopLoss: stop_loss?.stop_price,
+        fightId: fight_id,
+        success: true,
+      }).catch(err => console.error('Failed to record TP/SL action:', err));
+    }
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {
@@ -294,6 +312,22 @@ async function recordAllTrades(
   if (!connection) {
     console.log('[recordAllTrades] No user found for account:', accountAddress);
     return;
+  }
+
+  // Auto-detect active fight if not explicitly provided
+  let resolvedFightId = specificFightId;
+  if (!resolvedFightId) {
+    const activeFight = await prisma.fightParticipant.findFirst({
+      where: {
+        userId: connection.userId,
+        fight: { status: FightStatus.LIVE },
+      },
+      select: { fightId: true },
+    });
+    if (activeFight) {
+      resolvedFightId = activeFight.fightId;
+      console.log('[recordAllTrades] Auto-detected active fight:', resolvedFightId);
+    }
   }
 
   const tradeSide = side === 'bid' ? 'BUY' : 'SELL';
@@ -361,7 +395,7 @@ async function recordAllTrades(
         fee,
         pnl,
         leverage: leverage || null,
-        fightId: specificFightId || null,
+        fightId: resolvedFightId || null,
         executedAt: new Date(),
       },
     });
@@ -395,7 +429,7 @@ async function recordAllTrades(
       side,
       amount,
       orderId,
-      specificFightId,
+      resolvedFightId,
       leverage,
       { executionPrice, fee, pnl, historyId }
     );
@@ -567,7 +601,7 @@ async function recordFightTradeWithDetails(
     });
 
     if (fightRelevantAmount <= 0.0000001) {
-      console.log('SELL entirely closes pre-fight LONG. Skipping trade record.');
+      console.log('SELL entirely closes pre-fight LONG. Skipping FightTrade record.');
       return;
     }
 
@@ -625,7 +659,7 @@ async function recordFightTradeWithDetails(
     });
 
     if (fightRelevantAmount <= 0.0000001) {
-      console.log('BUY entirely closes pre-fight SHORT. Skipping trade record.');
+      console.log('BUY entirely closes pre-fight SHORT. Skipping FightTrade record.');
       return;
     }
 
@@ -819,7 +853,9 @@ export async function DELETE(request: Request) {
     }
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || `Pacifica API error: ${response.status}`);
+      const technicalError = result.error || `Pacifica API error: ${response.status}`;
+      console.error('Pacifica cancel error (technical):', technicalError);
+      throw new BadRequestError(getUserFriendlyError(technicalError));
     }
 
     console.log('All orders cancelled', {

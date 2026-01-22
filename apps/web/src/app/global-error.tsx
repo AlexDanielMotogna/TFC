@@ -11,7 +11,7 @@ export default function GlobalError({
       <body>
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0a0a0f' }}>
           <div style={{ textAlign: 'center' }}>
-            <h1 style={{ fontSize: '4rem', fontWeight: 'bold', color: '#ef4444', marginBottom: '1rem' }}>Error</h1>
+            <h1 style={{ fontSize: '4rem', fontWeight: 'bold', color: '#EF5350', marginBottom: '1rem' }}>Error</h1>
             <p style={{ fontSize: '1.25rem', color: '#9ca3af', marginBottom: '2rem' }}>Something went wrong</p>
             <button
               onClick={() => reset()}

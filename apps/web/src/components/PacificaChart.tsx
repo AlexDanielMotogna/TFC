@@ -100,8 +100,8 @@ function PacificaChartComponent({
       time: candle.time as Time,
       value: candle.volume,
       color: candle.close >= candle.open
-        ? 'rgba(34, 197, 94, 0.5)'   // Green for bullish
-        : 'rgba(239, 68, 68, 0.5)',  // Red for bearish
+        ? 'rgba(38, 166, 154, 0.5)'   // Teal for bullish (warm)
+        : 'rgba(239, 83, 80, 0.5)',   // Coral for bearish (warm)
     }));
 
     return { candleData: candleChartData, volumeData: volumeChartData };
@@ -161,14 +161,14 @@ function PacificaChartComponent({
       },
     });
 
-    // Candlestick series
+    // Candlestick series - Warm trading colors (teal/coral)
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderUpColor: '#22c55e',
-      borderDownColor: '#ef4444',
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+      upColor: '#26A69A',
+      downColor: '#EF5350',
+      borderUpColor: '#26A69A',
+      borderDownColor: '#EF5350',
+      wickUpColor: '#26A69A',
+      wickDownColor: '#EF5350',
     });
 
     // Volume series (histogram at bottom)
@@ -291,7 +291,7 @@ function PacificaChartComponent({
     if (takeProfit) {
       const line = series.createPriceLine({
         price: takeProfit,
-        color: '#22c55e',
+        color: '#26A69A',
         lineWidth: 1,
         lineStyle: 2,
         axisLabelVisible: true,
@@ -304,7 +304,7 @@ function PacificaChartComponent({
     if (stopLoss) {
       const line = series.createPriceLine({
         price: stopLoss,
-        color: '#ef4444',
+        color: '#EF5350',
         lineWidth: 1,
         lineStyle: 2,
         axisLabelVisible: true,

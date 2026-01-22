@@ -13,6 +13,7 @@ export const WS_EVENTS = {
   FIGHT_FINISHED: 'FIGHT_FINISHED',
   STAKE_INFO: 'STAKE_INFO',  // Real-time stake/exposure updates for a user
   EXTERNAL_TRADES_DETECTED: 'EXTERNAL_TRADES_DETECTED',  // Trades made outside TradeFightClub
+  FIGHT_ENDING_SOON: 'FIGHT_ENDING_SOON',  // 30 seconds warning before fight ends (per Rules 30-32)
   ERROR: 'ERROR',
 
   // Arena events (Server → Client, broadcast to arena subscribers)
@@ -133,6 +134,12 @@ export interface ExternalTradesDetectedPayload {
   tradeIds: string[];
 }
 
+export interface FightEndingSoonPayload {
+  fightId: string;
+  secondsRemaining: number;
+  message: string;
+}
+
 export interface ArenaPnlTickPayload {
   fights: Array<{
     fightId: string;
@@ -164,4 +171,5 @@ export type WsEventPayload =
   | { event: typeof WS_EVENTS.FIGHT_FINISHED; data: FightFinishedPayload }
   | { event: typeof WS_EVENTS.STAKE_INFO; data: StakeInfoPayload }
   | { event: typeof WS_EVENTS.EXTERNAL_TRADES_DETECTED; data: ExternalTradesDetectedPayload }
+  | { event: typeof WS_EVENTS.FIGHT_ENDING_SOON; data: FightEndingSoonPayload }
   | { event: typeof WS_EVENTS.ERROR; data: WsErrorPayload };

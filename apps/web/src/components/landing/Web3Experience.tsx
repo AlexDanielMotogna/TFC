@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { usePrices } from '@/hooks';
 
 // CoinMarketCap ID mapping for crypto icons
@@ -101,6 +102,25 @@ const executionFeatures = [
 export function Web3Experience() {
   // Get markets dynamically from Pacifica API
   const { markets } = usePrices();
+
+  // Dynamic fees from Pacifica API
+  const [fees, setFees] = useState({ makerFeePercent: '0.0650', takerFeePercent: '0.0900' });
+
+  useEffect(() => {
+    fetch('/api/fees')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setFees({
+            makerFeePercent: data.data.makerFeePercent,
+            takerFeePercent: data.data.takerFeePercent,
+          });
+        }
+      })
+      .catch(() => {
+        // Keep fallback values on error
+      });
+  }, []);
 
   // Calculate max leverage from markets
   const maxLeverage = markets.length > 0
@@ -206,14 +226,14 @@ export function Web3Experience() {
               })}
             </div>
 
-            {/* Additional Info */}
+            {/* Additional Info - Dynamic fees from Pacifica API */}
             <div className="grid grid-cols-3 gap-4 pt-6 border-t border-surface-700/50">
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-1">0.0575%</div>
+                <div className="text-2xl font-bold text-white mb-1">{fees.makerFeePercent}%</div>
                 <div className="text-xs text-surface-400">Maker Fees</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-1">0.07%</div>
+                <div className="text-2xl font-bold text-white mb-1">{fees.takerFeePercent}%</div>
                 <div className="text-xs text-surface-400">Taker Fees</div>
               </div>
               <div className="text-center">

@@ -7,20 +7,23 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 
 export interface FightOrderHistoryEntry {
-  order_id: string | null;
+  order_id: number;
   symbol: string;
   side: string; // 'bid' | 'ask'
-  order_type: string;
-  amount: string;
+  order_type: string; // 'limit', 'market', 'stop_loss_market', 'take_profit_market', etc.
+  amount: string; // Same as initial_amount, for frontend compatibility
+  initial_amount: string;
   filled_amount: string;
-  initial_price: string | null;
+  cancelled_amount: string;
+  initial_price: string;
   average_filled_price: string | null;
   stop_price: string | null;
-  order_status: string; // 'open' | 'filled' | 'partially_filled' | 'cancelled'
-  created_at: string;
+  order_status: string; // 'open', 'filled', 'partially_filled', 'cancelled'
+  reduce_only: boolean;
+  created_at: number;
+  updated_at: number;
   isFightOrder: boolean;
   fightId: string;
-  actionType: string;
 }
 
 interface FightOrderHistoryResponse {

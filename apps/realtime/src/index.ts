@@ -264,11 +264,15 @@ async function main() {
   // Start fight engine tick loop
   fightEngine.startTickLoop();
 
+  // Start snapshot cleanup loop (runs every hour, deletes snapshots > 30 days)
+  fightEngine.startCleanupLoop();
+
   // Graceful shutdown
   process.on('SIGTERM', async () => {
     logger.info(LOG_EVENTS.API_SHUTDOWN, 'Shutting down realtime server');
 
     fightEngine.stopTickLoop();
+    fightEngine.stopCleanupLoop();
 
     httpServer.close(() => {
       logger.info(LOG_EVENTS.API_SHUTDOWN, 'Realtime server stopped');

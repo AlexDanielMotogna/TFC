@@ -7,16 +7,19 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 
 export interface FightTrade {
-  history_id: string;
-  order_id: string | null;
+  history_id: number;
+  order_id: number | null;
+  client_order_id: string | null;
   symbol: string;
   side: string; // open_long, open_short, close_long, close_short
   amount: string;
   price: string;
+  entry_price: string;
   fee: string;
-  pnl: string;
+  pnl: string | null;
   event_type: string;
-  created_at: string;
+  cause: string;
+  created_at: number; // Unix timestamp (milliseconds)
   isFightTrade: boolean;
   fightId: string;
 }

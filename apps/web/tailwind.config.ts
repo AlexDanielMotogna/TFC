@@ -55,43 +55,44 @@ export default {
           100: '#f4f4f5', // Near white
         },
 
-        // Semantic colors - Muted, professional
+        // Semantic colors - Warm, professional trading palette
+        // Inspired by TradingView/Bloomberg - warm teal greens and coral reds
         positive: {
-          DEFAULT: '#22c55e',
-          muted: '#166534',
-          subtle: 'rgba(34, 197, 94, 0.1)',
+          DEFAULT: '#26A69A', // Warm teal-green
+          muted: '#00796B',
+          subtle: 'rgba(38, 166, 154, 0.1)',
         },
         negative: {
-          DEFAULT: '#ef4444',
-          muted: '#991b1b',
-          subtle: 'rgba(239, 68, 68, 0.1)',
+          DEFAULT: '#EF5350', // Warm coral-red
+          muted: '#C62828',
+          subtle: 'rgba(239, 83, 80, 0.1)',
         },
         warning: {
-          DEFAULT: '#f59e0b',
-          muted: '#92400e',
-          subtle: 'rgba(245, 158, 11, 0.1)',
+          DEFAULT: '#FFA726', // Warm orange
+          muted: '#EF6C00',
+          subtle: 'rgba(255, 167, 38, 0.1)',
         },
         info: {
-          DEFAULT: '#3b82f6',
-          muted: '#1e40af',
-          subtle: 'rgba(59, 130, 246, 0.1)',
+          DEFAULT: '#42A5F5', // Warm blue
+          muted: '#1565C0',
+          subtle: 'rgba(66, 165, 245, 0.1)',
         },
 
-        // Legacy aliases for compatibility
+        // Trading colors - Warm palette (used throughout the app)
         win: {
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
+          400: '#4DB6AC', // Light teal
+          500: '#26A69A', // Main teal-green (TradingView style)
+          600: '#00897B', // Dark teal
         },
         loss: {
-          400: '#f87171',
-          500: '#ef4444',
-          600: '#dc2626',
+          400: '#E57373', // Light coral
+          500: '#EF5350', // Main coral-red (warm, not magenta)
+          600: '#E53935', // Dark coral
         },
         live: {
-          400: '#f87171',
-          500: '#ef4444',
-          600: '#dc2626',
+          400: '#E57373',
+          500: '#EF5350',
+          600: '#E53935',
         },
       },
       fontFamily: {
@@ -118,7 +119,7 @@ export default {
         'glow-sm': '0 0 10px rgba(14, 165, 233, 0.3)',
         'glow-primary': '0 0 20px rgba(14, 165, 233, 0.3)',
         'glow-accent': '0 0 20px rgba(139, 92, 246, 0.3)',
-        'glow-success': '0 0 20px rgba(34, 197, 94, 0.3)',
+        'glow-success': '0 0 20px rgba(38, 166, 154, 0.3)', // Teal glow
         'glow-orange': '0 0 20px rgba(249, 115, 22, 0.4)',
         'glow-lg': '0 0 40px rgba(14, 165, 233, 0.2)',
       },

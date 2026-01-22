@@ -20,6 +20,7 @@ export async function POST(request: Request) {
       signature,
       timestamp,
       builder_code,
+      fight_id,
     } = body;
 
     if (!account || !symbol || !side || !signature || !timestamp) {
@@ -118,6 +119,7 @@ export async function POST(request: Request) {
       side,
       takeProfit: take_profit?.stop_price,
       stopLoss: stop_loss?.stop_price,
+      fightId: fight_id,
       success: true,
     }).catch(err => console.error('Failed to record TP/SL action:', err));
 

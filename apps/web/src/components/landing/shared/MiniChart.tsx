@@ -23,7 +23,7 @@ export function MiniChart({
           y1={height / 2}
           x2={width}
           y2={height / 2}
-          stroke={positive ? '#22c55e' : '#ef4444'}
+          stroke={positive ? '#26A69A' : '#EF5350'}
           strokeWidth={strokeWidth}
           strokeDasharray="4 4"
         />
@@ -42,8 +42,8 @@ export function MiniChart({
   }).join(' ');
 
   const gradientId = `miniChartGradient-${Math.random().toString(36).substr(2, 9)}`;
-  const strokeColor = positive ? '#22c55e' : '#ef4444';
-  const fillColor = positive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+  const strokeColor = positive ? '#26A69A' : '#EF5350';
+  const fillColor = positive ? 'rgba(38, 166, 154, 0.1)' : 'rgba(239, 83, 80, 0.1)';
 
   // Create area path
   const firstPoint = `0,${height}`;

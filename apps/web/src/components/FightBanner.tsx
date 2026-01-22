@@ -75,7 +75,7 @@ export function FightBanner() {
 
           {/* Center: Timer */}
           <div className="flex items-center gap-3">
-            <span className={`font-mono text-base tabular-nums ${isLowTime ? 'text-red-500' : 'text-zinc-100'}`}>
+            <span className={`font-mono text-base tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
               {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
             </span>
             <span className="text-xs text-surface-500">
@@ -88,23 +88,23 @@ export function FightBanner() {
             <div className="flex items-center gap-3">
               <div className="text-right">
                 <div className="text-xs text-surface-500">You</div>
-                <div className={`font-mono tabular-nums ${myPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`font-mono tabular-nums ${myPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>
                   {formatPnl(myPnl)}
                 </div>
               </div>
               <div className="h-6 w-px bg-surface-700" />
               <div>
                 <div className="text-xs text-surface-500">Opp</div>
-                <div className={`font-mono tabular-nums ${opponentPnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                <div className={`font-mono tabular-nums ${opponentPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>
                   {formatPnl(opponentPnl)}
                 </div>
               </div>
             </div>
             <div className={`px-2 py-0.5 rounded text-xs font-medium ${
               isWinning
-                ? 'bg-green-500/10 text-green-500'
+                ? 'bg-win-500/10 text-win-500'
                 : isLosing
-                  ? 'bg-red-500/10 text-red-500'
+                  ? 'bg-loss-500/10 text-loss-500'
                   : 'bg-surface-700 text-surface-400'
             }`}>
               {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}

@@ -29,6 +29,22 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
   const [showFightOnlyExplain, setShowFightOnlyExplain] = useState(false);
   const [showFightCapitalExplain, setShowFightCapitalExplain] = useState(false);
 
+  // Dynamic fees from Pacifica API
+  const [feesDisplay, setFeesDisplay] = useState('0.0900% / 0.0650%');
+
+  useEffect(() => {
+    fetch('/api/fees')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data) {
+          setFeesDisplay(`${data.data.takerFeePercent}% / ${data.data.makerFeePercent}%`);
+        }
+      })
+      .catch(() => {
+        // Keep fallback value on error
+      });
+  }, []);
+
   // Auto-open modals when feature is selected
   useEffect(() => {
     setShowDepositExplain(false);
@@ -402,7 +418,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                         y1={candle.h}
                         x2={candle.x}
                         y2={candle.l}
-                        stroke={isGreen ? '#22c55e' : '#ef4444'}
+                        stroke={isGreen ? '#26A69A' : '#EF5350'}
                         strokeWidth="1"
                       />
                       {/* Body */}
@@ -411,7 +427,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                         y={top}
                         width="6"
                         height={Math.max(bodyHeight, 2)}
-                        fill={isGreen ? '#22c55e' : '#ef4444'}
+                        fill={isGreen ? '#26A69A' : '#EF5350'}
                       />
                     </g>
                   );
@@ -434,7 +450,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                     y={240 - vol * 0.6}
                     width="6"
                     height={vol * 0.6}
-                    fill={i > 45 ? '#22c55e33' : '#64748b22'}
+                    fill={i > 45 ? '#26A69A33' : '#64748b22'}
                   />
                 ))}
               </svg>
@@ -584,7 +600,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               ['Account Equity', '$5.71'],
               ['Idle Balance', '$0.31'],
               ['Resting Order Value', '$0.00'],
-              ['Fees', '0.0700% / 0.0575%'],
+              ['Fees', feesDisplay],  // Dynamic: Taker/Maker (Pacifica + TFC 0.05%)
               ['Unrealized PnL', '+$0.28', 'text-win-400'],
               ['Cross Account Leverage', '47.26x'],
               ['Maintenance Margin', '$2.70'],

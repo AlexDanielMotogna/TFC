@@ -51,6 +51,7 @@ interface SetPositionTpSlParams {
   size: string; // Size in token units (e.g., "0.00123" for BTC)
   take_profit?: { stop_price: string; limit_price?: string } | null; // null to remove
   stop_loss?: { stop_price: string; limit_price?: string } | null; // null to remove
+  fightId?: string; // Optional: track TP/SL as fight order
 }
 
 interface SetLeverageParams {
@@ -125,6 +126,17 @@ export function useCreateMarketOrder() {
       queryClient.invalidateQueries({ queryKey: ['positions'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['account'] });
+
+      // If TP/SL was included, refetch orders after a delay
+      // Pacifica creates TP/SL stop orders after the main order, so we need to wait
+      if (variables.take_profit || variables.stop_loss) {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+        }, 1000);
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+        }, 2500);
+      }
 
       // Invalidate fight-related queries if in a fight
       if (variables.fightId) {
@@ -222,6 +234,17 @@ export function useCreateLimitOrder() {
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+
+      // If TP/SL was included, refetch orders after a delay
+      // Pacifica creates TP/SL stop orders after the main order, so we need to wait
+      if (variables.take_profit || variables.stop_loss) {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+        }, 1000);
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+        }, 2500);
+      }
 
       // Format: "Limit order: 0.001 BTC at 93000"
       notify('ORDER', 'Limit Order', `Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`, { variant: 'success' });
@@ -466,6 +489,7 @@ export function useSetPositionTpSl() {
         side,
         signature,
         timestamp,
+        fight_id: params.fightId, // Track as fight order if in fight
       };
 
       // Use the same take_profit/stop_loss structure as what was signed

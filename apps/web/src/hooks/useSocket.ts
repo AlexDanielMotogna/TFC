@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore, useFightStore } from '@/lib/store';
+import { notify } from '@/lib/notify';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002';
 
@@ -14,6 +15,7 @@ const WS_EVENTS = {
   TRADE_EVENT: 'TRADE_EVENT',
   LEAD_CHANGED: 'LEAD_CHANGED',
   FIGHT_STATE: 'FIGHT_STATE',
+  FIGHT_ENDING_SOON: 'FIGHT_ENDING_SOON',  // 30-second warning (per Rules 30-32)
 } as const;
 
 interface ParticipantScore {
@@ -59,6 +61,12 @@ interface TradeEventPayload {
   amount: string;
   price: string;
   timestamp: number;
+}
+
+interface FightEndingSoonPayload {
+  fightId: string;
+  secondsRemaining: number;
+  message: string;
 }
 
 export function useSocket(fightId?: string) {
@@ -147,6 +155,17 @@ export function useSocket(fightId?: string) {
     // Lead changed
     socket.on(WS_EVENTS.LEAD_CHANGED, (data: { fightId: string; newLeader: string | null }) => {
       console.log('[FightSocket] Lead changed:', data);
+    });
+
+    // Fight ending soon (30-second warning per Rules 30-32)
+    socket.on(WS_EVENTS.FIGHT_ENDING_SOON, (data: FightEndingSoonPayload) => {
+      console.log('[FightSocket] Fight ending soon:', data);
+      notify(
+        'FIGHT',
+        `${data.secondsRemaining} seconds remaining!`,
+        'Close all positions now! Open positions will NOT count towards your final score.',
+        { variant: 'warning' }
+      );
     });
 
     // Legacy event name support (fight:score_update)

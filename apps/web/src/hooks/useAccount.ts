@@ -23,6 +23,9 @@ export interface AccountSummary {
   availableToSpend: string;
   feeLevel?: number;
   crossMmr?: string;
+  // Dynamic fees from Pacifica API (these change monthly)
+  makerFee?: string;  // e.g., "0.000575" = 0.0575%
+  takerFee?: string;  // e.g., "0.0007" = 0.07%
 }
 
 interface UseAccountReturn {
@@ -69,6 +72,9 @@ export function useAccount(): UseAccountReturn {
       availableToSpend: accountInfo.available_to_spend || accountInfo.available_balance || '0',
       feeLevel: accountInfo.fee_level,
       crossMmr: accountInfo.cross_mmr,
+      // Dynamic fees from Pacifica API (change monthly, not hardcoded)
+      makerFee: accountInfo.maker_fee,
+      takerFee: accountInfo.taker_fee,
     };
 
     console.log('useAccount: Mapped account data:', mapped);

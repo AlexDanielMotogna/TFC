@@ -23,20 +23,11 @@ const DEFAULT_MARKET = { symbol: 'BTC-USD', name: 'Bitcoin', maxLeverage: 50 };
 
 const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
 
-// Pacifica fee tiers based on fee_level from API
-// Source: https://docs.pacifica.fi/trading-on-pacifica/trading-fees
-// Format: { taker: percentage, maker: percentage } (as decimals, e.g., 0.0002 = 0.02%)
-const PACIFICA_FEE_TIERS: Record<number, { taker: number; maker: number }> = {
-  0: { taker: 0.0002, maker: 0.000075 },    // Tier 1: 0.020% / 0.0075%
-  1: { taker: 0.00019, maker: 0.00006 },    // Tier 2: 0.019% / 0.006%
-  2: { taker: 0.00018, maker: 0.000045 },   // Tier 3: 0.018% / 0.0045%
-  3: { taker: 0.00017, maker: 0.00003 },    // Tier 4: 0.017% / 0.003%
-  4: { taker: 0.00016, maker: 0.000015 },   // Tier 5: 0.016% / 0.0015%
-  5: { taker: 0.00015, maker: 0 },          // VIP 1: 0.015% / 0%
-  6: { taker: 0.000145, maker: 0 },         // VIP 2: 0.0145% / 0%
-  7: { taker: 0.00014, maker: 0 },          // VIP 3: 0.014% / 0%
-};
+// TradeFightClub platform fee (fixed)
 const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
+
+// NOTE: Pacifica fees (maker_fee, taker_fee) are now fetched dynamically from the API
+// They change monthly, so we no longer use hardcoded fee tiers
 
 export default function TradePage() {
   const { connected } = useWallet();
@@ -92,7 +83,6 @@ export default function TradePage() {
   const [orderSize, setOrderSize] = useState('');
   const [leverage, setLeverage] = useState(5);
   const [savedLeverage, setSavedLeverage] = useState(5); // Track server-saved leverage
-  const [orderError, setOrderError] = useState<string | null>(null);
 
   // Order type state
   const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop-market' | 'stop-limit'>('market');
@@ -257,7 +247,7 @@ export default function TradePage() {
       } else if (orderType === 'limit') {
         // Limit order
         if (!limitPrice) {
-          setOrderError('Please enter a limit price');
+          toast.error('Please enter a limit price');
           return;
         }
         await createLimitOrder.mutateAsync({
@@ -272,7 +262,7 @@ export default function TradePage() {
         });
       } else if (orderType === 'stop-market' || orderType === 'stop-limit') {
         // Stop orders - not yet implemented
-        setOrderError('Stop orders coming soon. Please use Market or Limit orders for now.');
+        toast.error('Stop orders coming soon. Please use Market or Limit orders for now.');
         return;
       }
 
@@ -287,10 +277,8 @@ export default function TradePage() {
       setShowCloseOppositeModal(false);
       setPendingOrder(null);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to place order';
-      console.error('Failed to place order:', message);
-      setOrderError(message);
-      toast.error(message);
+      // Error notification is handled by the hook's onError handler
+      console.error('Failed to place order:', err instanceof Error ? err.message : err);
     }
   }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, orderType, limitPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize]);
 
@@ -306,12 +294,11 @@ export default function TradePage() {
     }
 
     const effectiveLeverage = Math.min(leverage, maxLeverage);
-    setOrderError(null);
 
     // Validate max size if in active fight
     const effectivePositionSize = parseFloat(orderSize) * effectiveLeverage;
     if (inActiveFight && fightMaxSize > 0 && effectivePositionSize > fightMaxSize) {
-      setOrderError(`Position size ($${effectivePositionSize.toLocaleString()}) exceeds fight max size ($${fightMaxSize.toLocaleString()})`);
+      toast.error(`Position size ($${effectivePositionSize.toLocaleString()}) exceeds fight max size ($${fightMaxSize.toLocaleString()})`);
       return;
     }
 
@@ -381,9 +368,8 @@ export default function TradePage() {
       // Refresh account data to update orders list
       await refetchAccount();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to cancel order';
-      console.error('Failed to cancel order:', message);
-      setOrderError(message);
+      // Error notification is handled by the hook's onError handler
+      console.error('Failed to cancel order:', err instanceof Error ? err.message : err);
     }
   }, [cancelOrder, cancelStopOrder, refetchAccount]);
 
@@ -468,10 +454,8 @@ export default function TradePage() {
       // Refresh account data
       await refetchAccount();
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to close position';
-      console.error('Failed to close position:', message);
-      setOrderError(message);
-      toast.error(message);
+      // Error notification is handled by the hook's onError handler
+      console.error('Failed to close position:', err instanceof Error ? err.message : err);
     }
   }, [apiPositions, createMarketOrder, createLimitOrder, refetchAccount, inActiveFight, fightId, fightPositions]);
 
@@ -496,6 +480,7 @@ export default function TradePage() {
         size: params.size,
         take_profit: takeProfit,
         stop_loss: stopLoss,
+        fightId: fightId || undefined, // Track as fight order if in fight
       });
 
       // Refresh account data
@@ -505,7 +490,7 @@ export default function TradePage() {
       console.error('Failed to set TP/SL:', message);
       toast.error(message);
     }
-  }, [setPositionTpSl, refetchAccount]);
+  }, [setPositionTpSl, refetchAccount, fightId]);
 
   // Get account equity for cross margin liq price calculation
   const accountEquity = account ? parseFloat(account.accountEquity) || 0 : 0;
@@ -809,7 +794,7 @@ export default function TradePage() {
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
-                    Open Orders {openOrders.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{openOrders.length}</span>}
+                    Open Orders {activeOpenOrders.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activeOpenOrders.length}</span>}
                   </button>
                   <button
                     onClick={() => setBottomTab('trades')}
@@ -1433,10 +1418,11 @@ export default function TradePage() {
 
               {/* Account Stats - Like Pacifica's sidebar with Deposit/Withdraw */}
               {isAuthenticated && pacificaConnected && account && (() => {
-                const feeLevel = account?.feeLevel ?? 0;
-                const pacificaFees = PACIFICA_FEE_TIERS[feeLevel] ?? PACIFICA_FEE_TIERS[0]!;
-                const takerFeePercent = ((pacificaFees.taker + TRADECLUB_FEE) * 100).toFixed(4);
-                const makerFeePercent = ((pacificaFees.maker + TRADECLUB_FEE) * 100).toFixed(4);
+                // Dynamic fees from Pacifica API (change monthly, not hardcoded)
+                const pacificaTakerFee = parseFloat(account.takerFee || '0.0007'); // Default fallback
+                const pacificaMakerFee = parseFloat(account.makerFee || '0.000575'); // Default fallback
+                const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+                const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
 
                 const equity = parseFloat(account.accountEquity) || 0;
                 const marginUsed = parseFloat(account.totalMarginUsed) || 0;
@@ -1577,22 +1563,6 @@ export default function TradePage() {
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Order Error */}
-              {orderError && (
-                <div className="mb-4 p-3 bg-loss-500/10 border border-loss-500/30 rounded-lg text-loss-400 text-sm">
-                  {orderError.includes('Stake limit exceeded') ? (
-                    <div>
-                      <div className="font-semibold mb-1">Stake Limit Exceeded</div>
-                      <div className="text-xs text-surface-300">
-                        You've used all your fight capital. Reduce the order size to fit within your remaining available amount.
-                      </div>
-                    </div>
-                  ) : (
-                    orderError
-                  )}
                 </div>
               )}
 

@@ -59,13 +59,13 @@ export function TickerCard({ symbol, tokenInfo, priceData }: TickerCardProps) {
 
       {/* Price Change */}
       <div className="flex items-center gap-2 mb-4">
-        <span className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+        <span className={`text-sm font-medium ${isPositive ? 'text-win-500' : 'text-loss-500'}`}>
           {priceData
             ? `${isPositive ? '+' : ''}${Math.abs(priceChange) >= 1 ? priceChange.toFixed(2) : priceChange.toFixed(4)}`
             : '--'
           }
         </span>
-        <span className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
+        <span className={`text-sm font-medium ${isPositive ? 'text-win-500' : 'text-loss-500'}`}>
           {priceData
             ? `${isPositive ? '+' : ''}${priceData.change24h.toFixed(2)}%`
             : '--.--%'

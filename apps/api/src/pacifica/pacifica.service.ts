@@ -393,6 +393,8 @@ export interface RecentTrade {
 export interface AccountInfo {
   balance: string;
   fee_level: number;
+  maker_fee: string;  // Dynamic fee from Pacifica API (e.g., "0.000575" = 0.0575%)
+  taker_fee: string;  // Dynamic fee from Pacifica API (e.g., "0.0007" = 0.07%)
   account_equity: string;
   available_to_spend: string;
   available_to_withdraw: string;

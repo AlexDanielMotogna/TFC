@@ -7,6 +7,16 @@ import { getPrices, getTradeHistory, MarketPrice } from './pacifica-client.js';
 // External trades check interval (every 30 seconds)
 const EXTERNAL_TRADES_CHECK_INTERVAL = 30;
 
+// Snapshot save interval (every 5 seconds to reduce DB load)
+// A 5-minute fight = 60 snapshots instead of 300
+const SNAPSHOT_SAVE_INTERVAL = 5;
+
+// Snapshot cleanup interval (every hour)
+const SNAPSHOT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+
+// Snapshot retention period (30 days)
+const SNAPSHOT_RETENTION_DAYS = 30;
+
 // Max leverage per symbol (from Pacifica settings)
 // Used to calculate margin for ROI% calculation
 const MAX_LEVERAGE: Record<string, number> = {
@@ -42,11 +52,12 @@ async function calculateUnrealizedPnlFromFightTrades(
   fightId: string,
   userId: string,
   cachedPrices?: MarketPrice[]
-): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number }> {
+): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number }> {
   try {
     const [fightTrades, prices] = await Promise.all([
       prisma.fightTrade.findMany({
         where: { fightId, participantUserId: userId },
+        orderBy: { executedAt: 'asc' }, // Process in chronological order
       }),
       cachedPrices ? Promise.resolve(cachedPrices) : getPrices(),
     ]);
@@ -55,11 +66,21 @@ async function calculateUnrealizedPnlFromFightTrades(
     // Also track leverage used for each symbol (use the first trade's leverage)
     const positionsBySymbol: Record<string, { amount: number; totalCost: number; leverage: number | null }> = {};
 
+    // Per Fight-Engine_Rules.md Rules 18-21:
+    // Only CLOSED positions count for PnL - opening trades don't contribute
+    // We track realizedPnl by only counting pnl from CLOSING trades
+    let realizedPnl = 0;
+    let totalFees = 0;
+
     for (const trade of fightTrades) {
       const symbol = trade.symbol;
       const amount = parseFloat(trade.amount.toString());
       const price = parseFloat(trade.price.toString());
       const tradeLeverage = trade.leverage;
+      const tradePnl = trade.pnl ? Number(trade.pnl) : 0;
+      const tradeFee = Number(trade.fee);
+
+      totalFees += tradeFee;
 
       if (!positionsBySymbol[symbol]) {
         positionsBySymbol[symbol] = { amount: 0, totalCost: 0, leverage: tradeLeverage };
@@ -73,10 +94,16 @@ async function calculateUnrealizedPnlFromFightTrades(
       if (trade.side === 'BUY') {
         // BUY increases LONG position or closes SHORT
         if (positionsBySymbol[symbol].amount < 0) {
-          // Closing SHORT position
+          // CLOSING SHORT position - this pnl counts!
           const absShort = Math.abs(positionsBySymbol[symbol].amount);
           const closeAmount = Math.min(amount, absShort);
           const openAmount = amount - closeAmount;
+
+          // Only count pnl proportionally if partially closing
+          if (closeAmount > 0) {
+            const pnlPortion = closeAmount / amount;
+            realizedPnl += tradePnl * pnlPortion;
+          }
 
           // Reduce SHORT proportionally
           if (absShort > 0) {
@@ -85,36 +112,41 @@ async function calculateUnrealizedPnlFromFightTrades(
           }
           positionsBySymbol[symbol].amount += closeAmount;
 
-          // Any remaining opens a new LONG
+          // Any remaining opens a new LONG (this portion's pnl doesn't count)
           if (openAmount > 0) {
             positionsBySymbol[symbol].totalCost += openAmount * price;
             positionsBySymbol[symbol].amount += openAmount;
           }
         } else {
-          // Opening/increasing LONG position
+          // OPENING/increasing LONG position - pnl doesn't count per Rules 18-21
           positionsBySymbol[symbol].totalCost += amount * price;
           positionsBySymbol[symbol].amount += amount;
         }
       } else {
         // SELL increases SHORT position or closes LONG
         if (positionsBySymbol[symbol].amount > 0) {
-          // Closing LONG position
+          // CLOSING LONG position - this pnl counts!
           const closeAmount = Math.min(amount, positionsBySymbol[symbol].amount);
           const openAmount = amount - closeAmount;
+
+          // Only count pnl proportionally if partially closing
+          if (closeAmount > 0) {
+            const pnlPortion = closeAmount / amount;
+            realizedPnl += tradePnl * pnlPortion;
+          }
 
           // Reduce LONG proportionally
           const avgLongEntry = positionsBySymbol[symbol].totalCost / positionsBySymbol[symbol].amount;
           positionsBySymbol[symbol].totalCost -= closeAmount * avgLongEntry;
           positionsBySymbol[symbol].amount -= closeAmount;
 
-          // Any remaining opens a new SHORT
+          // Any remaining opens a new SHORT (this portion's pnl doesn't count)
           if (openAmount > 0) {
             positionsBySymbol[symbol].totalCost += openAmount * price;
             positionsBySymbol[symbol].amount -= openAmount;
           }
         } else {
-          // Opening/increasing SHORT position
-          // For SHORTs, totalCost tracks the entry price * amount (positive value)
+          // OPENING/increasing SHORT position - pnl doesn't count per Rules 18-21
           positionsBySymbol[symbol].totalCost += amount * price;
           positionsBySymbol[symbol].amount -= amount;
         }
@@ -159,13 +191,21 @@ async function calculateUnrealizedPnlFromFightTrades(
 
     // Note: Funding is tracked per-position on Pacifica, not per-fight
     // For fight-specific calculations, we don't include funding
-    return { unrealizedPnl, funding: 0, totalPositionValue, margin: totalMargin };
+    return {
+      unrealizedPnl,
+      funding: 0,
+      totalPositionValue,
+      margin: totalMargin,
+      realizedPnl,
+      fees: totalFees,
+      tradesCount: fightTrades.length,
+    };
   } catch (error) {
     logger.error(LOG_EVENTS.API_ERROR, 'Failed to calculate unrealized PnL from fight trades', error as Error, {
       fightId,
       userId,
     });
-    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0 };
+    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0 };
   }
 }
 
@@ -295,10 +335,15 @@ export interface ParticipantState {
   margin: number;
 }
 
+// Warning threshold: 30 seconds before fight ends (per Rules 30-32)
+const FIGHT_ENDING_WARNING_MS = 30000;
+
 export class FightEngine {
   private io: Server;
   private activeFights: Map<string, FightState> = new Map();
+  private fightWarningsSent: Set<string> = new Set(); // Track fights that have received 30-second warning
   private tickInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: NodeJS.Timeout | null = null;
   private tickCount: number = 0;
 
   constructor(io: Server) {
@@ -325,6 +370,63 @@ export class FightEngine {
   }
 
   /**
+   * Start the snapshot cleanup loop
+   * Runs every hour to delete old snapshots (> 30 days)
+   */
+  startCleanupLoop() {
+    logger.info(LOG_EVENTS.SCORING_RECALC_SUCCESS, 'Starting snapshot cleanup loop (runs every hour)');
+
+    // Run immediately on startup
+    this.cleanupOldSnapshots().catch((err) => {
+      logger.error(LOG_EVENTS.API_ERROR, 'Initial snapshot cleanup failed', err as Error);
+    });
+
+    // Then run every hour
+    this.cleanupInterval = setInterval(async () => {
+      await this.cleanupOldSnapshots();
+    }, SNAPSHOT_CLEANUP_INTERVAL_MS);
+  }
+
+  stopCleanupLoop() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  /**
+   * Delete snapshots older than SNAPSHOT_RETENTION_DAYS
+   * This keeps the database size manageable
+   */
+  async cleanupOldSnapshots(): Promise<{ deleted: number }> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - SNAPSHOT_RETENTION_DAYS);
+
+      const result = await prisma.fightSnapshot.deleteMany({
+        where: {
+          timestamp: {
+            lt: cutoffDate,
+          },
+        },
+      });
+
+      if (result.count > 0) {
+        logger.info(LOG_EVENTS.SCORING_SNAPSHOT_WRITE, 'Old snapshots cleaned up', {
+          deletedCount: result.count,
+          cutoffDate: cutoffDate.toISOString(),
+          retentionDays: SNAPSHOT_RETENTION_DAYS,
+        });
+      }
+
+      return { deleted: result.count };
+    } catch (error) {
+      logger.error(LOG_EVENTS.API_ERROR, 'Failed to cleanup old snapshots', error as Error);
+      return { deleted: 0 };
+    }
+  }
+
+  /**
    * Process a single tick for all active fights
    */
   private async processTick() {
@@ -344,6 +446,9 @@ export class FightEngine {
 
     // Check for external trades every 30 seconds
     const shouldCheckExternalTrades = this.tickCount % EXTERNAL_TRADES_CHECK_INTERVAL === 0;
+
+    // Save snapshots every 5 seconds (not every tick to reduce DB load)
+    const shouldSaveSnapshot = this.tickCount % SNAPSHOT_SAVE_INTERVAL === 0;
 
     if (shouldCheckExternalTrades) {
       logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'External trades check triggered', {
@@ -367,6 +472,14 @@ export class FightEngine {
         if (state) {
           // Update local cache
           this.activeFights.set(fight.id, state);
+
+          // Save snapshot to database for historical tracking (every 5 seconds, non-blocking)
+          if (shouldSaveSnapshot && state.participantA && state.participantB) {
+            // Fire-and-forget: don't await to avoid slowing down the tick loop
+            this.saveSnapshot(state).catch(() => {
+              // Error already logged inside saveSnapshot
+            });
+          }
 
           // Emit PNL_TICK to all clients in the fight room
           this.io.to(`fight:${fight.id}`).emit(WS_EVENTS.PNL_TICK, {
@@ -404,6 +517,28 @@ export class FightEngine {
             leader: state.leader,
             timeRemainingMs: state.timeRemainingMs,
           });
+
+          // Check if we need to send 30-second warning (per Rules 30-32)
+          // Only send once per fight
+          if (
+            state.timeRemainingMs <= FIGHT_ENDING_WARNING_MS &&
+            state.timeRemainingMs > 0 &&
+            !this.fightWarningsSent.has(fight.id)
+          ) {
+            this.fightWarningsSent.add(fight.id);
+            const secondsRemaining = Math.ceil(state.timeRemainingMs / 1000);
+
+            this.io.to(`fight:${fight.id}`).emit(WS_EVENTS.FIGHT_ENDING_SOON, {
+              fightId: fight.id,
+              secondsRemaining,
+              message: 'Fight ending soon! Close all positions to lock in your PnL. Open positions will NOT count towards your final score.',
+            });
+
+            logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight ending soon warning sent', {
+              fightId: fight.id,
+              secondsRemaining,
+            });
+          }
 
           // Check if fight should end
           if (state.timeRemainingMs <= 0) {
@@ -443,6 +578,7 @@ export class FightEngine {
     participants: Array<{
       userId: string;
       slot: string;
+      maxExposureUsed: any; // Decimal from Prisma
       user: { id: string; handle: string };
     }>;
   }): Promise<FightState | null> {
@@ -459,41 +595,23 @@ export class FightEngine {
     // Get participant states from recorded trades and live positions
     const participantStates = await Promise.all(
       fight.participants.map(async (p) => {
-        // Get trades for this participant in this fight
-        const trades = await prisma.fightTrade.findMany({
-          where: {
-            fightId: fight.id,
-            participantUserId: p.userId,
-          },
-        });
-
-        // NOTE: Pacifica's trade.pnl field includes fees as negative value for opening trades
-        // So we DON'T add fees separately - they're already included in the pnl
-        //
-        // For opening trades: pnl = -fee (negative)
-        // For closing trades: pnl = realized profit/loss (already includes fees)
-        //
-        // Therefore: totalPnl = sum of trade.pnl + unrealizedPnl (no separate fee deduction)
-        const realizedPnl = trades.reduce((sum, t) => sum + (t.pnl ? Number(t.pnl) : 0), 0);
-        const fees = trades.reduce((sum, t) => sum + Number(t.fee), 0);
-        const tradesCount = trades.length;
-
-        // Get unrealized PnL from FightTrade records for THIS specific fight
-        // This ensures each fight has independent PnL tracking
+        // Get all PnL data from FightTrade records for THIS specific fight
+        // Per Fight-Engine_Rules.md Rules 18-21:
+        // - Only CLOSED positions count for fight PnL
+        // - Open positions (unrealizedPnl) are shown in positions table but DON'T affect fight score
+        // - realizedPnl only includes pnl from CLOSING trades (opening fees don't count!)
         const liveData = await calculateUnrealizedPnlFromFightTrades(fight.id, p.userId, prices);
-        const unrealizedPnl = liveData.unrealizedPnl;
-        const funding = liveData.funding;
-        const margin = liveData.margin;
+        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount } = liveData;
 
-        // Calculate total PnL
-        // realizedPnl already includes fees (from Pacifica's pnl field)
-        // So we just add unrealizedPnl, don't subtract fees again
-        const totalPnl = realizedPnl + unrealizedPnl;
+        // totalPnl = only realized PnL from closed positions
+        const totalPnl = realizedPnl;
 
         // For pnlPercent (ROI%), we use PnL / margin * 100
-        // This accounts for leverage and matches what the frontend displays
-        // margin = positionValue / leverage
-        const pnlPercent = margin > 0 ? (totalPnl / margin) * 100 : 0;
+        // When margin = 0 (all positions closed), fall back to maxExposureUsed
+        // This ensures we show realized ROI% even after closing positions
+        const maxExposure = Number(p.maxExposureUsed || 0);
+        const effectiveMargin = margin > 0 ? margin : maxExposure;
+        const pnlPercent = effectiveMargin > 0 ? (totalPnl / effectiveMargin) * 100 : 0;
 
         // scoreUsdc is the actual PnL in USD
         const scoreUsdc = totalPnl;
@@ -675,6 +793,45 @@ export class FightEngine {
   }
 
   /**
+   * Save a snapshot of the current fight state to the database
+   * Used for historical tracking and PnL timeline graphs
+   *
+   * Note: Snapshots are saved every 5 seconds (SNAPSHOT_SAVE_INTERVAL)
+   * A 5-minute fight generates ~60 snapshots per fight
+   * Consider adding a cleanup job to delete old snapshots (e.g., > 30 days)
+   */
+  private async saveSnapshot(state: FightState) {
+    if (!state.participantA || !state.participantB) return;
+
+    try {
+      await prisma.fightSnapshot.create({
+        data: {
+          fightId: state.fightId,
+          participantAUserId: state.participantA.userId,
+          participantAPnlPercent: state.participantA.pnlPercent,
+          participantAScoreUsdc: state.participantA.scoreUsdc,
+          participantATradesCount: state.participantA.tradesCount,
+          participantBUserId: state.participantB.userId,
+          participantBPnlPercent: state.participantB.pnlPercent,
+          participantBScoreUsdc: state.participantB.scoreUsdc,
+          participantBTradesCount: state.participantB.tradesCount,
+          leaderId: state.leader,
+        },
+      });
+
+      logger.debug(LOG_EVENTS.SCORING_SNAPSHOT_WRITE, 'Fight snapshot saved', {
+        fightId: state.fightId,
+        timeRemainingMs: state.timeRemainingMs,
+      });
+    } catch (error) {
+      // Log but don't fail the tick - snapshots are not critical
+      logger.error(LOG_EVENTS.API_ERROR, 'Failed to save fight snapshot', error as Error, {
+        fightId: state.fightId,
+      });
+    }
+  }
+
+  /**
    * Handle lead change
    */
   private onLeadChanged(fightId: string, newLeader: string | null, previousLeader: string | null) {
@@ -769,8 +926,9 @@ export class FightEngine {
       });
     }
 
-    // Remove from active fights
+    // Remove from active fights and cleanup warning tracking
     this.activeFights.delete(fightId);
+    this.fightWarningsSent.delete(fightId);
 
     // Emit FIGHT_FINISHED
     this.io.to(`fight:${fightId}`).emit(WS_EVENTS.FIGHT_FINISHED, {

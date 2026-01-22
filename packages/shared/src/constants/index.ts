@@ -2,7 +2,7 @@
  * Fight duration options in minutes
  * @see Master-doc.md Section 2.2
  */
-export const FIGHT_DURATIONS_MINUTES = [5, 15, 30, 60, 120, 240] as const;
+export const FIGHT_DURATIONS_MINUTES = [1, 5, 15, 30, 60, 120, 240] as const;
 export type FightDuration = (typeof FIGHT_DURATIONS_MINUTES)[number];
 
 /**
