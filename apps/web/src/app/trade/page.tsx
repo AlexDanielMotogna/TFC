@@ -1014,7 +1014,7 @@ export default function TradePage() {
                                   {order.reduceOnly ? 'Yes' : 'No'}
                                 </td>
                                 <td className="py-2 px-2 text-center text-surface-400">
-                                  {stopPrice ? `@ $${stopPrice.toLocaleString()}` : 'N/A'}
+                                  {stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}
                                 </td>
                                 <td className="py-2 px-2 text-center">
                                   <button
