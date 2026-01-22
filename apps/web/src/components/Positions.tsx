@@ -274,9 +274,9 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                     pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
                   }`}
                 >
-                  {pos.unrealizedPnl >= 0 ? '+' : ''}{pos.unrealizedPnl < 1 && pos.unrealizedPnl > -1
-                    ? `$${pos.unrealizedPnl.toFixed(4)}`
-                    : `$${pos.unrealizedPnl.toFixed(2)}`}
+                  {pos.unrealizedPnl >= 0 ? '+' : '-'}${pos.unrealizedPnl < 1 && pos.unrealizedPnl > -1
+                    ? `${Math.abs(pos.unrealizedPnl).toFixed(4)}`
+                    : `${Math.abs(pos.unrealizedPnl).toFixed(2)}`}
                   <span className="ml-1">
                     ({pos.unrealizedPnlPercent >= 0 ? '+' : ''}
                     {pos.unrealizedPnlPercent.toFixed(2)}%)
@@ -302,9 +302,9 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               {/* Funding */}
               <td className="py-3 px-2 text-right">
                 <span className={`font-mono ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                  {pos.funding >= 0 ? '+' : ''}{pos.funding < 0.01 && pos.funding > -0.01
-                    ? `$${pos.funding.toFixed(4)}`
-                    : `$${pos.funding.toFixed(2)}`}
+                  {pos.funding >= 0 ? '+' : '-'}${pos.funding < 0.01 && pos.funding > -0.01
+                    ? `${Math.abs(pos.funding).toFixed(4)}`
+                    : `${Math.abs(pos.funding).toFixed(2)}`}
                 </span>
               </td>
 
@@ -412,7 +412,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                 : 'text-loss-400'
             }`}
           >
-            ${positions.reduce((sum, p) => sum + p.unrealizedPnl, 0).toFixed(4)}
+            {positions.reduce((sum, p) => sum + p.unrealizedPnl, 0) >= 0 ? '' : '-'}${Math.abs(positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)).toFixed(4)}
           </span>
         </div>
       </div>
