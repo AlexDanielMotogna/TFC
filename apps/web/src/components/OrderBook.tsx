@@ -52,14 +52,45 @@ const formatPrice = (price: number): string => {
   });
 };
 
-// Format size/total with commas and 2 decimals (like Pacifica)
-const formatSize = (size: number): string => {
+// Format size/total with appropriate decimals
+// USD mode: always 2 decimals
+// TOKEN mode: 5 decimals for high value tokens (BTC/ETH), dynamic for memecoins
+const formatSize = (size: number, isUsdMode: boolean, isHighValueToken: boolean = true): string => {
   if (size === 0) return '0.00';
 
-  return size.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  // USD mode: always 2 decimals
+  if (isUsdMode) {
+    return size.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  // TOKEN mode: For high value tokens (BTC, ETH, SOL), show 5 decimals like Pacifica
+  if (isHighValueToken) {
+    return size.toLocaleString('en-US', {
+      minimumFractionDigits: 5,
+      maximumFractionDigits: 5,
+    });
+  }
+
+  // TOKEN mode: For memecoins, show fewer decimals based on magnitude
+  if (size >= 1000) {
+    return size.toLocaleString('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    });
+  } else if (size >= 1) {
+    return size.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  } else {
+    return size.toLocaleString('en-US', {
+      minimumFractionDigits: 5,
+      maximumFractionDigits: 5,
+    });
+  }
 };
 
 export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick }: OrderBookProps) {
@@ -79,6 +110,10 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
 
   // Size display mode: 'USD' or token symbol
   const [sizeMode, setSizeMode] = useState<'USD' | 'TOKEN'>('TOKEN');
+
+  // Determine if this is a high-value token (BTC, ETH, SOL) for decimal formatting
+  // High value tokens show 5 decimals, low value (memecoins) show fewer
+  const isHighValueToken = currentPrice >= 10;
 
   // Fetch orderbook with server-side aggregation
   const { orderBook, isLoading } = useOrderBook(symbol, aggLevel);
@@ -197,11 +232,11 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
             <span className="relative text-loss-400 tabular-nums tracking-tight">
               {formatPrice(level.price)}
             </span>
-            <span className="relative hidden sm:block text-right text-surface-300 tabular-nums tracking-tight">
-              {formatSize(level.displaySize)}
+            <span className="relative hidden sm:block text-right text-surface-200 tabular-nums tracking-tight">
+              {formatSize(level.displaySize, sizeMode === 'USD', isHighValueToken)}
             </span>
-            <span className="relative text-right text-surface-400 tabular-nums tracking-tight">
-              {formatSize(level.total)}
+            <span className="relative text-right text-surface-200 tabular-nums tracking-tight">
+              {formatSize(level.total, sizeMode === 'USD', isHighValueToken)}
             </span>
           </div>
         ))}
@@ -229,11 +264,11 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
             <span className="relative text-win-400 tabular-nums tracking-tight">
               {formatPrice(level.price)}
             </span>
-            <span className="relative hidden sm:block text-right text-surface-300 tabular-nums tracking-tight">
-              {formatSize(level.displaySize)}
+            <span className="relative hidden sm:block text-right text-surface-200 tabular-nums tracking-tight">
+              {formatSize(level.displaySize, sizeMode === 'USD', isHighValueToken)}
             </span>
-            <span className="relative text-right text-surface-400 tabular-nums tracking-tight">
-              {formatSize(level.total)}
+            <span className="relative text-right text-surface-200 tabular-nums tracking-tight">
+              {formatSize(level.total, sizeMode === 'USD', isHighValueToken)}
             </span>
           </div>
         ))}
