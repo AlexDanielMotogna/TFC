@@ -8,6 +8,7 @@
 import { toast } from 'sonner';
 import { useAuthStore } from './store';
 import { createNotification } from './api';
+import { queryClient } from './queryClient';
 
 export type NotificationType = 'TRADE' | 'ORDER' | 'FIGHT' | 'SYSTEM';
 export type NotificationVariant = 'success' | 'error' | 'info' | 'warning';
@@ -60,9 +61,14 @@ export function notify(
 
     if (token) {
       // Fire and forget - don't await, don't block the UI
-      createNotification(token, { type, title, message }).catch((err) => {
-        console.warn('Failed to persist notification:', err);
-      });
+      createNotification(token, { type, title, message })
+        .then(() => {
+          // Invalidate notifications cache so the bell updates immediately
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        })
+        .catch((err) => {
+          console.warn('Failed to persist notification:', err);
+        });
     }
   }
 }

@@ -1,13 +1,12 @@
 'use client';
 
-import Image from 'next/image';
 import { MiniChart } from './MiniChart';
 import { useKlineData } from '@/hooks/useKlineData';
+import { TokenIcon } from '@/components/TokenIcon';
 
 interface TickerCardProps {
   symbol: string;
   tokenInfo: {
-    icon: string;
     name: string;
     fullName: string;
   };
@@ -28,15 +27,7 @@ export function TickerCard({ symbol, tokenInfo, priceData }: TickerCardProps) {
       {/* Header - Token info */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-800">
-            <Image
-              src={tokenInfo.icon}
-              alt={tokenInfo.name}
-              width={32}
-              height={32}
-              className="w-8 h-8"
-            />
-          </div>
+          <TokenIcon symbol={symbol} size="lg" />
           <span className="font-medium text-white">{tokenInfo.fullName}</span>
         </div>
         <span className={`w-2.5 h-2.5 rounded-full ${isPositive ? 'bg-green-500' : 'bg-red-500'}`} />

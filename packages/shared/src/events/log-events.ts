@@ -105,6 +105,18 @@ export const LOG_EVENTS = {
   PRIZE_POOL_FINALIZE_SUCCESS: 'prize.pool.finalize.success',
   PRIZE_POOL_FINALIZE_FAILURE: 'prize.pool.finalize.failure',
   PRIZE_POOL_NO_WINNERS: 'prize.pool.no_winners',
+
+  // ─────────────────────────────────────────────────────────────
+  // Treasury / Prize Claims
+  // ─────────────────────────────────────────────────────────────
+  TREASURY_WITHDRAW_START: 'treasury.withdraw.start',
+  TREASURY_WITHDRAW_SUCCESS: 'treasury.withdraw.success',
+  TREASURY_WITHDRAW_FAILURE: 'treasury.withdraw.failure',
+  TREASURY_STATUS_SUCCESS: 'treasury.status.success',
+  TREASURY_STATUS_FAILURE: 'treasury.status.failure',
+  PRIZE_CLAIM_START: 'prize.claim.start',
+  PRIZE_CLAIM_SUCCESS: 'prize.claim.success',
+  PRIZE_CLAIM_FAILURE: 'prize.claim.failure',
 } as const;
 
 export type LogEvent = (typeof LOG_EVENTS)[keyof typeof LOG_EVENTS];

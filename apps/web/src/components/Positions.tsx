@@ -189,7 +189,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
 
   if (positions.length === 0) {
     return (
-      <div className="text-center py-8 text-surface-500">
+      <div className="flex flex-col h-full justify-center text-center py-8 text-surface-500">
         <p>No open positions</p>
         {readOnly && readOnlyMessage && (
           <p className="text-xs mt-2 text-surface-400">{readOnlyMessage}</p>
@@ -199,30 +199,32 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="flex flex-col h-full">
       {/* Info banner for read-only mode */}
       {readOnly && readOnlyMessage && (
-        <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2 flex-shrink-0">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      <table className="w-full text-xs">
+      {/* Scrollable table area */}
+      <div className="flex-1 overflow-auto min-h-0">
+      <table className="w-full text-xs min-w-[900px]">
         <thead>
           <tr className="text-xs text-surface-400">
-            <th className="text-left py-2 px-2 font-medium">Token</th>
-            <th className="text-right py-2 px-2 font-medium">Size</th>
-            <th className="text-right py-2 px-2 font-medium">Position Value</th>
-            <th className="text-right py-2 px-2 font-medium">Entry Price</th>
-            <th className="text-right py-2 px-2 font-medium">Mark Price</th>
-            <th className="text-right py-2 px-2 font-medium">PnL (ROI%)</th>
-            <th className="text-right py-2 px-2 font-medium">Liq Price</th>
-            <th className="text-right py-2 px-2 font-medium">Margin</th>
-            <th className="text-right py-2 px-2 font-medium">Funding</th>
-            <th className="text-center py-2 px-2 font-medium">TP/SL</th>
-            {!readOnly && <th className="text-center py-2 px-2 font-medium">Close</th>}
+            <th className="text-left py-2 px-2 font-medium whitespace-nowrap">Token</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Size</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Pos Value</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Entry</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Mark</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">PnL (ROI%)</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Liq Price</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Margin</th>
+            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Funding</th>
+            <th className="text-center py-2 px-2 font-medium whitespace-nowrap">TP/SL</th>
+            {!readOnly && <th className="text-center py-2 px-2 font-medium whitespace-nowrap">Close</th>}
           </tr>
         </thead>
         <tbody>
@@ -397,11 +399,15 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           ))}
         </tbody>
       </table>
+      </div>
 
-      {/* Summary */}
-      <div className="mt-3 pt-3 border-t border-surface-700 flex items-center justify-between px-2">
+      {/* Summary - fixed at bottom */}
+      <div className="mt-auto pt-3 border-t border-surface-700 flex items-center gap-4 px-2 flex-shrink-0">
         <div className="text-xs text-surface-400">
-          Total Positions: <span className="text-white">{positions.length}</span>
+          Positions: <span className="text-white">{positions.length}</span>
+        </div>
+        <div className="text-xs text-surface-400">
+          Total Value: <span className="text-white font-mono">${positions.reduce((sum, p) => sum + p.size, 0).toFixed(2)}</span>
         </div>
         <div className="text-xs">
           <span className="text-surface-400">Total PnL: </span>
@@ -412,7 +418,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                 : 'text-loss-400'
             }`}
           >
-            {positions.reduce((sum, p) => sum + p.unrealizedPnl, 0) >= 0 ? '' : '-'}${Math.abs(positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)).toFixed(4)}
+            {positions.reduce((sum, p) => sum + p.unrealizedPnl, 0) >= 0 ? '+' : '-'}${Math.abs(positions.reduce((sum, p) => sum + p.unrealizedPnl, 0)).toFixed(4)}
           </span>
         </div>
       </div>

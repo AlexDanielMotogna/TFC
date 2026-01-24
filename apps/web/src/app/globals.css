@@ -277,6 +277,21 @@ body {
   border-color: #52525b !important;
 }
 
+/* Compact wallet button for mobile/tablet (below 1200px) */
+@media (max-width: 1199px) {
+  .wallet-compact .wallet-adapter-button {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+
+  .wallet-compact .wallet-adapter-button-start-icon,
+  .wallet-compact .wallet-adapter-button-start-icon img {
+    width: 16px !important;
+    height: 16px !important;
+    margin-right: 4px !important;
+  }
+}
+
 /* Modal Background - Full screen with blur */
 .wallet-adapter-modal {
   background: rgba(0, 0, 0, 0.5) !important;

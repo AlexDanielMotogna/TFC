@@ -17,7 +17,7 @@ export function LandingNavbar() {
           {/* Logo */}
           <Link href="/">
             <Image
-              src="/images/landing/TFC-Logo.png"
+              src="/images/logos/favicon-white-192.png"
               alt="Trade Fight Club"
               width={70}
               height={70}

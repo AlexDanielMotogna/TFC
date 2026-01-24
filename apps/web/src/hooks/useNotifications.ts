@@ -20,7 +20,7 @@ export function useNotifications(limit = 50) {
     queryKey: ['notifications', limit],
     queryFn: () => getNotifications(token!, limit),
     enabled: isAuthenticated && !!token,
-    staleTime: 30000, // Consider data fresh for 30 seconds
+    staleTime: 10000, // Consider data fresh for 10 seconds
   });
 }
 
@@ -34,8 +34,8 @@ export function useUnreadNotificationCount() {
     queryKey: ['notifications', 'unread-count'],
     queryFn: () => getUnreadNotificationCount(token!),
     enabled: isAuthenticated && !!token,
-    refetchInterval: 60000, // Refetch every minute
-    staleTime: 30000,
+    refetchInterval: 30000, // Refetch every 30 seconds (backup for cache invalidation)
+    staleTime: 10000, // Consider fresh for 10 seconds
   });
 }
 

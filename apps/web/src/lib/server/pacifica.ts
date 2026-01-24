@@ -163,7 +163,7 @@ export async function getTradeHistory(params: {
   startTime?: number;
   endTime?: number;
   limit?: number;
-}): Promise<TradeHistoryResponse> {
+}): Promise<TradeHistoryResponse[]> {
   let url = `/api/v1/trades/history?account=${params.accountAddress}`;
 
   if (params.symbol) url += `&symbol=${params.symbol}`;
@@ -171,7 +171,7 @@ export async function getTradeHistory(params: {
   if (params.endTime) url += `&end_time=${params.endTime}`;
   if (params.limit) url += `&limit=${params.limit}`;
 
-  return request<TradeHistoryResponse>('GET', url);
+  return request<TradeHistoryResponse[]>('GET', url);
 }
 
 /**
@@ -305,6 +305,39 @@ export async function getBuilderCodeApprovals(accountAddress: string): Promise<B
     'GET',
     `/api/v1/account/builder_codes/approvals?account=${accountAddress}`
   );
+}
+
+/**
+ * Request withdrawal from Pacifica to wallet
+ * POST /api/v1/account/withdraw
+ */
+export async function withdraw(
+  keypair: nacl.SignKeyPair,
+  amount: string
+): Promise<{ success: boolean; error?: string }> {
+  const signedPayload = PacificaSigning.signWithdraw(keypair, amount);
+  const url = `${API_URL}/api/v1/account/withdraw`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(signedPayload),
+    });
+
+    const data = await response.json() as PacificaResponse<unknown>;
+
+    // For withdraw, success is indicated at the top level, not in data
+    if (data.success) {
+      return { success: true };
+    }
+
+    return { success: false, error: data.error || 'Withdraw failed' };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Pacifica withdraw failed:', message);
+    return { success: false, error: message };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

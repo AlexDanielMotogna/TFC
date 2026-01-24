@@ -1,8 +1,12 @@
-import { prisma, PrizeStatus } from '@tfc/db';
+import { prisma, PrizeStatus, FightStatus } from '@tfc/db';
 import { createLogger } from '@tfc/logger';
 import { LOG_EVENTS } from '@tfc/shared';
 
 const logger = createLogger({ service: 'job' });
+
+// Web app URL for internal API calls
+const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:3000';
+const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET;
 
 // Prize percentages for top 3
 const PRIZE_PERCENTAGES: Record<number, number> = {
@@ -10,6 +14,15 @@ const PRIZE_PERCENTAGES: Record<number, number> = {
   2: 3.0,  // 2nd place: 3%
   3: 2.0,  // 3rd place: 2%
 };
+
+interface UserStats {
+  userId: string;
+  userHandle: string;
+  totalFights: number;
+  wins: number;
+  losses: number;
+  totalPnlUsdc: number;
+}
 
 /**
  * Get week boundaries (Sunday 00:00:00 UTC to Saturday 23:59:59 UTC)
@@ -74,14 +87,22 @@ export async function finalizePrizePool(): Promise<void> {
   // Total prize pool is 10% of fees
   const totalPrizePool = totalFees * 0.10;
 
-  // Get top 3 from weekly leaderboard (refreshed just before this job)
-  const topUsers = await prisma.leaderboardSnapshot.findMany({
+  // Calculate top 3 directly from fights in the previous week
+  // (Can't use leaderboard snapshot because it gets refreshed for new week first)
+  const participants = await prisma.fightParticipant.findMany({
     where: {
-      range: 'weekly',
-      rank: { lte: 3 },
+      fight: {
+        status: FightStatus.FINISHED,
+        startedAt: { gte: weekStart, lte: weekEnd },
+      },
     },
-    orderBy: { rank: 'asc' },
     include: {
+      fight: {
+        select: {
+          winnerId: true,
+          isDraw: true,
+        },
+      },
       user: {
         select: {
           id: true,
@@ -90,6 +111,48 @@ export async function finalizePrizePool(): Promise<void> {
       },
     },
   });
+
+  // Aggregate stats by user
+  const userStatsMap = new Map<string, UserStats>();
+
+  for (const p of participants) {
+    const userId = p.userId;
+
+    if (!userStatsMap.has(userId)) {
+      userStatsMap.set(userId, {
+        userId,
+        userHandle: p.user.handle,
+        totalFights: 0,
+        wins: 0,
+        losses: 0,
+        totalPnlUsdc: 0,
+      });
+    }
+
+    const stats = userStatsMap.get(userId)!;
+    stats.totalFights++;
+
+    if (!p.fight.isDraw) {
+      if (p.fight.winnerId === userId) {
+        stats.wins++;
+      } else {
+        stats.losses++;
+      }
+    }
+
+    if (p.finalScoreUsdc) {
+      stats.totalPnlUsdc += Number(p.finalScoreUsdc);
+    }
+  }
+
+  // Get top 3 sorted by PnL
+  const topUsers = Array.from(userStatsMap.values())
+    .sort((a, b) => b.totalPnlUsdc - a.totalPnlUsdc)
+    .slice(0, 3)
+    .map((stats, index) => ({
+      ...stats,
+      rank: index + 1,
+    }));
 
   if (topUsers.length === 0) {
     logger.info(LOG_EVENTS.PRIZE_POOL_NO_WINNERS, 'No winners for this week', {
@@ -139,7 +202,7 @@ export async function finalizePrizePool(): Promise<void> {
 
   // Create prize records for top 3
   for (const entry of topUsers) {
-    const rank = entry.rank || 0;
+    const rank = entry.rank;
     const percentage = PRIZE_PERCENTAGES[rank] || 0;
     const amount = (totalFees * percentage) / 100;
 
@@ -159,7 +222,7 @@ export async function finalizePrizePool(): Promise<void> {
         totalPnlUsdc: entry.totalPnlUsdc,
         totalFights: entry.totalFights,
         wins: entry.wins,
-        userHandle: entry.user.handle,
+        userHandle: entry.userHandle,
         status: PrizeStatus.EARNED,
       },
       update: {
@@ -169,10 +232,44 @@ export async function finalizePrizePool(): Promise<void> {
         totalPnlUsdc: entry.totalPnlUsdc,
         totalFights: entry.totalFights,
         wins: entry.wins,
-        userHandle: entry.user.handle,
+        userHandle: entry.userHandle,
         status: PrizeStatus.EARNED,
       },
     });
+  }
+
+  // Withdraw the prize pool from Pacifica in one transaction
+  // This saves on Pacifica fees ($1 per withdrawal)
+  if (totalPrizePool > 0 && INTERNAL_API_SECRET) {
+    try {
+      const response = await fetch(`${WEB_APP_URL}/api/internal/treasury/withdraw-for-prizes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${INTERNAL_API_SECRET}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ amount: totalPrizePool }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        logger.info(LOG_EVENTS.TREASURY_WITHDRAW_SUCCESS, 'Prize pool withdrawn from Pacifica', {
+          amount: totalPrizePool,
+          withdrawnAmount: result.data?.withdrawnAmount,
+        });
+      } else {
+        logger.warn(LOG_EVENTS.TREASURY_WITHDRAW_FAILURE, 'Failed to withdraw prize pool', {
+          error: result.error,
+          amount: totalPrizePool,
+        });
+      }
+    } catch (error) {
+      logger.warn(LOG_EVENTS.TREASURY_WITHDRAW_FAILURE, 'Prize pool withdrawal request failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        amount: totalPrizePool,
+      });
+    }
   }
 
   logger.info(LOG_EVENTS.PRIZE_POOL_FINALIZE_SUCCESS, 'Prize pool finalized', {
@@ -183,8 +280,8 @@ export async function finalizePrizePool(): Promise<void> {
     prizes: topUsers.map(u => ({
       rank: u.rank,
       userId: u.userId,
-      handle: u.user.handle,
-      amount: (totalFees * (PRIZE_PERCENTAGES[u.rank || 0] || 0)) / 100,
+      handle: u.userHandle,
+      amount: (totalFees * (PRIZE_PERCENTAGES[u.rank] || 0)) / 100,
     })),
   });
 }

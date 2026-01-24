@@ -303,3 +303,22 @@ size: order.initial_amount || order.amount || order.size || '0',
 
 🟡 Fix aplicado - Pendiente verificacion con logs de consola
 
+
+
+
+
+![alt text](image.png)
+
+
+Token	Size	Position Value	Entry Price	Mark Price	PnL (ROI%)	Liq Price	Margin	Funding	TP/SL
+JUP
+10x Long
+54.00 JUP	$10.43	0,193	0,1931	
++$0.0054(+0.52%)
+0	
+$1.04
+Cross
++$0.0000	
+
+En
+![alt text](image-1.png)

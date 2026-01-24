@@ -335,6 +335,7 @@ model WeeklyPrize {
 
   status        PrizeStatus @default(PENDING)
   distributedAt DateTime?   @map("distributed_at")
+  txSignature   String?     @map("tx_signature") // Solana transaction signature for verification
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

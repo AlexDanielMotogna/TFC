@@ -52,7 +52,7 @@ async function calculateUnrealizedPnlFromFightTrades(
   fightId: string,
   userId: string,
   cachedPrices?: MarketPrice[]
-): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number }> {
+): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number; platformFee: number }> {
   try {
     const [fightTrades, prices] = await Promise.all([
       prisma.fightTrade.findMany({
@@ -71,6 +71,7 @@ async function calculateUnrealizedPnlFromFightTrades(
     // We track realizedPnl by only counting pnl from CLOSING trades
     let realizedPnl = 0;
     let totalFees = 0;
+    let totalNotional = 0; // Track total trade value for platform fee (Rules 22-25)
 
     for (const trade of fightTrades) {
       const symbol = trade.symbol;
@@ -81,6 +82,7 @@ async function calculateUnrealizedPnlFromFightTrades(
       const tradeFee = Number(trade.fee);
 
       totalFees += tradeFee;
+      totalNotional += amount * price; // Track for platform fee
 
       if (!positionsBySymbol[symbol]) {
         positionsBySymbol[symbol] = { amount: 0, totalCost: 0, leverage: tradeLeverage };
@@ -191,6 +193,12 @@ async function calculateUnrealizedPnlFromFightTrades(
 
     // Note: Funding is tracked per-position on Pacifica, not per-fight
     // For fight-specific calculations, we don't include funding
+
+    // Calculate platform fee per Fight-Engine_Rules.md Rules 22-25
+    // Rate comes from env variable (default 0.05% = 0.0005)
+    const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE || '0.0005');
+    const platformFee = totalNotional * PLATFORM_FEE_RATE;
+
     return {
       unrealizedPnl,
       funding: 0,
@@ -199,13 +207,14 @@ async function calculateUnrealizedPnlFromFightTrades(
       realizedPnl,
       fees: totalFees,
       tradesCount: fightTrades.length,
+      platformFee,
     };
   } catch (error) {
     logger.error(LOG_EVENTS.API_ERROR, 'Failed to calculate unrealized PnL from fight trades', error as Error, {
       fightId,
       userId,
     });
-    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0 };
+    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0, platformFee: 0 };
   }
 }
 
@@ -601,10 +610,10 @@ export class FightEngine {
         // - Open positions (unrealizedPnl) are shown in positions table but DON'T affect fight score
         // - realizedPnl only includes pnl from CLOSING trades (opening fees don't count!)
         const liveData = await calculateUnrealizedPnlFromFightTrades(fight.id, p.userId, prices);
-        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount } = liveData;
+        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount, platformFee } = liveData;
 
-        // totalPnl = only realized PnL from closed positions
-        const totalPnl = realizedPnl;
+        // totalPnl = realized PnL minus platform fee (Rules 22-25)
+        const totalPnl = realizedPnl - platformFee;
 
         // For pnlPercent (ROI%), we use PnL / margin * 100
         // When margin = 0 (all positions closed), fall back to maxExposureUsed

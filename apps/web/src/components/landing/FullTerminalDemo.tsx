@@ -864,13 +864,6 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                   <p className="text-surface-400 text-xs">Shows who&apos;s winning: <span className="text-win-400">Winning</span>, <span className="text-loss-400">Losing</span>, or <span className="text-surface-300">Tied</span>.</p>
                 </div>
               </div>
-
-              <div className="bg-primary-500/10 border border-primary-500/30 rounded p-3 text-xs">
-                <div className="text-primary-400 font-semibold">Weekly Prizes</div>
-                <p className="text-surface-300 mt-1">
-                  Fights determine your <span className="text-white">leaderboard ranking</span>. Top 3 weekly traders share 10% of platform fees as cash prizes!
-                </p>
-              </div>
             </div>
           </div>
         </div>

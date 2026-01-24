@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { LeaderboardSkeleton, LeaderboardRowSkeleton } from '@/components/Skeletons';
 import { api } from '@/lib/api';
 import { usePrizePool } from '@/hooks/usePrizePool';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 
 // Format currency for display
 const formatCurrency = (amount: number): string => {
@@ -35,6 +37,11 @@ type LeaderboardRange = 'weekly' | 'all_time';
 export default function LeaderboardPage() {
   const [range, setRange] = useState<LeaderboardRange>('weekly');
 
+  // Set page title
+  useEffect(() => {
+    document.title = 'Leaderboard - Trading Fight Club';
+  }, []);
+
   // Use React Query for better caching and loading states
   const { data: entries = [], isLoading, isFetching } = useQuery({
     queryKey: ['leaderboard', range],
@@ -43,12 +50,12 @@ export default function LeaderboardPage() {
   });
 
   // Prize pool data (for weekly view)
-  const { prizePool } = usePrizePool();
+  const { prizePool, isLoading: isPrizePoolLoading } = usePrizePool();
 
   const getRankDisplay = (rank: number) => {
-    if (rank === 1) return { icon: '🥇', color: 'text-yellow-400', bg: 'bg-yellow-400/10' };
-    if (rank === 2) return { icon: '🥈', color: 'text-gray-300', bg: 'bg-gray-300/10' };
-    if (rank === 3) return { icon: '🥉', color: 'text-amber-600', bg: 'bg-amber-600/10' };
+    if (rank === 1) return { icon: <WorkspacePremiumIcon sx={{ color: '#facc15', fontSize: 24 }} />, color: 'text-yellow-400', bg: 'bg-yellow-400/10' };
+    if (rank === 2) return { icon: <WorkspacePremiumIcon sx={{ color: '#cbd5e1', fontSize: 24 }} />, color: 'text-gray-300', bg: 'bg-gray-300/10' };
+    if (rank === 3) return { icon: <WorkspacePremiumIcon sx={{ color: '#d97706', fontSize: 24 }} />, color: 'text-amber-600', bg: 'bg-amber-600/10' };
     return { icon: `#${rank}`, color: 'text-surface-400', bg: '' };
   };
 
@@ -77,28 +84,44 @@ export default function LeaderboardPage() {
           </div>
 
           {/* Prize Pool Badge (Weekly only) - Below title, responsive */}
-          {range === 'weekly' && prizePool && (
+          {range === 'weekly' && (isPrizePoolLoading || prizePool) && (
             <div className="flex justify-center">
               <div className="inline-flex flex-wrap justify-center items-center gap-4 sm:gap-5 px-4 sm:px-5 py-2.5 sm:py-3 bg-surface-900/50 border border-surface-700 rounded-xl">
-                <div className="text-center">
-                  <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Weekly Fees</p>
-                  <p className="text-sm sm:text-base font-bold text-white">{formatCurrency(prizePool.totalFeesCollected)}</p>
-                </div>
-                <div className="w-px h-6 sm:h-8 bg-surface-700" />
-                <div className="text-center">
-                  <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Prize Pool</p>
-                  <p className="text-sm sm:text-base font-bold text-gradient-orange">{formatCurrency(prizePool.totalPrizePool)}</p>
-                </div>
-                <div className="w-px h-6 sm:h-8 bg-surface-700" />
-                <div className="flex items-center gap-1.5 sm:gap-2 text-surface-400">
-                  <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <p className="text-[10px] sm:text-xs text-surface-500">Ends in</p>
-                    <p className="text-xs sm:text-sm font-mono font-bold text-white">{prizePool.timeRemaining.formatted}</p>
-                  </div>
-                </div>
+                {isPrizePoolLoading ? (
+                  <>
+                    <div className="text-center">
+                      <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Weekly Fees</p>
+                      <div className="h-5 sm:h-6 w-16 bg-surface-700 rounded animate-pulse" />
+                    </div>
+                    <div className="w-px h-6 sm:h-8 bg-surface-700" />
+                    <div className="text-center">
+                      <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Prize Pool</p>
+                      <div className="h-5 sm:h-6 w-16 bg-surface-700 rounded animate-pulse" />
+                    </div>
+                    <div className="w-px h-6 sm:h-8 bg-surface-700" />
+                    <div className="text-center">
+                      <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Ends in</p>
+                      <div className="h-4 sm:h-5 w-12 bg-surface-700 rounded animate-pulse" />
+                    </div>
+                  </>
+                ) : prizePool && (
+                  <>
+                    <div className="text-center">
+                      <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Weekly Fees</p>
+                      <p className="text-sm sm:text-base font-bold text-white">{formatCurrency(prizePool.totalFeesCollected)}</p>
+                    </div>
+                    <div className="w-px h-6 sm:h-8 bg-surface-700" />
+                    <div className="text-center">
+                      <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Prize Pool</p>
+                      <p className="text-sm sm:text-base font-bold text-gradient-orange">{formatCurrency(prizePool.totalPrizePool)}</p>
+                    </div>
+                    <div className="w-px h-6 sm:h-8 bg-surface-700" />
+                    <div className="text-center">
+                      <p className="text-[10px] sm:text-xs text-surface-500 mb-0.5">Ends in</p>
+                      <p className="text-sm sm:text-base font-mono font-bold text-white">{prizePool.timeRemaining.formatted}</p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -143,7 +166,7 @@ export default function LeaderboardPage() {
         ) : entries.length === 0 ? (
           <div className="card text-center py-16 animate-fadeIn">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-surface-800 flex items-center justify-center">
-              <span className="text-3xl opacity-50">🏆</span>
+              <EmojiEventsIcon sx={{ fontSize: 32, color: '#6b7280' }} />
             </div>
             <p className="text-surface-400">No rankings available yet</p>
             <Link href="/lobby" className="text-primary-400 hover:text-primary-300 mt-2 inline-block">
@@ -152,8 +175,8 @@ export default function LeaderboardPage() {
           </div>
         ) : (
           <div className="animate-fadeIn">
-            {/* Top 3 Podium - Card design like landing page but smaller */}
-            {first && second && third && (
+            {/* Top 3 Podium - Card design like landing page but smaller (Weekly only) */}
+            {range === 'weekly' && first && second && third && (
               <div className="hidden md:grid grid-cols-3 gap-3 mb-6 max-w-3xl mx-auto items-end">
                 {/* 2nd Place */}
                 <div className="bg-gradient-to-b from-slate-400/20 to-slate-500/10 border border-slate-400/50 rounded-xl p-4">
@@ -269,29 +292,29 @@ export default function LeaderboardPage() {
             )}
 
             {/* Leaderboard Table */}
-            <div className="card overflow-hidden">
-              <table className="table-premium w-full">
+            <div className="card overflow-x-auto">
+              <table className="table-premium w-full min-w-[600px]">
                 <thead>
                   <tr className="border-b border-surface-700 bg-surface-850">
-                    <th className="py-3 px-4 text-left text-xs font-medium text-surface-400 uppercase tracking-wider w-20">
+                    <th className="py-3 px-4 text-left text-xs font-medium text-surface-200 capitalize tracking-wider w-20">
                       Rank
                     </th>
-                    <th className="py-3 px-4 text-left text-xs font-medium text-surface-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-left text-xs font-medium text-surface-200 capitalize tracking-wider">
                       Fighter
                     </th>
-                    <th className="py-3 px-4 text-center text-xs font-medium text-surface-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-center text-xs font-medium text-surface-200 capitalize tracking-wider">
                       Fights
                     </th>
-                    <th className="py-3 px-4 text-center text-xs font-medium text-surface-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-center text-xs font-medium text-surface-200 capitalize tracking-wider">
                       Record
                     </th>
-                    <th className="py-3 px-4 text-center text-xs font-medium text-surface-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-center text-xs font-medium text-surface-200 capitalize tracking-wider">
                       Win Rate
                     </th>
-                    <th className="py-3 px-4 text-right text-xs font-medium text-surface-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-right text-xs font-medium text-surface-200 capitalize tracking-wider">
                       Avg PnL
                     </th>
-                    <th className="py-3 px-4 text-right text-xs font-medium text-surface-400 uppercase tracking-wider">
+                    <th className="py-3 px-4 text-right text-xs font-medium text-surface-200 capitalize tracking-wider">
                       Total PnL
                     </th>
                   </tr>
@@ -349,7 +372,7 @@ export default function LeaderboardPage() {
                         </td>
                         <td className="py-4 px-4 text-right">
                           <span
-                            className={`font-mono ${
+                            className={`${
                               entry.avgPnlPercent >= 0 ? 'text-win-400' : 'text-loss-400'
                             }`}
                           >
@@ -359,7 +382,7 @@ export default function LeaderboardPage() {
                         </td>
                         <td className="py-4 px-4 text-right">
                           <span
-                            className={`font-mono font-semibold ${
+                            className={`${
                               entry.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
                             }`}
                           >

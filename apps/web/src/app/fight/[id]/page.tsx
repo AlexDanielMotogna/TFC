@@ -48,6 +48,11 @@ export default function FightResultsPage() {
   const [fight, setFight] = useState<FightWithTrades | null>(null);
   const [trades, setTrades] = useState<FightTrade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Set page title
+  useEffect(() => {
+    document.title = 'Fight Results - Trading Fight Club';
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   // Fetch fight data
@@ -285,13 +290,13 @@ export default function FightResultsPage() {
         </div>
 
         {/* VS Card */}
-        <div className="card p-6 mb-6">
-          <div className="flex items-center justify-between">
+        <div className="card p-4 sm:p-6 mb-6 overflow-x-auto">
+          <div className="flex items-center justify-between min-w-[280px]">
             {/* Participant A */}
             <div className={`flex-1 text-center ${winner?.userId === participantA?.userId ? 'opacity-100' : fight.winnerId ? 'opacity-60' : 'opacity-100'}`}>
-              <div className="relative inline-block mb-3">
+              <div className="relative inline-block mb-2 sm:mb-3">
                 <div
-                  className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${
+                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold ${
                     winner?.userId === participantA?.userId
                       ? 'bg-gradient-to-br from-win-500 to-win-600 ring-4 ring-win-500/30'
                       : 'bg-surface-700'
@@ -300,43 +305,43 @@ export default function FightResultsPage() {
                   {participantA?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 {fight.winnerId && winner?.userId === participantA?.userId && (
-                  <div className="absolute -top-2 -right-2 text-2xl">👑</div>
+                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-lg sm:text-2xl">👑</div>
                 )}
               </div>
-              <h3 className="font-display font-bold text-lg text-white mb-1">
+              <h3 className="font-display font-bold text-sm sm:text-lg text-white mb-1 truncate max-w-[80px] sm:max-w-none mx-auto">
                 {participantA?.user?.handle || 'Unknown'}
               </h3>
               <p
-                className={`text-2xl font-mono font-bold ${
+                className={`text-lg sm:text-2xl font-mono font-bold ${
                   parseDecimal(participantA?.finalPnlPercent) >= 0 ? 'text-win-400' : 'text-loss-400'
                 }`}
               >
                 {parseDecimal(participantA?.finalPnlPercent) >= 0 ? '+' : ''}
                 {parseDecimal(participantA?.finalPnlPercent).toFixed(4)}%
               </p>
-              <p className="text-sm text-surface-400 mt-1">
+              <p className="text-xs sm:text-sm text-surface-400 mt-1">
                 ${parseDecimal(participantA?.finalScoreUsdc).toFixed(4)} USDC
               </p>
-              <p className="text-xs text-surface-500 mt-2">
+              <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
                 {participantATrades.length} trades
               </p>
               {participantA?.externalTradesDetected && (
-                <p className="text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantA.externalTradeIds?.join(', ') || 'N/A'}`}>
+                <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantA.externalTradeIds?.join(', ') || 'N/A'}`}>
                   External trades detected
                 </p>
               )}
             </div>
 
             {/* VS */}
-            <div className="px-6">
-              <div className="text-3xl font-display font-bold text-surface-600">VS</div>
+            <div className="px-2 sm:px-6 flex-shrink-0">
+              <div className="text-xl sm:text-3xl font-display font-bold text-surface-600">VS</div>
             </div>
 
             {/* Participant B */}
             <div className={`flex-1 text-center ${winner?.userId === participantB?.userId ? 'opacity-100' : fight.winnerId ? 'opacity-60' : 'opacity-100'}`}>
-              <div className="relative inline-block mb-3">
+              <div className="relative inline-block mb-2 sm:mb-3">
                 <div
-                  className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${
+                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold ${
                     winner?.userId === participantB?.userId
                       ? 'bg-gradient-to-br from-win-500 to-win-600 ring-4 ring-win-500/30'
                       : 'bg-surface-700'
@@ -345,30 +350,30 @@ export default function FightResultsPage() {
                   {participantB?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 {fight.winnerId && winner?.userId === participantB?.userId && (
-                  <div className="absolute -top-2 -right-2 text-2xl">👑</div>
+                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-lg sm:text-2xl">👑</div>
                 )}
               </div>
-              <h3 className="font-display font-bold text-lg text-white mb-1">
+              <h3 className="font-display font-bold text-sm sm:text-lg text-white mb-1 truncate max-w-[80px] sm:max-w-none mx-auto">
                 {participantB?.user?.handle || 'Waiting...'}
               </h3>
               {participantB && (
                 <>
                   <p
-                    className={`text-2xl font-mono font-bold ${
+                    className={`text-lg sm:text-2xl font-mono font-bold ${
                       parseDecimal(participantB?.finalPnlPercent) >= 0 ? 'text-win-400' : 'text-loss-400'
                     }`}
                   >
                     {parseDecimal(participantB?.finalPnlPercent) >= 0 ? '+' : ''}
                     {parseDecimal(participantB?.finalPnlPercent).toFixed(4)}%
                   </p>
-                  <p className="text-sm text-surface-400 mt-1">
+                  <p className="text-xs sm:text-sm text-surface-400 mt-1">
                     ${parseDecimal(participantB?.finalScoreUsdc).toFixed(4)} USDC
                   </p>
-                  <p className="text-xs text-surface-500 mt-2">
+                  <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
                     {participantBTrades.length} trades
                   </p>
                   {participantB?.externalTradesDetected && (
-                    <p className="text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantB.externalTradeIds?.join(', ') || 'N/A'}`}>
+                    <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantB.externalTradeIds?.join(', ') || 'N/A'}`}>
                       External trades detected
                     </p>
                   )}

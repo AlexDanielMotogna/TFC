@@ -62,7 +62,7 @@ export function LandingFooter() {
           <div className="col-span-2">
             <Link href="/" className="inline-block mb-4">
               <Image
-                src="/images/landing/TFC-Logo.png"
+                src="/images/logos/favicon-white-192.png"
                 alt="Trade Fight Club"
                 width={56}
                 height={56}

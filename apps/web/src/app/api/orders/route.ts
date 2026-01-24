@@ -519,13 +519,9 @@ async function recordFightTradeWithDetails(
   const baseSymbol = symbol.replace('-USD', ''); // Convert BTC-USD -> BTC
   const initialPos = initialPositions.find((ip: any) => ip.symbol === baseSymbol);
 
-  // Make initialAmount signed: positive = LONG (bid), negative = SHORT (ask)
-  // This is critical for correctly calculating which trades close pre-fight positions
-  let initialAmount = 0;
+  // Log pre-fight position for debugging (not used in calculation - we use Pacifica API)
   if (initialPos) {
     const absAmount = parseFloat(initialPos.amount);
-    // If side is 'ask' (SHORT), make it negative. Default to LONG for backwards compatibility.
-    initialAmount = initialPos.side === 'ask' ? -absAmount : absAmount;
     console.log(`[FightTrade] Pre-fight position for ${baseSymbol}: ${initialPos.side === 'ask' ? 'SHORT' : 'LONG'} ${absAmount}`);
   }
 
@@ -544,128 +540,142 @@ async function recordFightTradeWithDetails(
   const totalBought = fightBuysResult._sum.amount ? parseFloat(fightBuysResult._sum.amount.toString()) : 0;
   const totalSold = fightSellsResult._sum.amount ? parseFloat(fightSellsResult._sum.amount.toString()) : 0;
 
-  // For SELL trades, determine how much is:
-  // 1. Closing pre-fight LONG (don't record)
-  // 2. Closing fight LONG (record)
-  // 3. Opening new SHORT (record)
-  if (tradeSide === 'SELL') {
-    // Pre-fight LONG that was open (positive initialAmount = LONG)
-    const initialLong = Math.max(0, initialAmount);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RULE 35 FIX (SIMPLIFIED): Only record fight-relevant trades
+  //
+  // Core principle: fight_trades should ONLY contain trades that:
+  // 1. Close positions opened via TFC during this fight
+  // 2. Open new positions via TFC during this fight
+  //
+  // What should NOT be recorded:
+  // - Closing pre-fight positions
+  // - Closing positions bought on Pacifica directly (not via TFC)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-    // Calculate how much of the pre-fight LONG is still open
-    // SELLs close the pre-fight LONG first, before opening SHORTs
-    // We need to figure out how much of the pre-fight LONG has already been closed by previous SELLs
-    //
-    // Total LONG available = initialLong + totalBought (from fight)
-    // Total LONG closed = totalSold (previous sells)
-    // Remaining LONG = Total LONG available - Total LONG closed
-    const totalLongAvailable = initialLong + totalBought;
-    const remainingLong = Math.max(0, totalLongAvailable - totalSold);
-
-    // How much of this SELL closes remaining LONG vs opens SHORT
-    const closesLong = Math.min(tradeAmount, remainingLong);
-    const opensShort = tradeAmount - closesLong;
-
-    // Of the portion that closes LONG, how much is pre-fight vs fight?
-    // Pre-fight LONG still open = initialLong - (totalSold that went to pre-fight)
-    // SELLs close pre-fight first, then fight
-    const preFightLongAlreadyClosed = Math.min(initialLong, totalSold);
-    const remainingPreFightLong = Math.max(0, initialLong - preFightLongAlreadyClosed);
-
-    // This SELL: first closes remaining pre-fight LONG, then closes fight LONG, then opens SHORT
-    const closesPreFightLong = Math.min(tradeAmount, remainingPreFightLong);
-    const afterPreFight = tradeAmount - closesPreFightLong;
-
-    // Fight LONG currently open = totalBought - (totalSold - preFightLongAlreadyClosed)
-    // But simpler: remainingLong - remainingPreFightLong
-    const currentFightLong = Math.max(0, remainingLong - remainingPreFightLong);
-    const closesFightLong = Math.min(afterPreFight, currentFightLong);
-    const opensNewShort = afterPreFight - closesFightLong;
-
-    // Fight-relevant = closes fight LONG + opens new SHORT
-    const fightRelevantAmount = closesFightLong + opensNewShort;
-
-    console.log('SELL analysis:', {
-      symbol,
-      initialLong,
-      totalBought,
-      totalSold,
-      remainingPreFightLong,
-      currentFightLong,
-      tradeAmount,
-      closesPreFightLong,
-      closesFightLong,
-      opensNewShort,
-      fightRelevantAmount,
-    });
-
-    if (fightRelevantAmount <= 0.0000001) {
-      console.log('SELL entirely closes pre-fight LONG. Skipping FightTrade record.');
-      return;
+  // Get current Pacifica position for this symbol (AFTER this trade executed)
+  let pacificaPositionAfter = 0;
+  try {
+    const { getPositions } = await import('@/lib/server/pacifica');
+    const positions = await getPositions(accountAddress);
+    const pos = positions.find((p: any) => p.symbol === symbol);
+    if (pos) {
+      const posAmount = parseFloat(pos.amount || '0');
+      // Positive for LONG (bid), negative for SHORT (ask)
+      pacificaPositionAfter = pos.side === 'ask' ? -posAmount : posAmount;
     }
-
-    if (fightRelevantAmount < tradeAmount - 0.0000001) {
-      console.log(`Limiting SELL from ${tradeAmount} to ${fightRelevantAmount} (fight portion only)`);
-    }
-    tradeAmount = fightRelevantAmount;
+    console.log('[RULE 35] Pacifica position after trade:', { symbol, pacificaPositionAfter });
+  } catch (err) {
+    console.error('[RULE 35] Failed to fetch Pacifica position:', err);
   }
 
-  // For BUY trades, determine how much is:
-  // 1. Closing pre-fight SHORT (don't record)
-  // 2. Closing fight SHORT (record)
-  // 3. Opening new LONG (record)
+  // Calculate position BEFORE this trade executed
+  // For SELL: positionBefore = positionAfter + sellAmount
+  // For BUY: positionBefore = positionAfter - buyAmount
+  const positionBefore = tradeSide === 'SELL'
+    ? pacificaPositionAfter + tradeAmount
+    : pacificaPositionAfter - tradeAmount;
+
+  // TFC net position = totalBought - totalSold
+  // Positive = LONG opened via TFC, Negative = SHORT opened via TFC
+  const tfcNet = totalBought - totalSold;
+
+  console.log('[RULE 35] Position analysis:', {
+    symbol,
+    tradeSide,
+    tradeAmount,
+    positionBefore,
+    pacificaPositionAfter,
+    tfcNet,
+    totalBought,
+    totalSold,
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // SELL LOGIC: Determine fight-relevant portion
+  // ─────────────────────────────────────────────────────────────────────────
+  if (tradeSide === 'SELL') {
+    const tfcLong = Math.max(0, tfcNet); // TFC LONG position still open
+
+    if (positionBefore <= 0) {
+      // User was SHORT or flat before this SELL → This opens/adds to SHORT
+      // All of it is fight-relevant (opening new position)
+      console.log('[RULE 35] SELL opens/adds SHORT - recording full amount');
+      // tradeAmount stays as is
+    } else {
+      // User was LONG before this SELL
+      // Part 1: Closes TFC LONG (fight-relevant)
+      const closesTfcLong = Math.min(tradeAmount, tfcLong);
+
+      // Part 2: Opens SHORT if selling more than total position (fight-relevant)
+      const opensShort = Math.max(0, tradeAmount - positionBefore);
+
+      // Part 3: Closes external/pre-fight LONG (NOT fight-relevant) - this is the remainder
+      const closesExternal = tradeAmount - closesTfcLong - opensShort;
+
+      const fightRelevantAmount = closesTfcLong + opensShort;
+
+      console.log('[RULE 35] SELL analysis:', {
+        tfcLong,
+        closesTfcLong,
+        opensShort,
+        closesExternal,
+        fightRelevantAmount,
+      });
+
+      if (fightRelevantAmount <= 0.0000001) {
+        console.log('[RULE 35] SELL only closes external/pre-fight LONG. Skipping FightTrade record.');
+        return;
+      }
+
+      if (fightRelevantAmount < tradeAmount - 0.0000001) {
+        console.log(`[RULE 35] Limiting SELL from ${tradeAmount} to ${fightRelevantAmount}`);
+      }
+      tradeAmount = fightRelevantAmount;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // BUY LOGIC: Determine fight-relevant portion
+  // ─────────────────────────────────────────────────────────────────────────
   if (tradeSide === 'BUY') {
-    // Pre-fight SHORT that was open (negative initialAmount = SHORT)
-    const initialShort = Math.abs(Math.min(0, initialAmount));
+    const tfcShort = Math.max(0, -tfcNet); // TFC SHORT position still open
 
-    // Calculate how much of the pre-fight SHORT is still open
-    // BUYs close the pre-fight SHORT first, before opening LONGs
-    const totalShortAvailable = initialShort + totalSold;
-    const remainingShort = Math.max(0, totalShortAvailable - totalBought);
+    if (positionBefore >= 0) {
+      // User was LONG or flat before this BUY → This opens/adds to LONG
+      // All of it is fight-relevant (opening new position)
+      console.log('[RULE 35] BUY opens/adds LONG - recording full amount');
+      // tradeAmount stays as is
+    } else {
+      // User was SHORT before this BUY
+      // Part 1: Closes TFC SHORT (fight-relevant)
+      const closesTfcShort = Math.min(tradeAmount, tfcShort);
 
-    // How much of this BUY closes remaining SHORT vs opens LONG
-    const closesShort = Math.min(tradeAmount, remainingShort);
-    const opensLong = tradeAmount - closesShort;
+      // Part 2: Opens LONG if buying more than covers SHORT (fight-relevant)
+      const opensLong = Math.max(0, tradeAmount - Math.abs(positionBefore));
 
-    // Pre-fight SHORT still open
-    const preFightShortAlreadyClosed = Math.min(initialShort, totalBought);
-    const remainingPreFightShort = Math.max(0, initialShort - preFightShortAlreadyClosed);
+      // Part 3: Closes external/pre-fight SHORT (NOT fight-relevant)
+      const closesExternal = tradeAmount - closesTfcShort - opensLong;
 
-    // This BUY: first closes remaining pre-fight SHORT, then closes fight SHORT, then opens LONG
-    const closesPreFightShort = Math.min(tradeAmount, remainingPreFightShort);
-    const afterPreFight = tradeAmount - closesPreFightShort;
+      const fightRelevantAmount = closesTfcShort + opensLong;
 
-    // Fight SHORT currently open
-    const currentFightShort = Math.max(0, remainingShort - remainingPreFightShort);
-    const closesFightShort = Math.min(afterPreFight, currentFightShort);
-    const opensNewLong = afterPreFight - closesFightShort;
+      console.log('[RULE 35] BUY analysis:', {
+        tfcShort,
+        closesTfcShort,
+        opensLong,
+        closesExternal,
+        fightRelevantAmount,
+      });
 
-    // Fight-relevant = closes fight SHORT + opens new LONG
-    const fightRelevantAmount = closesFightShort + opensNewLong;
+      if (fightRelevantAmount <= 0.0000001) {
+        console.log('[RULE 35] BUY only closes external/pre-fight SHORT. Skipping FightTrade record.');
+        return;
+      }
 
-    console.log('BUY analysis:', {
-      symbol,
-      initialShort,
-      totalBought,
-      totalSold,
-      remainingPreFightShort,
-      currentFightShort,
-      tradeAmount,
-      closesPreFightShort,
-      closesFightShort,
-      opensNewLong,
-      fightRelevantAmount,
-    });
-
-    if (fightRelevantAmount <= 0.0000001) {
-      console.log('BUY entirely closes pre-fight SHORT. Skipping FightTrade record.');
-      return;
+      if (fightRelevantAmount < tradeAmount - 0.0000001) {
+        console.log(`[RULE 35] Limiting BUY from ${tradeAmount} to ${fightRelevantAmount}`);
+      }
+      tradeAmount = fightRelevantAmount;
     }
-
-    if (fightRelevantAmount < tradeAmount - 0.0000001) {
-      console.log(`Limiting BUY from ${tradeAmount} to ${fightRelevantAmount} (fight portion only)`);
-    }
-    tradeAmount = fightRelevantAmount;
   }
 
   // Use pre-fetched execution details if available, otherwise fetch from Pacifica
@@ -673,6 +683,7 @@ async function recordFightTradeWithDetails(
   let fee = execDetails?.fee || '0';
   let pnl: string | null = execDetails?.pnl || null;
   let historyId = execDetails?.historyId || BigInt(Date.now() * 1000 + orderId);
+  let executedAt: Date = new Date(); // Default to now, will be overwritten if we get real data
 
   // Only fetch if we don't have pre-fetched details
   if (!execDetails || executionPrice === '0') {
@@ -697,6 +708,10 @@ async function recordFightTradeWithDetails(
               fee = trade.fee || '0';
               pnl = trade.pnl || null;
               historyId = BigInt(trade.history_id || historyId);
+              // Use actual execution time from Pacifica (created_at is in milliseconds)
+              if (trade.created_at) {
+                executedAt = new Date(trade.created_at);
+              }
 
               console.log('Found trade execution details:', {
                 orderId,
@@ -704,6 +719,7 @@ async function recordFightTradeWithDetails(
                 fee,
                 pnl,
                 historyId: historyId.toString(),
+                executedAt: executedAt.toISOString(),
                 attempt: attempt + 1,
               });
               break; // Found the trade, exit retry loop
@@ -744,7 +760,7 @@ async function recordFightTradeWithDetails(
       fee: adjustedFee,
       pnl: adjustedPnl,
       leverage: leverage || null, // Store leverage for accurate ROI calculation
-      executedAt: new Date(),
+      executedAt, // Use actual execution time from Pacifica
     },
   });
 

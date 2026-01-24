@@ -8,20 +8,17 @@ import { usePrices } from '@/hooks/usePrices';
 import { useStats } from '@/hooks/useStats';
 import { TickerCard } from './shared/TickerCard';
 
-// Token data with CoinGecko icons
-const TOKEN_DATA: Record<string, { icon: string; name: string; fullName: string }> = {
+// Token data for display names
+const TOKEN_DATA: Record<string, { name: string; fullName: string }> = {
   'BTC-USD': {
-    icon: 'https://assets.coingecko.com/coins/images/1/standard/bitcoin.png',
     name: 'Bitcoin',
     fullName: 'Bitcoin / U.S. Dollar',
   },
   'ETH-USD': {
-    icon: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png',
     name: 'Ethereum',
     fullName: 'Ethereum / U.S. Dollar',
   },
   'SOL-USD': {
-    icon: 'https://assets.coingecko.com/coins/images/4128/standard/solana.png',
     name: 'Solana',
     fullName: 'Solana / U.S. Dollar',
   },

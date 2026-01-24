@@ -4,12 +4,18 @@ import { ReactNode, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useWallet } from '@solana/wallet-adapter-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth, useAccount } from '@/hooks';
+import { useMyPrizes } from '@/hooks/useMyPrizes';
 import { WalletButton } from '@/components/WalletButton';
 import { NotificationBell } from '@/components/NotificationBell';
+import { PrizesBanner } from '@/components/PrizesBanner';
 import { api } from '@/lib/api';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
+import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
+import LeaderboardIcon from '@mui/icons-material/Leaderboard';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import PersonIcon from '@mui/icons-material/Person';
 
 // Wallet icon for balance
 function WalletIcon({ className }: { className?: string }) {
@@ -20,30 +26,12 @@ function WalletIcon({ className }: { className?: string }) {
   );
 }
 
-interface NavLinkProps {
+interface NavItem {
   href: string;
-  children: ReactNode;
+  label: string;
+  icon: ReactNode;
+  badge?: number;
   prefetch?: () => void;
-}
-
-function NavLink({ href, children, prefetch }: NavLinkProps) {
-  const pathname = usePathname();
-  const isActive = pathname === href || pathname?.startsWith(`${href}/`);
-
-  return (
-    <Link
-      href={href}
-      className={`px-3 py-1.5 text-sm transition-colors rounded ${
-        isActive
-          ? 'text-zinc-100 bg-surface-800'
-          : 'text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50'
-      }`}
-      onMouseEnter={prefetch}
-      onFocus={prefetch}
-    >
-      {children}
-    </Link>
-  );
 }
 
 interface AppShellProps {
@@ -53,9 +41,9 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { connected } = useWallet();
   const { isAuthenticated, user } = useAuth();
   const { account } = useAccount();
+  const { claimablePrizes } = useMyPrizes();
   const queryClient = useQueryClient();
 
   // Get Pacifica balance
@@ -83,7 +71,35 @@ export function AppShell({ children }: AppShellProps) {
     router.prefetch('/trade');
     router.prefetch('/lobby');
     router.prefetch('/leaderboard');
+    router.prefetch('/rewards');
   }, [router]);
+
+  // Navigation items
+  const navItems: NavItem[] = [
+    { href: '/trade', label: 'Trade', icon: <ShowChartIcon sx={{ fontSize: 20 }} /> },
+    { href: '/lobby', label: 'Arena', icon: <SportsKabaddiIcon sx={{ fontSize: 20 }} /> },
+    { href: '/leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon sx={{ fontSize: 20 }} />, prefetch: prefetchLeaderboard },
+  ];
+
+  // Add authenticated-only items
+  const authNavItems: NavItem[] = isAuthenticated && user ? [
+    {
+      href: '/rewards',
+      label: 'Rewards',
+      icon: <EmojiEventsIcon sx={{ fontSize: 20 }} />,
+      badge: claimablePrizes.length > 0 ? claimablePrizes.length : undefined,
+    },
+    {
+      href: `/profile/${user.id}`,
+      label: 'Profile',
+      icon: <PersonIcon sx={{ fontSize: 20 }} />,
+      prefetch: prefetchProfile,
+    },
+  ] : [];
+
+  const allNavItems = [...navItems, ...authNavItems];
+
+  const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
 
   return (
     <div className="min-h-screen bg-surface-900 text-zinc-100 flex flex-col">
@@ -95,7 +111,7 @@ export function AppShell({ children }: AppShellProps) {
             <div className="flex-shrink-0">
               <Link href="/lobby">
                 <Image
-                  src="/images/landing/TFC-Logo.png"
+                  src="/images/logos/favicon-white-192.png"
                   alt="Trade Fight Club"
                   width={36}
                   height={36}
@@ -104,24 +120,35 @@ export function AppShell({ children }: AppShellProps) {
               </Link>
             </div>
 
-            {/* Navigation - Centered */}
-            <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
-              <NavLink href="/trade">Trade</NavLink>
-              <NavLink href="/lobby">Arena</NavLink>
-              <NavLink href="/leaderboard" prefetch={prefetchLeaderboard}>
-                Leaderboard
-              </NavLink>
-              {isAuthenticated && user && (
-                <NavLink href={`/profile/${user.id}`} prefetch={prefetchProfile}>
-                  Profile
-                </NavLink>
-              )}
+            {/* Navigation - Centered (hidden until 1200px) */}
+            <nav className="absolute left-1/2 -translate-x-1/2 hidden min-[1200px]:flex items-center gap-1">
+              {allNavItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`relative px-3 py-1.5 text-sm transition-colors rounded flex items-center gap-1.5 ${
+                    isActive(item.href)
+                      ? 'text-zinc-100 bg-surface-800'
+                      : 'text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50'
+                  }`}
+                  onMouseEnter={item.prefetch}
+                  onFocus={item.prefetch}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                  {item.badge && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-primary-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              ))}
             </nav>
 
-            {/* Right side: Balance, Notifications, Wallet */}
-            <div className="flex items-center gap-3 ml-auto">
-              {/* Balance Display */}
-              <div className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 rounded text-sm">
+            {/* Right side: Balance (desktop), Notifications, Wallet */}
+            <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+              {/* Balance Display - hidden until 1200px, shown in bottom nav */}
+              <div className="hidden min-[1200px]:flex items-center gap-1.5 px-2 py-1 bg-surface-800 rounded text-sm">
                 <WalletIcon className="w-4 h-4 text-surface-400" />
                 <span className="text-surface-200 font-mono">
                   {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
@@ -131,26 +158,65 @@ export function AppShell({ children }: AppShellProps) {
               {/* Notifications Bell */}
               <NotificationBell />
 
-              {/* Wallet Connect Button */}
-              <WalletButton />
+              {/* Wallet Connect Button - compact on mobile/tablet */}
+              <div className="wallet-compact">
+                <WalletButton />
+              </div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1">
+      {/* Prizes Banner - shows when there are claimable prizes */}
+      {isAuthenticated && <PrizesBanner />}
+
+      {/* Main Content - add bottom padding for bottom nav until 1200px */}
+      <main className="flex-1 pb-16 min-[1200px]:pb-0">
         {children}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-surface-800 py-3">
+      {/* Footer - hidden until 1200px */}
+      <footer className="hidden min-[1200px]:block border-t border-surface-800 py-3">
         <div className="w-full px-4">
           <div className="flex items-center justify-center text-xs text-surface-500">
             <span>Trading Fight Club</span>
           </div>
         </div>
       </footer>
+
+      {/* Bottom Navigation - visible until 1200px */}
+      <nav className="max-[1199px]:flex hidden fixed bottom-0 left-0 right-0 bg-surface-850 border-t border-surface-700 z-50">
+        <div className="flex items-center h-14 w-full">
+          {/* Balance Display on mobile */}
+          <div className="flex flex-col items-center justify-center h-full px-3 border-r border-surface-700">
+            <WalletIcon className="w-4 h-4 text-surface-400" />
+            <span className="text-[10px] text-surface-200 font-mono mt-0.5">
+              {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
+            </span>
+          </div>
+
+          {/* Nav Items */}
+          {allNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`relative flex flex-col items-center justify-center flex-1 h-full transition-colors ${
+                isActive(item.href)
+                  ? 'text-primary-400'
+                  : 'text-surface-400'
+              }`}
+            >
+              {item.icon}
+              <span className="text-[10px] mt-0.5">{item.label}</span>
+              {item.badge && (
+                <span className="absolute top-1 right-1/4 min-w-[16px] h-[16px] px-1 bg-primary-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }

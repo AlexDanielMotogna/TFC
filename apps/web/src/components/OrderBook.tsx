@@ -124,16 +124,16 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       return { processedAsks: [], processedBids: [], maxTotal: 0, bidTotal: 0, askTotal: 0, spread: 0, spreadPercent: 0 };
     }
 
-    // Take up to 20 levels for each side (will scroll if needed)
+    // Take up to 9 levels for each side
     let askRunningTotal = 0;
-    const asks = orderBook.asks.slice(0, 20).map((level) => {
+    const asks = orderBook.asks.slice(0, 9).map((level) => {
       const displaySize = sizeMode === 'USD' ? level.size * level.price : level.size;
       askRunningTotal += displaySize;
       return { ...level, displaySize, total: askRunningTotal };
     });
 
     let bidRunningTotal = 0;
-    const bids = orderBook.bids.slice(0, 20).map((level) => {
+    const bids = orderBook.bids.slice(0, 9).map((level) => {
       const displaySize = sizeMode === 'USD' ? level.size * level.price : level.size;
       bidRunningTotal += displaySize;
       return { ...level, displaySize, total: bidRunningTotal };
@@ -217,12 +217,12 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
         <span className="text-right">Total</span>
       </div>
 
-      {/* Asks (sells) - show from bottom, no extra space */}
-      <div className="flex flex-col justify-end gap-0.5">
+      {/* Asks (sells) - expand to fill space, rows grow when few items */}
+      <div className="flex-1 flex flex-col justify-end min-h-0 overflow-hidden">
         {processedAsks.map((level) => (
           <div
             key={`ask-${level.price}`}
-            className="relative grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-0.5 cursor-pointer hover:bg-surface-700/30"
+            className="relative flex-1 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-1 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
@@ -249,12 +249,12 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
         <span className="tabular-nums tracking-tight">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
       </div>
 
-      {/* Bids (buys) */}
-      <div className="flex flex-col gap-0.5">
+      {/* Bids (buys) - expand to fill space, rows grow when few items */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {processedBids.map((level) => (
           <div
             key={`bid-${level.price}`}
-            className="relative grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-0.5 cursor-pointer hover:bg-surface-700/30"
+            className="relative flex-1 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-1 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div

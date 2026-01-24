@@ -3,6 +3,7 @@
 import { FightCard } from './FightCard';
 import { FIGHT_DURATIONS_MINUTES, FIGHT_STAKES_USDC } from '@tfc/shared/constants';
 import type { Fight } from '@/lib/api';
+import BoltIcon from '@mui/icons-material/Bolt';
 
 // Placeholder data - will be replaced with API calls
 const placeholderFights: Fight[] = [
@@ -100,7 +101,10 @@ export function FightList() {
             </select>
           </div>
           <div className="flex items-end">
-            <button className="btn-primary w-full">⚡ Create Fight</button>
+            <button className="btn-primary w-full flex items-center justify-center gap-1">
+                <BoltIcon sx={{ fontSize: 20 }} />
+                Create Fight
+              </button>
           </div>
         </div>
       </div>

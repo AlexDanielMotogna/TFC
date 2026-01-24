@@ -2,64 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePrices } from '@/hooks';
-
-// CoinMarketCap ID mapping for crypto icons
-const getCMCId = (symbol: string): number => {
-  const cmcIds: Record<string, number> = {
-    BTC: 1,
-    ETH: 1027,
-    SOL: 5426,
-    BNB: 1839,
-    HYPE: 32196,
-    XMR: 328,
-    ZEC: 1437,
-    XRP: 52,
-    ENA: 30171,
-    SUI: 20947,
-    PUMP: 29587,
-    LTC: 2,
-    PAXG: 4705,
-    KPEPE: 24478,
-    '1000PEPE': 24478,
-    LIT: 5765,
-    FARTCOIN: 33600,
-    XAG: 33836,
-    DOGE: 74,
-    NVDA: 33738,
-    AAVE: 7278,
-    BCH: 1831,
-    WLFI: 33878,
-    JUP: 29210,
-    XPL: 33831,
-    TAO: 22974,
-    ADA: 2010,
-    CL: 33739,
-    UNI: 7083,
-    AVAX: 5805,
-    ARB: 11841,
-    WIF: 28752,
-    VIRTUAL: 29420,
-    ICP: 8916,
-    LINK: 1975,
-    KBONK: 23095,
-    '1000BONK': 23095,
-    ASTER: 33797,
-    TRUMP: 32698,
-    LDO: 8000,
-    PENGU: 33593,
-    NEAR: 6535,
-    ZK: 24091,
-    WLD: 13502,
-    PIPPIN: 34003,
-    ZZ: 33807,
-    STRK: 22691,
-    CRV: 6538,
-    MON: 33908,
-  };
-  // Extract base symbol (e.g., "BTC-USD" -> "BTC")
-  const baseSymbol = symbol.replace('-USD', '');
-  return cmcIds[baseSymbol] || 1;
-};
+import { TokenIcon, extractBaseSymbol } from '@/components/TokenIcon';
 
 // Wallets supported - using local icons
 const wallets = [
@@ -199,26 +142,15 @@ export function Web3Experience() {
             {/* Assets Grid */}
             <div className="grid grid-cols-8 sm:grid-cols-10 lg:grid-cols-12 gap-2 mb-6">
               {markets.map((market) => {
-                const baseSymbol = market.symbol.replace('-USD', '');
+                const baseSymbol = extractBaseSymbol(market.symbol);
                 return (
                   <div
                     key={market.symbol}
                     className="group relative flex flex-col items-center"
                     title={`${market.name} - ${market.maxLeverage}x`}
                   >
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-700 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg ring-2 ring-transparent group-hover:ring-primary-500/30">
-                      <img
-                        src={`https://s2.coinmarketcap.com/static/img/coins/64x64/${getCMCId(market.symbol)}.png`}
-                        alt={market.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          if (target.parentElement) {
-                            target.parentElement.innerHTML = `<span class="text-[10px] font-bold text-white">${baseSymbol.slice(0, 2)}</span>`;
-                          }
-                        }}
-                      />
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg ring-2 ring-transparent group-hover:ring-primary-500/30">
+                      <TokenIcon symbol={market.symbol} size="lg" />
                     </div>
                     <span className="mt-0.5 text-[9px] text-surface-500 group-hover:text-surface-300 transition-colors truncate max-w-full">{baseSymbol}</span>
                   </div>

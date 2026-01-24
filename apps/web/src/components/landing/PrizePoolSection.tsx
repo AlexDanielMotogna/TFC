@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePrizePool } from '@/hooks/usePrizePool';
+import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 
 // Format currency for display (always 2 decimals for small amounts)
 const formatCurrency = (amount: number): string => {
@@ -13,10 +14,10 @@ const formatCurrency = (amount: number): string => {
   return `$${amount.toFixed(2)}`;
 };
 
-// Medal emojis and colors for ranks
+// Medal colors for ranks
 const RANK_CONFIG = {
   1: {
-    medal: '🥇',
+    medalColor: '#facc15', // gold
     label: '1st Place',
     percentage: '5%',
     bgColor: 'from-amber-500/20 to-yellow-600/10',
@@ -25,7 +26,7 @@ const RANK_CONFIG = {
     glowColor: 'shadow-amber-500/20',
   },
   2: {
-    medal: '🥈',
+    medalColor: '#cbd5e1', // silver
     label: '2nd Place',
     percentage: '3%',
     bgColor: 'from-slate-400/20 to-slate-500/10',
@@ -34,7 +35,7 @@ const RANK_CONFIG = {
     glowColor: 'shadow-slate-400/20',
   },
   3: {
-    medal: '🥉',
+    medalColor: '#d97706', // bronze
     label: '3rd Place',
     percentage: '2%',
     bgColor: 'from-orange-700/20 to-amber-800/10',
@@ -190,7 +191,7 @@ function PrizeCard({ rank, prize, totalFees, featured }: PrizeCardProps) {
       {/* Rank Badge */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className={`text-${featured ? '4xl' : '3xl'}`}>{config.medal}</span>
+          <WorkspacePremiumIcon sx={{ color: config.medalColor, fontSize: featured ? 44 : 36 }} />
           <div>
             <p className={`${config.textColor} font-bold ${featured ? 'text-lg' : 'text-base'}`}>
               {config.label}

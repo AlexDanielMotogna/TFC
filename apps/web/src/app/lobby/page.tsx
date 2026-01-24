@@ -16,6 +16,11 @@ export default function LobbyPage() {
   const { connected, connecting } = useWallet();
   const { setVisible: setWalletModalVisible } = useWalletModal();
   const { isAuthenticated, isAuthenticating, user } = useAuth();
+
+  // Set page title
+  useEffect(() => {
+    document.title = 'Arena - Trading Fight Club';
+  }, []);
   const {
     fights,
     waitingFights,
@@ -265,10 +270,10 @@ export default function LobbyPage() {
         )}
 
         {/* Tabs and Filters */}
-        <div className="border-b border-surface-700 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="border-b border-surface-700 mb-6 overflow-x-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 min-w-max sm:min-w-0">
             {/* Tabs */}
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-shrink-0">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}

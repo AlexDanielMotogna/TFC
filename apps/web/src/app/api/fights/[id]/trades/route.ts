@@ -1,13 +1,15 @@
 /**
  * Fight trades endpoint
  * GET /api/fights/[id]/trades
- * Returns trades executed during the fight from Pacifica (filtered by FightTrade records)
+ * Returns trades executed during the fight from fight_trades table (Rule 35 compliant)
+ *
+ * IMPORTANT: We use fight_trades data directly, NOT Pacifica data, because:
+ * - fight_trades contains the FIGHT-RELEVANT amounts (capped by Rule 35)
+ * - Pacifica contains the FULL trade amounts (including external/pre-fight portions)
  */
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
-
-const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
 export async function GET(
   request: Request,
@@ -41,7 +43,8 @@ export async function GET(
       // For live fights, only show the current user's trades
       const isCompleted = participant.fight.status === 'FINISHED' || participant.fight.status === 'CANCELLED';
 
-      // Get fight trade history_ids from database (include participantUserId for display)
+      // Get fight trades directly from fight_trades table
+      // This contains the CORRECT fight-relevant amounts (Rule 35 compliant)
       const fightTrades = await prisma.fightTrade.findMany({
         where: {
           fightId,
@@ -49,8 +52,21 @@ export async function GET(
           ...(isCompleted ? {} : { participantUserId: user.userId }),
         },
         select: {
+          id: true,
           pacificaHistoryId: true,
+          pacificaOrderId: true,
           participantUserId: true,
+          symbol: true,
+          side: true,
+          amount: true,
+          price: true,
+          fee: true,
+          pnl: true,
+          leverage: true,
+          executedAt: true,
+        },
+        orderBy: {
+          executedAt: 'asc',
         },
       });
 
@@ -59,109 +75,32 @@ export async function GET(
         return Response.json({ success: true, data: [] });
       }
 
-      // Build map of history IDs -> participantUserId for matching and lookup
-      const fightHistoryMap = new Map<string, string>();
-      for (const t of fightTrades) {
-        fightHistoryMap.set(t.pacificaHistoryId.toString(), t.participantUserId);
-      }
-
-      // Get unique participant user IDs from the fight trades
-      const participantUserIds = [...new Set(fightTrades.map(t => t.participantUserId))];
-
-      // Get Pacifica connections for all participants whose trades we need
-      const pacificaConnections = await prisma.pacificaConnection.findMany({
-        where: {
-          userId: { in: participantUserIds },
-        },
-        select: {
-          userId: true,
-          accountAddress: true,
-        },
-      });
-
-      if (pacificaConnections.length === 0) {
-        return Response.json({ success: true, data: [] });
-      }
-
-      // Fetch trade history from Pacifica for each participant's account
-      const allPacificaTrades: any[] = [];
-      for (const connection of pacificaConnections) {
-        if (!connection.accountAddress) continue;
-
-        try {
-          const url = `${PACIFICA_API_URL}/api/v1/trades/history?account=${connection.accountAddress}&limit=200`;
-          const response = await fetch(url);
-          if (response.ok) {
-            const pacificaResponse = await response.json();
-            const trades = pacificaResponse.data || [];
-            allPacificaTrades.push(...trades);
-          }
-        } catch (err) {
-          console.error(`[FightTrades] Error fetching from Pacifica for user ${connection.userId}:`, err);
-        }
-      }
-
-      // Filter to only fight trades by history_id
-      const matchedTrades = allPacificaTrades.filter((pt: any) =>
-        fightHistoryMap.has(pt.history_id?.toString())
-      );
-
-      // Format trades for the fight results page
-      // Need to include participantUserId and executedAt for the UI
-      const formattedTrades = matchedTrades.map((trade: any) => {
-        const historyId = trade.history_id?.toString() || '';
-        const participantUserId = fightHistoryMap.get(historyId) || '';
-
-        // Convert Pacifica's created_at (ms timestamp) to ISO string for executedAt
-        const executedAt = trade.created_at
-          ? new Date(trade.created_at).toISOString()
-          : new Date().toISOString();
-
-        // Calculate notional value
-        const amount = parseFloat(trade.amount || '0');
-        const price = parseFloat(trade.price || '0');
+      // Format trades for the UI
+      const formattedTrades = fightTrades.map((trade) => {
+        const amount = parseFloat(trade.amount.toString());
+        const price = parseFloat(trade.price.toString());
         const notional = (amount * price).toFixed(2);
-
-        // Normalize side from Pacifica format (open_long, close_short) to BUY/SELL
-        let normalizedSide = trade.side;
-        if (trade.side === 'open_long' || trade.side === 'close_short') {
-          normalizedSide = 'BUY';
-        } else if (trade.side === 'open_short' || trade.side === 'close_long') {
-          normalizedSide = 'SELL';
-        }
 
         return {
           // UI expected fields
-          id: historyId,
-          participantUserId,
-          executedAt,
+          id: trade.pacificaHistoryId.toString(),
+          participantUserId: trade.participantUserId,
+          executedAt: trade.executedAt.toISOString(),
           notional,
-          side: normalizedSide,
-          // Pacifica fields
-          history_id: trade.history_id,
-          order_id: trade.order_id,
-          client_order_id: trade.client_order_id,
+          side: trade.side, // Already BUY/SELL in fight_trades
+          // Trade details
+          history_id: trade.pacificaHistoryId.toString(),
+          order_id: trade.pacificaOrderId?.toString() || null,
           symbol: trade.symbol,
-          amount: trade.amount,
-          price: trade.price,
-          entry_price: trade.entry_price,
-          fee: trade.fee,
-          pnl: trade.pnl,
-          event_type: trade.event_type,
-          cause: trade.cause,
-          created_at: trade.created_at,
-          leverage: null, // Pacifica doesn't return leverage per trade
+          amount: trade.amount.toString(),
+          price: trade.price.toString(),
+          fee: trade.fee?.toString() || '0',
+          pnl: trade.pnl?.toString() || null,
+          leverage: trade.leverage,
           // Fight metadata
           isFightTrade: true,
           fightId,
         };
-      });
-
-      // Sort by execution time (oldest first for chronological order)
-      formattedTrades.sort((a, b) => {
-        const timeA = new Date(a.executedAt).getTime();
-        const timeB = new Date(b.executedAt).getTime();
-        return timeA - timeB;
       });
 
       return Response.json({

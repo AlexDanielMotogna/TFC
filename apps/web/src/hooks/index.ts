@@ -24,3 +24,5 @@ export { usePacificaWebSocket, usePacificaWsStore } from './usePacificaWebSocket
 export type { Position as PacificaPosition, Order as PacificaOrder, Trade as PacificaTrade } from './usePacificaWebSocket';
 export { useNotifications, useUnreadNotificationCount, useMarkNotificationAsRead, useMarkAllNotificationsAsRead } from './useNotifications';
 export type { Notification } from './useNotifications';
+export { useMyPrizes } from './useMyPrizes';
+export type { UserPrize } from './useMyPrizes';

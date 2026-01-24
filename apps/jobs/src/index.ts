@@ -6,6 +6,7 @@ import { refreshLeaderboards } from './jobs/leaderboard-refresh.js';
 import { cleanupStaleFights } from './jobs/cleanup-stale-fights.js';
 import { reconcileFights } from './jobs/reconcile-fights.js';
 import { finalizePrizePool, updateCurrentPrizePool } from './jobs/prize-pool-finalize.js';
+import { autoWithdrawTreasury } from './jobs/treasury-auto-withdraw.js';
 
 const logger = createLogger({ service: 'job' });
 
@@ -99,6 +100,22 @@ async function main() {
       logger.error(
         LOG_EVENTS.PRIZE_POOL_FINALIZE_FAILURE,
         'Prize pool update failed',
+        error as Error
+      );
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Treasury auto-withdraw - every 15 minutes
+  // Ensures treasury wallet has funds for prize claims
+  // ─────────────────────────────────────────────────────────────
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      await autoWithdrawTreasury();
+    } catch (error) {
+      logger.error(
+        LOG_EVENTS.TREASURY_WITHDRAW_FAILURE,
+        'Treasury auto-withdraw failed',
         error as Error
       );
     }

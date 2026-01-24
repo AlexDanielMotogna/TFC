@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
@@ -32,6 +33,11 @@ const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
 export default function TradePage() {
   const { connected } = useWallet();
   const { isAuthenticated, pacificaConnected } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Get initial symbol from URL (e.g., /trade?symbol=ETH-USD)
+  const urlSymbol = searchParams.get('symbol');
   const {
     account,
     positions: apiPositions,
@@ -51,8 +57,13 @@ export default function TradePage() {
   // Account settings (for leverage per symbol)
   const { data: accountSettings } = useAccountSettings();
 
-  // History hooks
-  const { data: tradeHistory = [] } = useTradeHistory();
+  // History hooks (with pagination)
+  const {
+    data: tradeHistory = [],
+    hasNextPage: hasMoreTrades,
+    fetchNextPage: fetchMoreTrades,
+    isFetchingNextPage: isLoadingMoreTrades,
+  } = useTradeHistory();
   const { data: orderHistoryData = [] } = useOrderHistory();
 
   // Builder code approval (required for trading)
@@ -76,8 +87,22 @@ export default function TradePage() {
   // Pacifica WebSocket connection status (for real-time updates)
   const pacificaWsConnected = usePacificaWsStore((state) => state.isConnected);
 
-  // Trading terminal state
-  const [selectedMarket, setSelectedMarket] = useState('BTC-USD');
+  // Trading terminal state - initialize from URL if present
+  const [selectedMarket, setSelectedMarket] = useState(() => urlSymbol || 'BTC-USD');
+
+  // Update URL when market changes (shallow navigation)
+  const handleMarketChange = useCallback((symbol: string) => {
+    setSelectedMarket(symbol);
+    // Extract just the base asset (BTC from BTC-USD)
+    const asset = symbol.split('-')[0];
+    router.replace(`/trade?symbol=${symbol}`, { scroll: false });
+  }, [router]);
+
+  // Set page title with current asset
+  useEffect(() => {
+    const asset = selectedMarket.split('-')[0];
+    document.title = `${asset} - Trade - Trading Fight Club`;
+  }, [selectedMarket]);
   const [selectedInterval, setSelectedInterval] = useState<'1m' | '5m' | '15m' | '1h' | '4h' | '1d'>('5m');
   const [selectedSide, setSelectedSide] = useState<'LONG' | 'SHORT'>('LONG');
   const [orderSize, setOrderSize] = useState('');
@@ -694,7 +719,7 @@ export default function TradePage() {
                     <MarketSelector
                       markets={markets.length > 0 ? markets : [DEFAULT_MARKET]}
                       selectedMarket={selectedMarket}
-                      onSelectMarket={setSelectedMarket}
+                      onSelectMarket={handleMarketChange}
                       getPrice={getPrice}
                     />
 
@@ -775,12 +800,12 @@ export default function TradePage() {
 
             {/* Positions Panel - fixed height with internal scroll */}
             <div className="card h-[320px] flex flex-col overflow-hidden">
-              {/* Tab navigation - fixed */}
-              <div className="flex items-center justify-between px-4 border-b border-surface-700 flex-shrink-0">
-                <div className="flex items-center gap-6">
+              {/* Tab navigation - fixed, scrollable on mobile */}
+              <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto">
+                <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
                   <button
                     onClick={() => setBottomTab('positions')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'positions'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'positions'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
@@ -789,36 +814,40 @@ export default function TradePage() {
                   </button>
                   <button
                     onClick={() => setBottomTab('orders')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'orders'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'orders'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
-                    Open Orders {activeOpenOrders.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activeOpenOrders.length}</span>}
+                    <span className="sm:hidden">Orders</span>
+                    <span className="hidden sm:inline">Open Orders</span>
+                    {activeOpenOrders.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activeOpenOrders.length}</span>}
                   </button>
                   <button
                     onClick={() => setBottomTab('trades')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'trades'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'trades'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
-                    Trade History
+                    <span className="sm:hidden">Trades</span>
+                    <span className="hidden sm:inline">Trade History</span>
                   </button>
                   <button
                     onClick={() => setBottomTab('history')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors ${bottomTab === 'history'
+                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'history'
                       ? 'text-primary-400 border-primary-400'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
-                    Order History
+                    <span className="sm:hidden">History</span>
+                    <span className="hidden sm:inline">Order History</span>
                   </button>
                 </div>
 
                 {/* Fight filter toggle - only show when in active fight */}
                 {fightId && (
-                  <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-1">
+                  <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-1 mx-4 flex-shrink-0">
                     <button
                       onClick={() => setShowFightOnly(false)}
                       className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${!showFightOnly
@@ -856,7 +885,7 @@ export default function TradePage() {
                 {bottomTab === 'orders' && (
                   activeOpenOrders.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs min-w-[900px]">
                         <thead>
                           <tr className="text-xs text-surface-400 tracking-wider">
                             <th
@@ -1040,7 +1069,7 @@ export default function TradePage() {
                 {bottomTab === 'trades' && (
                   activeTrades.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-xs">
+                      <table className="w-full text-xs min-w-[800px]">
                         <thead>
                           <tr className="text-xs text-surface-400 tracking-wider">
                             <th
@@ -1115,7 +1144,7 @@ export default function TradePage() {
                               return tradesSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
                             }
                             return tradesSort.desc ? valB - valA : valA - valB;
-                          }).slice(0, 10).map((trade: any, index: number) => {
+                          }).map((trade: any, index: number) => {
                             const price = parseFloat(trade.price) || 0;
                             const amount = parseFloat(trade.amount) || 0;
                             const realizedPnl = parseFloat(trade.pnl) || 0;
@@ -1165,6 +1194,18 @@ export default function TradePage() {
                           })}
                         </tbody>
                       </table>
+                      {/* Load More Button - only show for regular trade history (not fight-only) */}
+                      {!showFightOnly && hasMoreTrades && (
+                        <div className="p-3 border-t border-surface-700 text-center">
+                          <button
+                            onClick={() => fetchMoreTrades()}
+                            disabled={isLoadingMoreTrades}
+                            className="text-xs text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50"
+                          >
+                            {isLoadingMoreTrades ? 'Loading...' : 'Load More'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-4 text-surface-500 text-xs">
@@ -1174,7 +1215,8 @@ export default function TradePage() {
                 )}
                 {bottomTab === 'history' && (
                   activeOrderHistory.length > 0 ? (
-                    <table className="w-full text-xs">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-xs min-w-[900px]">
                       <thead>
                         <tr className="text-surface-400 text-xs">
                           <th
@@ -1359,6 +1401,7 @@ export default function TradePage() {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   ) : (
                     <div className="text-center py-4 text-surface-500 text-xs">
                       {showFightOnly && fightId ? 'No order history during this fight' : 'No order history'}

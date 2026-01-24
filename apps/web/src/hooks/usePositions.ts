@@ -3,7 +3,7 @@
  * Now with WebSocket support for real-time updates
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
 import * as PacificaAPI from '@/lib/pacifica/api-client';
 import { usePacificaWsStore } from './usePacificaWebSocket';
@@ -227,8 +227,8 @@ export function useMarket(symbol: string) {
 }
 
 /**
- * Hook to fetch trade history (filled orders)
- * Uses WebSocket for real-time updates with HTTP polling as fallback
+ * Hook to fetch trade history (filled orders) with infinite scroll pagination
+ * Uses cursor-based pagination from Pacifica API
  * Endpoint: GET /api/v1/trades/history
  */
 export function useTradeHistory(symbol?: string) {
@@ -236,9 +236,9 @@ export function useTradeHistory(symbol?: string) {
   const wsConnected = usePacificaWsStore((state) => state.isConnected);
   const wsTrades = usePacificaWsStore((state) => state.trades);
 
-  const query = useQuery({
+  const infiniteQuery = useInfiniteQuery({
     queryKey: ['trade-history', publicKey?.toBase58(), symbol],
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       if (!publicKey) {
         throw new Error('Wallet not connected');
       }
@@ -247,33 +247,37 @@ export function useTradeHistory(symbol?: string) {
       const response = await PacificaAPI.getTradeHistory(account, {
         symbol,
         limit: 50,
+        cursor: pageParam,
       });
 
       console.log('useTradeHistory: Raw Pacifica response:', response);
 
-      // Pacifica returns { success, data: [...trades] }
-      const trades = Array.isArray(response.data) ? response.data : [];
-      return trades;
+      return {
+        trades: Array.isArray(response.data) ? response.data : [],
+        nextCursor: response.next_cursor,
+        hasMore: response.has_more ?? false,
+      };
     },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     enabled: connected && !!publicKey,
-    // Use longer polling interval when WebSocket is connected
     refetchInterval: wsConnected ? 30000 : 10000,
     staleTime: wsConnected ? 25000 : 5000,
   });
 
+  // Flatten all pages into a single array
+  const allTrades = infiniteQuery.data?.pages.flatMap(page => page.trades) || [];
+
   // If WebSocket is connected and has trades, merge with HTTP data
   if (wsConnected && wsTrades.length > 0) {
-    // Filter by symbol if provided
     const filteredTrades = symbol
       ? wsTrades.filter(t => t.symbol === symbol)
       : wsTrades;
 
-    // Merge WS trades with HTTP trades, preferring newer data
-    const httpTrades = query.data || [];
     const tradeMap = new Map<number, any>();
 
     // Add HTTP trades first
-    httpTrades.forEach((t: any) => tradeMap.set(t.history_id, t));
+    allTrades.forEach((t: any) => tradeMap.set(t.history_id, t));
 
     // Add/override with WS trades (more recent)
     filteredTrades.forEach(t => tradeMap.set(t.history_id, {
@@ -292,17 +296,28 @@ export function useTradeHistory(symbol?: string) {
 
     // Sort by timestamp descending
     const mergedTrades = Array.from(tradeMap.values())
-      .sort((a, b) => b.created_at - a.created_at)
-      .slice(0, 50);
+      .sort((a, b) => b.created_at - a.created_at);
 
     return {
-      ...query,
       data: mergedTrades,
       isLoading: false,
+      isFetching: infiniteQuery.isFetching,
+      isFetchingNextPage: infiniteQuery.isFetchingNextPage,
+      hasNextPage: infiniteQuery.hasNextPage,
+      fetchNextPage: infiniteQuery.fetchNextPage,
+      refetch: infiniteQuery.refetch,
     };
   }
 
-  return query;
+  return {
+    data: allTrades,
+    isLoading: infiniteQuery.isLoading,
+    isFetching: infiniteQuery.isFetching,
+    isFetchingNextPage: infiniteQuery.isFetchingNextPage,
+    hasNextPage: infiniteQuery.hasNextPage,
+    fetchNextPage: infiniteQuery.fetchNextPage,
+    refetch: infiniteQuery.refetch,
+  };
 }
 
 /**

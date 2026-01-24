@@ -3,62 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
-
-// CoinMarketCap ID mapping for crypto icons
-const getCMCId = (symbol: string): number => {
-  const cmcIds: Record<string, number> = {
-    BTC: 1,
-    ETH: 1027,
-    SOL: 5426,
-    BNB: 1839,
-    HYPE: 32196,
-    XMR: 328,
-    ZEC: 1437,
-    XRP: 52,
-    ENA: 30171,
-    SUI: 20947,
-    PUMP: 29587,
-    LTC: 2,
-    PAXG: 4705,
-    KPEPE: 24478,
-    LIT: 5765,
-    FARTCOIN: 33600,
-    XAG: 33836,
-    DOGE: 74,
-    NVDA: 33738,
-    AAVE: 7278,
-    BCH: 1831,
-    WLFI: 33878,
-    JUP: 29210,
-    XPL: 33831,
-    TAO: 22974,
-    ADA: 2010,
-    CL: 33739,
-    UNI: 7083,
-    AVAX: 5805,
-    ARB: 11841,
-    WIF: 28752,
-    VIRTUAL: 29420,
-    ICP: 8916,
-    LINK: 1975,
-    KBONK: 23095,
-    ASTER: 33797,
-    TRUMP: 32698,
-    LDO: 8000,
-    PENGU: 33593,
-    NEAR: 6535,
-    ZK: 24091,
-    WLD: 13502,
-    PIPPIN: 34003,
-    ZZ: 33807,
-    STRK: 22691,
-    CRV: 6538,
-    MON: 33908,
-  };
-  // Extract base symbol (e.g., "BTC-USD" -> "BTC")
-  const baseSymbol = symbol.replace('-USD', '');
-  return cmcIds[baseSymbol] || 1;
-};
+import { TokenIcon, extractBaseSymbol } from './TokenIcon';
 
 interface Market {
   symbol: string;
@@ -91,7 +36,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, isMobile: false });
   const [mounted, setMounted] = useState(false);
 
   // For portal rendering
@@ -103,10 +48,24 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
   useEffect(() => {
     if (isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX,
-      });
+      const isMobile = window.innerWidth < 1024;
+
+      if (isMobile) {
+        // On mobile/tablet - full width centered with padding
+        // Use fixed position relative to viewport (no scrollY needed)
+        setDropdownPosition({
+          top: rect.bottom + 8,
+          left: 16,
+          isMobile: true,
+        });
+      } else {
+        // On desktop - position below the button
+        setDropdownPosition({
+          top: rect.bottom + 8,
+          left: Math.max(16, rect.left),
+          isMobile: false,
+        });
+      }
     }
   }, [isOpen]);
 
@@ -172,43 +131,66 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
     }
   };
 
-  const baseSymbol = selectedMarket.replace('-USD', '');
+  const baseSymbol = extractBaseSymbol(selectedMarket);
 
   // Dropdown content to be rendered in portal
   const dropdownContent = isOpen && mounted ? createPortal(
-    <div
-      ref={dropdownRef}
-      className="fixed w-[900px] max-h-[500px] bg-surface-900 border border-surface-700 rounded-xl shadow-2xl z-[9999] overflow-hidden"
-      style={{
-        top: dropdownPosition.top,
-        left: dropdownPosition.left,
-      }}
-    >
-      {/* Search */}
-      <div className="p-3 border-b border-surface-700">
-        <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            ref={searchInputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search markets..."
-            className="w-full pl-10 pr-4 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-white placeholder-surface-500 focus:outline-none focus:border-primary-500"
-          />
+    <>
+      {/* Backdrop for mobile/tablet */}
+      {dropdownPosition.isMobile && (
+        <div
+          className="fixed inset-0 bg-black/60 z-[9998]"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+      <div
+        ref={dropdownRef}
+        className={`fixed bg-surface-900 border border-surface-700 rounded-xl shadow-2xl z-[9999] overflow-hidden flex flex-col ${
+          dropdownPosition.isMobile ? 'inset-4 top-16' : ''
+        }`}
+        style={dropdownPosition.isMobile ? { maxHeight: 'calc(100vh - 80px)' } : {
+          top: dropdownPosition.top,
+          left: dropdownPosition.left,
+          width: '900px',
+          maxWidth: 'calc(100vw - 32px)',
+          maxHeight: '70vh',
+        }}
+      >
+        {/* Header with close button on mobile */}
+        <div className="p-3 border-b border-surface-700 flex items-center gap-3">
+          <div className="relative flex-1">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search markets..."
+              className="w-full pl-10 pr-4 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-white placeholder-surface-500 focus:outline-none focus:border-primary-500"
+            />
+          </div>
+          {dropdownPosition.isMobile && (
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-2 hover:bg-surface-700 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
-      </div>
 
-      {/* Table */}
-      <div className="overflow-y-auto max-h-[420px]">
-        <table className="w-full">
+        {/* Table */}
+        <div className="overflow-auto flex-1">
+        <table className="w-full min-w-[500px]">
           <thead className="sticky top-0 bg-surface-900 z-10">
             <tr className="border-b border-surface-700">
               <th
@@ -240,7 +222,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
                 Next Funding
               </th>
               <th
-                className="text-right text-xs font-medium text-surface-400 py-2 px-3 cursor-pointer hover:text-white"
+                className="hidden sm:table-cell text-right text-xs font-medium text-surface-400 py-2 px-3 cursor-pointer hover:text-white"
                 onClick={() => handleSort('volume')}
               >
                 <div className="flex items-center justify-end gap-1">
@@ -250,7 +232,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
                   )}
                 </div>
               </th>
-              <th className="text-right text-xs font-medium text-surface-400 py-2 px-3">
+              <th className="hidden md:table-cell text-right text-xs font-medium text-surface-400 py-2 px-3">
                 Open Interest
               </th>
             </tr>
@@ -264,7 +246,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
               const openInterest = priceData?.openInterest || 0;
               const nextFunding = priceData?.nextFunding || 0;
               const isSelected = market.symbol === selectedMarket;
-              const marketBaseSymbol = market.symbol.replace('-USD', '');
+              const marketBaseSymbol = extractBaseSymbol(market.symbol);
 
               return (
                 <tr
@@ -282,21 +264,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
                 >
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
-                      <img
-                        src={`https://s2.coinmarketcap.com/static/img/coins/64x64/${getCMCId(market.symbol)}.png`}
-                        alt={marketBaseSymbol}
-                        className="w-6 h-6 rounded-full"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          if (target.parentElement) {
-                            const fallback = document.createElement('div');
-                            fallback.className = 'w-6 h-6 rounded-full bg-surface-700 flex items-center justify-center text-[10px] font-bold text-white';
-                            fallback.textContent = marketBaseSymbol.slice(0, 2);
-                            target.parentElement.replaceChild(fallback, target);
-                          }
-                        }}
-                      />
+                      <TokenIcon symbol={market.symbol} size="md" />
                       <span className="text-sm font-medium text-white">{marketBaseSymbol}</span>
                       <span className="px-1.5 py-0.5 text-[10px] font-medium bg-surface-700 text-surface-300 rounded">
                         {market.maxLeverage}x
@@ -318,12 +286,12 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
                       {nextFunding !== 0 ? formatFundingRate(nextFunding) : '-'}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-right">
+                  <td className="hidden sm:table-cell py-2 px-3 text-right">
                     <span className="text-sm text-surface-300 font-mono">
                       {volume24h > 0 ? formatUSD(volume24h) : '-'}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-right">
+                  <td className="hidden md:table-cell py-2 px-3 text-right">
                     <span className="text-sm text-surface-300 font-mono">
                       {openInterest > 0 ? formatUSD(openInterest) : '-'}
                     </span>
@@ -340,7 +308,8 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
           </div>
         )}
       </div>
-    </div>,
+    </div>
+    </>,
     document.body
   ) : null;
 
@@ -352,15 +321,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-700 rounded-lg transition-colors"
       >
-        <img
-          src={`https://s2.coinmarketcap.com/static/img/coins/64x64/${getCMCId(selectedMarket)}.png`}
-          alt={baseSymbol}
-          className="w-5 h-5 rounded-full"
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            target.style.display = 'none';
-          }}
-        />
+        <TokenIcon symbol={selectedMarket} size="sm" />
         <span className="font-display font-semibold text-white">{selectedMarket}</span>
         <svg
           className={`w-4 h-4 text-surface-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}

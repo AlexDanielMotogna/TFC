@@ -10,7 +10,7 @@ export function Header() {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <Link href="/">
           <Image
-            src="/images/landing/TFC-Logo.png"
+            src="/images/logos/favicon-white-192.png"
             alt="Trade Fight Club"
             width={48}
             height={48}

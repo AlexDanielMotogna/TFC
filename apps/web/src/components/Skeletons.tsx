@@ -194,47 +194,88 @@ export function LeaderboardSkeleton() {
 // Profile Page Skeleton
 export function ProfileSkeleton() {
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Profile Header */}
-      <SkeletonCard className="flex flex-col md:flex-row items-center gap-6 p-8">
-        <SkeletonAvatar size="w-24 h-24" />
-        <div className="space-y-3 text-center md:text-left">
-          <SkeletonText width="w-32" height="h-8" />
-          <SkeletonText width="w-48" height="h-4" />
+      <SkeletonCard className="flex flex-col md:flex-row items-center md:items-start gap-4 p-6">
+        {/* Avatar with rank badge */}
+        <div className="relative">
+          <SkeletonAvatar size="w-20 h-20" />
+          <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-surface-700" />
         </div>
-        <div className="ml-auto hidden md:block">
-          <SkeletonButton width="w-32" />
+        {/* Info */}
+        <div className="flex-1 space-y-2 text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start gap-2">
+            <SkeletonText width="w-32" height="h-6" />
+            <Skeleton className="w-6 h-6 rounded-lg" />
+          </div>
+          <SkeletonText width="w-40" height="h-3" />
+          <div className="flex gap-2 justify-center md:justify-start">
+            <Skeleton className="w-16 h-5 rounded-full" />
+            <Skeleton className="w-14 h-5 rounded-full" />
+          </div>
+        </div>
+        {/* Quick Stats */}
+        <div className="text-center">
+          <SkeletonText width="w-20" height="h-7" className="mx-auto mb-1" />
+          <SkeletonText width="w-14" height="h-3" className="mx-auto" />
         </div>
       </SkeletonCard>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <SkeletonCard key={i} className="text-center py-6">
-            <SkeletonText width="w-16" height="h-8" className="mx-auto mb-2" />
-            <SkeletonText width="w-20" height="h-4" className="mx-auto" />
+      {/* Stats Grid with icons */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkeletonCard key={i} className="text-center p-4">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <Skeleton className="w-5 h-5 rounded" />
+              <SkeletonText width="w-10" height="h-7" />
+            </div>
+            <SkeletonText width="w-16" height="h-3" className="mx-auto" />
           </SkeletonCard>
         ))}
       </div>
 
+      {/* Performance Chart */}
+      <SkeletonCard className="p-4">
+        <SkeletonText width="w-32" height="h-4" className="mb-4" />
+        {/* Chart Tabs */}
+        <div className="flex gap-2 mb-4">
+          <Skeleton className="w-28 h-8 rounded-lg" />
+          <Skeleton className="w-24 h-8 rounded-lg" />
+          <Skeleton className="w-28 h-8 rounded-lg" />
+        </div>
+        {/* Chart Area */}
+        <Skeleton className="w-full h-48 rounded-lg" />
+      </SkeletonCard>
+
       {/* Fight History */}
       <SkeletonCard className="p-0 overflow-hidden">
         <div className="p-4 border-b border-surface-700">
-          <SkeletonText width="w-32" height="h-6" />
+          <SkeletonText width="w-24" height="h-4" />
         </div>
-        <div className="divide-y divide-surface-700/50">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <SkeletonAvatar />
-                <div className="space-y-2">
-                  <SkeletonText width="w-24" />
-                  <SkeletonText width="w-16" height="h-3" />
-                </div>
-              </div>
-              <SkeletonText width="w-16" height="h-6" />
-            </div>
-          ))}
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-surface-700">
+                {['Date', 'Duration', 'Stake', 'Opponent', 'Result', 'PnL'].map((h) => (
+                  <th key={h} className="py-3 px-4 text-left text-xs text-surface-400">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-b border-surface-700/50">
+                  <td className="py-4 px-4"><SkeletonText width="w-24" /></td>
+                  <td className="py-4 px-4"><SkeletonText width="w-12" /></td>
+                  <td className="py-4 px-4"><SkeletonText width="w-16" /></td>
+                  <td className="py-4 px-4"><SkeletonText width="w-20" /></td>
+                  <td className="py-4 px-4"><Skeleton className="w-14 h-6 rounded" /></td>
+                  <td className="py-4 px-4"><SkeletonText width="w-16" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </SkeletonCard>
     </div>

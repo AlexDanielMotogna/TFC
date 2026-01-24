@@ -238,27 +238,7 @@ function EnergyBeam() {
   );
 }
 
-// CoinMarketCap ID mapping for real crypto icons
-const cmcIds: Record<string, number> = {
-  BTC: 1,
-  ETH: 1027,
-  SOL: 5426,
-  DOGE: 74,
-  HYPE: 32196,
-  XRP: 52,
-  SUI: 20947,
-  AVAX: 5805,
-  LINK: 1975,
-  ARB: 11841,
-  WIF: 28752,
-  PEPE: 24478,
-  TRUMP: 32698,
-  PENGU: 33593,
-};
-
-// Get CoinMarketCap icon URL
-const getAssetIcon = (symbol: string) =>
-  `https://s2.coinmarketcap.com/static/img/coins/64x64/${cmcIds[symbol] || 1}.png`;
+import { TokenIcon } from '@/components/TokenIcon';
 
 // Available assets for trading stats - popular ones from Pacifica
 const tradingAssets = [
@@ -334,12 +314,8 @@ function FloatingStats() {
               {stat.side === 'LONG' ? '▲' : '▼'}
             </span>
 
-            {/* Real asset icon from CoinMarketCap */}
-            <img
-              src={getAssetIcon(stat.asset)}
-              alt={stat.asset}
-              className="w-4 h-4 rounded-full"
-            />
+            {/* Real asset icon */}
+            <TokenIcon symbol={stat.asset} size="xs" />
 
             {/* Asset name */}
             <span className="text-xs font-semibold text-white">

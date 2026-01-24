@@ -1,23 +1,20 @@
 'use client';
 
-import Image from 'next/image';
 import { usePrices } from '@/hooks/usePrices';
 import { MiniChart } from './shared/MiniChart';
+import { TokenIcon } from '@/components/TokenIcon';
 
-// Token data with CoinGecko icons
-const TOKEN_DATA: Record<string, { icon: string; name: string; fullName: string }> = {
+// Token data for display names
+const TOKEN_DATA: Record<string, { name: string; fullName: string }> = {
   'BTC-USD': {
-    icon: 'https://assets.coingecko.com/coins/images/1/standard/bitcoin.png',
     name: 'Bitcoin',
     fullName: 'Bitcoin / U.S. Dollar',
   },
   'ETH-USD': {
-    icon: 'https://assets.coingecko.com/coins/images/279/standard/ethereum.png',
     name: 'Ethereum',
     fullName: 'Ethereum / U.S. Dollar',
   },
   'SOL-USD': {
-    icon: 'https://assets.coingecko.com/coins/images/4128/standard/solana.png',
     name: 'Solana',
     fullName: 'Solana / U.S. Dollar',
   },
@@ -76,15 +73,7 @@ export function CryptoTickers() {
                 {/* Header - Token info */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-surface-800">
-                      <Image
-                        src={tokenInfo?.icon || ''}
-                        alt={tokenInfo?.name || ''}
-                        width={32}
-                        height={32}
-                        className="w-8 h-8"
-                      />
-                    </div>
+                    <TokenIcon symbol={symbol} size="lg" />
                     <span className="font-medium text-white">{tokenInfo?.fullName}</span>
                   </div>
                   <span className={`w-2.5 h-2.5 rounded-full ${isPositive ? 'bg-green-500' : 'bg-red-500'}`} />

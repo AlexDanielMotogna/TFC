@@ -257,3 +257,15 @@ export function signUpdateLeverage(
     leverage: params.leverage,
   });
 }
+
+/**
+ * Sign a withdraw request
+ */
+export function signWithdraw(
+  keypair: nacl.SignKeyPair,
+  amount: string
+): Record<string, unknown> {
+  return signRequest(keypair, 'withdraw', {
+    amount,
+  });
+}

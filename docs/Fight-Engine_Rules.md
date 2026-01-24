@@ -168,3 +168,10 @@
     * Se registra en la DB,
     * Cumple las reglas temporales,
       **afecta el resultado del fight**.
+35. Si un asset se compra en pacifica pero se vende en TFC en un fight no deberia pasar nada como si la transaccion no existiera
+     
+    * Usuario compra pre-fight o in fight assets en Pacifica pero los vende en TFC en el fight
+    * Esto no deberia contar como Fight Capital Limit ni afectar al PNL
+    
+
+36. Si un jugador deberia poder cerrar solo las posiciones de los assets que estan en el fight only desde fight only view! Aun asi si tiene el mismo asset pre comprado el system debe saber lo que el usuario compro en el fight y mostrar esos detalles en las tablas de posiciones, open order, trade history y open orders...
