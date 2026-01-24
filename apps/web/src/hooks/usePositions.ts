@@ -248,7 +248,7 @@ export function useTradeHistory(symbol?: string) {
         symbol,
         limit: 50,
         cursor: pageParam,
-      });
+      }) as { data: unknown; next_cursor?: string; has_more?: boolean };
 
       console.log('useTradeHistory: Raw Pacifica response:', response);
 

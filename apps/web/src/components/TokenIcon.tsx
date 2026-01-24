@@ -151,11 +151,11 @@ const DIRECT_ICONS: Record<string, string> = {
 export const extractBaseSymbol = (symbol: string): string => {
   // Handle Pacifica format: "BTC-USD"
   if (symbol.includes('-')) {
-    return symbol.split('-')[0];
+    return symbol.split('-')[0] ?? symbol;
   }
   // Handle forex format: "USD/JPY"
   if (symbol.includes('/')) {
-    return symbol.split('/')[0];
+    return symbol.split('/')[0] ?? symbol;
   }
   return symbol;
 };

@@ -51,7 +51,7 @@ export async function autoWithdrawTreasury(): Promise<void> {
       },
     });
 
-    const result: TreasuryResponse = await response.json();
+    const result = await response.json() as TreasuryResponse;
 
     if (result.success) {
       if (result.data?.withdrawnAmount) {
@@ -97,7 +97,7 @@ export async function getTreasuryStatus(): Promise<TreasuryResponse | null> {
       },
     });
 
-    return await response.json();
+    return await response.json() as TreasuryResponse;
   } catch (error) {
     logger.error(LOG_EVENTS.TREASURY_STATUS_FAILURE, 'Failed to get treasury status', error as Error);
     return null;

@@ -49,17 +49,17 @@ async function testTreasuryStatus(): Promise<TreasuryStatus | null> {
       },
     });
 
-    const result = await response.json();
+    const result = await response.json() as TreasuryStatus;
 
     if (result.success) {
-      const b = result.data.balances;
+      const b = result.data?.balances;
       console.log('   ✅ Treasury status retrieved');
-      console.log(`      Treasury: ${result.data.treasuryAddress}`);
+      console.log(`      Treasury: ${result.data?.treasuryAddress}`);
       console.log(`      On-chain USDC: $${b?.onChainUsdc?.toFixed(4) || 0}`);
       console.log(`      Pacifica USDC: $${b?.pacificaBalance?.toFixed(4) || 0}`);
       console.log(`      SOL balance: ${b?.solBalance?.toFixed(6) || 0} SOL`);
       console.log(`      Available for claims: $${b?.availableForClaims?.toFixed(4) || 0}`);
-      console.log(`      Needs withdrawal: ${result.data.needsWithdrawal ? 'Yes' : 'No'}`);
+      console.log(`      Needs withdrawal: ${result.data?.needsWithdrawal ? 'Yes' : 'No'}`);
       return result;
     } else {
       console.log(`   ❌ Failed: ${result.error}`);
@@ -96,7 +96,7 @@ async function testWithdrawForPrizes(amount: number, dryRun: boolean = true): Pr
       body: JSON.stringify({ amount }),
     });
 
-    const result = await response.json();
+    const result = await response.json() as { success: boolean; error?: string; data?: { withdrawnAmount?: number; previousOnChain?: number } };
 
     if (result.success) {
       console.log('   ✅ Withdrawal successful');

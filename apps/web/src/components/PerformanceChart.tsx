@@ -1,19 +1,34 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, ComponentType } from 'react';
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
+  LineChart as RLineChart,
+  Line as RLine,
+  BarChart as RBarChart,
+  Bar as RBar,
+  Cell as RCell,
+  XAxis as RXAxis,
+  YAxis as RYAxis,
+  CartesianGrid as RCartesianGrid,
+  Tooltip as RTooltip,
+  ResponsiveContainer as RResponsiveContainer,
+  ReferenceLine as RReferenceLine,
 } from 'recharts';
+
+// Type workaround for recharts components (incompatible with React 18 strict mode)
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const ResponsiveContainer = RResponsiveContainer as ComponentType<any>;
+const LineChart = RLineChart as ComponentType<any>;
+const BarChart = RBarChart as ComponentType<any>;
+const Line = RLine as ComponentType<any>;
+const Bar = RBar as ComponentType<any>;
+const Cell = RCell as ComponentType<any>;
+const XAxis = RXAxis as ComponentType<any>;
+const YAxis = RYAxis as ComponentType<any>;
+const CartesianGrid = RCartesianGrid as ComponentType<any>;
+const Tooltip = RTooltip as ComponentType<any>;
+const ReferenceLine = RReferenceLine as ComponentType<any>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 import type { Fight } from '@/lib/api';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -185,12 +200,12 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
                 dataKey="index"
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
-                tickFormatter={(value) => `#${value}`}
+                tickFormatter={(value: number) => `#${value}`}
               />
               <YAxis
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value: number) => `$${value}`}
                 width={45}
               />
               <Tooltip content={<CustomTooltip />} />
@@ -212,12 +227,12 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
                 dataKey="index"
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
-                tickFormatter={(value) => `#${value}`}
+                tickFormatter={(value: number) => `#${value}`}
               />
               <YAxis
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value: number) => `$${value}`}
                 width={45}
               />
               <Tooltip content={<CustomTooltip />} />
@@ -239,13 +254,13 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
                 dataKey="index"
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
-                tickFormatter={(value) => `#${value}`}
+                tickFormatter={(value: number) => `#${value}`}
               />
               <YAxis
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 domain={[0, 100]}
-                tickFormatter={(value) => `${value}%`}
+                tickFormatter={(value: number) => `${value}%`}
                 width={40}
               />
               <Tooltip content={<CustomTooltip />} />

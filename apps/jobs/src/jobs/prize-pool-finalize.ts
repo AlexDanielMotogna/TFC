@@ -251,7 +251,7 @@ export async function finalizePrizePool(): Promise<void> {
         body: JSON.stringify({ amount: totalPrizePool }),
       });
 
-      const result = await response.json();
+      const result = await response.json() as { success: boolean; error?: string; data?: { withdrawnAmount?: number } };
 
       if (result.success) {
         logger.info(LOG_EVENTS.TREASURY_WITHDRAW_SUCCESS, 'Prize pool withdrawn from Pacifica', {
