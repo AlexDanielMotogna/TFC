@@ -8,53 +8,117 @@ import {
   useMarkAllNotificationsAsRead,
   Notification,
 } from '@/hooks';
+import {
+  BellIcon,
+  LongShortIcon,
+  MarketOrdersIcon,
+  FightBannerIcon,
+  TakeProfitIcon,
+  StopLossIcon,
+  LeverageIcon,
+  FlipPositionIcon,
+  DepositWithdrawIcon,
+  FightCapitalLimitIcon,
+  PrizeIcon,
+  InfoIcon,
+} from '@/components/icons/FeatureIcons';
 
-// Bell icon
-function BellIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-    </svg>
-  );
-}
-
-// Notification type icons - matching landing page feature icons
+/**
+ * Get notification icon based on type
+ * Uses centralized FeatureIcons to ensure consistency with landing page
+ *
+ * Notification types:
+ * - TRADE: Long & Short icon (green)
+ * - ORDER: Market Orders icon (cyan)
+ * - TAKE_PROFIT: Take Profit dollar sign icon (green)
+ * - STOP_LOSS: Stop Loss protection icon (red)
+ * - LEVERAGE: Leverage trending arrow icon (orange)
+ * - FLIP_POSITION: Flip position reversing arrows icon (cyan)
+ * - DEPOSIT: Deposit/Withdraw credit card icon (green)
+ * - WITHDRAW: Deposit/Withdraw credit card icon (green)
+ * - FIGHT: Fight Banner lightning icon (orange)
+ * - FIGHT_LIMIT: Fight Capital Limit scales icon (violet)
+ * - PRIZE_CLAIMED: Prize trophy icon (yellow)
+ * - default: Info icon (gray)
+ */
 function getNotificationIcon(type: string) {
   switch (type) {
     case 'TRADE':
       // Long & Short icon - trading arrows (green)
       return (
         <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-          <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-          </svg>
+          <LongShortIcon className="w-4 h-4 text-green-400" />
         </div>
       );
     case 'ORDER':
       // Market Orders icon - clock for instant execution (primary/cyan)
       return (
         <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
-          <svg className="w-4 h-4 text-primary-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+          <MarketOrdersIcon className="w-4 h-4 text-primary-400" />
+        </div>
+      );
+    case 'TAKE_PROFIT':
+      // Take Profit icon - dollar sign in circle (green)
+      return (
+        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+          <TakeProfitIcon className="w-4 h-4 text-green-400" />
+        </div>
+      );
+    case 'STOP_LOSS':
+      // Stop Loss icon - circle with slash for protection (red)
+      return (
+        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center">
+          <StopLossIcon className="w-4 h-4 text-red-400" />
+        </div>
+      );
+    case 'LEVERAGE':
+      // Leverage icon - trending up arrow (orange)
+      return (
+        <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+          <LeverageIcon className="w-4 h-4 text-orange-400" />
+        </div>
+      );
+    case 'FLIP_POSITION':
+      // Flip Position icon - reversing arrows (primary/cyan)
+      return (
+        <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center">
+          <FlipPositionIcon className="w-4 h-4 text-primary-400" />
+        </div>
+      );
+    case 'DEPOSIT':
+    case 'WITHDRAW':
+      // Deposit/Withdraw icon - credit card (green)
+      return (
+        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+          <DepositWithdrawIcon className="w-4 h-4 text-green-400" />
         </div>
       );
     case 'FIGHT':
       // Fight Banner icon - lightning bolt (orange)
       return (
         <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-          <svg className="w-4 h-4 text-orange-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+          <FightBannerIcon className="w-4 h-4 text-orange-400" />
+        </div>
+      );
+    case 'FIGHT_LIMIT':
+      // Fight Capital Limit icon - balance/scales (violet)
+      return (
+        <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center">
+          <FightCapitalLimitIcon className="w-4 h-4 text-violet-400" />
+        </div>
+      );
+    case 'PRIZE_CLAIMED':
+      // Prize icon - trophy (yellow/gold)
+      return (
+        <div className="w-8 h-8 rounded-full bg-yellow-500/20 flex items-center justify-center">
+          <PrizeIcon className="w-4 h-4 text-yellow-400" />
         </div>
       );
     default:
       // System/info icon
       return (
         <div className="w-8 h-8 rounded-full bg-surface-600 flex items-center justify-center">
-          <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-          </svg>
+          <InfoIcon className="w-4 h-4 text-surface-400" />
         </div>
       );
   }

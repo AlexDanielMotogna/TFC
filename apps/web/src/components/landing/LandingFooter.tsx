@@ -8,13 +8,12 @@ export function LandingFooter() {
     platform: [
       { name: 'Fight Arena', href: '/lobby' },
       { name: 'Leaderboard', href: '/leaderboard' },
-      { name: 'Weekly Prizes', href: '/lobby' },
+      { name: 'Weekly Prizes', href: '/rewards' },
     ],
     trading: [
-      { name: 'Trade on Pacifica', href: 'https://pacifica.fi', external: true },
-      { name: 'BTC/USD', href: '/lobby' },
-      { name: 'ETH/USD', href: '/lobby' },
-      { name: 'SOL/USD', href: '/lobby' },
+      { name: 'BTC/USD', href: '/trade' },
+      { name: 'ETH/USD', href: '/trade' },
+      { name: 'SOL/USD', href: '/trade' },
     ],
     resources: [
       { name: 'How It Works', href: '#features' },
@@ -109,20 +108,9 @@ export function LandingFooter() {
             <ul className="space-y-3">
               {footerLinks.trading.map((link) => (
                 <li key={link.name}>
-                  {link.external ? (
-                    <a
-                      href={link.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-surface-400 hover:text-white transition-colors"
-                    >
-                      {link.name}
-                    </a>
-                  ) : (
-                    <Link href={link.href} className="text-sm text-surface-400 hover:text-white transition-colors">
-                      {link.name}
-                    </Link>
-                  )}
+                  <Link href={link.href} className="text-sm text-surface-400 hover:text-white transition-colors">
+                    {link.name}
+                  </Link>
                 </li>
               ))}
             </ul>
