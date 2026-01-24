@@ -10,6 +10,7 @@ interface FullTerminalDemoProps {
 export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoProps) {
   const [selectedSide, setSelectedSide] = useState<'LONG' | 'SHORT'>('LONG');
   const [leverage, setLeverage] = useState(5);
+  const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop-market' | 'stop-limit'>('market');
   const [tpEnabled, setTpEnabled] = useState(false);
   const [slEnabled, setSlEnabled] = useState(false);
   const [bottomTab, setBottomTab] = useState<'positions' | 'orders' | 'trades' | 'history'>('positions');
@@ -21,10 +22,17 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showFlipModal, setShowFlipModal] = useState(false);
   const [showTpSlModal, setShowTpSlModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [selectedPosition, setSelectedPosition] = useState<'BTC' | 'ETH' | null>(null);
+  const [tpSlTab, setTpSlTab] = useState<'full' | 'partial'>('full');
+  const [showAddPartialModal, setShowAddPartialModal] = useState(false);
+  const [limitPriceEnabled, setLimitPriceEnabled] = useState(false);
+  const [configureAmountEnabled, setConfigureAmountEnabled] = useState(false);
+  const [partialAmount, setPartialAmount] = useState(50);
+  const [closeAmount, setCloseAmount] = useState(100);
 
   // Explanation modals
-  const [showDepositExplain, setShowDepositExplain] = useState(false);
   const [showFightBannerExplain, setShowFightBannerExplain] = useState(false);
   const [showFightOnlyExplain, setShowFightOnlyExplain] = useState(false);
   const [showFightCapitalExplain, setShowFightCapitalExplain] = useState(false);
@@ -47,13 +55,14 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
   // Auto-open modals when feature is selected
   useEffect(() => {
-    setShowDepositExplain(false);
+    setShowDepositModal(false);
+    setShowWithdrawModal(false);
     setShowFightBannerExplain(false);
     setShowFightOnlyExplain(false);
     setShowFightCapitalExplain(false);
 
     if (highlightFeature === 'deposit-withdraw') {
-      setShowDepositExplain(true);
+      setShowDepositModal(true);
     } else if (highlightFeature === 'fight-banner') {
       setShowFightBannerExplain(true);
     } else if (highlightFeature === 'fight-only') {
@@ -106,58 +115,119 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
   };
 
   return (
-    <div className="bg-surface-950 w-full relative">
-      {/* Top Navbar */}
-      <div className="bg-surface-900 border-b border-surface-800 px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-2">
+    <div className="bg-surface-950 w-full relative overflow-x-auto">
+      {/* Single wrapper to ensure consistent width across all sections */}
+      <div className="min-w-[1200px]">
+      {/* Top Navbar - matches AppShell.tsx */}
+      <div className="bg-surface-850 border-b border-surface-700 px-4 h-12 flex items-center">
+        {/* Logo - Left */}
+        <div className="flex-shrink-0">
           <Image
             src="/images/landing/TFC-Logo.png"
             alt="TFC"
-            width={28}
-            height={28}
+            width={36}
+            height={36}
             className="rounded-lg"
           />
         </div>
-        <div className="flex items-center gap-6 text-xs">
-          <span className="text-primary-400 font-medium">Trade</span>
-          <span className="text-surface-400 hover:text-white cursor-pointer">Arena</span>
-          <span className="text-surface-400 hover:text-white cursor-pointer">Leaderboard</span>
-          <span className="text-surface-400 hover:text-white cursor-pointer">Profile</span>
-        </div>
-        <div className="flex items-center gap-2 bg-surface-800 rounded-lg px-3 py-1.5">
-          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-400 to-blue-500" />
-          <span className="text-white text-xs font-mono">74t7.Rveo</span>
+
+        {/* Navigation - Centered (matches AppShell.tsx MUI icons) */}
+        <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1">
+          {/* Trade - ShowChartIcon */}
+          <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-zinc-100 bg-surface-800 cursor-pointer">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+            </svg>
+            <span>Trade</span>
+          </div>
+          {/* Arena - SportsKabaddiIcon */}
+          <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.23 6c.63 0 1.13-.5 1.13-1.13 0-.62-.5-1.12-1.13-1.12-.62 0-1.13.5-1.13 1.12 0 .63.51 1.13 1.13 1.13zM5.5 11.75c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3.13-3c.62 0 1.12-.5 1.12-1.13 0-.62-.5-1.12-1.13-1.12s-1.12.5-1.12 1.12c0 .63.5 1.13 1.13 1.13zm-2.88 3.5H3.5v-2H.5v4h2v4.25L5.5 21v-5.75l-1-1V12.5h1.5l1.75 2.25l.75 3.25h2l-1-4.5-1.75-2.25zM22 6.5h-2.25l-2-2.25h-1.5l2.25 2.5V9h-2L13 4.75c-.35-.55-1.45-1.15-2.25-.25-.6.75-.15 1.5.15 1.9l3.45 4.1h2.9l1.25 1.5H15v7.5h2V14l1.5 1.5V22h2v-7l-3.5-4.5H18l.35 1h2.15c.83 0 1.5-.67 1.5-1.5V8c0-.83-.67-1.5-1.5-1.5z"/>
+            </svg>
+            <span>Arena</span>
+          </div>
+          {/* Leaderboard - LeaderboardIcon */}
+          <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7.5 21H2V9h5.5v12zm7.25-18h-5.5v18h5.5V3zM22 11h-5.5v10H22V11z"/>
+            </svg>
+            <span>Leaderboard</span>
+          </div>
+          {/* Rewards - EmojiEventsIcon */}
+          <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
+            </svg>
+            <span>Rewards</span>
+          </div>
+          {/* Profile - PersonIcon */}
+          <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+            <span>Profile</span>
+          </div>
+        </nav>
+
+        {/* Right side: Balance, Notifications, Wallet */}
+        <div className="flex items-center gap-3 ml-auto">
+          {/* Balance Display - matches AppShell.tsx WalletIcon */}
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 rounded text-sm">
+            <svg className="w-4 h-4 text-surface-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" />
+            </svg>
+            <span className="text-surface-200 font-mono">$5.71</span>
+          </div>
+
+          {/* Notification Bell */}
+          <button className="p-1.5 text-surface-400 hover:text-surface-200 hover:bg-surface-800 rounded transition-colors relative">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+            </svg>
+            <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">2</span>
+          </button>
+
+          {/* Wallet Button */}
+          <div className="flex items-center gap-2 bg-surface-800 rounded-lg px-3 py-1.5">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-400 to-blue-500" />
+            <span className="text-white text-xs font-mono">74t7.Rveo</span>
+          </div>
         </div>
       </div>
 
-      {/* Fight Banner - Live | vs Opponent | Timer+Stake | You/Opp/Tied */}
+      {/* Fight Banner - Matches actual FightBanner.tsx */}
       <div
         onClick={() => setShowFightBannerExplain(true)}
-        className={`bg-surface-900 px-4 py-1.5 flex items-center justify-between cursor-pointer hover:bg-surface-800/50 transition-colors ${getHighlightClass('fight-banner')}`}
+        className={`bg-surface-850 border-b border-surface-700 px-4 h-10 flex items-center justify-between cursor-pointer hover:bg-surface-800/50 transition-colors ${getHighlightClass('fight-banner')}`}
       >
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-win-400 animate-pulse" />
-            <span className="text-surface-300 text-xs">Live</span>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="text-surface-400">Live</span>
+          </div>
+          <div className="h-4 w-px bg-surface-700" />
+          <span className="text-zinc-400">
+            vs <span className="text-zinc-100 font-medium">6WZ3...qVaU</span>
           </span>
-          <span className="text-surface-600 text-xs">|</span>
-          <span className="text-surface-400 text-xs">vs</span>
-          <span className="text-primary-400 text-xs font-medium">6WZ3...qVaU</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-white font-mono font-bold">49:47</span>
-          <span className="text-surface-400 text-xs">$5000 stake</span>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-right">
-            <span className="text-[10px] text-surface-500">You <span className="text-surface-600">(net)</span></span>
-            <div className="text-loss-400 font-mono text-xs">-12.04%</div>
+          <span className="font-mono text-base tabular-nums text-zinc-400">49:47</span>
+          <span className="text-xs ttext-zinc-100">$5,000 stake</span>
+        </div>
+        <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-xs text-surface-500">You</div>
+              <div className="text-loss-500 font-mono tabular-nums">-12.0423%</div>
+            </div>
+            <div className="h-6 w-px bg-surface-700" />
+            <div>
+              <div className="text-xs text-surface-500">Opp</div>
+              <div className="text-win-500 font-mono tabular-nums">+4.0156%</div>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="text-[10px] text-surface-500">Opp <span className="text-surface-600">(net)</span></span>
-            <div className="text-win-400 font-mono text-xs">+4.01%</div>
-          </div>
-          <span className="text-loss-400 bg-loss-500/20 px-2 py-0.5 rounded text-[10px]">Losing</span>
+          <div className="px-2 py-0.5 rounded text-xs font-medium bg-loss-500/10 text-loss-500">Behind</div>
         </div>
       </div>
 
@@ -190,57 +260,73 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
         <div className="flex-1 flex flex-col gap-2">
           {/* Top Row: Order Book + Chart */}
           <div className="flex gap-2">
-            {/* Order Book */}
-            <div className="w-72 bg-surface-900 rounded-lg border border-surface-800 flex-shrink-0 overflow-hidden">
-              <div className="px-3 py-2 border-b border-surface-800 flex items-center justify-between">
-                <span className="font-semibold text-xs text-white uppercase">Order Book</span>
-                <div className="flex items-center gap-2">
-                  <select className="bg-surface-800 border border-surface-700 rounded px-2 py-0.5 text-white text-[10px]">
-                    <option>1</option>
-                  </select>
-                  <select className="bg-surface-800 border border-surface-700 rounded px-2 py-0.5 text-white text-[10px]">
-                    <option>BTC</option>
-                  </select>
-                </div>
+            {/* Order Book - matches OrderBook.tsx */}
+            <div className="w-72 bg-surface-900 rounded-lg border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col">
+              {/* Header with agg level and size mode selector */}
+              <div className="px-2 py-1.5 border-b border-surface-700 flex items-center justify-between">
+                {/* Aggregation level selector */}
+                <select className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500">
+                  <option>0.01</option>
+                  <option>0.02</option>
+                  <option>0.05</option>
+                  <option>0.1</option>
+                  <option>1</option>
+                  <option>10</option>
+                </select>
+                {/* Size mode selector */}
+                <select className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500">
+                  <option>USD</option>
+                  <option>BTC</option>
+                </select>
               </div>
-              <div className="p-2">
-                <div className="flex justify-between text-[10px] text-surface-500 mb-1 px-1">
-                  <span>PRICE</span>
-                  <span>SIZE(BTC)</span>
-                  <span>TOTAL</span>
-                </div>
-                <div className="space-y-px mb-1">
-                  {askLevels.map((level, i) => (
-                    <div key={i} className="flex justify-between text-[10px] font-mono px-1 py-0.5 relative">
-                      <div className="absolute right-0 top-0 bottom-0 bg-loss-500/20" style={{ width: `${Math.min(100, (level.total / 5) * 100)}%` }} />
-                      <span className="text-loss-400 relative z-10 w-14">{level.price.toLocaleString()}</span>
-                      <span className="text-surface-300 relative z-10 w-12 text-right">{level.size.toFixed(2)}</span>
-                      <span className="text-surface-400 relative z-10 w-10 text-right">{level.total.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="text-[10px] text-surface-500 py-1.5 border-y border-surface-700 mb-1 flex justify-between px-1">
-                  <span>Spread</span>
-                  <span className="font-mono">1.000</span>
-                  <span className="font-mono">0.001%</span>
-                </div>
-                <div className="space-y-px">
-                  {bidLevels.map((level, i) => (
-                    <div key={i} className="flex justify-between text-[10px] font-mono px-1 py-0.5 relative">
-                      <div className="absolute right-0 top-0 bottom-0 bg-win-500/20" style={{ width: `${Math.min(100, (level.total / 3) * 100)}%` }} />
-                      <span className="text-win-400 relative z-10 w-14">{level.price.toLocaleString()}</span>
-                      <span className="text-surface-300 relative z-10 w-12 text-right">{level.size.toFixed(2)}</span>
-                      <span className="text-surface-400 relative z-10 w-10 text-right">{level.total.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 flex h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-win-500" style={{ width: '32.8%' }} />
-                  <div className="bg-loss-500" style={{ width: '67.2%' }} />
-                </div>
-                <div className="flex justify-between text-[10px] mt-1">
-                  <span className="text-win-400">B 32.8%</span>
-                  <span className="text-loss-400">67.2% S</span>
+
+              {/* Column headers */}
+              <div className="grid grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-700 uppercase">
+                <span>Price</span>
+                <span className="text-right">Size(BTC)</span>
+                <span className="text-right">Total</span>
+              </div>
+
+              {/* Asks (sells) */}
+              <div className="flex-1 flex flex-col justify-end">
+                {askLevels.map((level, i) => (
+                  <div key={i} className="relative grid grid-cols-3 text-[10px] font-mono px-2 py-0.5 cursor-pointer hover:bg-surface-700/30 items-center">
+                    <div className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10" style={{ width: `${Math.min(100, (level.total / 5) * 100)}%` }} />
+                    <span className="text-loss-400 relative tabular-nums tracking-tight">{level.price.toLocaleString()}</span>
+                    <span className="text-surface-200 relative text-right tabular-nums tracking-tight">{level.size.toFixed(5)}</span>
+                    <span className="text-surface-200 relative text-right tabular-nums tracking-tight">{level.total.toFixed(5)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Spread */}
+              <div className="px-2 py-1 border-y border-surface-700 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
+                <span>Spread</span>
+                <span className="tabular-nums tracking-tight">1.000</span>
+                <span className="tabular-nums tracking-tight">0.001%</span>
+              </div>
+
+              {/* Bids (buys) */}
+              <div className="flex-1 flex flex-col">
+                {bidLevels.map((level, i) => (
+                  <div key={i} className="relative grid grid-cols-3 text-[10px] font-mono px-2 py-0.5 cursor-pointer hover:bg-surface-700/30 items-center">
+                    <div className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10" style={{ width: `${Math.min(100, (level.total / 3) * 100)}%` }} />
+                    <span className="text-win-400 relative tabular-nums tracking-tight">{level.price.toLocaleString()}</span>
+                    <span className="text-surface-200 relative text-right tabular-nums tracking-tight">{level.size.toFixed(5)}</span>
+                    <span className="text-surface-200 relative text-right tabular-nums tracking-tight">{level.total.toFixed(5)}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Buy/Sell percentage bar */}
+              <div className="px-2 py-1.5 border-t border-surface-700">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-win-400 font-medium tabular-nums">32.8%</span>
+                  <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden flex">
+                    <div className="bg-win-500" style={{ width: '32.8%' }} />
+                    <div className="bg-loss-500" style={{ width: '67.2%' }} />
+                  </div>
+                  <span className="text-[10px] text-loss-400 font-medium tabular-nums">67.2%</span>
                 </div>
               </div>
             </div>
@@ -476,14 +562,14 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
         </div>
 
         {/* Bottom Row: Positions Table (Below Order Book + Chart only) */}
-        <div className="bg-surface-900 rounded-lg border border-surface-800 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-surface-800">
+        <div className="bg-surface-900 rounded-lg border border-surface-800 overflow-hidden flex flex-col min-h-[197px]">
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-surface-800 flex-shrink-0">
             <div className="flex items-center gap-4">
               {[
                 { id: 'positions', label: 'Positions', count: 1 },
                 { id: 'orders', label: 'Open Orders' },
-                { id: 'trades', label: 'Trades' },
-                { id: 'history', label: 'History' },
+                { id: 'trades', label: 'Trade History' },
+                { id: 'history', label: 'Order History' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -513,21 +599,21 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             </div>
           </div>
 
-          <div className="p-2 overflow-x-auto">
+          <div className="p-2 overflow-x-auto flex-1 flex flex-col items-start">
             <table className="w-full text-[10px]">
               <thead>
-                <tr className="text-surface-500 uppercase">
+                <tr className="text-surface-500 capitalize">
                   <th className="text-left py-1 px-1">Token</th>
                   <th className="text-right py-1 px-1">Size</th>
-                  <th className="text-right py-1 px-1">Position Value</th>
-                  <th className="text-right py-1 px-1">Entry Price</th>
-                  <th className="text-right py-1 px-1">Mark Price</th>
-                  <th className="text-right py-1 px-1">PNL (ROI%)</th>
+                  <th className="text-right py-1 px-1">Pos Value</th>
+                  <th className="text-right py-1 px-1">Entry</th>
+                  <th className="text-right py-1 px-1">Mark</th>
+                  <th className="text-right py-1 px-1">PnL (ROI%)</th>
                   <th className="text-right py-1 px-1">Liq Price</th>
                   <th className="text-right py-1 px-1">Margin</th>
                   <th className="text-right py-1 px-1">Funding</th>
                   <th className="text-center py-1 px-1">TP/SL</th>
-                  {!showFightOnly && <th className="text-center py-1 px-1">Actions</th>}
+                  {!showFightOnly && <th className="text-center py-1 px-1">Close</th>}
                 </tr>
               </thead>
               <tbody>
@@ -535,19 +621,24 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                   <td className="py-2 px-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-white font-medium">BTC</span>
-                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-loss-500/20 text-loss-400">28x Short</span>
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
                     </div>
                   </td>
-                  <td className="py-2 px-1 text-right font-mono text-white">0.001380 BTC</td>
-                  <td className="py-2 px-1 text-right font-mono text-white">$133.43</td>
-                  <td className="py-2 px-1 text-right font-mono text-surface-300">96.283</td>
-                  <td className="py-2 px-1 text-right font-mono text-surface-300">96.690</td>
-                  <td className="py-2 px-1 text-right font-mono text-loss-400">$-0.5609 (-11.8200%)</td>
-                  <td className="py-2 px-1 text-right font-mono text-surface-300">0</td>
-                  <td className="py-2 px-1 text-right font-mono text-white">$4.75<br/><span className="text-surface-500">Cross</span></td>
+                  <td className="py-2 px-1 text-right font-mono text-white">0.000190 <span className="text-surface-400">BTC</span></td>
+                  <td className="py-2 px-1 text-right font-mono text-white">$16.96</td>
+                  <td className="py-2 px-1 text-right font-mono text-surface-300">89.256</td>
+                  <td className="py-2 px-1 text-right font-mono text-surface-300">89.256</td>
+                  <td className="py-2 px-1 text-right font-mono text-win-400">+$0.0000 (+0.00%)</td>
+                  <td className="py-2 px-1 text-right font-mono text-surface-300">92.065</td>
+                  <td className="py-2 px-1 text-right font-mono text-white">$0.34<br/><span className="text-surface-500">Cross</span></td>
                   <td className="py-2 px-1 text-right font-mono text-win-400">+$0.0000</td>
                   <td className="py-2 px-1 text-center">
-                    <button onClick={() => openModal('tpsl', 'BTC')} className="text-surface-500 hover:text-primary-400">- / -</button>
+                    <button onClick={() => openModal('tpsl', 'BTC')} className="text-surface-500 hover:text-primary-400 flex items-center gap-1 justify-center">
+                      - / -
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125" />
+                      </svg>
+                    </button>
                   </td>
                   {!showFightOnly && (
                     <td className="py-2 px-1">
@@ -576,133 +667,257 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </tr>
               </tbody>
             </table>
-            <div className="mt-2 pt-2 border-t border-surface-700 flex justify-between text-[10px]">
-              <span className="text-surface-400">Total Positions: <span className="text-white">1</span></span>
-              <span className="text-surface-400">Total PnL: <span className="text-loss-400 font-mono">$-0.5609</span></span>
-            </div>
+          </div>
+
+          {/* Footer: Positions Summary */}
+          <div className="flex-shrink-0 px-3 py-2 border-t border-surface-800 flex gap-4 text-[10px]">
+            <span className="text-surface-400">Positions: <span className="text-white">1</span></span>
+            <span className="text-surface-400">Total Value: <span className="text-white font-mono">$16.96</span></span>
+            <span className="text-surface-400">Total PnL: <span className="text-win-400 font-mono">+$0.0000</span></span>
           </div>
         </div>
       </div>
 
       {/* Right: Place Order */}
-      <div className="w-64 bg-surface-900 rounded-lg border border-surface-800 flex-shrink-0 overflow-hidden">
+      <div className="w-64 bg-surface-900 rounded-lg border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col max-h-[700px]">
+        {/* Header */}
         <div className="px-3 py-2 border-b border-surface-800">
-          <span className="font-semibold text-xs text-white uppercase">Place Order</span>
+          <span className="text-white text-xs font-semibold tracking-wider">PLACE ORDER</span>
         </div>
-        <div className="p-3 space-y-3 text-[10px]">
-          <div className={`flex gap-2 ${getHighlightClass('deposit-withdraw')}`}>
-            <button onClick={() => setShowDepositExplain(true)} className="flex-1 py-2 text-xs font-semibold bg-primary-500 text-white rounded-lg hover:bg-primary-400 transition-colors">Deposit</button>
-            <button onClick={() => setShowDepositExplain(true)} className="flex-1 py-2 text-xs font-semibold bg-surface-700 text-white rounded-lg hover:bg-surface-600 transition-colors">Withdraw</button>
+
+        <div className="p-3 space-y-3 text-xs flex-1 overflow-y-auto">
+          {/* Deposit/Withdraw Buttons */}
+          <div className={`grid grid-cols-2 gap-2 ${getHighlightClass('deposit-withdraw')}`}>
+            <button onClick={() => setShowDepositModal(true)} className="py-2 text-xs font-semibold bg-[#0d9488] hover:bg-[#0f766e] text-white rounded transition-colors">
+              Deposit
+            </button>
+            <button onClick={() => setShowWithdrawModal(true)} className="py-2 text-xs font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded transition-colors">
+              Withdraw
+            </button>
           </div>
 
-          <div className="space-y-1">
-            {[
-              ['Account Equity', '$5.71'],
-              ['Idle Balance', '$0.31'],
-              ['Resting Order Value', '$0.00'],
-              ['Fees', feesDisplay],  // Dynamic: Taker/Maker (Pacifica + TFC 0.05%)
-              ['Unrealized PnL', '+$0.28', 'text-win-400'],
-              ['Cross Account Leverage', '47.26x'],
-              ['Maintenance Margin', '$2.70'],
-            ].map(([label, value, color]) => (
-              <div key={label} className="flex justify-between">
-                <span className="text-surface-400">{label}</span>
-                <span className={`font-mono ${color || 'text-white'}`}>{value}</span>
-              </div>
-            ))}
+          {/* Account Info */}
+          <div className="space-y-1 text-[10px]">
+            <div className="flex justify-between">
+              <span className="text-surface-400">Account Equity</span>
+              <span className="text-white font-mono">$9.70</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Idle Balance</span>
+              <span className="text-white font-mono">$8.36</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Resting Order Value</span>
+              <span className="text-white font-mono">$0.01</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Fees</span>
+              <span className="text-white font-mono">{feesDisplay}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Unrealized PnL</span>
+              <span className="text-loss-400 font-mono">-$0.01</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Cross Account Leverage</span>
+              <span className="text-white font-mono">24.17x</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Margin</span>
+              <span className="text-white font-mono">$0.17</span>
+            </div>
             <div className="flex justify-between">
               <span className="text-surface-400">Real-time Updates</span>
-              <span className="text-win-400 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-win-400 animate-pulse" />Live</span>
+              <span className="text-win-400 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-win-400 animate-pulse" />
+                Live
+              </span>
             </div>
           </div>
 
-          <div
-            onClick={() => setShowFightCapitalExplain(true)}
-            className={`p-2.5 bg-primary-500/10 rounded-lg border border-primary-500/30 cursor-pointer hover:bg-primary-500/20 transition-colors ${getHighlightClass('fight-capital-limit')}`}
-          >
-            <div className="text-primary-400 font-semibold mb-1.5 uppercase text-[9px]">Fight Capital Limit</div>
-            <div className="space-y-1">
-              {[['Fight Stake', '$5000.00'], ['Current Positions', '$0.00'], ['Max Capital Used', '$0.00', 'text-primary-400'], ['Available to Trade', '$5000.00', 'text-win-400']].map(([l, v, c]) => (
-                <div key={l} className="flex justify-between">
-                  <span className="text-surface-400">{l}</span>
-                  <span className={`font-mono ${c || 'text-white'}`}>{v}</span>
-                </div>
-              ))}
-              <div className="mt-1.5 h-1 bg-surface-700 rounded-full"><div className="h-full bg-primary-500 rounded-full" style={{ width: '0%' }} /></div>
-              <div className="flex justify-between text-[9px] text-surface-500"><span>0% used</span><span>100% available</span></div>
-            </div>
-          </div>
-
+          {/* Long/Short Toggle */}
           <div className={`grid grid-cols-2 gap-2 ${getHighlightClass('long-short')}`}>
-            <button onClick={() => setSelectedSide('LONG')} className={`py-2.5 rounded-lg font-semibold text-xs ${selectedSide === 'LONG' ? 'bg-win-500 text-white' : 'bg-surface-800 text-surface-400'}`}>LONG</button>
-            <button onClick={() => setSelectedSide('SHORT')} className={`py-2.5 rounded-lg font-semibold text-xs ${selectedSide === 'SHORT' ? 'bg-loss-500 text-white' : 'bg-surface-800 text-surface-400'}`}>SHORT</button>
+            <button
+              onClick={() => setSelectedSide('LONG')}
+              className={`py-2.5 rounded font-semibold text-xs transition-all ${selectedSide === 'LONG' ? 'bg-[#0d9488] text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+            >
+              LONG
+            </button>
+            <button
+              onClick={() => setSelectedSide('SHORT')}
+              className={`py-2.5 rounded font-semibold text-xs transition-all ${selectedSide === 'SHORT' ? 'bg-surface-700 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+            >
+              SHORT
+            </button>
           </div>
 
+          {/* Order Type */}
           <div className={getHighlightClass('market-orders')}>
-            <label className="text-surface-400 mb-1.5 block">Size</label>
-            <div className="flex gap-2 mb-1.5">
-              <div className="flex-1 relative">
-                <input type="text" defaultValue="0.00" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs pr-10" />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-primary-400 text-[9px] font-medium">BTC</span>
-              </div>
-              <div className="flex-1 relative">
-                <input type="text" defaultValue="0.00" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs pr-10" />
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-surface-400 text-[9px]">USD</span>
+            <label className="text-surface-400 mb-1.5 block text-xs">Order Type</label>
+            <div className="relative">
+              <select
+                value={orderType}
+                onChange={(e) => setOrderType(e.target.value as typeof orderType)}
+                className="w-full bg-black border-none rounded px-3 py-2 text-white text-sm appearance-none cursor-pointer pr-8"
+              >
+                <option value="market">Market</option>
+                <option value="limit">Limit</option>
+                <option value="stop-market">Stop Market</option>
+                <option value="stop-limit">Stop Limit</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                <svg className="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
             </div>
-            <div className="flex justify-between text-surface-500 mb-1.5"><span>Margin: $0.00</span><span>Max: $0.30 (5x)</span></div>
-            <input type="range" min="0" max="100" defaultValue="0" className="w-full h-1 bg-surface-700 rounded-full mb-1.5 accent-primary-500" />
-            <div className="flex gap-1">{[25, 50, 75, 100].map(p => <button key={p} className="flex-1 py-1 bg-surface-800 text-surface-400 rounded text-[9px] hover:bg-surface-700">{p}%</button>)}</div>
           </div>
 
+          {/* Size */}
+          <div>
+            <label className="text-surface-400 mb-1.5 block text-xs">Size</label>
+            <div className="flex gap-2 mb-2">
+              <div className="flex-1 relative">
+                <input type="text" defaultValue="0.00" className="w-full bg-black border-none rounded px-3 py-2 text-white font-mono text-[8px] pr-12" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-400 text-xs font-medium">BTC</span>
+              </div>
+              <div className="flex-1 relative">
+                <input type="text" defaultValue="0.00" className="w-full bg-black border-none rounded px-3 py-2 text-white font-mono text-[8px] pr-12" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">USD</span>
+              </div>
+            </div>
+            <div className="flex justify-between text-surface-500 text-[10px] mb-2">
+              <span>Margin: <span className="text-white font-mono text-[8px]">$0.00</span></span>
+              <span>Max: <span className="text-white font-mono text-[8px]">$0.34 (50x)</span></span>
+            </div>
+            <input type="range" min="0" max="100" defaultValue="0" className="w-full h-1.5 bg-surface-700 rounded-full mb-2 accent-primary-500" />
+            <div className="grid grid-cols-4 gap-1.5">
+              {[25, 50, 75, 100].map(p => (
+                <button key={p} className="py-1.5 bg-surface-800 text-surface-400 rounded text-[8px] hover:bg-surface-700 transition-colors">
+                  {p}%
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Leverage */}
           <div className={getHighlightClass('leverage')}>
-            <div className="flex justify-between mb-1.5"><span className="text-surface-400">Leverage</span><span className="text-primary-400 font-semibold">{leverage}x</span></div>
-            <input type="range" min="1" max="50" value={leverage} onChange={(e) => setLeverage(Number(e.target.value))} className="w-full h-1 bg-surface-700 rounded-full accent-primary-500" style={{ background: `linear-gradient(to right, #22d3ee 0%, #22d3ee ${(leverage / 50) * 100}%, #374151 ${(leverage / 50) * 100}%, #374151 100%)` }} />
-            <div className="flex justify-between text-surface-500 mt-1"><span>1x</span><span>25x</span><span>50x</span></div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-surface-400 text-xs">Leverage</span>
+              <span className="text-primary-400 font-semibold font-mono text-[8px]">{leverage}x</span>
+            </div>
+            <input type="range" min="1" max="50" value={leverage} onChange={(e) => setLeverage(Number(e.target.value))} className="w-full h-1.5 bg-surface-700 rounded-full accent-primary-500 mb-1" />
+            <div className="flex justify-between text-surface-500 font-mono text-[8px]">
+              <span>1x</span>
+              <span>25x</span>
+              <span>50x</span>
+            </div>
           </div>
 
+          {/* Take Profit / Stop Loss */}
           <div className={getHighlightClass('take-profit')}>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={tpEnabled} onChange={(e) => setTpEnabled(e.target.checked)} className="w-3.5 h-3.5 rounded accent-primary-500" />
-              <span className="text-surface-400">Take Profit</span>
+            <div className="flex items-center gap-1.5 py-1">
+              <button
+                onClick={() => { setTpEnabled(!tpEnabled || !slEnabled); setSlEnabled(!tpEnabled || !slEnabled); }}
+                className={`relative w-7 h-4 rounded-full transition-colors flex-shrink-0 ${tpEnabled || slEnabled ? 'bg-primary-500' : 'bg-surface-700'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${tpEnabled || slEnabled ? 'translate-x-3' : ''}`} />
+              </button>
+              <span className="text-surface-300 text-[10px]">Take Profit / Stop Loss</span>
             </div>
-            {tpEnabled && (
-              <div className="mt-2 ml-5">
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400 text-[9px]">$</span>
-                  <input type="text" defaultValue="98,500" className="w-full bg-surface-800 border border-surface-700 rounded-lg pl-6 pr-2 py-1.5 text-white font-mono text-xs" />
+
+            {/* TP/SL Expanded Fields */}
+            {(tpEnabled || slEnabled) && (
+              <div className="mt-2 space-y-2">
+                {/* TP Price */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <button
+                      onClick={() => setTpEnabled(!tpEnabled)}
+                      className={`relative w-7 h-4 rounded-full transition-colors flex-shrink-0 ${tpEnabled ? 'bg-primary-500' : 'bg-surface-700'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${tpEnabled ? 'translate-x-3' : ''}`} />
+                    </button>
+                    <span className="text-surface-300 text-[10px]">TP Price</span>
+                  </div>
+                  {tpEnabled && (
+                    <>
+                      <div className="relative mb-1.5">
+                        <input type="text" placeholder="> 89375" className="w-full bg-black border-none rounded px-2 py-1.5 text-white font-mono text-[8px]" />
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {[25, 50, 75, 100].map(p => (
+                          <button key={`tp-${p}`} className="py-0.5 bg-surface-800 text-win-400 rounded text-[8px] hover:bg-surface-700 transition-colors">
+                            {p}%
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="flex gap-1 mt-1.5">
-                  {[25, 50, 75, 100].map(p => (
-                    <button key={p} className="flex-1 py-1 bg-win-500/20 text-win-400 rounded text-[9px] hover:bg-win-500/30">+{p}%</button>
-                  ))}
+
+                {/* SL Price */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <button
+                      onClick={() => setSlEnabled(!slEnabled)}
+                      className={`relative w-7 h-4 rounded-full transition-colors flex-shrink-0 ${slEnabled ? 'bg-loss-500' : 'bg-surface-700'}`}
+                    >
+                      <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${slEnabled ? 'translate-x-3' : ''}`} />
+                    </button>
+                    <span className="text-surface-300 text-[10px]">SL Price</span>
+                  </div>
+                  {slEnabled && (
+                    <>
+                      <div className="relative mb-1.5">
+                        <input type="text" placeholder="< 89375" className="w-full bg-black border-none rounded px-2 py-1.5 text-white font-mono text-[8px]" />
+                      </div>
+                      <div className="grid grid-cols-4 gap-1">
+                        {['-25', '-50', '-75', '-100'].map(p => (
+                          <button key={`sl-${p}`} className="py-0.5 bg-surface-800 text-loss-400 rounded text-[8px] hover:bg-surface-700 transition-colors">
+                            {p}%
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          <div className={getHighlightClass('stop-loss')}>
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={slEnabled} onChange={(e) => setSlEnabled(e.target.checked)} className="w-3.5 h-3.5 rounded accent-primary-500" />
-              <span className="text-surface-400">Stop Loss</span>
+          {/* Order Summary */}
+          <div className="space-y-1.5 pt-2 border-t border-surface-800 text-[10px]">
+            <div className="flex justify-between">
+              <span className="text-surface-400">Order Type</span>
+              <span className="text-primary-400 font-medium">Market</span>
             </div>
-            {slEnabled && (
-              <div className="mt-2 ml-5">
-                <div className="relative">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-surface-400 text-[9px]">$</span>
-                  <input type="text" defaultValue="92,000" className="w-full bg-surface-800 border border-surface-700 rounded-lg pl-6 pr-2 py-1.5 text-white font-mono text-xs" />
-                </div>
-                <div className="flex gap-1 mt-1.5">
-                  {[25, 50, 75, 100].map(p => (
-                    <button key={p} className="flex-1 py-1 bg-loss-500/20 text-loss-400 rounded text-[9px] hover:bg-loss-500/30">-{p}%</button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="flex justify-between">
+              <span className="text-surface-400">Max Slippage</span>
+              <span className="text-white">0.5%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Est. Liq Price</span>
+              <span className="text-[#d4a574]">N/A</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Margin</span>
+              <span className="text-[#d4a574]">N/A</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-surface-400">Available</span>
+              <span className="text-white font-mono">$8.36</span>
+            </div>
           </div>
+        </div>
 
-          <button className={`w-full py-2.5 rounded-lg font-bold text-xs ${selectedSide === 'LONG' ? 'bg-win-500 text-white hover:bg-win-400' : 'bg-loss-500 text-white hover:bg-loss-400'} transition-colors`}>
-            {selectedSide === 'LONG' ? '↑ Open Long' : '↓ Open Short'}
+        {/* Long/Short Button */}
+        <div className="p-3 border-t border-surface-800">
+          <button className={`w-full py-3 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors ${selectedSide === 'LONG' ? 'bg-[#0d9488] hover:bg-[#0f766e] text-white' : 'bg-loss-500 text-white hover:bg-loss-400'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d={selectedSide === 'LONG' ? "M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" : "M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"} />
+            </svg>
+            {selectedSide === 'LONG' ? 'Long' : 'Short'}
           </button>
         </div>
       </div>
@@ -710,158 +925,670 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
     {/* Modals */}
     {showMarketModal && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 w-72 shadow-xl">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-white font-semibold text-sm">Market Close</h3>
-              <button onClick={() => setShowMarketModal(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+              <div className="flex items-center gap-3">
+                <h3 className="text-white font-semibold text-lg">Market Close</h3>
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
+                <span className="text-surface-300 font-mono text-sm">0.00019000 BTC</span>
+              </div>
+              <button onClick={() => { setShowMarketModal(false); setCloseAmount(100); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <div className="text-xs text-surface-400 mb-3">Close {selectedPosition} position at market price</div>
-            <button className="w-full py-2 bg-loss-500 text-white rounded font-semibold text-sm">Confirm Market Close</button>
+
+            {/* Body */}
+            <div className="p-4 space-y-4">
+              <p className="text-surface-400 text-sm">Attempt to close position immediately.</p>
+
+              {/* Current Price */}
+              <div className="flex items-center justify-between">
+                <span className="text-white font-mono text-2xl">89284.00</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-surface-400 text-sm">USD</span>
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-win-500/20 text-win-400">LIVE</span>
+                </div>
+              </div>
+
+              {/* Amount Inputs */}
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    defaultValue="0.00019"
+                    className="w-full bg-black border-none rounded px-3 py-2.5 text-white font-mono text-sm pr-12"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">BTC</span>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    defaultValue="16.96"
+                    className="w-full bg-black border-none rounded px-3 py-2.5 text-white font-mono text-sm pr-12"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">USD</span>
+                </div>
+              </div>
+
+              {/* Percentage Slider */}
+              <div>
+                <div className="flex justify-end mb-2">
+                  <span className="text-white text-sm">{closeAmount}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={closeAmount}
+                  onChange={(e) => setCloseAmount(Number(e.target.value))}
+                  className="w-full h-1.5 bg-surface-700 rounded-full accent-primary-500"
+                />
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  {[25, 50, 75, 100].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setCloseAmount(p)}
+                      className={`py-1.5 rounded text-sm font-medium transition-colors ${
+                        closeAmount === p ? 'bg-surface-600 text-white' : 'bg-surface-800 text-surface-400 hover:bg-surface-700'
+                      }`}
+                    >
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estimated PnL */}
+              <div className="flex justify-end">
+                <span className="text-surface-400 text-sm">
+                  Estimated PnL: <span className="text-loss-400 font-mono">-$0.01</span>
+                </span>
+              </div>
+
+              {/* Market Close Button */}
+              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded font-semibold text-sm transition-colors">
+                Market Close
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {showLimitModal && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 w-72 shadow-xl">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-white font-semibold text-sm">Limit Close</h3>
-              <button onClick={() => setShowLimitModal(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+              <div className="flex items-center gap-3">
+                <h3 className="text-white font-semibold text-lg">Limit Close</h3>
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
+                <span className="text-surface-300 font-mono text-sm">0.000190 BTC</span>
+              </div>
+              <button onClick={() => { setShowLimitModal(false); setCloseAmount(0); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <label className="text-xs text-surface-400 mb-1 block">Limit Price</label>
-            <input type="text" defaultValue="95,500" className="w-full bg-surface-700 border border-surface-600 rounded px-3 py-2 text-white font-mono text-sm mb-3" />
-            <button className="w-full py-2 bg-primary-500 text-white rounded font-semibold text-sm">Place Limit Order</button>
+
+            {/* Body */}
+            <div className="p-4 space-y-4">
+              <p className="text-surface-400 text-sm">Send limit order to close position.</p>
+
+              {/* Current Price */}
+              <div className="flex items-center justify-between">
+                <span className="text-white font-mono text-2xl">89291</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-surface-400 text-sm">USD</span>
+                  <span className="px-2 py-0.5 rounded text-xs font-semibold bg-win-500/20 text-win-400">LIVE</span>
+                </div>
+              </div>
+
+              {/* Price */}
+              <div>
+                <label className="text-surface-400 text-sm mb-2 block">Price</label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    defaultValue="89291"
+                    className="flex-1 bg-black border-none rounded px-3 py-2.5 text-white font-mono text-sm"
+                  />
+                  <button className="px-4 py-2.5 bg-primary-500 hover:bg-primary-400 text-white rounded font-semibold text-sm transition-colors">
+                    Mid
+                  </button>
+                  <span className="text-surface-400 text-sm">USD</span>
+                </div>
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="text-surface-400 text-sm mb-2 block">Amount</label>
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      defaultValue="0.00"
+                      className="w-full bg-black border-none rounded px-3 py-2.5 text-white font-mono text-sm pr-12"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">BTC</span>
+                  </div>
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      defaultValue="0.00"
+                      className="w-full bg-black border-none rounded px-3 py-2.5 text-white font-mono text-sm pr-12"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">USD</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Percentage Slider */}
+              <div>
+                <div className="flex justify-start mb-2">
+                  <span className="text-surface-400 text-sm">{closeAmount}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  value={closeAmount}
+                  onChange={(e) => setCloseAmount(Number(e.target.value))}
+                  className="w-full h-1.5 bg-surface-700 rounded-full accent-primary-500"
+                />
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  {[25, 50, 75, 100].map(p => (
+                    <button
+                      key={p}
+                      onClick={() => setCloseAmount(p)}
+                      className={`py-1.5 rounded text-sm font-medium transition-colors ${
+                        closeAmount === p ? 'bg-surface-600 text-white' : 'bg-surface-800 text-surface-400 hover:bg-surface-700'
+                      }`}
+                    >
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Estimated PnL */}
+              <div className="flex justify-end">
+                <span className="text-surface-400 text-sm">
+                  Estimated PnL: <span className="text-win-400 font-mono">+$0.0000</span>
+                </span>
+              </div>
+
+              {/* Limit Close Button */}
+              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded font-semibold text-sm transition-colors">
+                Limit Close
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {showFlipModal && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 w-72 shadow-xl">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-white font-semibold text-sm">Flip Position</h3>
-              <button onClick={() => setShowFlipModal(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+              <h3 className="text-white font-semibold text-lg">Flip Position</h3>
+              <button onClick={() => setShowFlipModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <button className="w-full py-2 bg-primary-500 text-white rounded font-semibold text-sm">Confirm Flip</button>
+
+            {/* Body */}
+            <div className="p-4 space-y-4">
+              <p className="text-surface-400 text-sm">
+                Flip current short position to long position of same size at market price.
+              </p>
+
+              {/* Position Details */}
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-surface-400">Current Position</span>
+                  <span className="text-loss-400 font-mono font-semibold">Short 0.000190 BTC</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-surface-400">New Position</span>
+                  <span className="text-[#0d9488] font-mono font-semibold">Long 0.000190 BTC</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-surface-400">Position Value</span>
+                  <span className="text-white font-mono">$16.97</span>
+                </div>
+              </div>
+
+              {/* Flip Position Button */}
+              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded font-semibold text-sm transition-colors">
+                Flip Position
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {showTpSlModal && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 w-80 shadow-xl">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-white font-semibold text-sm">TP/SL for {selectedPosition}</h3>
-              <button onClick={() => setShowTpSlModal(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-800 rounded-lg border border-surface-700 w-full max-w-[420px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+              <h3 className="text-white font-semibold text-base">TP/SL for {selectedPosition}</h3>
+              <button onClick={() => { setShowTpSlModal(false); setTpSlTab('full'); setLimitPriceEnabled(false); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between text-xs mb-1"><span className="text-surface-400">Take Profit</span><span className="text-win-400">+25% ROI</span></div>
-                <input type="text" defaultValue="93,000" className="w-full bg-surface-700 border border-surface-600 rounded px-3 py-2 text-white font-mono text-sm" />
-              </div>
-              <div>
-                <div className="flex justify-between text-xs mb-1"><span className="text-surface-400">Stop Loss</span><span className="text-loss-400">-25% ROI</span></div>
-                <input type="text" defaultValue="96,000" className="w-full bg-surface-700 border border-surface-600 rounded px-3 py-2 text-white font-mono text-sm" />
-              </div>
+
+            {/* Tab Switcher */}
+            <div className="flex border-b border-surface-700">
+              <button
+                onClick={() => setTpSlTab('full')}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tpSlTab === 'full' ? 'text-primary-400 border-primary-400' : 'text-surface-400 border-transparent hover:text-white'
+                }`}
+              >
+                Full Position
+              </button>
+              <button
+                onClick={() => setTpSlTab('partial')}
+                className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  tpSlTab === 'partial' ? 'text-primary-400 border-primary-400' : 'text-surface-400 border-transparent hover:text-white'
+                }`}
+              >
+                Partial
+              </button>
             </div>
-            <button className="w-full py-2 bg-primary-500 text-white rounded font-semibold text-sm mt-4">Confirm TP/SL</button>
+
+            {/* Full Position Tab */}
+            {tpSlTab === 'full' && (
+              <div className="p-4 space-y-4">
+                {/* TP Price */}
+                <div>
+                  <label className="text-surface-400 text-sm mb-2 block">TP Price</label>
+                  <input
+                    type="text"
+                    defaultValue="98,500"
+                    className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm mb-2"
+                  />
+                  <div className="flex gap-1.5">
+                    {[25, 50, 75, 100].map((pct) => (
+                      <button key={pct} className="flex-1 py-1.5 bg-surface-700 hover:bg-surface-600 text-win-400 rounded text-xs font-medium transition-colors">
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SL Price */}
+                <div>
+                  <label className="text-surface-400 text-sm mb-2 block">SL Price</label>
+                  <input
+                    type="text"
+                    defaultValue="92,000"
+                    className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm mb-2"
+                  />
+                  <div className="flex gap-1.5">
+                    {[25, 50, 75, 100].map((pct) => (
+                      <button key={pct} className="flex-1 py-1.5 bg-surface-700 hover:bg-surface-600 text-loss-400 rounded text-xs font-medium transition-colors">
+                        {pct}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Limit Price Toggle */}
+                <div className="flex items-center justify-between py-2 border-t border-surface-700">
+                  <span className="text-surface-300 text-sm">Limit Price</span>
+                  <button
+                    onClick={() => setLimitPriceEnabled(!limitPriceEnabled)}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${limitPriceEnabled ? 'bg-primary-500' : 'bg-surface-600'}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${limitPriceEnabled ? 'translate-x-5' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Limit Price Inputs */}
+                {limitPriceEnabled && (
+                  <div className="space-y-3 pt-2">
+                    <div>
+                      <label className="text-surface-400 text-sm mb-2 block">TP Limit Price</label>
+                      <input
+                        type="text"
+                        placeholder="Optional"
+                        className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder:text-surface-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-surface-400 text-sm mb-2 block">SL Limit Price</label>
+                      <input
+                        type="text"
+                        placeholder="Optional"
+                        className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder:text-surface-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button className="w-full py-2.5 bg-primary-500 hover:bg-primary-400 text-white rounded-lg font-semibold text-sm transition-colors">
+                  Confirm
+                </button>
+              </div>
+            )}
+
+            {/* Partial Tab */}
+            {tpSlTab === 'partial' && (
+              <div className="p-4">
+                <div className="flex flex-col items-center justify-center py-12">
+                  <p className="text-surface-400 text-sm mb-4 text-center">
+                    No partial TP/SL orders. Click &apos;Add&apos; to create one.
+                  </p>
+                  <button
+                    onClick={() => setShowAddPartialModal(true)}
+                    className="px-6 py-2 bg-primary-500 hover:bg-primary-400 text-white rounded-lg font-semibold text-sm transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {showDepositExplain && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-5 w-96 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-white font-semibold text-base">Deposit & Withdraw</h3>
-              <button onClick={() => setShowDepositExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+      {/* Add Partial TP/SL Modal */}
+      {showAddPartialModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-800 rounded-lg border border-surface-700 w-full max-w-[420px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+              <h3 className="text-white font-semibold text-base">Add Partial TP/SL</h3>
+              <button onClick={() => { setShowAddPartialModal(false); setConfigureAmountEnabled(false); setLimitPriceEnabled(false); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <div className="space-y-4 text-sm">
-              <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-3">
-                <div className="text-primary-400 font-semibold mb-2">Powered by Pacifica</div>
-                <p className="text-surface-300 text-xs leading-relaxed">
-                  Trading Fight Club uses <span className="text-white font-medium">Pacifica</span> as its underlying perpetual futures exchange.
-                </p>
+
+            <div className="p-4 space-y-4">
+              {/* TP Price */}
+              <div>
+                <label className="text-surface-400 text-sm mb-2 block">TP Price</label>
+                <input
+                  type="text"
+                  placeholder="Optional"
+                  className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder:text-surface-500 mb-2"
+                />
+                <div className="flex gap-1.5">
+                  {[25, 50, 75, 100].map((pct) => (
+                    <button key={pct} className="flex-1 py-1.5 bg-surface-700 hover:bg-surface-600 text-win-400 rounded text-xs font-medium transition-colors">
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="bg-surface-700/50 rounded p-3 text-xs text-surface-400">
-                Your funds are secured by Pacifica&apos;s smart contracts on Solana.
+
+              {/* SL Price */}
+              <div>
+                <label className="text-surface-400 text-sm mb-2 block">SL Price</label>
+                <input
+                  type="text"
+                  placeholder="Optional"
+                  className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder:text-surface-500 mb-2"
+                />
+                <div className="flex gap-1.5">
+                  {[25, 50, 75, 100].map((pct) => (
+                    <button key={pct} className="flex-1 py-1.5 bg-surface-700 hover:bg-surface-600 text-loss-400 rounded text-xs font-medium transition-colors">
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Configure Amount Toggle */}
+              <div className="flex items-center justify-between py-2 border-t border-surface-700">
+                <span className="text-surface-300 text-sm">Configure Amount</span>
+                <button
+                  onClick={() => setConfigureAmountEnabled(!configureAmountEnabled)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${configureAmountEnabled ? 'bg-primary-500' : 'bg-surface-600'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${configureAmountEnabled ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+
+              {/* Amount Slider */}
+              {configureAmountEnabled && (
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-surface-400 text-sm">% of Position</span>
+                    <span className="text-white font-mono text-sm">{partialAmount}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={partialAmount}
+                    onChange={(e) => setPartialAmount(Number(e.target.value))}
+                    className="w-full h-2 bg-surface-700 rounded-full accent-primary-500"
+                  />
+                  <div className="flex justify-between text-surface-500 text-xs mt-1">
+                    <span>1%</span>
+                    <span>50%</span>
+                    <span>100%</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Limit Price Toggle */}
+              <div className="flex items-center justify-between py-2 border-t border-surface-700">
+                <span className="text-surface-300 text-sm">Limit Price</span>
+                <button
+                  onClick={() => setLimitPriceEnabled(!limitPriceEnabled)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${limitPriceEnabled ? 'bg-primary-500' : 'bg-surface-600'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform ${limitPriceEnabled ? 'translate-x-5' : ''}`} />
+                </button>
+              </div>
+
+              {/* Limit Price Inputs */}
+              {limitPriceEnabled && (
+                <div className="space-y-3 pt-2">
+                  <div>
+                    <label className="text-surface-400 text-sm mb-2 block">TP Limit Price</label>
+                    <input
+                      type="text"
+                      placeholder="Optional"
+                      className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder:text-surface-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-surface-400 text-sm mb-2 block">SL Limit Price</label>
+                    <input
+                      type="text"
+                      placeholder="Optional"
+                      className="w-full bg-surface-700 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm placeholder:text-surface-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button className="w-full py-2.5 bg-primary-500 hover:bg-primary-400 text-white rounded-lg font-semibold text-sm transition-colors">
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deposit Modal - Opens Pacifica */}
+      {showDepositModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+              <h3 className="text-white font-semibold text-lg">Deposit Funds</h3>
+              <button onClick={() => setShowDepositModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-surface-400 text-sm">
+                Deposits are managed through <span className="text-white font-medium">Pacifica Exchange</span>, our underlying trading platform.
+              </p>
+
+              <div className="bg-surface-800/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#0d9488] mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                  </svg>
+                  <div>
+                    <p className="text-white text-sm font-medium mb-1">Secure & Non-Custodial</p>
+                    <p className="text-surface-400 text-xs">Your funds are secured by Pacifica&apos;s smart contracts on Solana. Only you control your assets.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-[#0d9488] mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                  </svg>
+                  <div>
+                    <p className="text-white text-sm font-medium mb-1">Instant Availability</p>
+                    <p className="text-surface-400 text-xs">Deposited funds are immediately available for trading and fights.</p>
+                  </div>
+                </div>
+              </div>
+
+              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+                <span>Open Pacifica to Deposit</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Withdraw Modal - Done in TFC */}
+      {showWithdrawModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+              <h3 className="text-white font-semibold text-lg">Withdraw Funds</h3>
+              <button onClick={() => setShowWithdrawModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <p className="text-surface-400 text-sm">
+                Withdraw your funds from TradeFightClub directly to your wallet.
+              </p>
+
+              <div className="flex justify-between items-center py-2 px-3 bg-surface-800/50 rounded-lg">
+                <span className="text-surface-400 text-sm">Available Balance</span>
+                <span className="text-white font-mono text-base font-medium">$8.36</span>
+              </div>
+
+              <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-400 space-y-2">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-surface-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                  </svg>
+                  <div className="space-y-1">
+                    <p>Daily withdrawal limit: <span className="text-white">$100,000</span> (resets at UTC 00:00)</p>
+                    <p>Withdrawal fee: <span className="text-white">$1 USDC</span></p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-surface-400 text-sm mb-2 block">Amount (USDC)</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="0.00"
+                    className="w-full bg-black border-none rounded-lg px-3 py-2.5 text-white font-mono text-sm pr-16"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    <button className="text-primary-400 text-xs font-medium hover:text-primary-300">Max</button>
+                    <span className="text-surface-400 text-xs">USDC</span>
+                  </div>
+                </div>
+              </div>
+
+              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-lg font-semibold text-sm transition-colors">
+                Confirm Withdrawal
+              </button>
             </div>
           </div>
         </div>
       )}
 
       {showFightBannerExplain && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-5 w-[540px] shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-white font-semibold text-base">Fight Banner</h3>
-              <button onClick={() => setShowFightBannerExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[540px] shadow-xl max-h-[85vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700 flex-shrink-0">
+              <h3 className="text-white font-semibold text-lg">Fight Banner</h3>
+              <button onClick={() => setShowFightBannerExplain(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
-            <div className="space-y-4 text-sm">
-              <p className="text-surface-300">
+
+            {/* Scrollable content */}
+            <div className="overflow-y-auto flex-1 p-4 space-y-4">
+              <p className="text-surface-400 text-sm">
                 The Fight Banner shows your active trading competition at a glance. Here&apos;s what each part means:
               </p>
 
-              {/* Banner Preview */}
-              <div className="bg-surface-900 rounded-lg p-3 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-win-400 animate-pulse" />
-                    <span className="text-surface-300">Live</span>
-                  </span>
-                  <span className="text-surface-600">|</span>
-                  <span className="text-surface-400">vs</span>
-                  <span className="text-primary-400 font-medium">6WZ3...qVaU</span>
+              {/* Banner Preview - matches actual FightBanner */}
+              <div className="bg-surface-900 rounded-lg p-3 text-sm border border-surface-700 space-y-2.5">
+                {/* Row 1: Live status and opponent */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-win-400 animate-pulse" />
+                    <span className="text-surface-400 text-xs">Live</span>
+                  </div>
+                  <span className="text-zinc-400 text-xs">vs <span className="text-zinc-100 font-medium">6WZ3...qVaU</span></span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-mono font-bold">49:47</span>
-                  <span className="text-surface-400">$5000</span>
+
+                {/* Row 2: Timer, stake, and status */}
+                <div className="flex items-center justify-between border-t border-surface-700 pt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-100 font-mono font-bold text-sm">49:47</span>
+                    <span className="text-xs text-zinc-100">$5,000 stake</span>
+                  </div>
+                  <span className="text-loss-500 bg-loss-500/10 px-2 py-0.5 rounded text-xs font-medium">Behind</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-loss-400 font-mono">-12.04%</span>
-                  <span className="text-win-400 font-mono">+4.01%</span>
-                  <span className="text-loss-400 bg-loss-500/20 px-1.5 py-0.5 rounded text-[10px]">Losing</span>
+
+                {/* Row 3: PnL comparison */}
+                <div className="flex items-center justify-between border-t border-surface-700 pt-2">
+                  <div>
+                    <div className="text-xs text-surface-400">You</div>
+                    <div className="text-loss-500 font-mono tabular-nums text-sm font-medium">-12.0423%</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-surface-400">Opp</div>
+                    <div className="text-win-500 font-mono tabular-nums text-sm font-medium">+4.0156%</div>
+                  </div>
                 </div>
               </div>
 
               {/* Explanations */}
-              <div className="space-y-2">
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
-                  <span className="flex items-center gap-1 shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-win-400" />
+              <div className="space-y-2.5">
+                <div className="bg-surface-800/50 rounded-lg p-3 flex gap-3">
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-win-400" />
                     <span className="text-white text-xs font-medium">Live</span>
                   </span>
-                  <p className="text-surface-400 text-xs">Indicates the fight is currently active and in progress.</p>
+                  <p className="text-surface-400 text-xs">Indicates the fight is currently active and connected via WebSocket.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
-                  <span className="text-primary-400 text-xs font-medium shrink-0">vs 6WZ3...qVaU</span>
-                  <p className="text-surface-400 text-xs">Your opponent&apos;s wallet address (shortened). Click to view their profile.</p>
+                <div className="bg-surface-800/50 rounded-lg p-3 flex gap-3">
+                  <span className="text-zinc-100 text-xs font-medium shrink-0">6WZ3...qVaU</span>
+                  <p className="text-surface-400 text-xs">Your opponent&apos;s username or wallet address. Click to view their profile.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
-                  <span className="text-white font-mono text-xs font-bold shrink-0">49:47</span>
+                <div className="bg-surface-800/50 rounded-lg p-3 flex gap-3">
+                  <span className="text-zinc-100 font-mono text-xs font-bold shrink-0">49:47</span>
                   <p className="text-surface-400 text-xs">Time remaining in the fight. When it reaches 00:00, the fight ends and the winner is determined.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
-                  <span className="text-surface-300 text-xs shrink-0">$5000 stake</span>
+                <div className="bg-surface-800/50 rounded-lg p-3 flex gap-3">
+                  <span className="text-zinc-100 text-xs shrink-0">$5,000 stake</span>
                   <p className="text-surface-400 text-xs">The maximum capital each fighter can use for positions during this fight.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
+                <div className="bg-surface-800/50 rounded-lg p-3 flex gap-3">
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-loss-400 font-mono text-xs">You -12.04%</span>
-                    <span className="text-win-400 font-mono text-xs">Opp +4.01%</span>
+                    <span className="text-loss-500 font-mono text-xs">-12.0423%</span>
+                    <span className="text-win-500 font-mono text-xs">+4.0156%</span>
                   </div>
-                  <p className="text-surface-400 text-xs"><span className="text-white">Net PnL%</span> (fees deducted) for you and your opponent. This is the <span className="text-white">realized PnL</span> that determines the winner. The positions table shows unrealized PnL before fees.</p>
+                  <p className="text-surface-400 text-xs"><span className="text-white">Net PnL%</span> for you and your opponent. This determines who&apos;s winning the fight.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
-                  <span className="text-surface-400 bg-surface-600 px-2 py-0.5 rounded text-[10px] shrink-0">Tied</span>
-                  <p className="text-surface-400 text-xs">Shows who&apos;s winning: <span className="text-win-400">Winning</span>, <span className="text-loss-400">Losing</span>, or <span className="text-surface-300">Tied</span>.</p>
+                <div className="bg-surface-800/50 rounded-lg p-3 flex gap-3">
+                  <span className="text-surface-400 bg-surface-700 px-2 py-0.5 rounded text-xs font-medium shrink-0">Tied</span>
+                  <p className="text-surface-400 text-xs">Shows your status: <span className="text-win-500">Ahead</span>, <span className="text-loss-500">Behind</span>, or <span className="text-surface-300">Tied</span>.</p>
                 </div>
               </div>
             </div>
@@ -870,8 +1597,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       )}
 
       {showFightOnlyExplain && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-5 w-[420px] shadow-xl">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 sm:p-5 w-full max-w-[420px] shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-semibold text-base">Position Filters</h3>
               <button onClick={() => setShowFightOnlyExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
@@ -882,14 +1609,14 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </p>
               <div className="space-y-2">
                 <div className="bg-surface-700/50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-surface-600 text-white rounded text-xs font-medium">All</span>
                     <span className="text-surface-400 text-xs">Shows ALL your open positions</span>
                   </div>
                   <p className="text-surface-500 text-xs mt-2">Includes action buttons (Market, Limit, Flip) to close or modify positions.</p>
                 </div>
                 <div className="bg-primary-500/10 border border-primary-500/30 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="px-2 py-0.5 bg-primary-500 text-white rounded text-xs font-medium">Fight Only</span>
                     <span className="text-surface-400 text-xs">Shows ONLY positions during this fight</span>
                   </div>
@@ -908,8 +1635,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       )}
 
       {showFightCapitalExplain && (
-        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-5 w-[480px] shadow-xl">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 sm:p-5 w-full max-w-[480px] shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-semibold text-base">Fight Capital Limit</h3>
               <button onClick={() => setShowFightCapitalExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
@@ -934,22 +1661,22 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
               {/* Explanations */}
               <div className="space-y-2">
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
+                <div className="bg-surface-700/50 rounded-lg p-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                   <span className="text-white text-xs font-medium shrink-0">Fight Stake</span>
                   <p className="text-surface-400 text-xs">The maximum capital you can use for positions during this fight. Both fighters have the same limit.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
+                <div className="bg-surface-700/50 rounded-lg p-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                   <span className="text-white text-xs font-medium shrink-0">Current Positions</span>
                   <p className="text-surface-400 text-xs">Total value of your open positions right now. Updated in real-time.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
+                <div className="bg-surface-700/50 rounded-lg p-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                   <span className="text-primary-400 text-xs font-medium shrink-0">Max Capital Used</span>
                   <p className="text-surface-400 text-xs">The highest position value you&apos;ve had during this fight. This is what counts for the limit.</p>
                 </div>
 
-                <div className="bg-surface-700/50 rounded-lg p-3 flex items-start gap-3">
+                <div className="bg-surface-700/50 rounded-lg p-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
                   <span className="text-win-400 text-xs font-medium shrink-0">Available to Trade</span>
                   <p className="text-surface-400 text-xs">How much more capital you can use. Calculated as: Fight Stake - Max Capital Used.</p>
                 </div>
@@ -972,6 +1699,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           </div>
         </div>
       )}
+      </div>{/* End of min-w wrapper */}
     </div>
   );
 }

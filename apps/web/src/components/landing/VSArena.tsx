@@ -35,18 +35,18 @@ function FighterProfile({
   return (
     <div className={`flex flex-col items-center ${isLeft ? 'animate-slide-in-left' : 'animate-slide-in-right'}`}>
       {/* Avatar with glow */}
-      <div className={`relative mb-4 ${isActive ? 'animate-pulse-glow' : ''}`}>
+      <div className={`relative mb-2 sm:mb-4 ${isActive ? 'animate-pulse-glow' : ''}`}>
         {/* Outer glow ring */}
-        <div className={`absolute -inset-3 rounded-full ${
+        <div className={`absolute -inset-2 sm:-inset-3 rounded-full ${
           isLeft ? 'bg-primary-500/30' : 'bg-orange-500/30'
         } blur-xl animate-pulse`} />
 
         {/* Avatar container */}
-        <div className={`relative w-20 h-20 md:w-28 md:h-28 rounded-full border-2 ${
+        <div className={`relative w-14 h-14 sm:w-20 sm:h-20 md:w-28 md:h-28 rounded-full border-2 ${
           isLeft ? 'border-primary-400' : 'border-orange-400'
         } bg-surface-800 flex items-center justify-center overflow-hidden`}>
           {/* Fighter icon */}
-          <svg className={`w-10 h-10 md:w-14 md:h-14 ${isLeft ? 'text-primary-400' : 'text-orange-400'}`} fill="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-7 h-7 sm:w-10 sm:h-10 md:w-14 md:h-14 ${isLeft ? 'text-primary-400' : 'text-orange-400'}`} fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
           </svg>
 
@@ -57,29 +57,29 @@ function FighterProfile({
         </div>
 
         {/* Corner badge */}
-        <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full ${
+        <div className={`absolute -bottom-1 -right-1 w-6 h-6 sm:w-8 sm:h-8 rounded-full ${
           isLeft ? 'bg-primary-500' : 'bg-orange-500'
-        } flex items-center justify-center text-white text-xs font-bold shadow-lg`}>
+        } flex items-center justify-center text-white text-[10px] sm:text-xs font-bold shadow-lg`}>
           {isLeft ? '#1' : '#2'}
         </div>
       </div>
 
       {/* Name */}
-      <h3 className={`text-lg md:text-xl font-bold ${
+      <h3 className={`text-sm sm:text-lg md:text-xl font-bold ${
         isLeft ? 'text-primary-400' : 'text-orange-400'
-      } mb-2`}>
+      } mb-1 sm:mb-2`}>
         {name}
       </h3>
 
-      {/* Stats */}
-      <div className="flex flex-col items-center gap-1 text-sm">
-        <div className="flex items-center gap-2">
-          <span className="text-surface-500">Win Rate</span>
-          <span className={`font-mono font-bold ${isLeft ? 'text-primary-400' : 'text-orange-400'}`}>
+      {/* Stats - hide PnL on mobile since it's in the bottom bar */}
+      <div className="flex flex-col items-center gap-0.5 sm:gap-1 text-xs sm:text-sm">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <span className="text-surface-500 text-[10px] sm:text-xs">Win Rate</span>
+          <span className={`font-mono font-bold text-[10px] sm:text-xs ${isLeft ? 'text-primary-400' : 'text-orange-400'}`}>
             {winRate}%
           </span>
         </div>
-        <div className={`font-mono text-lg font-bold ${pnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+        <div className={`hidden sm:block font-mono text-sm sm:text-lg font-bold ${pnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
           {pnl >= 0 ? '+' : ''}{pnl.toFixed(1)}%
         </div>
       </div>
@@ -92,17 +92,17 @@ function VSBadge() {
   return (
     <div className="relative flex items-center justify-center">
       {/* Outer glow pulses */}
-      <div className="absolute w-32 h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-r from-primary-500/20 via-violet-500/20 to-orange-500/20 blur-2xl animate-pulse" />
-      <div className="absolute w-24 h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-r from-primary-500/30 to-orange-500/30 blur-xl animate-spin-slow" />
+      <div className="absolute w-20 h-20 sm:w-32 sm:h-32 md:w-40 md:h-40 rounded-full bg-gradient-to-r from-primary-500/20 via-violet-500/20 to-orange-500/20 blur-2xl animate-pulse" />
+      <div className="absolute w-16 h-16 sm:w-24 sm:h-24 md:w-32 md:h-32 rounded-full bg-gradient-to-r from-primary-500/30 to-orange-500/30 blur-xl animate-spin-slow" />
 
       {/* VS container */}
       <div className="relative">
         {/* Background shape */}
-        <div className="absolute -inset-4 bg-gradient-to-r from-primary-500 via-violet-500 to-orange-500 rounded-2xl blur opacity-50 animate-pulse" />
+        <div className="absolute -inset-2 sm:-inset-4 bg-gradient-to-r from-primary-500 via-violet-500 to-orange-500 rounded-xl sm:rounded-2xl blur opacity-50 animate-pulse" />
 
         {/* Main VS */}
-        <div className="relative bg-surface-900 px-6 py-4 md:px-8 md:py-5 rounded-2xl border border-surface-600">
-          <span className="text-4xl md:text-5xl font-black bg-gradient-to-r from-primary-400 via-violet-400 to-orange-400 bg-clip-text text-transparent animate-gradient-x">
+        <div className="relative bg-surface-900 px-3 py-2 sm:px-6 sm:py-4 md:px-8 md:py-5 rounded-xl sm:rounded-2xl border border-surface-600">
+          <span className="text-2xl sm:text-4xl md:text-5xl font-black bg-gradient-to-r from-primary-400 via-violet-400 to-orange-400 bg-clip-text text-transparent animate-gradient-x">
             VS
           </span>
         </div>
@@ -399,11 +399,11 @@ export function VSArena() {
       <FloatingStats />
 
       {/* Main content */}
-      <div className="relative z-10 h-full flex items-center justify-between px-8 md:px-16 lg:px-24">
+      <div className="relative z-10 h-full flex items-center justify-between px-3 sm:px-8 md:px-16 lg:px-24">
         {/* Left Fighter */}
         <FighterProfile
           side="left"
-          name="CryptoKing"
+          name="6WZ3...qVaU"
           winRate={73}
           pnl={leftPnl}
           isActive={true}
@@ -415,7 +415,7 @@ export function VSArena() {
         {/* Right Fighter */}
         <FighterProfile
           side="right"
-          name="TradeHunter"
+          name="FQUc...Fd1k"
           winRate={68}
           pnl={rightPnl}
           isActive={true}
@@ -423,41 +423,42 @@ export function VSArena() {
       </div>
 
       {/* Bottom stats bar */}
-      <div className="absolute bottom-0 inset-x-0 h-12 bg-surface-900/80 backdrop-blur-sm border-t border-surface-700/50 flex items-center justify-center gap-4 md:gap-8 text-sm px-4">
+      <div className="absolute bottom-0 inset-x-0 h-10 sm:h-12 bg-surface-900/80 backdrop-blur-sm border-t border-surface-700/50 flex items-center justify-center gap-2 sm:gap-4 md:gap-8 text-xs sm:text-sm px-2 sm:px-4">
         {/* Left fighter score */}
-        <div className="flex items-center gap-2">
-          <span className="text-primary-400 font-semibold hidden sm:inline">CryptoKing</span>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <span className="text-orange-400 font-semibold hidden sm:inline">6WZ3...qVaU</span>
+          <span className="text-primary-400 font-semibold hidden sm:inline"></span>
           <span className={`font-mono font-bold ${leftPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
             {leftPnl >= 0 ? '+' : ''}{leftPnl.toFixed(1)}%
           </span>
         </div>
 
-        <div className="w-px h-6 bg-surface-700" />
+        <div className="w-px h-4 sm:h-6 bg-surface-700" />
 
         {/* Timer */}
-        <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-surface-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <svg className="w-3 h-3 sm:w-4 sm:h-4 text-surface-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span className="text-white font-mono font-bold">{countdown}</span>
         </div>
 
-        <div className="w-px h-6 bg-surface-700" />
+        <div className="w-px h-4 sm:h-6 bg-surface-700" />
 
         {/* Live indicator */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <div className="w-2 h-2 rounded-full bg-win-400 animate-pulse" />
           <span className="text-win-400 font-medium">LIVE</span>
         </div>
 
-        <div className="w-px h-6 bg-surface-700" />
+        <div className="w-px h-4 sm:h-6 bg-surface-700" />
 
         {/* Right fighter score */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <span className={`font-mono font-bold ${rightPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
             {rightPnl >= 0 ? '+' : ''}{rightPnl.toFixed(1)}%
           </span>
-          <span className="text-orange-400 font-semibold hidden sm:inline">TradeHunter</span>
+          <span className="text-orange-400 font-semibold hidden sm:inline">FQUc...Fd1k</span>
         </div>
       </div>
     </div>
