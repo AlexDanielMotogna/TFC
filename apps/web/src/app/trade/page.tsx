@@ -37,7 +37,7 @@ export default function TradePage() {
   const searchParams = useSearchParams();
 
   // Get initial symbol from URL (e.g., /trade?symbol=ETH-USD)
-  const urlSymbol = searchParams.get('symbol');
+  const urlSymbol = searchParams?.get('symbol');
   const {
     account,
     positions: apiPositions,
