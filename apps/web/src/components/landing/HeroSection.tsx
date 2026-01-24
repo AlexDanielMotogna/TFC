@@ -37,12 +37,12 @@ const formatVolume = (volume: number): string => {
 export function HeroSection() {
   const { connected } = useWallet();
   const { prices, isConnected } = usePrices({ symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD'] });
-  const { stats } = useStats();
+  const { stats, isLoading: statsLoading } = useStats();
 
   const tickerSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD'];
 
   return (
-    <section className="relative pt-24 pb-12 lg:pt-32 lg:pb-20 overflow-hidden hero-bg">
+    <section id="home" className="relative pt-24 pb-12 lg:pt-32 lg:pb-20 overflow-hidden hero-bg">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(249,115,22,0.12)_0%,_transparent_50%)]" />
       <div className="absolute top-1/3 left-0 w-[600px] h-[600px] bg-primary-500/5 rounded-full blur-3xl" />
@@ -86,23 +86,35 @@ export function HeroSection() {
             {/* Stats Row */}
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 lg:gap-10 mb-6">
               <div>
-                <p className="text-2xl lg:text-3xl font-bold text-white">
-                  {formatVolume(stats.tradingVolume)}
-                </p>
+                {statsLoading ? (
+                  <div className="h-8 lg:h-9 w-20 bg-surface-700 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl lg:text-3xl font-bold text-white">
+                    {formatVolume(stats.tradingVolume)}
+                  </p>
+                )}
                 <p className="text-sm text-surface-500">Trading Volume</p>
               </div>
               <div className="w-px h-10 bg-surface-700 hidden sm:block" />
               <div>
-                <p className="text-2xl lg:text-3xl font-bold text-white">
-                  {formatVolume(stats.fightVolume)}
-                </p>
+                {statsLoading ? (
+                  <div className="h-8 lg:h-9 w-20 bg-surface-700 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl lg:text-3xl font-bold text-white">
+                    {formatVolume(stats.fightVolume)}
+                  </p>
+                )}
                 <p className="text-sm text-surface-500">Fight Volume</p>
               </div>
               <div className="w-px h-10 bg-surface-700 hidden sm:block" />
               <div>
-                <p className="text-2xl lg:text-3xl font-bold text-white">
-                  {stats.fightsCompleted}
-                </p>
+                {statsLoading ? (
+                  <div className="h-8 lg:h-9 w-12 bg-surface-700 rounded animate-pulse" />
+                ) : (
+                  <p className="text-2xl lg:text-3xl font-bold text-white">
+                    {stats.fightsCompleted}
+                  </p>
+                )}
                 <p className="text-sm text-surface-500">Fights Completed</p>
               </div>
             </div>

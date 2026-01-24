@@ -11,8 +11,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
       </svg>
     ),
-    title: 'Challenge',
-    description: 'Pick any trader and challenge them to a 1v1 duel. Climb the leaderboard to win weekly prizes.',
+    title: 'Create',
+    description: 'Create a 1v1 fight and wait for another trader to join. Climb the leaderboard to win weekly prizes.',
     color: 'orange',
   },
   {
@@ -22,7 +22,7 @@ const features = [
       </svg>
     ),
     title: 'Trade',
-    description: 'Execute real trades on Trade Fight Club. Long or short BTC, ETH, SOL with up to 50x leverage.',
+    description: 'Execute real trades on Trade Fight Club. Long or short crypto, stocks, forex with up to 50x leverage.',
     color: 'green',
   },
   {
@@ -64,7 +64,7 @@ const getColorClasses = (color: string) => {
 
 export function FeaturesGrid() {
   return (
-    <section id="features" className="py-16 lg:py-24 border-t border-surface-800">
+    <section id="how-it-works" className="py-16 lg:py-24 border-t border-surface-800">
       <div className="max-w-7xl mx-auto px-4 lg:px-8">
         {/* Section Header */}
         <div className="max-w-3xl mx-auto text-center mb-12 lg:mb-16">

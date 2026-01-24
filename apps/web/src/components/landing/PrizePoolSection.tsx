@@ -51,7 +51,7 @@ export function PrizePoolSection() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <section className="relative py-16 lg:py-24 overflow-hidden">
+      <section id="prizes" className="relative py-16 lg:py-24 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 lg:px-8">
           <div className="animate-pulse">
             <div className="h-12 w-64 bg-surface-800 rounded-lg mx-auto mb-4" />
@@ -72,7 +72,7 @@ export function PrizePoolSection() {
   const timeRemaining = prizePool?.timeRemaining || { days: 0, hours: 0, formatted: '0d 0h' };
 
   return (
-    <section className="relative py-16 lg:py-24 overflow-hidden">
+    <section id="prizes" className="relative py-16 lg:py-24 overflow-hidden">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(249,115,22,0.08)_0%,_transparent_60%)]" />
       <div className="absolute top-1/4 right-0 w-[400px] h-[400px] bg-amber-500/5 rounded-full blur-3xl" />

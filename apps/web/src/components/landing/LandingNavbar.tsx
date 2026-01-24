@@ -27,43 +27,21 @@ export function LandingNavbar() {
 
           {/* Desktop Nav Links */}
           <div className="hidden lg:flex items-center gap-1">
-            {/* Arena Dropdown */}
-            <div className="relative dropdown-trigger">
-              <button className="flex items-center gap-1.5 px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
-                Arena
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <div className="dropdown-menu">
-                <Link href="/lobby" className="dropdown-item">Join Fight</Link>
-                <Link href="/lobby" className="dropdown-item">Create Challenge</Link>
-                <Link href="/leaderboard" className="dropdown-item">Leaderboard</Link>
-              </div>
-            </div>
-
-            {/* Markets Dropdown */}
-            <div className="relative dropdown-trigger">
-              <button className="flex items-center gap-1.5 px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
-                Markets
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <div className="dropdown-menu">
-                <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="dropdown-item">BTC-USD</a>
-                <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="dropdown-item">ETH-USD</a>
-                <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="dropdown-item">SOL-USD</a>
-                <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="dropdown-item">All Markets</a>
-              </div>
-            </div>
-
-            {/* Blog Link */}
-            <a href="#blog" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
-              Blog
+            <a href="#home" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Home
             </a>
-
-            {/* FAQ Link */}
+            <a href="#how-it-works" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              How it Works
+            </a>
+            <a href="#prizes" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Prizes
+            </a>
+            <a href="#demo" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Demo
+            </a>
+            <a href="#markets" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Markets
+            </a>
             <a href="#faq" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
               FAQ
             </a>
@@ -105,19 +83,22 @@ export function LandingNavbar() {
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t border-surface-800">
             <div className="flex flex-col gap-2">
-              <Link href="/lobby" className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
-                Join Fight
-              </Link>
-              <Link href="/leaderboard" className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
-                Leaderboard
-              </Link>
-              <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+              <a href="#home" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                Home
+              </a>
+              <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                How it Works
+              </a>
+              <a href="#prizes" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                Prizes
+              </a>
+              <a href="#demo" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                Demo
+              </a>
+              <a href="#markets" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 Markets
               </a>
-              <a href="#blog" className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
-                Blog
-              </a>
-              <a href="#faq" className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+              <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 FAQ
               </a>
             </div>
