@@ -968,7 +968,13 @@ export class FightEngine {
       });
 
       if (response.ok) {
-        const result = await response.json();
+        const result = await response.json() as {
+          success: boolean;
+          finalStatus: 'FINISHED' | 'NO_CONTEST';
+          winnerId: string | null;
+          isDraw: boolean;
+          violations?: Array<{ ruleCode: string }>;
+        };
         if (result.success) {
           finalStatus = result.finalStatus;
           winnerId = result.winnerId;
