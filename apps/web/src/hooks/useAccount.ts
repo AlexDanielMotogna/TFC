@@ -124,7 +124,7 @@ export function useAccount(): UseAccountReturn {
         size: pos.amount || '0',
         entryPrice: pos.entry_price || '0',
         markPrice: pos.entry_price || '0', // Will be updated by trade page with live price
-        liquidationPrice: '0', // Not provided by REST API, will be calculated
+        liquidationPrice: pos.liq_price || '0', // From WebSocket when connected, REST doesn't return it
         unrealizedPnl: '0', // Will be calculated by trade page
         unrealizedPnlPercent: '0',
         leverage: leverage,

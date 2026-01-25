@@ -5,6 +5,38 @@ import { useStore, useAuthStore } from '@/lib/store';
 import { api, type Fight } from '@/lib/api';
 import { notify } from '@/lib/notify';
 
+// Helper to get user-friendly error messages for join failures
+function getJoinErrorMessage(errorMessage: string): { title: string; message: string } {
+  if (errorMessage.includes('Pacifica connection required') || errorMessage.includes('Active Pacifica connection')) {
+    return {
+      title: 'Connect Pacifica First',
+      message: 'Go to Trade page and connect your Pacifica account to join fights'
+    };
+  }
+  if (errorMessage.includes('already in this fight')) {
+    return {
+      title: 'Cannot Join Own Fight',
+      message: 'Wait for another player to accept your challenge'
+    };
+  }
+  if (errorMessage.includes('Matchup limit exceeded') || errorMessage.includes('Cannot match with this opponent')) {
+    return {
+      title: 'Matchup Limit Reached',
+      message: 'Max 3 fights per opponent in 24h. Try a different opponent!'
+    };
+  }
+  if (errorMessage.includes('Fight is already full')) {
+    return {
+      title: 'Fight Unavailable',
+      message: 'Someone else joined first. Try another fight!'
+    };
+  }
+  return {
+    title: 'Join Failed',
+    message: errorMessage
+  };
+}
+
 export function useFights() {
   const { fights, isLoading, error, setFights, setLoading, setError } = useStore();
   const { token } = useAuthStore();
@@ -40,14 +72,14 @@ export function useFights() {
         return newFight;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to create fight';
-        setError(message);
+        // Don't setError - show toast instead (error banner is for fetch errors only)
         notify('FIGHT', 'Fight Creation Failed', message, { variant: 'error' });
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [token, fights, setFights, setLoading, setError]
+    [token, fights, setFights, setLoading]
   );
 
   const joinFight = useCallback(
@@ -68,15 +100,16 @@ export function useFights() {
         notify('FIGHT', 'Fight Joined', `Joined ${updatedFight.durationMinutes}m fight - Good luck!`, { variant: 'success' });
         return updatedFight;
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to join fight';
-        setError(message);
-        notify('FIGHT', 'Join Failed', message, { variant: 'error' });
+        const rawMessage = err instanceof Error ? err.message : 'Failed to join fight';
+        const { title, message } = getJoinErrorMessage(rawMessage);
+        // Don't setError - show toast instead (error banner is for fetch errors only)
+        notify('FIGHT', title, message, { variant: 'error' });
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [token, fights, setFights, setLoading, setError]
+    [token, fights, setFights, setLoading]
   );
 
   const cancelFight = useCallback(
@@ -95,14 +128,14 @@ export function useFights() {
         notify('FIGHT', 'Fight Cancelled', 'Your fight has been cancelled', { variant: 'success' });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to cancel fight';
-        setError(message);
+        // Don't setError - show toast instead (error banner is for fetch errors only)
         notify('FIGHT', 'Cancel Failed', message, { variant: 'error' });
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [token, fights, setFights, setLoading, setError]
+    [token, fights, setFights, setLoading]
   );
 
   // Fetch fights on mount

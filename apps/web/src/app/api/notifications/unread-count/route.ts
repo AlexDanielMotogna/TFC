@@ -8,7 +8,7 @@ import { errorResponse } from '@/lib/server/errors';
 
 export async function GET(request: Request) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       const count = await prisma.notification.count({
         where: {
           userId: user.userId,

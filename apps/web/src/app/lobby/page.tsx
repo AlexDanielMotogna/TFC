@@ -9,6 +9,7 @@ import { useGlobalSocket } from '@/hooks/useGlobalSocket';
 import { FightCard } from '@/components/FightCard';
 import { AppShell } from '@/components/AppShell';
 import { ArenaSkeleton } from '@/components/Skeletons';
+import { BetaGate } from '@/components/BetaGate';
 
 type ArenaTab = 'live' | 'pending' | 'finished' | 'my-fights';
 
@@ -165,6 +166,7 @@ export default function LobbyPage() {
   // Show skeleton while initially loading
   if (isLoading && fights.length === 0) {
     return (
+      <BetaGate>
       <AppShell>
         <div className="container mx-auto px-4 md:px-6 py-6">
           {/* Header matches actual layout - title left, stats center, button right */}
@@ -196,10 +198,12 @@ export default function LobbyPage() {
           <ArenaSkeleton />
         </div>
       </AppShell>
+      </BetaGate>
     );
   }
 
   return (
+    <BetaGate>
     <AppShell>
       <div className="container mx-auto px-4 md:px-6 py-6">
         {/* Compact Header with Stats */}
@@ -562,5 +566,6 @@ export default function LobbyPage() {
       )}
       </div>
     </AppShell>
+    </BetaGate>
   );
 }

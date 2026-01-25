@@ -199,18 +199,18 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
   }
 
   return (
-    <div>
+    <div className="flex flex-col h-full">
       {/* Info banner for read-only mode */}
       {readOnly && readOnlyMessage && (
-        <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2 flex-shrink-0">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      {/* Table with horizontal scroll */}
-      <div className="overflow-x-auto">
+      {/* Table with horizontal scroll - grows to fill space */}
+      <div className="overflow-x-auto overflow-y-auto flex-1">
       <table className="w-full text-xs min-w-[900px]">
         <thead>
           <tr className="text-xs text-surface-400">
@@ -401,8 +401,8 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
       </table>
       </div>
 
-      {/* Summary */}
-      <div className="mt-3 pt-3 border-t border-surface-700 flex items-center gap-4 px-2">
+      {/* Summary - fixed at bottom */}
+      <div className="mt-auto pt-3 border-t border-surface-700 flex items-center gap-4 px-2 flex-shrink-0">
         <div className="text-xs text-surface-400">
           Positions: <span className="text-white">{positions.length}</span>
         </div>

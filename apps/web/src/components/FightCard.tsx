@@ -37,18 +37,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
       router.push(`/trade?fight=${updatedFight.id}`);
     } catch (err) {
       console.error('Failed to join fight:', err);
-
-      // Show specific error message
-      const errorMessage = err instanceof Error ? err.message : 'Failed to join fight';
-
-      if (errorMessage.includes('Pacifica connection required') || errorMessage.includes('Active Pacifica connection')) {
-        alert('You need to connect your Pacifica account first!\n\n1. Go to the Trade page\n2. Click "Connect Pacifica"\n3. Deposit funds on Pacifica if you haven\'t already\n4. Come back to join fights');
-      } else if (errorMessage.includes('already in this fight')) {
-        alert('You cannot join your own fight! Wait for another player to accept your challenge.');
-      } else {
-        alert(errorMessage);
-      }
-
+      // Error is shown as a toast by useFights hook
       setIsJoining(false);
     }
   };
@@ -64,8 +53,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
       await onCancelFight(fight.id);
     } catch (err) {
       console.error('Failed to cancel fight:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to cancel fight';
-      alert(errorMessage);
+      // Error is shown as a toast by useFights hook
     } finally {
       setIsCancelling(false);
     }

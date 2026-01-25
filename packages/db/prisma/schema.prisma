@@ -64,10 +64,11 @@ model PacificaConnection {
 // @see Master-doc.md Section 2: Format, Duration, Stake
 // ─────────────────────────────────────────────────────────────
 enum FightStatus {
-  WAITING   // Created, waiting for opponent
-  LIVE      // Both participants joined, fight in progress
-  FINISHED  // Duration elapsed, winner determined
-  CANCELLED // Stale or manually cancelled
+  WAITING    // Created, waiting for opponent
+  LIVE       // Both participants joined, fight in progress
+  FINISHED   // Duration elapsed, winner determined
+  CANCELLED  // Stale or manually cancelled
+  NO_CONTEST // Anti-cheat: excluded from ranking (0-0, min volume, repeated matchup, same IP)
 }
 
 model Fight {
@@ -99,6 +100,8 @@ model Fight {
   participants FightParticipant[]
   trades       FightTrade[]
   snapshots    FightSnapshot[]
+  sessions     FightSession[]
+  violations   AntiCheatViolation[]
 
   @@index([status])
   @@index([createdAt])
@@ -242,6 +245,64 @@ model FightSnapshot {
 
   @@index([fightId, timestamp])
   @@map("fight_snapshots")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIGHT SESSIONS (Anti-Cheat: IP/UserAgent tracking)
+// @see Anti-Cheat.md
+// ─────────────────────────────────────────────────────────────
+model FightSession {
+  id String @id @default(uuid())
+
+  fightId String @map("fight_id")
+  fight   Fight  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+
+  // IP and device information
+  ipAddress String  @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  // Session type: 'join' when joining fight, 'trade' when making trades
+  sessionType String @map("session_type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fightId])
+  @@index([userId])
+  @@index([ipAddress])
+  @@map("fight_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ANTI-CHEAT VIOLATIONS (Audit log for flagged fights)
+// @see Anti-Cheat.md
+// ─────────────────────────────────────────────────────────────
+model AntiCheatViolation {
+  id String @id @default(uuid())
+
+  fightId String @map("fight_id")
+  fight   Fight  @relation(fields: [fightId], references: [id], onDelete: Cascade)
+
+  // Which rule was violated
+  ruleCode String @map("rule_code") // ZERO_ZERO, MIN_VOLUME, REPEATED_MATCHUP, SAME_IP
+
+  // Rule details
+  ruleName    String @map("rule_name")
+  ruleMessage String @map("rule_message")
+
+  // Additional context (JSON for flexibility)
+  metadata Json?
+
+  // Action taken
+  actionTaken String @map("action_taken") // NO_CONTEST, FLAGGED
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([fightId])
+  @@index([ruleCode])
+  @@index([createdAt])
+  @@map("anti_cheat_violations")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -433,4 +494,18 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────
+// BETA WHITELIST
+// Manages closed beta access
+// ─────────────────────────────────────────────────────────────
+model BetaWhitelist {
+  id            String    @id @default(uuid())
+  walletAddress String    @unique @map("wallet_address")
+  status        String    @default("pending") // pending, approved, rejected
+  appliedAt     DateTime  @default(now()) @map("applied_at")
+  approvedAt    DateTime? @map("approved_at")
+
+  @@map("beta_whitelist")
 }

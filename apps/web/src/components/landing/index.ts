@@ -1,5 +1,6 @@
 export { LandingNavbar } from './LandingNavbar';
 export { HeroSection } from './HeroSection';
+export { BetaBannerSection } from './BetaBannerSection';
 export { FeaturesGrid } from './FeaturesGrid';
 export { PrizePoolSection } from './PrizePoolSection';
 export { MobileAppSection } from './MobileAppSection';

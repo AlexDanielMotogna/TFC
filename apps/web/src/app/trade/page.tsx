@@ -16,6 +16,7 @@ import { CloseOppositeModal } from '@/components/CloseOppositeModal';
 import { MarketSelector } from '@/components/MarketSelector';
 import { Toggle } from '@/components/Toggle';
 import { WithdrawModal } from '@/components/WithdrawModal';
+import { BetaGate } from '@/components/BetaGate';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
 
@@ -132,6 +133,11 @@ export default function TradePage() {
 
   // Withdraw modal state
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+
+  // Slippage state
+  const [slippage, setSlippage] = useState('0.5');
+  const [showSlippageModal, setShowSlippageModal] = useState(false);
+  const [slippageInput, setSlippageInput] = useState('0.5');
 
   // Bottom tabs
   const [bottomTab, setBottomTab] = useState<'positions' | 'orders' | 'trades' | 'history'>('positions');
@@ -263,7 +269,7 @@ export default function TradePage() {
           side,
           amount: orderAmount,
           reduceOnly: false,
-          slippage_percent: '0.5',
+          slippage_percent: slippage,
           take_profit: tpParam,
           stop_loss: slParam,
           fightId: fightId || undefined,
@@ -305,7 +311,7 @@ export default function TradePage() {
       // Error notification is handled by the hook's onError handler
       console.error('Failed to place order:', err instanceof Error ? err.message : err);
     }
-  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, orderType, limitPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize]);
+  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, orderType, limitPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize, slippage]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (!isAuthenticated) {
@@ -551,22 +557,24 @@ export default function TradePage() {
     // ROI% = (PnL / margin) * 100
     const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
-    // Liquidation price calculation using Pacifica's official formula:
-    // liquidation_price = [price - (side * position_margin) / position_size] / (1 - side / max_leverage / 2)
-    // Where: side = 1 for LONG, -1 for SHORT
-    //        position_margin = account_equity for cross margin, or isolated margin for isolated
-    //        max_leverage = market's max leverage (50 for BTC)
-    const side = pos.side === 'LONG' ? 1 : -1;
-    const maxLeverage = leverage; // Using current leverage as proxy for max_leverage
-    const positionMargin = isolated && apiMargin > 0 ? apiMargin : accountEquity > 0 ? accountEquity : positionValueAtEntry / leverage;
+    // Use liquidation price from Pacifica WebSocket when available (most accurate)
+    const apiLiqPrice = parseFloat(pos.liquidationPrice) || 0;
+    let liquidationPrice: number;
 
-    // Formula: [price - (side * position_margin) / position_size] / (1 - side / max_leverage / 2)
-    const numerator = entryPrice - (side * positionMargin) / sizeInToken;
-    const denominator = 1 - side / maxLeverage / 2;
-    let liquidationPrice = numerator / denominator;
+    if (apiLiqPrice > 0) {
+      // Real liq price from Pacifica WebSocket
+      liquidationPrice = apiLiqPrice;
+    } else {
+      // Fallback: calculate using Pacifica's official formula
+      // liquidation_price = [price - (side * position_margin) / position_size] / (1 - side / max_leverage / 2)
+      const side = pos.side === 'LONG' ? 1 : -1;
+      const mktMaxLeverage = leverage;
+      const positionMargin = isolated && apiMargin > 0 ? apiMargin : accountEquity > 0 ? accountEquity : positionValueAtEntry / leverage;
 
-    // Ensure liq price is positive
-    liquidationPrice = Math.max(0, liquidationPrice);
+      const numerator = entryPrice - (side * positionMargin) / sizeInToken;
+      const denominator = 1 - side / mktMaxLeverage / 2;
+      liquidationPrice = Math.max(0, numerator / denominator);
+    }
 
     // Find TP/SL orders for this position
     // TP/SL orders have opposite side: LONG position → SHORT (ask) orders, SHORT position → LONG (bid) orders
@@ -683,6 +691,7 @@ export default function TradePage() {
   const canTrade = connected && isAuthenticated && pacificaConnected && builderCodeApproved;
 
   return (
+    <BetaGate>
     <AppShell>
       {/* Fight Banner - Shows when in active fight */}
       <FightBanner />
@@ -871,7 +880,7 @@ export default function TradePage() {
               </div>
 
               {/* Tab content - scrollable */}
-              <div className="p-4 flex-1 overflow-y-auto overflow-x-auto">
+              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto'}`}>
                 {bottomTab === 'positions' && (
                   <Positions
                     positions={activePositions}
@@ -2017,20 +2026,53 @@ export default function TradePage() {
               {(() => {
                 const effectiveLeverage = Math.min(leverage, maxLeverage);
                 const positionSize = Number(orderSize) * effectiveLeverage;
-                const margin = Number(orderSize) || 0;
+                const orderMargin = Number(orderSize) || 0;
                 const available = account ? parseFloat(account.availableToSpend) || 0 : 0;
+
+                // Find current position for selected market
+                const mktSymbol = selectedMarket.replace('-USD', '');
+                const currentPos = displayPositions.find(
+                  p => p.symbol.replace('-USD', '') === mktSymbol
+                );
 
                 // For limit orders, use limit price; for market, use current price
                 const executionPrice = orderType === 'limit' || orderType === 'stop-limit'
                   ? parseFloat(limitPrice) || currentPrice
                   : currentPrice;
 
-                // Estimated liquidation price (simplified)
+                // Estimated liquidation price for new order (simplified)
                 const estLiqPrice = positionSize > 0
                   ? executionPrice * (selectedSide === 'LONG'
                     ? 1 - (1 / effectiveLeverage) * 0.9
                     : 1 + (1 / effectiveLeverage) * 0.9)
                   : 0;
+
+                const hasOrder = positionSize > 0;
+                const hasPosition = !!currentPos && currentPos.liquidationPrice > 0;
+
+                // Liq Price: show arrow "current → new" when both exist
+                let liqPriceDisplay: string;
+                if (hasOrder && hasPosition) {
+                  liqPriceDisplay = `$${formatPrice(currentPos.liquidationPrice)} → $${formatPrice(estLiqPrice)}`;
+                } else if (hasOrder) {
+                  liqPriceDisplay = `$${formatPrice(estLiqPrice)}`;
+                } else if (hasPosition) {
+                  liqPriceDisplay = `$${formatPrice(currentPos.liquidationPrice)}`;
+                } else {
+                  liqPriceDisplay = 'N/A';
+                }
+
+                // Margin: show arrow "current → new" when both exist
+                let marginDisplay: string;
+                if (hasOrder && hasPosition) {
+                  marginDisplay = `$${currentPos.margin.toFixed(2)} → $${(currentPos.margin + orderMargin).toFixed(2)}`;
+                } else if (hasOrder) {
+                  marginDisplay = `$${orderMargin.toFixed(2)}`;
+                } else if (hasPosition) {
+                  marginDisplay = `$${currentPos.margin.toFixed(2)}`;
+                } else {
+                  marginDisplay = 'N/A';
+                }
 
                 return (
                   <div className="text-xs space-y-1.5 mb-4">
@@ -2042,7 +2084,12 @@ export default function TradePage() {
                     {orderType === 'market' && (
                       <div className="flex justify-between">
                         <span className="text-surface-400">Max Slippage</span>
-                        <span className="text-primary-400 font-mono">0.5%</span>
+                        <button
+                          onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }}
+                          className="text-primary-400 font-mono hover:text-primary-300 underline decoration-dotted cursor-pointer"
+                        >
+                          {slippage}%
+                        </button>
                       </div>
                     )}
                     {(orderType === 'limit' || orderType === 'stop-limit') && limitPrice && (
@@ -2059,11 +2106,11 @@ export default function TradePage() {
                     )}
                     <div className="flex justify-between">
                       <span className="text-surface-400">Est. Liq Price</span>
-                      <span className="text-white font-mono">{positionSize > 0 ? `$${formatPrice(estLiqPrice)}` : 'N/A'}</span>
+                      <span className="text-white font-mono">{liqPriceDisplay}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Margin</span>
-                      <span className="text-white font-mono">{margin > 0 ? `$${margin.toFixed(2)}` : 'N/A'}</span>
+                      <span className="text-white font-mono">{marginDisplay}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Available</span>
@@ -2140,6 +2187,57 @@ export default function TradePage() {
         onClose={() => setShowWithdrawModal(false)}
         availableBalance={account?.availableToSpend ? parseFloat(account.availableToSpend) : null}
       />
+
+      {/* Slippage Modal */}
+      {showSlippageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowSlippageModal(false)}>
+          <div className="bg-surface-800 border border-surface-600 rounded-xl p-5 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-white font-bold text-sm">Adjust Max Slippage</h3>
+              <button onClick={() => setShowSlippageModal(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+            </div>
+            <p className="text-surface-400 text-xs mb-4">
+              Max slippage only affects market orders submitted from the order form.
+              Position closing uses 8% max slippage and market TP/SL orders use 10% max slippage.
+            </p>
+            <div className="relative mb-4">
+              <input
+                type="number"
+                value={slippageInput}
+                onChange={(e) => setSlippageInput(e.target.value)}
+                min="0.01"
+                max="10"
+                step="0.1"
+                className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-primary-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const val = parseFloat(slippageInput);
+                    if (!isNaN(val) && val >= 0.01 && val <= 10) {
+                      setSlippage(val.toString());
+                      setShowSlippageModal(false);
+                    }
+                  }
+                }}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 font-mono text-sm">%</span>
+            </div>
+            <button
+              onClick={() => {
+                const val = parseFloat(slippageInput);
+                if (!isNaN(val) && val >= 0.01 && val <= 10) {
+                  setSlippage(val.toString());
+                  setShowSlippageModal(false);
+                }
+              }}
+              className="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-bold text-sm rounded-lg transition-colors"
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      )}
     </AppShell>
+    </BetaGate>
   );
 }

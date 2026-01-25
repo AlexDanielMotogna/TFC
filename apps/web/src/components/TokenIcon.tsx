@@ -32,13 +32,21 @@ export const extractBaseSymbol = (symbol: string): string => {
   return symbol;
 };
 
+// Special casing for Pacifica token names (they use lowercase 'k' prefix)
+const PACIFICA_TOKEN_NAMES: Record<string, string> = {
+  'KPEPE': 'kPEPE',
+  'KBONK': 'kBONK',
+};
+
 // Generate icon URLs with Pacifica as primary source
 export const getIconUrls = (symbol: string): string[] => {
   const baseSymbol = extractBaseSymbol(symbol).toUpperCase();
   const urls: string[] = [];
 
   // Pacifica icons - primary source for all traded tokens
-  urls.push(`https://app.pacifica.fi/imgs/tokens/${baseSymbol}.svg`);
+  // Use special casing for tokens that need it (kPEPE, kBONK)
+  const pacificaSymbol = PACIFICA_TOKEN_NAMES[baseSymbol] || baseSymbol;
+  urls.push(`https://app.pacifica.fi/imgs/tokens/${pacificaSymbol}.svg`);
 
   // Fallback for forex, stocks, commodities
   if (FALLBACK_ICONS[baseSymbol]) {

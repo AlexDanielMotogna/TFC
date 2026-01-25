@@ -36,6 +36,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
   const [showFightBannerExplain, setShowFightBannerExplain] = useState(false);
   const [showFightOnlyExplain, setShowFightOnlyExplain] = useState(false);
   const [showFightCapitalExplain, setShowFightCapitalExplain] = useState(false);
+  const [showSwitchFightExplain, setShowSwitchFightExplain] = useState(false);
 
   // Dynamic fees from Pacifica API
   const [feesDisplay, setFeesDisplay] = useState('0.0900% / 0.0650%');
@@ -60,6 +61,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
     setShowFightBannerExplain(false);
     setShowFightOnlyExplain(false);
     setShowFightCapitalExplain(false);
+    setShowSwitchFightExplain(false);
 
     if (highlightFeature === 'deposit-withdraw') {
       setShowDepositModal(true);
@@ -243,7 +245,10 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             <span className="text-surface-600">|</span>
             <span className="font-mono text-white">$5000</span>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-700 rounded text-xs cursor-pointer transition-colors">
+          <div
+            onClick={() => setShowSwitchFightExplain(true)}
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-700 rounded text-xs cursor-pointer transition-colors"
+          >
             <span className="text-surface-400">vs</span>
             <span className="font-medium text-primary-400">6WZ3...qVaU</span>
             <span className="text-surface-600">|</span>
@@ -625,13 +630,13 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                     </div>
                   </td>
                   <td className="py-2 px-1 text-right font-mono text-white">0.000190 <span className="text-surface-400">BTC</span></td>
-                  <td className="py-2 px-1 text-right font-mono text-white">$16.96</td>
-                  <td className="py-2 px-1 text-right font-mono text-surface-300">89.256</td>
-                  <td className="py-2 px-1 text-right font-mono text-surface-300">89.256</td>
-                  <td className="py-2 px-1 text-right font-mono text-win-400">+$0.0000 (+0.00%)</td>
-                  <td className="py-2 px-1 text-right font-mono text-surface-300">92.065</td>
-                  <td className="py-2 px-1 text-right font-mono text-white">$0.34<br/><span className="text-surface-500">Cross</span></td>
-                  <td className="py-2 px-1 text-right font-mono text-win-400">+$0.0000</td>
+                  <td className="py-2 px-1 text-right font-mono text-white">$18.37</td>
+                  <td className="py-2 px-1 text-right font-mono text-surface-300">96,420.00</td>
+                  <td className="py-2 px-1 text-right font-mono text-surface-300">96,678.61</td>
+                  <td className="py-2 px-1 text-right font-mono text-loss-400">-$2.21 (-12.04%)</td>
+                  <td className="py-2 px-1 text-right font-mono text-surface-300">97,871.00</td>
+                  <td className="py-2 px-1 text-right font-mono text-white">$0.37<br/><span className="text-surface-500">Cross</span></td>
+                  <td className="py-2 px-1 text-right font-mono text-loss-400">-$2.21</td>
                   <td className="py-2 px-1 text-center">
                     <button onClick={() => openModal('tpsl', 'BTC')} className="text-surface-500 hover:text-primary-400 flex items-center gap-1 justify-center">
                       - / -
@@ -672,8 +677,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           {/* Footer: Positions Summary */}
           <div className="flex-shrink-0 px-3 py-2 border-t border-surface-800 flex gap-4 text-[10px]">
             <span className="text-surface-400">Positions: <span className="text-white">1</span></span>
-            <span className="text-surface-400">Total Value: <span className="text-white font-mono">$16.96</span></span>
-            <span className="text-surface-400">Total PnL: <span className="text-win-400 font-mono">+$0.0000</span></span>
+            <span className="text-surface-400">Total Value: <span className="text-white font-mono">$18.37</span></span>
+            <span className="text-surface-400">Total PnL: <span className="text-loss-400 font-mono">-$2.21</span></span>
           </div>
         </div>
       </div>
@@ -716,7 +721,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             </div>
             <div className="flex justify-between">
               <span className="text-surface-400">Unrealized PnL</span>
-              <span className="text-loss-400 font-mono">-$0.01</span>
+              <span className="text-loss-400 font-mono">-$2.21</span>
             </div>
             <div className="flex justify-between">
               <span className="text-surface-400">Cross Account Leverage</span>
@@ -943,7 +948,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
               {/* Current Price */}
               <div className="flex items-center justify-between">
-                <span className="text-white font-mono text-2xl">89284.00</span>
+                <span className="text-white font-mono text-2xl">96,678.61</span>
                 <div className="flex items-center gap-2">
                   <span className="text-surface-400 text-sm">USD</span>
                   <span className="px-2 py-0.5 rounded text-xs font-semibold bg-win-500/20 text-win-400">LIVE</span>
@@ -963,7 +968,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 <div className="flex-1 relative">
                   <input
                     type="text"
-                    defaultValue="16.96"
+                    defaultValue="18.37"
                     className="w-full bg-black border-none rounded px-3 py-2.5 text-white font-mono text-sm pr-12"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">USD</span>
@@ -1001,7 +1006,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               {/* Estimated PnL */}
               <div className="flex justify-end">
                 <span className="text-surface-400 text-sm">
-                  Estimated PnL: <span className="text-loss-400 font-mono">-$0.01</span>
+                  Estimated PnL: <span className="text-loss-400 font-mono">-$2.21</span>
                 </span>
               </div>
 
@@ -1110,7 +1115,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               {/* Estimated PnL */}
               <div className="flex justify-end">
                 <span className="text-surface-400 text-sm">
-                  Estimated PnL: <span className="text-win-400 font-mono">+$0.0000</span>
+                  Estimated PnL: <span className="text-loss-400 font-mono">-$2.21</span>
                 </span>
               </div>
 
@@ -1699,6 +1704,88 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           </div>
         </div>
       )}
+
+      {/* Switch Fight Explanation Modal */}
+      {showSwitchFightExplain && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-surface-800 rounded-xl border border-surface-700 max-w-md w-full p-6 shadow-2xl">
+            {/* Icon */}
+            <div className="w-16 h-16 rounded-full bg-primary-500/20 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+
+            {/* Title */}
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-xl font-bold text-white">Switch Between Fights</h3>
+              <button
+                onClick={() => setShowSwitchFightExplain(false)}
+                className="text-surface-400 hover:text-white text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Description */}
+            <p className="text-surface-400 text-center mb-6">
+              You can switch between your active fights at any time. Your positions and progress in each fight are saved separately.
+            </p>
+
+            {/* Fight Info Preview */}
+            <div className="bg-surface-900/50 rounded-lg p-4 mb-6 border border-surface-700">
+              <p className="text-sm text-surface-400 mb-3">Example: Switching to another fight</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-surface-500">Opponent</p>
+                  <p className="text-lg font-bold text-white">6WZ3...qVaU</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-surface-500">Time Left</p>
+                  <p className="text-lg font-mono font-bold text-primary-400">169:29</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-surface-500">Stake</p>
+                  <p className="text-lg font-bold text-white">$1,000</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Explanation boxes */}
+            <div className="space-y-3 mb-6">
+              <div className="bg-surface-700/50 rounded-lg p-3">
+                <div className="text-white font-semibold text-sm mb-1">Multiple Fights</div>
+                <p className="text-surface-400 text-xs">
+                  You can participate in multiple fights simultaneously. Each fight has its own timer, positions, and PnL tracking.
+                </p>
+              </div>
+
+              <div className="bg-surface-700/50 rounded-lg p-3">
+                <div className="text-white font-semibold text-sm mb-1">Positions Stay Separate</div>
+                <p className="text-surface-400 text-xs">
+                  Positions opened in one fight don&apos;t count towards another fight&apos;s performance. Each fight is completely independent.
+                </p>
+              </div>
+
+              <div className="bg-surface-700/50 rounded-lg p-3">
+                <div className="text-white font-semibold text-sm mb-1">Switch Anytime</div>
+                <p className="text-surface-400 text-xs">
+                  Click on any fight button in the navbar to instantly switch. Your current fight will continue in the background.
+                </p>
+              </div>
+            </div>
+
+            {/* Close button */}
+            <button
+              onClick={() => setShowSwitchFightExplain(false)}
+              className="w-full px-4 py-3 bg-primary-500 hover:bg-primary-400 text-white font-semibold rounded-lg transition-colors"
+            >
+              Got it!
+            </button>
+          </div>
+        </div>
+      )}
+
       </div>{/* End of min-w wrapper */}
     </div>
   );

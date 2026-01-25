@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
+import { BetaGate } from '@/components/BetaGate';
 import { LeaderboardSkeleton, LeaderboardRowSkeleton } from '@/components/Skeletons';
 import { api } from '@/lib/api';
 import { usePrizePool } from '@/hooks/usePrizePool';
@@ -66,8 +67,9 @@ export default function LeaderboardPage() {
   const third = podiumEntries[2];
 
   return (
-    <AppShell>
-      <div className="container mx-auto px-4 md:px-6 py-8 animate-fadeIn">
+    <BetaGate>
+      <AppShell>
+        <div className="container mx-auto px-4 md:px-6 py-8 animate-fadeIn">
         {/* Page Header */}
         <div className="mb-6">
           {/* Title */}
@@ -399,6 +401,7 @@ export default function LeaderboardPage() {
           </div>
         )}
       </div>
-    </AppShell>
+      </AppShell>
+    </BetaGate>
   );
 }

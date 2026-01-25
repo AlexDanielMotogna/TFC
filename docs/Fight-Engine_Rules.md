@@ -109,34 +109,34 @@
 23. Las fees incluyen:
 
     * **Trading fees de Pacifica** (maker / taker).
-    * **Fee adicional de la plataforma: 0.05%** sobre cada trade.
+    * **Fee adicional de la plataforma: 0.05%** via Builder Code.
 24. El cálculo del PnL es:
 
     * **PnL bruto**
-    * **menos fees de Pacifica**
-    * **menos fee adicional de la plataforma (0.05%)**
+    * **menos fees totales** (ya incluyen fee de plataforma via Builder Code)
 25. El PnL mostrado en el fight es siempre:
 
     * **PnL neto real**, después de todas las fees.
 
 ---
 
-## 8. Uso de la API de Pacifica para fees
+## 8. Uso de la API de Pacifica para fees (Builder Code)
 
-26. La plataforma utiliza la API de Pacifica para obtener fees reales:
+26. La plataforma utiliza **Builder Code** de Pacifica para cobrar fees:
 
-    * `maker_fee`
-    * `taker_fee`
-27. Estos valores se obtienen desde:
+    * El fee de la plataforma (0.05%) se configura como Builder Fee
+    * Pacifica **combina** el fee base + builder fee en un solo cargo
+    * El campo `fee` devuelto por Pacifica **ya incluye** ambos fees
+27. Esto significa:
 
-    * `/api/v1/account`
-28. El cálculo de fees **no es estimado**, se basa en:
+    * **No hay cálculo separado** de platform fee en el código
+    * El `trade.fee` de Pacifica es el fee total (Pacifica + TFC)
+    * El `trade.pnl` de Pacifica ya descuenta todas las fees
+28. Esto garantiza:
 
-    * Datos reales devueltos por Pacifica.
-29. Esto garantiza:
-
-    * Precisión del PnL.
+    * Precisión del PnL sin doble conteo de fees.
     * Consistencia entre Pacifica y la app.
+    * Builder fees son enviados automáticamente a la cuenta de TFC.
 
 ---
 
@@ -175,3 +175,7 @@
     
 
 36. Si un jugador deberia poder cerrar solo las posiciones de los assets que estan en el fight only desde fight only view! Aun asi si tiene el mismo asset pre comprado el system debe saber lo que el usuario compro en el fight y mostrar esos detalles en las tablas de posiciones, open order, trade history y open orders...
+
+35. El sistema debe detectar tramposos, fights que terminan en draw con 0% - 0% pnl, se puede considerar que una persona con mas cuentas esta entrando en sus propios fights y dejando la cuenta a 50% de winrate sin hacer ningun trading. Este tipo de fights no deben contar en el PNL o ranking del usuario, ningun fight que termine con 0% - 0% pnl
+
+36. La applicacion debe deducir cuando se esta intentanto hacer trampas, por ejemplo debemos 

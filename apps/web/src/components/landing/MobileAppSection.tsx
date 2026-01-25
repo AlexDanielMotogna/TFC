@@ -119,8 +119,11 @@ export function MobileAppSection() {
           <h2 className="text-3xl lg:text-5xl font-bold tracking-tight mb-4 text-white">
             Professional trading tools
           </h2>
-          <p className="text-surface-400 text-lg">
+          <p className="text-surface-400 text-lg mb-2">
             Everything you need to execute your strategy. Real perpetual trading with real execution.
+          </p>
+          <p className="text-surface-500 text-sm">
+            Try the interactive demo below to learn the platform before trading.
           </p>
         </div>
 

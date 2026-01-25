@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks';
 import { api, type UserProfile, type Fight } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
+import { BetaGate } from '@/components/BetaGate';
 import { ProfileSkeleton } from '@/components/Skeletons';
 import { PerformanceChart } from '@/components/PerformanceChart';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
@@ -101,29 +102,33 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-      <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-8">
-          <ProfileSkeleton />
-        </div>
-      </AppShell>
+      <BetaGate>
+        <AppShell>
+          <div className="container mx-auto px-4 md:px-6 py-8">
+            <ProfileSkeleton />
+          </div>
+        </AppShell>
+      </BetaGate>
     );
   }
 
   if (error || !profile) {
     return (
-      <AppShell>
-        <div className="flex items-center justify-center py-32">
-          <div className="text-center">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-800 flex items-center justify-center">
-              <span className="text-4xl opacity-50">?</span>
+      <BetaGate>
+        <AppShell>
+          <div className="flex items-center justify-center py-32">
+            <div className="text-center">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-800 flex items-center justify-center">
+                <span className="text-4xl opacity-50">?</span>
+              </div>
+              <p className="text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
+              <Link href="/lobby" className="btn-primary">
+                Back to Arena
+              </Link>
             </div>
-            <p className="text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
-            <Link href="/lobby" className="btn-primary">
-              Back to Arena
-            </Link>
           </div>
-        </div>
-      </AppShell>
+        </AppShell>
+      </BetaGate>
     );
   }
 
@@ -138,8 +143,9 @@ export default function ProfilePage() {
   };
 
   return (
-    <AppShell>
-      <div className="container mx-auto px-4 md:px-6 py-8">
+    <BetaGate>
+      <AppShell>
+        <div className="container mx-auto px-4 md:px-6 py-8">
         {/* Profile Header */}
         <div className="card p-6 mb-6">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-4">
@@ -390,6 +396,7 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
-    </AppShell>
+      </AppShell>
+    </BetaGate>
   );
 }

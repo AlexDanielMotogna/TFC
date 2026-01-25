@@ -26,3 +26,4 @@ export { useNotifications, useUnreadNotificationCount, useMarkNotificationAsRead
 export type { Notification } from './useNotifications';
 export { useMyPrizes } from './useMyPrizes';
 export type { UserPrize } from './useMyPrizes';
+export { useBetaAccess } from './useBetaAccess';

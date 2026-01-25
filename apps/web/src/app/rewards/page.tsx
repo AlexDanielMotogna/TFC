@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useMyPrizes } from '@/hooks/useMyPrizes';
 import { ClaimPrizeButton } from '@/components/ClaimPrizeButton';
 import { AppShell } from '@/components/AppShell';
+import { BetaGate } from '@/components/BetaGate';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import WorkspacePremiumIcon from '@mui/icons-material/WorkspacePremium';
 
@@ -25,8 +26,9 @@ export default function RewardsPage() {
   }, []);
 
   return (
-    <AppShell>
-      <div className="container mx-auto px-4 md:px-6 py-6 max-w-4xl">
+    <BetaGate>
+      <AppShell>
+        <div className="container mx-auto px-4 md:px-6 py-6 max-w-4xl">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2 sm:gap-3">
@@ -136,6 +138,7 @@ export default function RewardsPage() {
           </p>
         </div>
       </div>
-    </AppShell>
+      </AppShell>
+    </BetaGate>
   );
 }

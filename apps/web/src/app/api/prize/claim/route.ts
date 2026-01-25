@@ -36,7 +36,7 @@ function formatRank(rank: number): string {
 
 export async function POST(request: NextRequest) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       // Parse request body
       const body = await request.json();
       const { prizeId } = body;
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       // Get all prizes for this user
       const prizes = await prisma.weeklyPrize.findMany({
         where: { userId: user.userId },

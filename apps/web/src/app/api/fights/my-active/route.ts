@@ -9,7 +9,7 @@ import { errorResponse } from '@/lib/server/errors';
 
 export async function GET(request: Request) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       // Find all LIVE fights where the user is a participant
       const participants = await prisma.fightParticipant.findMany({
         where: {

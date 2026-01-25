@@ -6,6 +6,7 @@ import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, BadRequestError, NotFoundError } from '@/lib/server/errors';
 import { getPositions } from '@/lib/server/pacifica';
+import { canUsersMatch, recordFightSession } from '@/lib/server/anti-cheat';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -31,7 +32,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       // Validate fight exists
       const fight = await prisma.fight.findUnique({
         where: { id: params.id },
@@ -64,6 +65,12 @@ export async function POST(
       // Validate slot B is available
       if (fight.participants.some((p: any) => p.slot === 'B')) {
         throw new BadRequestError('Fight is already full');
+      }
+
+      // Anti-cheat: Check if users can be matched (repeated matchup limit)
+      const matchCheck = await canUsersMatch(fight.creatorId, user.userId);
+      if (!matchCheck.canMatch) {
+        throw new BadRequestError(matchCheck.reason || 'Cannot match with this opponent');
       }
 
       // Check if user has active Pacifica connection
@@ -197,6 +204,14 @@ export async function POST(
           message: `${joiner?.handle || 'Someone'} joined your ${fight.durationMinutes}m fight - Game on!`,
         },
       });
+
+      // Record fight session for anti-cheat (IP tracking)
+      try {
+        await recordFightSession(params.id, user.userId, request, 'join');
+      } catch (err) {
+        console.error(`[JoinFight] Failed to record fight session:`, err);
+        // Non-blocking - continue even if session recording fails
+      }
 
       return Response.json({ success: true, data: updatedFight });
     });

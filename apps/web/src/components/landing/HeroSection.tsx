@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -7,6 +8,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { usePrices } from '@/hooks/usePrices';
 import { useStats } from '@/hooks/useStats';
 import { TickerCard } from './shared/TickerCard';
+import { BetaApplyModal } from './BetaApplyModal';
 
 // Token data for display names
 const TOKEN_DATA: Record<string, { name: string; fullName: string }> = {
@@ -38,6 +40,7 @@ export function HeroSection() {
   const { connected } = useWallet();
   const { prices, isConnected } = usePrices({ symbols: ['BTC-USD', 'ETH-USD', 'SOL-USD'] });
   const { stats, isLoading: statsLoading } = useStats();
+  const [showBetaModal, setShowBetaModal] = useState(false);
 
   const tickerSymbols = ['BTC-USD', 'ETH-USD', 'SOL-USD'];
 
@@ -75,12 +78,12 @@ export function HeroSection() {
               ) : (
                 <WalletMultiButton />
               )}
-              <Link
-                href="/leaderboard"
+              <button
+                onClick={() => setShowBetaModal(true)}
                 className="btn-outline-glow w-full sm:w-auto text-center"
               >
-                View Leaderboard
-              </Link>
+                Join Beta
+              </button>
             </div>
 
             {/* Stats Row */}
@@ -165,6 +168,9 @@ export function HeroSection() {
           })}
         </div>
       </div>
+
+      {/* Beta Apply Modal */}
+      <BetaApplyModal isOpen={showBetaModal} onClose={() => setShowBetaModal(false)} />
     </section>
   );
 }

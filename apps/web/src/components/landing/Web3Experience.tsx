@@ -161,15 +161,15 @@ export function Web3Experience() {
             {/* Additional Info - Dynamic fees from Pacifica API */}
             <div className="grid grid-cols-3 gap-4 pt-6 border-t border-surface-700/50">
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-1">{fees.makerFeePercent}%</div>
+                <div className="text-lg sm:text-2xl font-bold text-white mb-1">{fees.makerFeePercent}%</div>
                 <div className="text-xs text-surface-400">Maker Fees</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-1">{fees.takerFeePercent}%</div>
+                <div className="text-lg sm:text-2xl font-bold text-white mb-1">{fees.takerFeePercent}%</div>
                 <div className="text-xs text-surface-400">Taker Fees</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-white mb-1">&lt;400ms</div>
+                <div className="text-lg sm:text-2xl font-bold text-white mb-1">&lt;400ms</div>
                 <div className="text-xs text-surface-400">Execution Time</div>
               </div>
             </div>

@@ -97,6 +97,11 @@ export function FAQSection() {
       question: 'How do I get started?',
       answer: 'Connect your Solana wallet, deposit USDC on Pacifica DEX, and head to the lobby to create a fight or join an existing one. Start fighting and climb the leaderboard!',
     },
+    {
+      question: 'Anti-Cheat System?',
+      answer: 'Fights with zero trading, very low volume, repeated self-matches, or shared IPs are marked NO CONTEST and don’t affect rankings or PnL.',
+    },
+
   ];
 
   return (

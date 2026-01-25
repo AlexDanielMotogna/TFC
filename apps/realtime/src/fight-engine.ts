@@ -7,6 +7,10 @@ import { getPrices, getTradeHistory, MarketPrice } from './pacifica-client.js';
 // External trades check interval (every 30 seconds)
 const EXTERNAL_TRADES_CHECK_INTERVAL = 30;
 
+// Anti-cheat API configuration
+const WEB_API_URL = process.env.WEB_API_URL || 'http://localhost:3000';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
 // Snapshot save interval (every 5 seconds to reduce DB load)
 // A 5-minute fight = 60 snapshots instead of 300
 const SNAPSHOT_SAVE_INTERVAL = 5;
@@ -52,7 +56,7 @@ async function calculateUnrealizedPnlFromFightTrades(
   fightId: string,
   userId: string,
   cachedPrices?: MarketPrice[]
-): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number; platformFee: number }> {
+): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number }> {
   try {
     const [fightTrades, prices] = await Promise.all([
       prisma.fightTrade.findMany({
@@ -71,7 +75,8 @@ async function calculateUnrealizedPnlFromFightTrades(
     // We track realizedPnl by only counting pnl from CLOSING trades
     let realizedPnl = 0;
     let totalFees = 0;
-    let totalNotional = 0; // Track total trade value for platform fee (Rules 22-25)
+    // Note: Platform fee (0.05%) is already included in Pacifica's fee field via Builder Code
+    // No need to calculate separately - Pacifica combines base fee + builder fee
 
     for (const trade of fightTrades) {
       const symbol = trade.symbol;
@@ -82,7 +87,7 @@ async function calculateUnrealizedPnlFromFightTrades(
       const tradeFee = Number(trade.fee);
 
       totalFees += tradeFee;
-      totalNotional += amount * price; // Track for platform fee
+      // Note: closingNotional is tracked below only for closing trades
 
       if (!positionsBySymbol[symbol]) {
         positionsBySymbol[symbol] = { amount: 0, totalCost: 0, leverage: tradeLeverage };
@@ -194,10 +199,9 @@ async function calculateUnrealizedPnlFromFightTrades(
     // Note: Funding is tracked per-position on Pacifica, not per-fight
     // For fight-specific calculations, we don't include funding
 
-    // Calculate platform fee per Fight-Engine_Rules.md Rules 22-25
-    // Rate comes from env variable (default 0.05% = 0.0005)
-    const PLATFORM_FEE_RATE = parseFloat(process.env.PLATFORM_FEE_RATE || '0.0005');
-    const platformFee = totalNotional * PLATFORM_FEE_RATE;
+    // Note: Platform fee (0.05%) is already included in Pacifica's fee via Builder Code
+    // Pacifica combines base fee + builder fee in the trade.fee field
+    // So totalFees already includes our platform fee - no separate calculation needed
 
     return {
       unrealizedPnl,
@@ -207,14 +211,13 @@ async function calculateUnrealizedPnlFromFightTrades(
       realizedPnl,
       fees: totalFees,
       tradesCount: fightTrades.length,
-      platformFee,
     };
   } catch (error) {
     logger.error(LOG_EVENTS.API_ERROR, 'Failed to calculate unrealized PnL from fight trades', error as Error, {
       fightId,
       userId,
     });
-    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0, platformFee: 0 };
+    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0 };
   }
 }
 
@@ -575,8 +578,11 @@ export class FightEngine {
 
   /**
    * Calculate current fight state from database trades and live positions
-   * - Realized PnL: from recorded trades (closed positions)
-   * - Unrealized PnL: from current open positions via Pacifica API
+   * - PnL only counts CLOSED positions (realized PnL)
+   * - Opening a position (long/short) doesn't affect the fight PnL
+   * - PnL updates only when a position is closed
+   *
+   * @param fight - The fight data
    */
   private async calculateFightState(fight: {
     id: string;
@@ -605,15 +611,14 @@ export class FightEngine {
     const participantStates = await Promise.all(
       fight.participants.map(async (p) => {
         // Get all PnL data from FightTrade records for THIS specific fight
-        // Per Fight-Engine_Rules.md Rules 18-21:
-        // - Only CLOSED positions count for fight PnL
-        // - Open positions (unrealizedPnl) are shown in positions table but DON'T affect fight score
-        // - realizedPnl only includes pnl from CLOSING trades (opening fees don't count!)
         const liveData = await calculateUnrealizedPnlFromFightTrades(fight.id, p.userId, prices);
-        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount, platformFee } = liveData;
+        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount } = liveData;
 
-        // totalPnl = realized PnL minus platform fee (Rules 22-25)
-        const totalPnl = realizedPnl - platformFee;
+        // Per user requirement: PnL should ONLY update when positions are CLOSED
+        // Both live display and settlement use realized PnL only
+        // Opening a position (long/short) doesn't affect PnL - only closing does
+        // Note: Platform fee is already included in Pacifica's fee via Builder Code
+        const totalPnl = realizedPnl; // Only closed positions count
 
         // For pnlPercent (ROI%), we use PnL / margin * 100
         // When margin = 0 (all positions closed), fall back to maxExposureUsed
@@ -869,12 +874,17 @@ export class FightEngine {
       where: { id: fightId },
       include: {
         participants: {
-          select: { id: true, userId: true, externalTradesDetected: true },
+          include: { user: { select: { id: true, handle: true } } },
         },
       },
     });
 
-    if (fight && fight.startedAt) {
+    if (!fight) {
+      logger.error(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight not found for settlement', { fightId });
+      return;
+    }
+
+    if (fight.startedAt) {
       await this.checkExternalTrades({
         id: fight.id,
         startedAt: fight.startedAt,
@@ -882,81 +892,145 @@ export class FightEngine {
       });
     }
 
-    // Determine winner
+    // Recalculate state to get final REALIZED PnL
+    // Only closed positions count for winner determination
+    const settlementState = await this.calculateFightState({
+      id: fight.id,
+      status: fight.status,
+      durationMinutes: fight.durationMinutes,
+      stakeUsdc: fight.stakeUsdc,
+      startedAt: fight.startedAt,
+      participants: fight.participants,
+    });
+
+    // Use settlement state for final scores, fallback to live state if calculation fails
+    const finalState = settlementState || state;
+
+    // Update participant final scores FIRST (needed for anti-cheat validation)
+    if (finalState.participantA) {
+      await prisma.fightParticipant.updateMany({
+        where: { fightId, userId: finalState.participantA.userId },
+        data: {
+          finalPnlPercent: finalState.participantA.pnlPercent,
+          finalScoreUsdc: finalState.participantA.scoreUsdc,
+          tradesCount: finalState.participantA.tradesCount,
+        },
+      });
+    }
+
+    if (finalState.participantB) {
+      await prisma.fightParticipant.updateMany({
+        where: { fightId, userId: finalState.participantB.userId },
+        data: {
+          finalPnlPercent: finalState.participantB.pnlPercent,
+          finalScoreUsdc: finalState.participantB.scoreUsdc,
+          tradesCount: finalState.participantB.tradesCount,
+        },
+      });
+    }
+
+    // Determine winner based on REALIZED PnL only
     // Use tolerance for floating point comparison to avoid false wins due to precision errors
     // 0.0001% difference is considered a draw (both displayed as same percentage)
     const EPSILON = 0.0001;
-    let winnerId: string | null = null;
-    let isDraw = false;
+    let determinedWinnerId: string | null = null;
+    let determinedDraw = false;
 
-    if (state.participantA && state.participantB) {
-      const diff = state.participantA.pnlPercent - state.participantB.pnlPercent;
+    if (finalState.participantA && finalState.participantB) {
+      const diff = finalState.participantA.pnlPercent - finalState.participantB.pnlPercent;
       if (Math.abs(diff) < EPSILON) {
         // Difference is negligible - it's a draw
-        isDraw = true;
+        determinedDraw = true;
       } else if (diff > 0) {
-        winnerId = state.participantA.userId;
+        determinedWinnerId = finalState.participantA.userId;
       } else {
-        winnerId = state.participantB.userId;
+        determinedWinnerId = finalState.participantB.userId;
       }
     }
 
-    // Update database
+    // Call anti-cheat API to validate fight and get final status
+    let finalStatus: 'FINISHED' | 'NO_CONTEST' = 'FINISHED';
+    let winnerId = determinedWinnerId;
+    let isDraw = determinedDraw;
+
+    try {
+      const response = await fetch(`${WEB_API_URL}/api/internal/anti-cheat/settle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Key': INTERNAL_API_KEY,
+        },
+        body: JSON.stringify({
+          fightId,
+          determinedWinnerId,
+          isDraw: determinedDraw,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          finalStatus = result.finalStatus;
+          winnerId = result.winnerId;
+          isDraw = result.isDraw;
+
+          if (result.violations && result.violations.length > 0) {
+            logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight settled with anti-cheat violations', {
+              fightId,
+              finalStatus,
+              violationCount: result.violations.length,
+              violations: result.violations.map((v: { ruleCode: string }) => v.ruleCode),
+            });
+          }
+        }
+      } else {
+        logger.error(LOG_EVENTS.API_ERROR, 'Anti-cheat API returned error', {
+          fightId,
+          status: response.status,
+        });
+      }
+    } catch (error) {
+      // If anti-cheat API fails, continue with normal settlement
+      logger.error(LOG_EVENTS.API_ERROR, 'Failed to call anti-cheat API', {
+        fightId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+
+    // Update database with final status from anti-cheat
     await prisma.fight.update({
       where: { id: fightId },
       data: {
-        status: FightStatus.FINISHED,
+        status: finalStatus === 'NO_CONTEST' ? FightStatus.NO_CONTEST : FightStatus.FINISHED,
         endedAt: new Date(),
         winnerId,
         isDraw,
       },
     });
 
-    // Update participant final scores
-    if (state.participantA) {
-      await prisma.fightParticipant.updateMany({
-        where: { fightId, userId: state.participantA.userId },
-        data: {
-          finalPnlPercent: state.participantA.pnlPercent,
-          finalScoreUsdc: state.participantA.scoreUsdc,
-          tradesCount: state.participantA.tradesCount,
-        },
-      });
-    }
-
-    if (state.participantB) {
-      await prisma.fightParticipant.updateMany({
-        where: { fightId, userId: state.participantB.userId },
-        data: {
-          finalPnlPercent: state.participantB.pnlPercent,
-          finalScoreUsdc: state.participantB.scoreUsdc,
-          tradesCount: state.participantB.tradesCount,
-        },
-      });
-    }
-
     // Remove from active fights and cleanup warning tracking
     this.activeFights.delete(fightId);
     this.fightWarningsSent.delete(fightId);
 
-    // Emit FIGHT_FINISHED
+    // Emit FIGHT_FINISHED with settlement scores (realized PnL only)
     this.io.to(`fight:${fightId}`).emit(WS_EVENTS.FIGHT_FINISHED, {
       fightId,
+      status: finalStatus,
       winnerId,
       isDraw,
       finalScores: {
-        participantA: state.participantA
+        participantA: finalState.participantA
           ? {
-              userId: state.participantA.userId,
-              pnlPercent: state.participantA.pnlPercent,
-              scoreUsdc: state.participantA.scoreUsdc,
+              userId: finalState.participantA.userId,
+              pnlPercent: finalState.participantA.pnlPercent,
+              scoreUsdc: finalState.participantA.scoreUsdc,
             }
           : null,
-        participantB: state.participantB
+        participantB: finalState.participantB
           ? {
-              userId: state.participantB.userId,
-              pnlPercent: state.participantB.pnlPercent,
-              scoreUsdc: state.participantB.scoreUsdc,
+              userId: finalState.participantB.userId,
+              pnlPercent: finalState.participantB.pnlPercent,
+              scoreUsdc: finalState.participantB.scoreUsdc,
             }
           : null,
       },
@@ -964,6 +1038,7 @@ export class FightEngine {
 
     logger.info(LOG_EVENTS.FIGHT_FINISH, 'Fight finished', {
       fightId,
+      status: finalStatus,
       winnerId,
       isDraw,
     });

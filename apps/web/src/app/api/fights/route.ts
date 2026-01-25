@@ -8,6 +8,7 @@ import { prisma } from '@/lib/server/db';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
 import { getPositions } from '@/lib/server/pacifica';
 import { FeatureFlags, StakeLimits } from '@/lib/server/feature-flags';
+import { recordFightSession } from '@/lib/server/anti-cheat';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       const body = await request.json();
       const { durationMinutes, stakeUsdc } = body;
 
@@ -185,6 +186,14 @@ export async function POST(request: Request) {
       // Notify realtime server for arena updates
       if (fight?.id) {
         notifyRealtime('fight-created', fight.id);
+
+        // Record fight session for anti-cheat (IP tracking)
+        try {
+          await recordFightSession(fight.id, user.userId, request, 'join');
+        } catch (err) {
+          console.error(`[CreateFight] Failed to record fight session:`, err);
+          // Non-blocking - continue even if session recording fails
+        }
       }
 
       return fight;

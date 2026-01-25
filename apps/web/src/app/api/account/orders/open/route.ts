@@ -8,7 +8,7 @@ import { errorResponse } from '@/lib/server/errors';
 
 export async function GET(request: Request) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       const orders = await AccountService.getOpenOrders(user.userId);
       return orders;
     });

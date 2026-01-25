@@ -9,6 +9,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore, useStore } from '@/lib/store';
+import { queryClient } from '@/lib/queryClient';
+import { toast } from 'sonner';
 import type { Fight } from '@/lib/api';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002';
@@ -162,12 +164,37 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       console.log('[GlobalSocket] Fight started:', fight.id);
       useGlobalSocketStore.getState().updateFight({ ...fight, status: 'LIVE' } as FightUpdate);
       useStore.getState().updateFight({ ...fight, status: 'LIVE' });
+      // Refresh notifications (e.g. "Opponent Joined!" for the creator)
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+      // Toast the creator that their fight has been accepted
+      const currentUserId = useAuthStore.getState().user?.id;
+      if (currentUserId && fight.creator?.id === currentUserId) {
+        const opponent = fight.participants?.find(p => p.userId !== currentUserId);
+        const opponentName = opponent?.user?.handle || 'Someone';
+        toast.success(`${opponentName} joined your fight! Game on!`);
+      }
     });
 
     socket.on('arena:fight_ended', (fight: Fight) => {
       console.log('[GlobalSocket] Fight ended:', fight.id);
       useGlobalSocketStore.getState().updateFight({ ...fight, status: 'FINISHED' } as FightUpdate);
       useStore.getState().updateFight({ ...fight, status: 'FINISHED' });
+      // Refresh notifications (e.g. fight results)
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+
+      // Toast participants that the fight has ended
+      const currentUserId = useAuthStore.getState().user?.id;
+      const isParticipant = fight.participants?.some(p => p.userId === currentUserId);
+      if (currentUserId && isParticipant) {
+        if (fight.isDraw) {
+          toast('Fight ended in a draw!');
+        } else if (fight.winnerId === currentUserId) {
+          toast.success('You won the fight!');
+        } else {
+          toast('Fight ended. Better luck next time!');
+        }
+      }
     });
 
     socket.on('arena:fight_deleted', (data: { fightId: string }) => {

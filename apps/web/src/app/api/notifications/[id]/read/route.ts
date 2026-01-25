@@ -11,7 +11,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    return withAuth(request, async (user) => {
+    return await withAuth(request, async (user) => {
       const { id } = await params;
 
       await prisma.notification.updateMany({

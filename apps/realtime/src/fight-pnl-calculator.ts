@@ -1,20 +1,52 @@
 /**
  * Fight PnL Calculator
+ * ====================
  *
  * Extracted from fight-engine.ts for testability.
- * Implements Fight-Engine_Rules.md Rules 18-25:
  *
- * Rules 18-21 (PnL Calculation):
- * - Rule 18: PnL is calculated ONLY from valid fight trades (completely closed)
- * - Rule 19: Open positions don't generate PnL
- * - Rule 20: If fight ends with open positions, those are NOT included in PnL
- * - Rule 21: For valid PnL, all positions must be closed before endTime
- *
- * Rules 22-25 (Fees):
- * - Rule 22: PnL MUST include ALL trading fees
- * - Rule 23: Fees include Pacifica fees + 0.05% platform fee
- * - Rule 24: PnL = Gross PnL - Pacifica fees - platform fee
- * - Rule 25: PnL shown is NET PnL after all fees
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │                         HOW PNL IS CALCULATED                               │
+ * ├─────────────────────────────────────────────────────────────────────────────┤
+ * │                                                                             │
+ * │  1. ONLY CLOSED POSITIONS COUNT                                             │
+ * │     ───────────────────────────                                             │
+ * │     • Open position (LONG or SHORT) → PnL = $0.00                           │
+ * │     • Close position → PnL updates with profit/loss                         │
+ * │     • Positions still open at fight end → DO NOT COUNT                      │
+ * │                                                                             │
+ * │  2. PNL CALCULATION                                                         │
+ * │     ───────────────                                                         │
+ * │     PnL = (Close Price - Entry Price) × Amount                              │
+ * │                                                                             │
+ * │     LONG example:                                                           │
+ * │       • Buy 0.1 SOL at $100 (open LONG)                                     │
+ * │       • Sell 0.1 SOL at $105 (close LONG)                                   │
+ * │       • PnL = (105 - 100) × 0.1 = +$0.50                                    │
+ * │                                                                             │
+ * │     SHORT example:                                                          │
+ * │       • Sell 0.1 SOL at $100 (open SHORT)                                   │
+ * │       • Buy 0.1 SOL at $95 (close SHORT)                                    │
+ * │       • PnL = (100 - 95) × 0.1 = +$0.50                                     │
+ * │                                                                             │
+ * │  3. FEES (ALREADY INCLUDED)                                                 │
+ * │     ───────────────────────                                                 │
+ * │     • Pacifica charges fees automatically via Builder Code                  │
+ * │     • The `trade.pnl` field from Pacifica ALREADY has fees deducted         │
+ * │     • Fees = Pacifica base fee + TFC platform fee (0.05%)                   │
+ * │     • NO additional fee calculation in our code                             │
+ * │                                                                             │
+ * │  4. FINAL RESULT                                                            │
+ * │     ────────────                                                            │
+ * │     Final Result = Sum of PnL from all CLOSED positions                     │
+ * │                                                                             │
+ * │  5. WINNER DETERMINATION                                                    │
+ * │     ──────────────────────                                                  │
+ * │     • Compare ROI% (PnL / Margin used × 100)                                │
+ * │     • Trader with better ROI% wins                                          │
+ * │     • If both have 0 trades → Draw                                          │
+ * │     • If one has 0 trades and other has loss → 0 trades wins                │
+ * │                                                                             │
+ * └─────────────────────────────────────────────────────────────────────────────┘
  */
 
 export interface FightTrade {
@@ -22,8 +54,8 @@ export interface FightTrade {
   side: 'BUY' | 'SELL';
   amount: number;
   price: number;
-  pnl: number; // From Pacifica: opening trades = -fee, closing trades = actual pnl
-  fee: number;
+  pnl: number; // From Pacifica (fees already deducted): open = ~0, close = actual profit/loss
+  fee: number; // Total fee (Pacifica + TFC 0.05%) - charged by Pacifica via Builder Code
   leverage?: number | null;
 }
 
@@ -175,7 +207,7 @@ export function calculateFightPnl(
  * - Uses current margin if there are open positions
  * - Falls back to maxExposureUsed for closed positions
  *
- * @param totalPnl - The total PnL (realized only, per Rules 18-21)
+ * @param totalPnl - The total PnL (realized + unrealized)
  * @param currentMargin - Current margin from open positions
  * @param maxExposureUsed - Maximum exposure used during the fight
  */

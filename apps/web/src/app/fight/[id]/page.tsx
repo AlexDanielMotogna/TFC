@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks';
+import { BetaGate } from '@/components/BetaGate';
 import { api, type Fight } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
@@ -141,22 +142,26 @@ export default function FightResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
-      </div>
+      <BetaGate>
+        <div className="min-h-screen bg-surface-900 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+        </div>
+      </BetaGate>
     );
   }
 
   if (error || !fight) {
     return (
-      <div className="min-h-screen bg-surface-900 flex items-center justify-center text-white">
-        <div className="text-center">
-          <p className="text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
-          <Link href="/lobby" className="btn-primary">
-            Back to Lobby
-          </Link>
+      <BetaGate>
+        <div className="min-h-screen bg-surface-900 flex items-center justify-center text-white">
+          <div className="text-center">
+            <p className="text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
+            <Link href="/lobby" className="btn-primary">
+              Back to Lobby
+            </Link>
+          </div>
         </div>
-      </div>
+      </BetaGate>
     );
   }
 
@@ -216,8 +221,9 @@ export default function FightResultsPage() {
   const pnlBreakdownB = calculatePnlBreakdown(participantBTrades);
 
   return (
-    <div className="min-h-screen bg-surface-900 text-white">
-      {/* Header */}
+    <BetaGate>
+      <div className="min-h-screen bg-surface-900 text-white">
+        {/* Header */}
       <header className="border-b border-surface-700 bg-surface-900/80 backdrop-blur-md sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
@@ -671,6 +677,7 @@ export default function FightResultsPage() {
           Fight completed on {fight.endedAt ? formatDate(fight.endedAt) : formatDate(fight.createdAt)}
         </div>
       </main>
-    </div>
+      </div>
+    </BetaGate>
   );
 }
