@@ -14,7 +14,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { toast } from 'sonner';
 
 export default function ReferralsPage() {
-  const { token } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'referrals' | 'payouts'>('overview');
 
@@ -27,7 +27,7 @@ export default function ReferralsPage() {
   const { data: dashboard, isLoading, error } = useQuery({
     queryKey: ['referral-dashboard', token],
     queryFn: () => api.getReferralDashboard(token!),
-    enabled: !!token,
+    enabled: !!token && isAuthenticated,
     staleTime: 30000, // 30 seconds
   });
 
@@ -68,6 +68,23 @@ export default function ReferralsPage() {
 
     claimMutation.mutate();
   };
+
+  // Not authenticated state
+  if (!isAuthenticated || !token) {
+    return (
+      <BetaGate>
+        <AppShell>
+          <div className="container mx-auto px-4 md:px-6 py-6 max-w-6xl">
+            <div className="card p-12 text-center">
+              <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
+              <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
+              <p className="text-surface-500">Please connect your wallet to access the referral system.</p>
+            </div>
+          </div>
+        </AppShell>
+      </BetaGate>
+    );
+  }
 
   // Loading state
   if (isLoading) {
