@@ -11,7 +11,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import GroupsIcon from '@mui/icons-material/Groups';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function ReferralsPage() {
   const { token } = useAuth();
