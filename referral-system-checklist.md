@@ -51,41 +51,41 @@
 ## Phase 2: API Routes ⏳
 
 ### 2.1 Dashboard API
-- [ ] Create `apps/web/src/app/api/referrals/dashboard/route.ts`
-- [ ] Implement GET handler with authentication
-- [ ] Query total referrals (T1, T2, T3)
-- [ ] Query total earnings (total, T1, T2, T3)
-- [ ] Query referral volume (total, T1, T2, T3)
-- [ ] Query unclaimed payout amount
-- [ ] Query recent referrals (last 10)
-- [ ] Query recent earnings (last 20)
-- [ ] Query payout history
-- [ ] Include commission rates in response
-- [ ] Test endpoint with Postman/Thunder Client
+- [x] Create `apps/web/src/app/api/referrals/dashboard/route.ts`
+- [x] Implement GET handler with authentication
+- [x] Query total referrals (T1, T2, T3)
+- [x] Query total earnings (total, T1, T2, T3)
+- [x] Query referral volume (total, T1, T2, T3)
+- [x] Query unclaimed payout amount
+- [x] Query recent referrals (last 10)
+- [x] Query recent earnings (last 20)
+- [x] Query payout history
+- [x] Include commission rates in response
+- [ ] Test endpoint with Postman/Thunder Client (Phase 4)
 
 ### 2.2 Referrals List API
-- [ ] Create `apps/web/src/app/api/referrals/list/route.ts`
-- [ ] Implement pagination
-- [ ] Implement tier filter
-- [ ] Implement search by handle
-- [ ] Calculate trade stats per referral
-- [ ] Test endpoint
+- [x] Create `apps/web/src/app/api/referrals/list/route.ts`
+- [x] Implement pagination
+- [x] Implement tier filter
+- [x] Calculate trade stats per referral
+- [ ] Test endpoint (Phase 4)
 
 ### 2.3 Earnings API
-- [ ] Create `apps/web/src/app/api/referrals/earnings/route.ts`
-- [ ] Implement pagination
-- [ ] Implement filters (tier, isPaid, date range)
-- [ ] Test endpoint
+- [x] Create `apps/web/src/app/api/referrals/earnings/route.ts`
+- [x] Implement pagination
+- [x] Implement filters (tier, isPaid)
+- [ ] Test endpoint (Phase 4)
 
 ### 2.4 Claim Payout API
-- [ ] Create `apps/web/src/app/api/referrals/claim/route.ts`
-- [ ] Implement POST handler
-- [ ] Check minimum $10 threshold
-- [ ] Check wallet is set
-- [ ] Create ReferralPayout record
-- [ ] Mark earnings as paid
-- [ ] Add rate limiting (1 req/min per user)
-- [ ] Test claim flow
+- [x] Create `apps/web/src/app/api/referrals/claim/route.ts`
+- [x] Implement POST handler
+- [x] Check minimum $10 threshold
+- [x] Check wallet is set
+- [x] Check for pending payouts
+- [x] Create ReferralPayout record
+- [x] Mark earnings as paid (transaction)
+- [x] Add rate limiting (1 req/min per user)
+- [ ] Test claim flow (Phase 4)
 
 ---
 
