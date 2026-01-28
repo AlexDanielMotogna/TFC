@@ -164,3 +164,95 @@ export async function getUserReferralStats(userId: string) {
     total: t1Count + t2Count + t3Count,
   }
 }
+
+/**
+ * Calculate and create referral commissions for a trade
+ * Finds all referrers (T1, T2, T3) for the trader and creates commission earnings
+ *
+ * @param tradeId - The ID of the trade
+ * @param traderId - The user who made the trade
+ * @param symbol - Trading symbol
+ * @param tradeFee - Fee paid on the trade
+ * @param tradeValue - Total value of the trade (amount * price)
+ */
+export async function calculateReferralCommissions(params: {
+  tradeId: string
+  traderId: string
+  symbol: string
+  tradeFee: string | number
+  tradeValue: string | number
+}): Promise<{ earningsCreated: number }> {
+  const { tradeId, traderId, symbol, tradeFee, tradeValue } = params
+
+  try {
+    // Import config here to avoid circular dependency
+    const { getReferralCommissionRates } = await import('../referral-config')
+
+    // Find all referrers for this trader (T1, T2, T3)
+    const referrals = await prisma.referral.findMany({
+      where: { referredId: traderId },
+      select: { referrerId: true, tier: true },
+    })
+
+    if (referrals.length === 0) {
+      // Trader has no referrers, no commissions to create
+      return { earningsCreated: 0 }
+    }
+
+    // Get commission rates from env vars
+    const commissionRates = getReferralCommissionRates()
+
+    // Convert fee and value to numbers
+    const feeNum = typeof tradeFee === 'string' ? parseFloat(tradeFee) : tradeFee
+    const valueNum = typeof tradeValue === 'string' ? parseFloat(tradeValue) : tradeValue
+
+    let earningsCreated = 0
+
+    // Create commission earnings for each referrer
+    for (const referral of referrals) {
+      const commissionRate = commissionRates[referral.tier as 1 | 2 | 3]
+      const commissionAmount = feeNum * commissionRate
+
+      await prisma.referralEarning.create({
+        data: {
+          referrerId: referral.referrerId,
+          traderId,
+          tradeId,
+          tier: referral.tier,
+          symbol,
+          tradeFee: feeNum,
+          tradeValue: valueNum,
+          commissionPercent: commissionRate * 100, // Store as percentage (e.g., 34.00)
+          commissionAmount,
+          isPaid: false,
+        },
+      })
+
+      earningsCreated++
+
+      console.log('[calculateReferralCommissions] Commission created', {
+        referrer: referral.referrerId,
+        trader: traderId,
+        tier: referral.tier,
+        tradeFee: feeNum,
+        commissionRate: `${commissionRate * 100}%`,
+        commissionAmount,
+      })
+    }
+
+    console.log('[calculateReferralCommissions] Completed', {
+      tradeId,
+      traderId,
+      earningsCreated,
+    })
+
+    return { earningsCreated }
+  } catch (error) {
+    console.error('[calculateReferralCommissions] Failed', error, {
+      tradeId,
+      traderId,
+    })
+    // Don't throw - commission failure shouldn't block trade
+    return { earningsCreated: 0 }
+  }
+}

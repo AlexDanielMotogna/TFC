@@ -41,9 +41,10 @@
 - [x] Integrate with wallet connection flow (`authenticateWallet` now accepts `referralCode`)
 
 ### 1.6 Commission Calculation
-- [ ] Create `calculateReferralCommissions()` function in trade service
-- [ ] Update `recordTrade()` to call commission calculation
-- [ ] Test commission calculation with T1/T2/T3 referrals
+- [x] Create `calculateReferralCommissions()` function in referral service
+- [x] Update `recordAllTrades()` in orders API to call commission calculation
+- [x] Integrate with trade recording flow (non-blocking)
+- [ ] Test commission calculation with T1/T2/T3 referrals (Phase 4)
 
 ---
 
