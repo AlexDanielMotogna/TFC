@@ -5,6 +5,8 @@
 import { prisma } from '../db';
 import * as Pacifica from '../pacifica';
 import { generateToken } from '../auth';
+import { generateReferralCode } from '../referral-utils';
+import { processReferralRegistration } from './referral';
 import * as ed from '@noble/ed25519';
 import { base58 } from '@scure/base';
 
@@ -92,8 +94,16 @@ export async function getOrCreateUser(handle: string, avatarUrl?: string) {
   let user = await prisma.user.findUnique({ where: { handle } });
 
   if (!user) {
+    // Create user first to get the ID
     user = await prisma.user.create({
       data: { handle, avatarUrl },
+    });
+
+    // Generate and set referral code
+    const referralCode = generateReferralCode(user.id);
+    user = await prisma.user.update({
+      where: { id: user.id },
+      data: { referralCode },
     });
   }
 
@@ -166,7 +176,8 @@ export async function linkPacificaAccount(
  */
 export async function authenticateWallet(
   walletAddress: string,
-  signatureBase58: string
+  signatureBase58: string,
+  referralCode?: string
 ): Promise<{
   token: string;
   user: { id: string; handle: string; avatarUrl: string | null };
@@ -207,10 +218,25 @@ export async function authenticateWallet(
         },
         include: { pacificaConnection: true },
       });
+
+      // Generate and set referral code
+      const userReferralCode = generateReferralCode(user.id);
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { referralCode: userReferralCode },
+        include: { pacificaConnection: true },
+      });
+
       console.log('New user created via wallet', {
         userId: user.id,
         walletAddress: walletAddress.slice(0, 8) + '...',
+        referralCode: userReferralCode,
       });
+
+      // Process referral registration if referral code was provided
+      if (referralCode) {
+        await processReferralRegistration(user.id, referralCode);
+      }
     }
 
     // Check if Pacifica is already connected

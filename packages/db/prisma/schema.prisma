@@ -22,12 +22,19 @@ model User {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
+  // Referral system
+  referralCode String? @unique @map("referral_code")
+  referredById String? @map("referred_by_id")
+
   pacificaConnection   PacificaConnection?
   fightParticipants    FightParticipant[]
-  createdFights        Fight[]                @relation("FightCreator")
+  createdFights        Fight[]               @relation("FightCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
   trades               Trade[]
   notifications        Notification[]
+  referrals            Referral[]            @relation("Referrals")
+  referredBy           Referral[]            @relation("ReferredBy")
+  referralEarnings     ReferralEarning[]
 
   @@map("users")
 }
@@ -64,10 +71,10 @@ model PacificaConnection {
 // @see Master-doc.md Section 2: Format, Duration, Stake
 // ─────────────────────────────────────────────────────────────
 enum FightStatus {
-  WAITING    // Created, waiting for opponent
-  LIVE       // Both participants joined, fight in progress
-  FINISHED   // Duration elapsed, winner determined
-  CANCELLED  // Stale or manually cancelled
+  WAITING // Created, waiting for opponent
+  LIVE // Both participants joined, fight in progress
+  FINISHED // Duration elapsed, winner determined
+  CANCELLED // Stale or manually cancelled
   NO_CONTEST // Anti-cheat: excluded from ranking (0-0, min volume, repeated matchup, same IP)
 }
 
@@ -132,7 +139,7 @@ model FightParticipant {
 
   // Maximum capital exposure used during the fight (never decreases)
   // Used to enforce stake limit - once capital is used, it can't be reused
-  maxExposureUsed Decimal  @default(0) @map("max_exposure_used") @db.Decimal(18, 6)
+  maxExposureUsed Decimal @default(0) @map("max_exposure_used") @db.Decimal(18, 6)
 
   // Final results (set when FINISHED)
   finalPnlPercent Decimal? @map("final_pnl_percent") @db.Decimal(18, 8)
@@ -167,11 +174,11 @@ model FightTrade {
 
   symbol   String
   side     String // BUY, SELL
-  amount   Decimal @db.Decimal(18, 8)
-  price    Decimal @db.Decimal(18, 8)
-  fee      Decimal @db.Decimal(18, 8)
+  amount   Decimal  @db.Decimal(18, 8)
+  price    Decimal  @db.Decimal(18, 8)
+  fee      Decimal  @db.Decimal(18, 8)
   pnl      Decimal? @db.Decimal(18, 8) // Realized PnL from this trade
-  leverage Int?     // Leverage used for this trade (from frontend)
+  leverage Int? // Leverage used for this trade (from frontend)
 
   executedAt DateTime @map("executed_at") // Pacifica's created_at
   recordedAt DateTime @default(now()) @map("recorded_at")
@@ -197,10 +204,10 @@ model Trade {
   pacificaOrderId   BigInt? @map("pacifica_order_id")
 
   symbol   String
-  side     String  // BUY, SELL
-  amount   Decimal @db.Decimal(18, 8)
-  price    Decimal @db.Decimal(18, 8)
-  fee      Decimal @db.Decimal(18, 8)
+  side     String // BUY, SELL
+  amount   Decimal  @db.Decimal(18, 8)
+  price    Decimal  @db.Decimal(18, 8)
+  fee      Decimal  @db.Decimal(18, 8)
   pnl      Decimal? @db.Decimal(18, 8)
   leverage Int?
 
@@ -368,8 +375,8 @@ model WeeklyPrizePool {
 }
 
 enum PrizeStatus {
-  PENDING     // Prize calculated but week not ended
-  EARNED      // Week ended, prize confirmed
+  PENDING // Prize calculated but week not ended
+  EARNED // Week ended, prize confirmed
   DISTRIBUTED // Prize paid out to user
 }
 
@@ -389,10 +396,10 @@ model WeeklyPrize {
   prizeAmount     Decimal @map("prize_amount") @db.Decimal(18, 6)
 
   // User stats at time of winning (for display)
-  totalPnlUsdc  Decimal @map("total_pnl_usdc") @db.Decimal(18, 6)
-  totalFights   Int     @map("total_fights")
-  wins          Int
-  userHandle    String  @map("user_handle")
+  totalPnlUsdc Decimal @map("total_pnl_usdc") @db.Decimal(18, 6)
+  totalFights  Int     @map("total_fights")
+  wins         Int
+  userHandle   String  @map("user_handle")
 
   status        PrizeStatus @default(PENDING)
   distributedAt DateTime?   @map("distributed_at")
@@ -414,14 +421,14 @@ model WeeklyPrize {
 // Used for: full audit trail, TFC-only filtering, analytics
 // ─────────────────────────────────────────────────────────────
 enum OrderActionType {
-  MARKET_ORDER      // Market order placed
-  LIMIT_ORDER       // Limit order placed
-  CANCEL_ORDER      // Order cancelled
-  CANCEL_ALL        // All orders cancelled
-  SET_TPSL          // TP/SL set on position
-  CANCEL_STOP       // Stop order (TP/SL) cancelled
-  ORDER_FILLED      // Order was filled (links to Trade)
-  ORDER_PARTIAL     // Order was partially filled
+  MARKET_ORDER // Market order placed
+  LIMIT_ORDER // Limit order placed
+  CANCEL_ORDER // Order cancelled
+  CANCEL_ALL // All orders cancelled
+  SET_TPSL // TP/SL set on position
+  CANCEL_STOP // Stop order (TP/SL) cancelled
+  ORDER_FILLED // Order was filled (links to Trade)
+  ORDER_PARTIAL // Order was partially filled
 }
 
 model TfcOrderAction {
@@ -436,18 +443,18 @@ model TfcOrderAction {
 
   // Order information
   symbol    String
-  side      String?  // bid/ask or LONG/SHORT
+  side      String? // bid/ask or LONG/SHORT
   orderType String?  @map("order_type") // MARKET, LIMIT, etc.
   amount    Decimal? @db.Decimal(18, 8)
-  price     Decimal? @db.Decimal(18, 8)  // For limit orders
+  price     Decimal? @db.Decimal(18, 8) // For limit orders
 
   // TP/SL information
   takeProfit Decimal? @map("take_profit") @db.Decimal(18, 8)
   stopLoss   Decimal? @map("stop_loss") @db.Decimal(18, 8)
 
   // Pacifica response data
-  pacificaOrderId   BigInt?  @map("pacifica_order_id")
-  pacificaHistoryId BigInt?  @map("pacifica_history_id")
+  pacificaOrderId   BigInt? @map("pacifica_order_id")
+  pacificaHistoryId BigInt? @map("pacifica_history_id")
 
   // Fill information (if applicable)
   filledAmount Decimal? @map("filled_amount") @db.Decimal(18, 8)
@@ -460,8 +467,8 @@ model TfcOrderAction {
   fightId  String? @map("fight_id") // If during a fight
 
   // Success/failure
-  success      Boolean  @default(true)
-  errorMessage String?  @map("error_message")
+  success      Boolean @default(true)
+  errorMessage String? @map("error_message")
 
   // Timestamps
   createdAt DateTime @default(now()) @map("created_at")
@@ -484,7 +491,7 @@ model Notification {
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type    String  // "TRADE", "ORDER", "FIGHT", "SYSTEM"
+  type    String // "TRADE", "ORDER", "FIGHT", "SYSTEM"
   title   String
   message String
 
@@ -494,6 +501,98 @@ model Notification {
   @@index([userId, isRead])
   @@index([userId, createdAt])
   @@map("notifications")
+}
+
+// ─────────────────────────────────────────────────────────────
+// REFERRAL SYSTEM
+// 3-tier referral system with commission tracking
+// ─────────────────────────────────────────────────────────────
+model Referral {
+  id String @id @default(uuid())
+
+  // Who referred whom
+  referrerId String @map("referrer_id")
+  referrer   User   @relation("Referrals", fields: [referrerId], references: [id], onDelete: Cascade)
+
+  referredId String @map("referred_id")
+  referred   User   @relation("ReferredBy", fields: [referredId], references: [id], onDelete: Cascade)
+
+  // Tier level (1, 2, or 3)
+  tier Int
+
+  // When the referral was created
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([referrerId, referredId])
+  @@index([referrerId, tier])
+  @@index([referredId])
+  @@map("referrals")
+}
+
+model ReferralEarning {
+  id String @id @default(uuid())
+
+  // Who earned the commission
+  referrerId String @map("referrer_id")
+  referrer   User   @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+
+  // Who made the trade
+  traderId String @map("trader_id")
+
+  // Which trade generated this earning
+  tradeId String @map("trade_id")
+
+  // Tier level (1, 2, or 3)
+  tier Int
+
+  // Trade details (snapshot for display)
+  symbol     String
+  tradeFee   Decimal @map("trade_fee") @db.Decimal(18, 8) // Original fee from trade
+  tradeValue Decimal @map("trade_value") @db.Decimal(18, 8) // amount * price
+
+  // Commission calculation
+  commissionPercent Decimal @map("commission_percent") @db.Decimal(5, 2) // 34.00, 12.00, 4.00
+  commissionAmount  Decimal @map("commission_amount") @db.Decimal(18, 8) // tradeFee * commissionPercent
+
+  // Status
+  isPaid Boolean @default(false) @map("is_paid")
+
+  // Timestamps
+  earnedAt DateTime  @default(now()) @map("earned_at")
+  paidAt   DateTime? @map("paid_at")
+
+  @@index([referrerId, isPaid])
+  @@index([traderId])
+  @@index([earnedAt])
+  @@map("referral_earnings")
+}
+
+model ReferralPayout {
+  id String @id @default(uuid())
+
+  // Who received the payout
+  userId String @map("user_id")
+
+  // Amount paid
+  amount Decimal @db.Decimal(18, 8)
+
+  // Wallet address where funds were sent
+  walletAddress String @map("wallet_address")
+
+  // Transaction details
+  txSignature String? @map("tx_signature") // Solana transaction signature
+
+  // Status
+  status String @default("pending") // pending, processing, completed, failed
+
+  // Timestamps
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("referral_payouts")
 }
 
 // ─────────────────────────────────────────────────────────────
