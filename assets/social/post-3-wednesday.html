@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TFC Post 3 - Wednesday</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .post {
+      width: 1200px;
+      height: 675px;
+      background: linear-gradient(180deg, #0c0c0e 0%, #1a1520 100%);
+      position: relative;
+      overflow: hidden;
+      padding: 60px;
+    }
+
+    /* Background effects */
+    .radial-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 800px;
+      height: 800px;
+      background: radial-gradient(circle, rgba(249, 115, 22, 0.15) 0%, transparent 70%);
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .logo {
+      height: 45px;
+      width: auto;
+      margin-bottom: 20px;
+    }
+
+    .headline {
+      font-size: 52px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+
+    .headline .accent {
+      background: linear-gradient(90deg, #f97316, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subheadline {
+      font-size: 20px;
+      color: #a1a1aa;
+    }
+
+    /* Prize Podium */
+    .podium {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .podium-place {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .podium-rank {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: 900;
+      margin-bottom: 16px;
+      border: 3px solid;
+    }
+
+    .podium-place.first .podium-rank {
+      background: linear-gradient(135deg, #fbbf24, #f97316);
+      border-color: #fbbf24;
+      box-shadow: 0 0 30px rgba(251, 191, 36, 0.5);
+    }
+
+    .podium-place.second .podium-rank {
+      background: linear-gradient(135deg, #9ca3af, #6b7280);
+      border-color: #9ca3af;
+      width: 70px;
+      height: 70px;
+      font-size: 28px;
+    }
+
+    .podium-place.third .podium-rank {
+      background: linear-gradient(135deg, #ca8a04, #92400e);
+      border-color: #ca8a04;
+      width: 70px;
+      height: 70px;
+      font-size: 28px;
+    }
+
+    .podium-bar {
+      width: 180px;
+      background: rgba(24, 24, 27, 0.8);
+      border: 2px solid rgba(249, 115, 22, 0.3);
+      border-radius: 12px 12px 0 0;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .podium-place.first .podium-bar {
+      height: 220px;
+      border-color: rgba(251, 191, 36, 0.5);
+    }
+
+    .podium-place.second .podium-bar {
+      height: 180px;
+    }
+
+    .podium-place.third .podium-bar {
+      height: 180px;
+    }
+
+    .podium-label {
+      font-size: 14px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .podium-prize {
+      font-size: 28px;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+
+    .podium-place.first .podium-prize {
+      color: #fbbf24;
+    }
+
+    .podium-desc {
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+
+    /* Stats Bar */
+    .stats-bar {
+      background: rgba(24, 24, 27, 0.6);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      border-radius: 12px;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-around;
+      position: relative;
+      z-index: 10;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 32px;
+      font-weight: 900;
+      color: #f97316;
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* CTA */
+    .cta {
+      text-align: center;
+      margin-top: 30px;
+      position: relative;
+      z-index: 10;
+    }
+
+    .cta-text {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .cta-subtext {
+      font-size: 16px;
+      color: #71717a;
+    }
+
+    .cta-subtext .highlight {
+      color: #f97316;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="post">
+    <div class="radial-glow"></div>
+
+    <!-- Header -->
+    <div class="header">
+      <img src="../../apps/web/public/images/logos/favicon-white-512.png" alt="TFC" class="logo" />
+      <div class="headline">
+        Top 3 traders share<br/>
+        <span class="accent">10% of all fees</span>
+      </div>
+      <div class="subheadline">
+        Every. Single. Week.
+      </div>
+    </div>
+
+    <!-- Prize Podium -->
+    <div class="podium">
+      <!-- 2nd Place -->
+      <div class="podium-place second">
+        <div class="podium-rank">🥈</div>
+        <div class="podium-bar">
+          <div class="podium-label">2nd Place</div>
+          <div class="podium-prize">3%</div>
+          <div class="podium-desc">of platform fees</div>
+        </div>
+      </div>
+
+      <!-- 1st Place -->
+      <div class="podium-place first">
+        <div class="podium-rank">🥇</div>
+        <div class="podium-bar">
+          <div class="podium-label">1st Place</div>
+          <div class="podium-prize">5%</div>
+          <div class="podium-desc">of platform fees</div>
+        </div>
+      </div>
+
+      <!-- 3rd Place -->
+      <div class="podium-place third">
+        <div class="podium-rank">🥉</div>
+        <div class="podium-bar">
+          <div class="podium-label">3rd Place</div>
+          <div class="podium-prize">2%</div>
+          <div class="podium-desc">of platform fees</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-value">$500K+</div>
+        <div class="stat-label">Trading Volume</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">1,200+</div>
+        <div class="stat-label">Fights Completed</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">$2.5K+</div>
+        <div class="stat-label">Prizes Distributed</div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div class="cta">
+      <div class="cta-text">Think you can compete?</div>
+      <div class="cta-subtext">
+        Join the arena • <span class="highlight">tradefightclub.xyz</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TFC X Banner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .banner {
+      width: 1200px;
+      height: 400px;
+      background: #0c0c0e;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* === BACKGROUND EFFECTS === */
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    .glow-orange {
+      position: absolute;
+      top: -100px;
+      right: 100px;
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(249, 115, 22, 0.12) 0%, transparent 70%);
+    }
+
+    .glow-blue {
+      position: absolute;
+      top: 50px;
+      left: -50px;
+      width: 500px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(14, 165, 233, 0.08) 0%, transparent 70%);
+    }
+
+    .glow-violet {
+      position: absolute;
+      bottom: -100px;
+      left: 40%;
+      width: 500px;
+      height: 300px;
+      background: radial-gradient(ellipse, rgba(139, 92, 246, 0.06) 0%, transparent 70%);
+    }
+
+    /* === BEAR VS BULL IMAGE === */
+    .hero-image {
+      position: absolute;
+      right: -20px;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 380px;
+      width: auto;
+      opacity: 0.9;
+      mask-image: linear-gradient(to left, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 60%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to left, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.5) 60%, transparent 100%);
+    }
+
+    /* === FLOATING CRYPTO ICONS === */
+    .crypto-icon {
+      position: absolute;
+      z-index: 5;
+      border-radius: 50%;
+      filter: grayscale(0.1);
+    }
+
+    .crypto-icon.btc {
+      width: 50px; height: 50px;
+      top: 30px; right: 320px;
+    }
+    .crypto-icon.eth {
+      width: 42px; height: 42px;
+      top: 180px; right: 190px;
+    }
+    .crypto-icon.sol {
+      width: 46px; height: 46px;
+      bottom: 80px; right: 280px;
+    }
+    .crypto-icon.xrp {
+      width: 36px; height: 36px;
+      top: 90px; right: 500px;
+    }
+    .crypto-icon.hype {
+      width: 34px; height: 34px;
+      bottom: 120px; right: 460px;
+    }
+    .crypto-icon.bnb {
+      width: 38px; height: 38px;
+      bottom: 60px; right: 120px;
+    }
+
+    /* === CONTENT === */
+    .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding-left: 60px;
+    }
+
+    .logo {
+      position: absolute;
+      top: 24px;
+      left: 30px;
+      height: 48px;
+      width: 48px;
+      filter: brightness(1.1);
+      z-index: 15;
+    }
+
+    .brand-name {
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .brand-name .trade { color: #ffffff; }
+    .brand-name .fight { color: #f97316; }
+    .brand-name .club { color: #ffffff; }
+
+    /* Tagline */
+    .tagline {
+      font-size: 16px;
+      font-weight: 500;
+      color: #a1a1aa;
+      letter-spacing: 0.5px;
+      margin-bottom: 14px;
+    }
+
+    .tagline .accent {
+      color: #0ea5e9;
+    }
+
+    /* Feature pills */
+    .pills {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: #d4d4d8;
+    }
+
+    .pill .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .pill .dot.orange { background: #f97316; box-shadow: 0 0 8px rgba(249, 115, 22, 0.5); }
+    .pill .dot.blue { background: #0ea5e9; box-shadow: 0 0 8px rgba(14, 165, 233, 0.5); }
+    .pill .dot.teal { background: #26A69A; box-shadow: 0 0 8px rgba(38, 166, 154, 0.5); }
+
+    /* Bottom bar */
+    .bottom-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #f97316 0%, #0ea5e9 50%, #8b5cf6 100%);
+      opacity: 0.7;
+    }
+
+    /* Top accent line */
+    .top-line {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(249, 115, 22, 0.3) 30%, rgba(14, 165, 233, 0.3) 70%, transparent 100%);
+    }
+
+    /* Powered by */
+    .powered-by {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #52525b;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .powered-by .pacifica {
+      color: #71717a;
+      font-weight: 600;
+    }
+
+    /* Corner accents */
+    .corner {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      opacity: 0.2;
+    }
+    .corner.tl { top: 16px; left: 16px; border-top: 2px solid #f97316; border-left: 2px solid #f97316; }
+    .corner.tr { top: 16px; right: 16px; border-top: 2px solid #0ea5e9; border-right: 2px solid #0ea5e9; }
+    .corner.bl { bottom: 16px; left: 16px; border-bottom: 2px solid #f97316; border-left: 2px solid #f97316; }
+    .corner.br { bottom: 16px; right: 16px; border-bottom: 2px solid #0ea5e9; border-right: 2px solid #0ea5e9; }
+
+    /* Solana badge */
+    .solana-badge {
+      position: absolute;
+      top: 24px;
+      right: 36px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #52525b;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      z-index: 10;
+    }
+
+    .solana-badge .sol-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #9945FF, #14F195);
+    }
+
+    /* Beta badge */
+    .beta-badge {
+      position: absolute;
+      top: 24px;
+      right: 180px;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #f97316;
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      background: rgba(249, 115, 22, 0.08);
+      z-index: 10;
+    }
+
+    /* Decorative chart */
+    .chart-line {
+      position: absolute;
+      bottom: 40px;
+      right: 80px;
+      width: 300px;
+      height: 100px;
+      opacity: 0.1;
+    }
+  </style>
+</head>
+<body>
+  <div class="banner">
+    <!-- Background effects -->
+    <div class="grid-bg"></div>
+    <div class="glow-orange"></div>
+    <div class="glow-blue"></div>
+    <div class="glow-violet"></div>
+    <div class="top-line"></div>
+    <div class="bottom-bar"></div>
+
+    <!-- Corner accents -->
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+
+    <!-- Top-right badges -->
+    <div class="beta-badge">BETA</div>
+    <div class="solana-badge">
+      <span class="sol-dot"></span>
+      SOLANA
+    </div>
+
+    <!-- Bear vs Bull background image -->
+    <img src="../apps/web/public/images/landing/TFC-Bear-vs-Bull.png" alt="" class="hero-image" />
+
+    <!-- Floating crypto icons -->
+    <img src="crypto_assets_loogos/BTC.svg" alt="" class="crypto-icon btc" />
+    <img src="crypto_assets_loogos/ETH.svg" alt="" class="crypto-icon eth" />
+    <img src="crypto_assets_loogos/SOL.svg" alt="" class="crypto-icon sol" />
+    <img src="crypto_assets_loogos/XRP.svg" alt="" class="crypto-icon xrp" />
+    <img src="crypto_assets_loogos/HYPE.svg" alt="" class="crypto-icon hype" />
+    <img src="crypto_assets_loogos/BNB.svg" alt="" class="crypto-icon bnb" />
+
+    <!-- Main content -->
+    <div class="content">
+      <!-- Logo above brand name -->
+      <img src="../apps/web/public/images/logos/favicon-white-512.png" alt="TFC" class="logo" />
+      <div class="brand-name">
+        <span class="trade">TRADE</span><span class="fight">FIGHT</span><span class="club">CLUB</span>
+      </div>
+
+      <!-- Tagline -->
+      <div class="tagline">
+        <span class="accent">1v1</span> PvP Trading Arena on Solana
+      </div>
+
+      <!-- Feature pills -->
+      <div class="pills">
+        <div class="pill">
+          <span class="dot orange"></span>
+          Perp Fights
+        </div>
+        <div class="pill">
+          <span class="dot blue"></span>
+          Real Stakes
+        </div>
+        <div class="pill">
+          <span class="dot teal"></span>
+          Weekly Prizes
+        </div>
+      </div>
+
+      <!-- Powered by -->
+      <div class="powered-by">
+        Powered by <span class="pacifica">Pacifica</span>
+      </div>
+    </div>
+
+    <!-- Decorative chart SVG -->
+    <svg class="chart-line" viewBox="0 0 300 100" fill="none">
+      <polyline points="0,80 30,75 60,82 90,60 120,65 150,40 180,50 210,30 240,35 270,15 300,25"
+        stroke="#26A69A" stroke-width="2" fill="none" opacity="0.8" />
+      <polyline points="0,80 30,75 60,82 90,60 120,65 150,40 180,50 210,30 240,35 270,15 300,25"
+        stroke="#26A69A" stroke-width="1" fill="none" opacity="0.3" stroke-dasharray="4 4" />
+    </svg>
+  </div>
+</body>
+</html>

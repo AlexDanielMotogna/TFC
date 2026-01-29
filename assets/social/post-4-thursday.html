@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TFC Post 4 - Thursday</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .post {
+      width: 1200px;
+      height: 675px;
+      background: #0c0c0e;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Grid background */
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(14, 165, 233, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14, 165, 233, 0.05) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    /* Glow effects */
+    .glow-teal {
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 400px;
+      background: radial-gradient(ellipse, rgba(38, 166, 154, 0.15) 0%, transparent 70%);
+    }
+
+    /* Content Container */
+    .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+    }
+
+    /* Logo */
+    .logo {
+      position: absolute;
+      top: 40px;
+      left: 40px;
+      height: 50px;
+      width: auto;
+    }
+
+    /* Main Icon */
+    .main-icon {
+      width: 140px;
+      height: 140px;
+      background: linear-gradient(135deg, rgba(38, 166, 154, 0.2), rgba(14, 165, 233, 0.2));
+      border-radius: 50%;
+      border: 3px solid #26A69A;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 70px;
+      margin-bottom: 40px;
+      box-shadow: 0 0 40px rgba(38, 166, 154, 0.3);
+    }
+
+    /* Headline */
+    .headline {
+      font-size: 56px;
+      font-weight: 900;
+      text-align: center;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      max-width: 900px;
+    }
+
+    .headline .accent {
+      color: #26A69A;
+    }
+
+    /* Subheadline */
+    .subheadline {
+      font-size: 24px;
+      color: #a1a1aa;
+      text-align: center;
+      margin-bottom: 50px;
+      max-width: 700px;
+      line-height: 1.5;
+    }
+
+    .subheadline .highlight {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* Security Features */
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      width: 100%;
+      max-width: 1000px;
+      margin-bottom: 40px;
+    }
+
+    .security-item {
+      background: rgba(24, 24, 27, 0.6);
+      border: 1px solid rgba(38, 166, 154, 0.2);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .security-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+
+    .security-label {
+      font-size: 16px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    .security-desc {
+      font-size: 13px;
+      color: #71717a;
+      line-height: 1.4;
+    }
+
+    /* CTA */
+    .cta-box {
+      background: linear-gradient(135deg, rgba(38, 166, 154, 0.15), rgba(14, 165, 233, 0.15));
+      border: 2px solid rgba(38, 166, 154, 0.4);
+      border-radius: 12px;
+      padding: 20px 40px;
+      text-align: center;
+    }
+
+    .cta-text {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    .cta-subtext {
+      font-size: 16px;
+      color: #a1a1aa;
+    }
+
+    .cta-subtext .highlight {
+      color: #26A69A;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="post">
+    <div class="grid-bg"></div>
+    <div class="glow-teal"></div>
+
+    <!-- Logo -->
+    <img src="../../apps/web/public/images/logos/favicon-white-512.png" alt="TFC" class="logo" />
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Main Icon -->
+      <div class="main-icon">🔒</div>
+
+      <!-- Headline -->
+      <div class="headline">
+        Your keys. Your crypto.<br/>
+        <span class="accent">Always.</span>
+      </div>
+
+      <!-- Subheadline -->
+      <div class="subheadline">
+        We <span class="highlight">never</span> hold your funds. Trade with <span class="highlight">full control</span> on Pacifica DEX.
+      </div>
+
+      <!-- Security Features -->
+      <div class="security-grid">
+        <div class="security-item">
+          <div class="security-icon">🔐</div>
+          <div class="security-label">Non-Custodial</div>
+          <div class="security-desc">You control your wallet. We never touch your crypto.</div>
+        </div>
+
+        <div class="security-item">
+          <div class="security-icon">⚡</div>
+          <div class="security-label">Real Liquidity</div>
+          <div class="security-desc">Trade on Pacifica DEX with actual market execution.</div>
+        </div>
+
+        <div class="security-item">
+          <div class="security-icon">🛡️</div>
+          <div class="security-label">Solana Security</div>
+          <div class="security-desc">Battle-tested smart contracts on Solana blockchain.</div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="cta-box">
+        <div class="cta-text">Compete without compromise.</div>
+        <div class="cta-subtext">
+          No custody risk • Full transparency • <span class="highlight">tradefightclub.xyz</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

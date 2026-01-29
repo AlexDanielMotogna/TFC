@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TFC Post 2 - Tuesday</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .post {
+      width: 1200px;
+      height: 675px;
+      background: #0c0c0e;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Background effects */
+    .glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.15;
+    }
+    .glow.orange { background: #f97316; top: -200px; right: -200px; }
+    .glow.blue { background: #0ea5e9; bottom: -200px; left: -200px; }
+
+    /* Header */
+    .header {
+      position: absolute;
+      top: 50px;
+      left: 60px;
+      right: 60px;
+      z-index: 10;
+    }
+
+    .logo {
+      height: 45px;
+      width: auto;
+      margin-bottom: 20px;
+    }
+
+    .headline {
+      font-size: 48px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 12px;
+    }
+
+    .headline .accent {
+      color: #f97316;
+    }
+
+    .subheadline {
+      font-size: 22px;
+      color: #71717a;
+      font-weight: 500;
+    }
+
+    /* Feature Grid */
+    .features-grid {
+      position: absolute;
+      top: 220px;
+      left: 60px;
+      right: 60px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      z-index: 10;
+    }
+
+    .feature-card {
+      background: rgba(24, 24, 27, 0.8);
+      border: 1px solid rgba(249, 115, 22, 0.2);
+      border-radius: 12px;
+      padding: 24px;
+      backdrop-filter: blur(10px);
+    }
+
+    .feature-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+
+    .feature-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .feature-desc {
+      font-size: 14px;
+      color: #a1a1aa;
+      line-height: 1.5;
+    }
+
+    /* CTA Box */
+    .cta-box {
+      position: absolute;
+      bottom: 50px;
+      left: 60px;
+      right: 60px;
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.15) 0%, rgba(14, 165, 233, 0.15) 100%);
+      border: 2px solid rgba(249, 115, 22, 0.4);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      z-index: 10;
+    }
+
+    .cta-text {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 6px;
+    }
+
+    .cta-subtext {
+      font-size: 16px;
+      color: #a1a1aa;
+    }
+
+    .cta-subtext .highlight {
+      color: #f97316;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="post">
+    <!-- Background glows -->
+    <div class="glow orange"></div>
+    <div class="glow blue"></div>
+
+    <!-- Header -->
+    <div class="header">
+      <img src="../../apps/web/public/images/logos/favicon-white-512.png" alt="TFC" class="logo" />
+      <div class="headline">
+        Professional tools.<br/>
+        <span class="accent">Competitive edge.</span>
+      </div>
+      <div class="subheadline">
+        Trade like a pro. Fight like a champion.
+      </div>
+    </div>
+
+    <!-- Feature Grid -->
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <div class="feature-title">50x Leverage</div>
+        <div class="feature-desc">Amplify your positions on 40+ assets</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-title">< 400ms Execution</div>
+        <div class="feature-desc">Lightning-fast market orders</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <div class="feature-title">Stop Loss</div>
+        <div class="feature-desc">Automated capital protection</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎯</div>
+        <div class="feature-title">Take Profit</div>
+        <div class="feature-desc">Auto-lock gains at price targets</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔄</div>
+        <div class="feature-title">Flip Position</div>
+        <div class="feature-desc">Instantly reverse long ↔ short</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⚔️</div>
+        <div class="feature-title">Fight Mode</div>
+        <div class="feature-desc">Real-time PvP with equal stakes</div>
+      </div>
+    </div>
+
+    <!-- CTA Box -->
+    <div class="cta-box">
+      <div class="cta-text">Not your average trading platform.</div>
+      <div class="cta-subtext">
+        Trade on real liquidity • Solana-powered • <span class="highlight">tradefightclub.xyz</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
