@@ -11,7 +11,7 @@ import { ReactNode } from 'react';
 function Skeleton({ className = '' }: { className?: string }) {
   return (
     <div
-      className={`animate-pulse bg-gradient-to-r from-surface-800 via-surface-700 to-surface-800 bg-[length:200%_100%] animate-shimmer rounded ${className}`}
+      className={`animate-pulse bg-gradient-to-r from-surface-800 via-surface-700 to-surface-800 bg-[length:200%_100%] animate-shimmer ${className}`}
     />
   );
 }
@@ -34,7 +34,7 @@ export function SkeletonButton({ width = 'w-24', height = 'h-10' }: { width?: st
 // Card skeleton
 export function SkeletonCard({ children, className = '' }: { children?: ReactNode; className?: string }) {
   return (
-    <div className={`bg-surface-800 border border-surface-700 rounded-xl p-4 ${className}`}>
+    <div className={`bg-surface-800 border border-surface-700 p-4 ${className}`}>
       {children}
     </div>
   );
@@ -202,18 +202,20 @@ export function ProfileSkeleton() {
           <SkeletonAvatar size="w-20 h-20" />
           <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-surface-700" />
         </div>
+
         {/* Info */}
         <div className="flex-1 space-y-2 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start gap-2">
             <SkeletonText width="w-32" height="h-6" />
-            <Skeleton className="w-6 h-6 rounded-lg" />
+            <Skeleton className="w-6 h-6" />
           </div>
           <SkeletonText width="w-40" height="h-3" />
           <div className="flex gap-2 justify-center md:justify-start">
-            <Skeleton className="w-16 h-5 rounded-full" />
-            <Skeleton className="w-14 h-5 rounded-full" />
+            <Skeleton className="w-16 h-5" />
+            <Skeleton className="w-14 h-5" />
           </div>
         </div>
+
         {/* Quick Stats */}
         <div className="text-center">
           <SkeletonText width="w-20" height="h-7" className="mx-auto mb-1" />
@@ -221,12 +223,12 @@ export function ProfileSkeleton() {
         </div>
       </SkeletonCard>
 
-      {/* Stats Grid with icons */}
+      {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         {Array.from({ length: 5 }).map((_, i) => (
           <SkeletonCard key={i} className="text-center p-4">
             <div className="flex items-center justify-center gap-2 mb-1">
-              <Skeleton className="w-5 h-5 rounded" />
+              <Skeleton className="w-5 h-5" />
               <SkeletonText width="w-10" height="h-7" />
             </div>
             <SkeletonText width="w-16" height="h-3" className="mx-auto" />
@@ -237,14 +239,16 @@ export function ProfileSkeleton() {
       {/* Performance Chart */}
       <SkeletonCard className="p-4">
         <SkeletonText width="w-32" height="h-4" className="mb-4" />
+
         {/* Chart Tabs */}
         <div className="flex gap-2 mb-4">
-          <Skeleton className="w-28 h-8 rounded-lg" />
-          <Skeleton className="w-24 h-8 rounded-lg" />
-          <Skeleton className="w-28 h-8 rounded-lg" />
+          <Skeleton className="w-28 h-8" />
+          <Skeleton className="w-24 h-8" />
+          <Skeleton className="w-28 h-8" />
         </div>
+
         {/* Chart Area */}
-        <Skeleton className="w-full h-48 rounded-lg" />
+        <Skeleton className="w-full h-48" />
       </SkeletonCard>
 
       {/* Fight History */}
@@ -252,26 +256,45 @@ export function ProfileSkeleton() {
         <div className="p-4 border-b border-surface-700">
           <SkeletonText width="w-24" height="h-4" />
         </div>
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-surface-700">
-                {['Date', 'Duration', 'Stake', 'Opponent', 'Result', 'PnL'].map((h) => (
-                  <th key={h} className="py-3 px-4 text-left text-xs text-surface-400">
-                    {h}
-                  </th>
-                ))}
+                {['Date', 'Duration', 'Stake', 'Opponent', 'Result', 'PnL'].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      className="py-3 px-4 text-left text-xs text-surface-400"
+                    >
+                      {h}
+                    </th>
+                  )
+                )}
               </tr>
             </thead>
+
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-surface-700/50">
-                  <td className="py-4 px-4"><SkeletonText width="w-24" /></td>
-                  <td className="py-4 px-4"><SkeletonText width="w-12" /></td>
-                  <td className="py-4 px-4"><SkeletonText width="w-16" /></td>
-                  <td className="py-4 px-4"><SkeletonText width="w-20" /></td>
-                  <td className="py-4 px-4"><Skeleton className="w-14 h-6 rounded" /></td>
-                  <td className="py-4 px-4"><SkeletonText width="w-16" /></td>
+                  <td className="py-4 px-4">
+                    <SkeletonText width="w-24" />
+                  </td>
+                  <td className="py-4 px-4">
+                    <SkeletonText width="w-12" />
+                  </td>
+                  <td className="py-4 px-4">
+                    <SkeletonText width="w-16" />
+                  </td>
+                  <td className="py-4 px-4">
+                    <SkeletonText width="w-20" />
+                  </td>
+                  <td className="py-4 px-4">
+                    <Skeleton className="w-14 h-6" />
+                  </td>
+                  <td className="py-4 px-4">
+                    <SkeletonText width="w-16" />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -281,6 +304,7 @@ export function ProfileSkeleton() {
     </div>
   );
 }
+
 
 // Arena/Lobby Skeleton - Tabs, filters, and content area
 // Note: Header (title + stats) is rendered by the page wrapper

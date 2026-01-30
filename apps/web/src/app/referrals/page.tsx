@@ -14,7 +14,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { toast } from 'sonner';
 
 export default function ReferralsPage() {
-  const { token, isAuthenticated, user } = useAuth();
+  const { token, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<'overview' | 'referrals' | 'payouts'>('overview');
 
@@ -74,7 +74,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-6 max-w-6xl">
+          <div className="container mx-auto px-4 md:px-6 py-8">
             <div className="card p-12 text-center">
               <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
@@ -91,14 +91,71 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-6 max-w-6xl">
+          <div className="container mx-auto px-4 md:px-6 py-8">
             <div className="animate-pulse space-y-6">
-              <div className="h-12 bg-surface-800 rounded-xl w-64" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="h-48 bg-surface-800 rounded-xl" />
-                <div className="h-48 bg-surface-800 rounded-xl" />
+              {/* Header Skeleton */}
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 bg-surface-700" />
+                <div>
+                  <div className="h-6 w-40 bg-surface-700 mb-1" />
+                  <div className="h-3 w-48 bg-surface-700" />
+                </div>
               </div>
-              <div className="h-96 bg-surface-800 rounded-xl" />
+
+              {/* Top Cards Skeleton */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Referral Code Card */}
+                <div className="card p-6">
+                  <div className="h-4 w-32 bg-surface-700 mb-4" />
+                  <div className="h-12 bg-surface-700 mb-4" />
+                  <div className="flex gap-2">
+                    <div className="flex-1 h-10 bg-surface-700" />
+                    <div className="flex-1 h-10 bg-surface-700" />
+                  </div>
+                </div>
+                {/* Unclaimed Earnings Card */}
+                <div className="card p-6">
+                  <div className="h-4 w-36 bg-surface-700 mb-4" />
+                  <div className="h-10 w-24 bg-surface-700 mb-4" />
+                  <div className="h-12 bg-surface-700" />
+                </div>
+              </div>
+
+              {/* Stats Cards Skeleton */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="card p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-surface-700" />
+                      <div className="h-4 w-24 bg-surface-700" />
+                    </div>
+                    <div className="h-8 w-20 bg-surface-700 mb-2" />
+                    <div className="h-3 w-32 bg-surface-700" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Tabs Skeleton */}
+              <div className="h-12 w-72 bg-surface-700" />
+
+              {/* Table Skeleton */}
+              <div className="card">
+                <div className="p-6 border-b border-surface-700">
+                  <div className="h-4 w-32 bg-surface-700" />
+                </div>
+                <div className="p-4 space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-surface-700" />
+                        <div className="h-4 w-24 bg-surface-700" />
+                      </div>
+                      <div className="h-6 w-12 bg-surface-700" />
+                      <div className="h-4 w-20 bg-surface-700" />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </AppShell>
@@ -111,7 +168,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-6 max-w-6xl">
+          <div className="container mx-auto px-4 md:px-6 py-8">
             <div className="card p-8 text-center">
               <p className="text-loss-400 mb-4">{(error as Error).message}</p>
               <button
@@ -132,7 +189,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-6 max-w-6xl">
+          <div className="container mx-auto px-4 md:px-6 py-8">
             <div className="card p-12 text-center">
               <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Referral system unavailable</h3>
@@ -147,7 +204,7 @@ export default function ReferralsPage() {
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-6 max-w-6xl">
+        <div className="container mx-auto px-4 md:px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
             <GroupsIcon sx={{ color: '#f97316', fontSize: 28 }} />
