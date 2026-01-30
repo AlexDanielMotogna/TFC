@@ -15,6 +15,7 @@ import ShowChartIcon from '@mui/icons-material/ShowChart';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import GroupsIcon from '@mui/icons-material/Groups';
 import PersonIcon from '@mui/icons-material/Person';
 
 // Wallet icon for balance
@@ -72,6 +73,7 @@ export function AppShell({ children }: AppShellProps) {
     router.prefetch('/lobby');
     router.prefetch('/leaderboard');
     router.prefetch('/rewards');
+    router.prefetch('/referrals');
   }, [router]);
 
   // Navigation items
@@ -88,6 +90,11 @@ export function AppShell({ children }: AppShellProps) {
       label: 'Rewards',
       icon: <EmojiEventsIcon sx={{ fontSize: 20 }} />,
       badge: claimablePrizes.length > 0 ? claimablePrizes.length : undefined,
+    },
+    {
+      href: '/referrals',
+      label: 'Referrals',
+      icon: <GroupsIcon sx={{ fontSize: 20 }} />,
     },
     {
       href: `/profile/${user.id}`,

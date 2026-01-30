@@ -6,6 +6,7 @@
 import { errorResponse, BadRequestError, StakeLimitError } from '@/lib/server/errors';
 import { validateStakeLimit, calculateFightExposure } from '@/lib/server/orders';
 import { recordOrderAction } from '@/lib/server/order-actions';
+import { calculateReferralCommissions } from '@/lib/server/services/referral';
 import { prisma, FightStatus } from '@tfc/db';
 import { FeatureFlags } from '@/lib/server/feature-flags';
 
@@ -382,7 +383,7 @@ async function recordAllTrades(
 
   // Save to Trade table (ALL trades for platform metrics)
   try {
-    await prisma.trade.create({
+    const trade = await prisma.trade.create({
       data: {
         userId: connection.userId,
         pacificaHistoryId: historyId,
@@ -407,6 +408,24 @@ async function recordAllTrades(
       price: executionPrice,
       fee,
     });
+
+    // Calculate referral commissions (non-blocking)
+    const feeNum = parseFloat(fee);
+    const priceNum = parseFloat(executionPrice);
+    const amountNum = parseFloat(amount);
+    const tradeValue = priceNum * amountNum;
+
+    if (feeNum > 0) {
+      calculateReferralCommissions({
+        tradeId: trade.id,
+        traderId: connection.userId,
+        symbol,
+        tradeFee: feeNum,
+        tradeValue,
+      }).catch(err => {
+        console.error('[recordAllTrades] Failed to calculate referral commissions:', err);
+      });
+    }
 
     // Emit updated platform stats via WebSocket (non-blocking)
     emitPlatformStats().catch(err => {

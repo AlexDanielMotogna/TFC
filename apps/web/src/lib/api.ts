@@ -456,6 +456,167 @@ export async function markAllNotificationsAsRead(token: string): Promise<boolean
 }
 
 // ─────────────────────────────────────────────────────────────
+// Referrals
+// ─────────────────────────────────────────────────────────────
+
+export interface ReferralDashboard {
+  referralCode: string;
+  commissionRates: {
+    t1: number;
+    t2: number;
+    t3: number;
+  };
+  unclaimedPayout: number;
+  totalReferrals: {
+    t1: number;
+    t2: number;
+    t3: number;
+    total: number;
+  };
+  totalEarnings: {
+    total: number;
+    t1: number;
+    t2: number;
+    t3: number;
+  };
+  referralVolume: {
+    t1: number;
+    t2: number;
+    t3: number;
+    total: number;
+  };
+  recentReferrals: Array<{
+    id: string;
+    tier: number;
+    user: {
+      id: string;
+      handle: string;
+      walletAddress: string | null;
+    };
+    joinedAt: string;
+  }>;
+  recentEarnings: Array<{
+    id: string;
+    tier: number;
+    symbol: string;
+    commissionAmount: number;
+    earnedAt: string;
+    isPaid: boolean;
+  }>;
+  payoutHistory: Array<{
+    id: string;
+    amount: number;
+    status: string;
+    walletAddress: string;
+    txSignature: string | null;
+    createdAt: string;
+    processedAt: string | null;
+  }>;
+}
+
+export interface ReferralListItem {
+  id: string;
+  handle: string;
+  walletAddress: string | null;
+  tier: number;
+  joinedAt: string;
+  totalTrades: number;
+  totalVolume: number;
+  totalEarnings: number;
+}
+
+export interface ReferralsListResponse {
+  referrals: ReferralListItem[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface ReferralEarning {
+  id: string;
+  traderId: string;
+  traderHandle: string;
+  tier: number;
+  symbol: string;
+  tradeFee: number;
+  tradeValue: number;
+  commissionPercent: number;
+  commissionAmount: number;
+  isPaid: boolean;
+  earnedAt: string;
+  paidAt: string | null;
+}
+
+export interface EarningsListResponse {
+  earnings: ReferralEarning[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface ClaimPayoutResponse {
+  success: boolean;
+  payout: {
+    id: string;
+    amount: number;
+    status: string;
+    walletAddress: string;
+    createdAt: string;
+  };
+  earningsClaimed: number;
+  message: string;
+}
+
+export async function getReferralDashboard(token: string): Promise<ReferralDashboard> {
+  return fetchApi<ReferralDashboard>('/referrals/dashboard', { token });
+}
+
+export async function getReferralsList(
+  token: string,
+  page = 1,
+  pageSize = 20,
+  tier?: number
+): Promise<ReferralsListResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    pageSize: pageSize.toString(),
+  });
+  if (tier) params.append('tier', tier.toString());
+
+  return fetchApi<ReferralsListResponse>(`/referrals/list?${params.toString()}`, { token });
+}
+
+export async function getEarningsList(
+  token: string,
+  page = 1,
+  pageSize = 20,
+  tier?: number,
+  isPaid?: boolean
+): Promise<EarningsListResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    pageSize: pageSize.toString(),
+  });
+  if (tier) params.append('tier', tier.toString());
+  if (isPaid !== undefined) params.append('isPaid', isPaid.toString());
+
+  return fetchApi<EarningsListResponse>(`/referrals/earnings?${params.toString()}`, { token });
+}
+
+export async function claimReferralPayout(token: string): Promise<ClaimPayoutResponse> {
+  return fetchApi<ClaimPayoutResponse>('/referrals/claim', {
+    method: 'POST',
+    token,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // Unified API object for easier imports
 // ─────────────────────────────────────────────────────────────
 
@@ -497,4 +658,9 @@ export const api = {
   createNotification,
   markNotificationAsRead,
   markAllNotificationsAsRead,
+  // Referrals
+  getReferralDashboard,
+  getReferralsList,
+  getEarningsList,
+  claimReferralPayout,
 };
