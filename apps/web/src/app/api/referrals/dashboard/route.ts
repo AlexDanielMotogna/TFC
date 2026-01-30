@@ -79,30 +79,24 @@ export async function GET(request: Request) {
 
     const unclaimedPayout = Number(unclaimedResult._sum.commissionAmount || 0)
 
-    // Get referral trading volume by tier
-    const volumeByTier = await Promise.all([
-      prisma.$queryRaw<[{ volume: number }]>`
-        SELECT COALESCE(SUM(CAST(re.trade_value AS DECIMAL)), 0) as volume
-        FROM referral_earnings re
-        WHERE re.referrer_id = ${userId}::uuid AND re.tier = 1
-      `,
-      prisma.$queryRaw<[{ volume: number }]>`
-        SELECT COALESCE(SUM(CAST(re.trade_value AS DECIMAL)), 0) as volume
-        FROM referral_earnings re
-        WHERE re.referrer_id = ${userId}::uuid AND re.tier = 2
-      `,
-      prisma.$queryRaw<[{ volume: number }]>`
-        SELECT COALESCE(SUM(CAST(re.trade_value AS DECIMAL)), 0) as volume
-        FROM referral_earnings re
-        WHERE re.referrer_id = ${userId}::uuid AND re.tier = 3
-      `,
-    ])
+    // Get referral trading volume by tier using Prisma API (avoids raw query UUID issues)
+    const volumeAggregation = await prisma.referralEarning.groupBy({
+      by: ['tier'],
+      where: { referrerId: userId },
+      _sum: { tradeValue: true },
+    })
+
+    const volumeByTier = { t1: 0, t2: 0, t3: 0 }
+    volumeAggregation.forEach((item) => {
+      const tierKey = `t${item.tier}` as 't1' | 't2' | 't3'
+      volumeByTier[tierKey] = Number(item._sum.tradeValue || 0)
+    })
 
     const referralVolume = {
-      t1: volumeByTier[0]?.[0]?.volume || 0,
-      t2: volumeByTier[1]?.[0]?.volume || 0,
-      t3: volumeByTier[2]?.[0]?.volume || 0,
-      total: (volumeByTier[0]?.[0]?.volume || 0) + (volumeByTier[1]?.[0]?.volume || 0) + (volumeByTier[2]?.[0]?.volume || 0),
+      t1: volumeByTier.t1,
+      t2: volumeByTier.t2,
+      t3: volumeByTier.t3,
+      total: volumeByTier.t1 + volumeByTier.t2 + volumeByTier.t3,
     }
 
     // Get recent referrals (last 10)

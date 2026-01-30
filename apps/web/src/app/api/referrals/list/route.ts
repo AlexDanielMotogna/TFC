@@ -64,11 +64,10 @@ export async function GET(request: Request) {
         // Get trade count and volume for this referral
         const [tradesCount, volumeResult, earningsResult] = await Promise.all([
           prisma.trade.count({ where: { userId: ref.referredId } }),
-          prisma.$queryRaw<[{ volume: number }]>`
-            SELECT COALESCE(SUM(CAST(amount AS DECIMAL) * CAST(price AS DECIMAL)), 0) as volume
-            FROM trades
-            WHERE user_id = ${ref.referredId}::uuid
-          `,
+          prisma.$queryRawUnsafe<[{ volume: number }]>(
+            `SELECT COALESCE(SUM(amount * price), 0) as volume FROM trades WHERE user_id = $1`,
+            ref.referredId
+          ),
           prisma.referralEarning.aggregate({
             where: {
               referrerId: userId,
