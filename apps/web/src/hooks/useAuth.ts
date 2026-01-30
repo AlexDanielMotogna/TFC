@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuthStore } from '@/lib/store';
 import { api } from '@/lib/api';
+import { getStoredReferralCode, clearStoredReferralCode } from '@/lib/hooks/useReferralTracking';
 import bs58 from 'bs58';
 
 const AUTH_MESSAGE = 'Sign this message to authenticate with Trading Fight Club';
@@ -36,11 +37,20 @@ export function useAuth() {
       const signature = await signMessage(message);
       const signatureBase58 = bs58.encode(signature);
 
+      // Get referral code from localStorage (if user came via referral link)
+      const referralCode = getStoredReferralCode() || undefined;
+
       // Send to API - will create account and auto-link Pacifica if available
       const response = await api.connectWallet(
         publicKey.toBase58(),
-        signatureBase58
+        signatureBase58,
+        referralCode
       );
+
+      // Clear referral code after successful registration
+      if (referralCode) {
+        clearStoredReferralCode();
+      }
 
       // Store auth state including Pacifica connection status
       setAuth(response.token, response.user, response.pacificaConnected);
