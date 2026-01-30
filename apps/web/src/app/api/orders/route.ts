@@ -14,6 +14,10 @@ const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.f
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 
+// TFC platform fee rate (0.05%) - used to calculate referral commissions
+// Referral commissions are based on TFC's revenue, not total Pacifica fees
+const TFC_FEE_RATE = 0.0005;
+
 /**
  * Fetch and emit platform stats via realtime server
  */
@@ -410,17 +414,19 @@ async function recordAllTrades(
     });
 
     // Calculate referral commissions (non-blocking)
-    const feeNum = parseFloat(fee);
+    // Use TFC fee (0.05% of trade value), not total Pacifica fee
+    // This ensures referral commissions come from TFC's revenue
     const priceNum = parseFloat(executionPrice);
     const amountNum = parseFloat(amount);
     const tradeValue = priceNum * amountNum;
+    const tfcFee = tradeValue * TFC_FEE_RATE;
 
-    if (feeNum > 0) {
+    if (tfcFee > 0) {
       calculateReferralCommissions({
         tradeId: trade.id,
         traderId: connection.userId,
         symbol,
-        tradeFee: feeNum,
+        tradeFee: tfcFee,
         tradeValue,
       }).catch(err => {
         console.error('[recordAllTrades] Failed to calculate referral commissions:', err);
