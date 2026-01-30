@@ -122,7 +122,7 @@ export default function ProfilePage() {
                 <span className="text-4xl opacity-50">?</span>
               </div>
               <p className="text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
-              <Link href="/lobby" className="btn-primary">
+              <Link href="/trade" className="btn-primary">
                 Back to Arena
               </Link>
             </div>
@@ -278,7 +278,7 @@ export default function ProfilePage() {
                 <span className="text-3xl opacity-50">⚔</span>
               </div>
               <p className="text-surface-400 mb-4">No fight history yet</p>
-              <Link href="/lobby" className="text-primary-400 hover:text-primary-300">
+              <Link href="/trade" className="text-primary-400 hover:text-primary-300">
                 Enter the arena →
               </Link>
             </div>
@@ -387,7 +387,7 @@ export default function ProfilePage() {
         {/* Actions for own profile */}
         {isOwnProfile && (
           <div className="mt-8 flex justify-center gap-4">
-            <Link href="/lobby" className="btn-primary">
+            <Link href="/trade" className="btn-primary">
               Find a Fight
             </Link>
             <Link href="/trade" className="btn-secondary">

@@ -52,7 +52,7 @@ export function LandingNavbar() {
             {/* Wallet / Enter Arena */}
             {connected ? (
               <Link
-                href="/lobby"
+                href="/trade"
                 className="btn-glow-orange text-sm px-4 py-2"
               >
                 Enter Arena

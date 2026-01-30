@@ -72,7 +72,7 @@ export function HeroSection() {
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
               {connected ? (
-                <Link href="/lobby" className="btn-glow-orange w-full sm:w-auto text-center">
+                <Link href="/trade" className="btn-glow-orange w-full sm:w-auto text-center">
                   Start Fighting
                 </Link>
               ) : (

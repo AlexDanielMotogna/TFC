@@ -70,7 +70,6 @@ export function AppShell({ children }: AppShellProps) {
 
   useEffect(() => {
     router.prefetch('/trade');
-    router.prefetch('/lobby');
     router.prefetch('/leaderboard');
     router.prefetch('/rewards');
     router.prefetch('/referrals');
@@ -116,7 +115,7 @@ export function AppShell({ children }: AppShellProps) {
           <div className="flex items-center h-12 relative">
             {/* Logo - Left */}
             <div className="flex-shrink-0">
-              <Link href="/lobby">
+              <Link href="/trade">
                 <Image
                   src="/images/logos/favicon-white-192.png"
                   alt="Trade Fight Club"

@@ -6,7 +6,7 @@ import Link from 'next/link';
 export function LandingFooter() {
   const footerLinks = {
     platform: [
-      { name: 'Fight Arena', href: '/lobby' },
+      { name: 'Fight Arena', href: '/trade' },
       { name: 'Leaderboard', href: '/leaderboard' },
       { name: 'Weekly Prizes', href: '/rewards' },
     ],

@@ -360,8 +360,8 @@ export default function LobbyPage() {
 
         {/* Tab Content */}
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="spinner" />
+          <div className="card text-center py-16">
+            <div className="spinner mx-auto" />
             <p className="mt-4 text-surface-400">Loading fights...</p>
           </div>
         ) : displayFights.length === 0 ? (

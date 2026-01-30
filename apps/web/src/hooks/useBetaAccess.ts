@@ -77,8 +77,10 @@ export function useBetaAccess() {
   const [isApplying, setIsApplying] = useState(false);
   const lastCheckedWallet = useRef<string | null>(null);
 
-  // Check beta access (force = true bypasses cache)
-  const checkAccess = useCallback(async (force = false) => {
+  // Check beta access
+  // force = true bypasses cache
+  // silent = true doesn't show global loading (for manual refresh button)
+  const checkAccess = useCallback(async (force = false, silent = false) => {
     if (!walletAddress) {
       setState({
         hasAccess: false,
@@ -105,7 +107,10 @@ export function useBetaAccess() {
       }
     }
 
-    setState(prev => ({ ...prev, isLoading: true }));
+    // Only show global loading if not silent
+    if (!silent) {
+      setState(prev => ({ ...prev, isLoading: true }));
+    }
 
     try {
       const res = await fetch(`/api/beta/check?wallet=${walletAddress}`);
@@ -183,6 +188,6 @@ export function useBetaAccess() {
     ...state,
     isApplying,
     applyForBeta,
-    refetch: () => checkAccess(true), // Force fresh check, bypassing cache
+    refetch: () => checkAccess(true, true), // Force fresh check, silent (no global loading)
   };
 }

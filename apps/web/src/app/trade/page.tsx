@@ -808,7 +808,7 @@ export default function TradePage() {
             </div>
 
             {/* Positions Panel - fixed height with internal scroll */}
-            <div className="card h-[320px] flex flex-col overflow-hidden">
+            <div className="card h-[328px] flex flex-col overflow-hidden">
               {/* Tab navigation - fixed, scrollable on mobile */}
               <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
@@ -2152,7 +2152,7 @@ export default function TradePage() {
               {/* Challenge CTA */}
               <div className="mt-4 pt-4 border-t border-surface-700">
                 <Link
-                  href="/lobby"
+                  href="/trade"
                   className="block text-center py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-sm font-semibold transition-colors"
                 >
                   ⚔ Challenge a Trader

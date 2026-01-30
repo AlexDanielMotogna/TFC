@@ -289,7 +289,7 @@ export default function RewardsPage() {
               <p className="text-surface-500 mb-6">
                 Win fights to earn weekly prizes! Top 3 traders each week share the prize pool.
               </p>
-              <a href="/lobby" className="btn-primary inline-block">
+              <a href="/trade" className="btn-primary inline-block">
                 Start Fighting
               </a>
             </div>

@@ -102,7 +102,7 @@ export function FeaturesGrid() {
         {/* CTA */}
         <div className="mt-12 text-center">
           <Link
-            href="/lobby"
+            href="/trade"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold text-white bg-orange-500 hover:bg-orange-400 transition-colors shadow-lg shadow-orange-500/20"
           >
             Start Fighting

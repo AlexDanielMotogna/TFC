@@ -22,7 +22,7 @@ interface BetaGateProps {
  */
 export function BetaGate({ children, showLoading = true }: BetaGateProps) {
   const { connected } = useWallet();
-  const { hasAccess, status, isLoading } = useBetaAccess();
+  const { hasAccess, status, isLoading, refetch } = useBetaAccess();
 
   // Show loading while checking access (only if connected)
   if (connected && isLoading && showLoading) {
@@ -38,7 +38,7 @@ export function BetaGate({ children, showLoading = true }: BetaGateProps) {
 
   // If connected and doesn't have access, show denied page
   if (connected && !hasAccess) {
-    return <BetaAccessDenied status={status} />;
+    return <BetaAccessDenied status={status} onRefresh={refetch} />;
   }
 
   // Has access or not connected (wallet modal will handle connection)

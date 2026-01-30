@@ -171,7 +171,7 @@ export default function LeaderboardPage() {
               <EmojiEventsIcon sx={{ fontSize: 32, color: '#6b7280' }} />
             </div>
             <p className="text-surface-400">No rankings available yet</p>
-            <Link href="/lobby" className="text-primary-400 hover:text-primary-300 mt-2 inline-block">
+            <Link href="/trade" className="text-primary-400 hover:text-primary-300 mt-2 inline-block">
               Start fighting to get ranked →
             </Link>
           </div>

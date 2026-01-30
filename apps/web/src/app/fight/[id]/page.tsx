@@ -71,7 +71,7 @@ export default function FightResultsPage() {
 
         // If fight is WAITING, redirect to lobby
         if (data.status === 'WAITING') {
-          router.push('/lobby');
+          router.push('/trade');
           return;
         }
       } catch (err) {
@@ -156,7 +156,7 @@ export default function FightResultsPage() {
         <div className="min-h-screen bg-surface-900 flex items-center justify-center text-white">
           <div className="text-center">
             <p className="text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
-            <Link href="/lobby" className="btn-primary">
+            <Link href="/trade" className="btn-primary">
               Back to Lobby
             </Link>
           </div>
@@ -228,7 +228,7 @@ export default function FightResultsPage() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
-              href="/lobby"
+              href="/trade"
               className="flex items-center gap-2 text-surface-400 hover:text-white transition-colors"
             >
               <span>←</span>
@@ -648,7 +648,7 @@ export default function FightResultsPage() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            href="/lobby"
+            href="/trade"
             className="px-6 py-3 bg-surface-700 hover:bg-surface-600 rounded-lg font-semibold text-center transition-colors"
           >
             Back to Lobby
