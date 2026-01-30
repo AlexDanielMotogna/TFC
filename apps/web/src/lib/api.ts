@@ -52,11 +52,12 @@ async function fetchApi<T>(endpoint: string, options: ApiOptions = {}): Promise<
 
 export async function connectWallet(
   walletAddress: string,
-  signature: string
+  signature: string,
+  referralCode?: string
 ): Promise<{ token: string; user: User; pacificaConnected: boolean }> {
   return fetchApi('/auth/connect', {
     method: 'POST',
-    body: JSON.stringify({ walletAddress, signature }),
+    body: JSON.stringify({ walletAddress, signature, referralCode }),
   });
 }
 

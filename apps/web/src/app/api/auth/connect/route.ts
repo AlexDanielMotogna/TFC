@@ -8,13 +8,13 @@ import { errorResponse, BadRequestError } from '@/lib/server/errors';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { walletAddress, signature } = body;
+    const { walletAddress, signature, referralCode } = body;
 
     if (!walletAddress || !signature) {
       throw new BadRequestError('walletAddress and signature are required');
     }
 
-    const result = await AuthService.authenticateWallet(walletAddress, signature);
+    const result = await AuthService.authenticateWallet(walletAddress, signature, referralCode);
 
     return Response.json({ success: true, ...result });
   } catch (error) {
