@@ -90,18 +90,24 @@ export function useBetaAccess() {
       return;
     }
 
-    // Skip if we already checked this wallet (unless forced)
-    if (!force && lastCheckedWallet.current === walletAddress) {
-      return;
-    }
-
     // Check cache first (unless forced)
     if (!force) {
       const cached = getCachedState(walletAddress);
       if (cached) {
-        setState({ ...cached, isLoading: false });
-        lastCheckedWallet.current = walletAddress;
-        return;
+        // Don't use cache for pending status - always check fresh
+        // This ensures users see their approval immediately
+        if (cached.status === 'pending') {
+          // But skip if we just checked this wallet (prevent spam on same session)
+          if (lastCheckedWallet.current === walletAddress) {
+            setState({ ...cached, isLoading: false });
+            return;
+          }
+        } else {
+          // For approved/rejected, use cache normally
+          setState({ ...cached, isLoading: false });
+          lastCheckedWallet.current = walletAddress;
+          return;
+        }
       }
     }
 
@@ -120,7 +126,11 @@ export function useBetaAccess() {
         };
         setState({ ...newState, isLoading: false });
         setCachedState(walletAddress, newState);
-        lastCheckedWallet.current = walletAddress;
+        // Don't set lastCheckedWallet for pending status
+        // This allows fresh check on next page navigation
+        if (data.status !== 'pending') {
+          lastCheckedWallet.current = walletAddress;
+        }
       } else {
         setState(prev => ({ ...prev, isLoading: false }));
       }
