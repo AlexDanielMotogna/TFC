@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TFC Post 1 - Monday</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .post {
+      width: 1200px;
+      height: 675px; /* 16:9 aspect ratio for Twitter */
+      background: linear-gradient(135deg, #0c0c0e 0%, #1a1a2e 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Split screen design */
+    .split-container {
+      display: flex;
+      height: 100%;
+    }
+
+    .split-left, .split-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px;
+      position: relative;
+    }
+
+    .split-left {
+      background: rgba(239, 83, 80, 0.05);
+      border-right: 2px solid rgba(239, 83, 80, 0.3);
+    }
+
+    .split-right {
+      background: rgba(38, 166, 154, 0.05);
+    }
+
+    /* Icons */
+    .icon {
+      width: 120px;
+      height: 120px;
+      margin-bottom: 30px;
+      font-size: 80px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Labels */
+    .label {
+      font-size: 28px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 20px;
+    }
+
+    .split-left .label { color: #EF5350; }
+    .split-right .label { color: #26A69A; }
+
+    /* Description */
+    .description {
+      font-size: 20px;
+      color: #a1a1aa;
+      text-align: center;
+      line-height: 1.6;
+      max-width: 400px;
+    }
+
+    .highlight {
+      color: #ffffff;
+      font-weight: 600;
+    }
+
+    /* VS divider */
+    .vs-divider {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px;
+      height: 100px;
+      background: #0c0c0e;
+      border-radius: 50%;
+      border: 3px solid #f97316;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: 900;
+      color: #f97316;
+      z-index: 10;
+      box-shadow: 0 0 30px rgba(249, 115, 22, 0.5);
+    }
+
+    /* Top bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #EF5350 0%, #f97316 50%, #26A69A 100%);
+    }
+
+    /* Bottom CTA */
+    .cta-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(12, 12, 14, 0.95);
+      padding: 24px;
+      text-align: center;
+      border-top: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    .cta-text {
+      font-size: 24px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 8px;
+    }
+
+    .cta-subtext {
+      font-size: 16px;
+      color: #71717a;
+      letter-spacing: 1px;
+    }
+
+    .cta-subtext .accent {
+      color: #f97316;
+      font-weight: 600;
+    }
+
+    /* Logo */
+    .logo {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      height: 50px;
+      width: auto;
+      z-index: 15;
+    }
+  </style>
+</head>
+<body>
+  <div class="post">
+    <div class="top-bar"></div>
+
+    <!-- Logo -->
+    <img src="../../apps/web/public/images/logos/favicon-white-512.png" alt="TFC" class="logo" />
+
+    <!-- VS Divider -->
+    <div class="vs-divider">VS</div>
+
+    <!-- Split Screen -->
+    <div class="split-container">
+      <!-- Left: Traditional Trading -->
+      <div class="split-left">
+        <div class="icon">😴</div>
+        <div class="label">Traditional Trading</div>
+        <div class="description">
+          Trade alone. <span class="highlight">No competition.</span><br/>
+          No validation. <span class="highlight">No community.</span><br/>
+          Just you vs. the market.
+        </div>
+      </div>
+
+      <!-- Right: TFC -->
+      <div class="split-right">
+        <div class="icon">⚔️</div>
+        <div class="label">Trade Fight Club</div>
+        <div class="description">
+          <span class="highlight">1v1 PvP battles.</span><br/>
+          Real stakes. <span class="highlight">Real competition.</span><br/>
+          Prove your skills. Win prizes.
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA Bar -->
+    <div class="cta-bar">
+      <div class="cta-text">Stop trading alone. Start fighting.</div>
+      <div class="cta-subtext">Non-custodial • Real execution • <span class="accent">tradefightclub.xyz</span></div>
+    </div>
+  </div>
+</body>
+</html>

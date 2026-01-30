@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TFC Post 5 - Friday</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .post {
+      width: 1200px;
+      height: 675px;
+      background: linear-gradient(135deg, #1a0a0e 0%, #0c0c0e 50%, #0a0a1a 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Animated gradient overlay */
+    .gradient-overlay {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 20% 50%, rgba(249, 115, 22, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 50%, rgba(14, 165, 233, 0.15) 0%, transparent 50%);
+    }
+
+    /* Border glow animation */
+    .border-glow {
+      position: absolute;
+      inset: 0;
+      border: 3px solid;
+      border-image: linear-gradient(90deg, #f97316, #0ea5e9, #8b5cf6, #f97316) 1;
+      opacity: 0.5;
+    }
+
+    /* Content */
+    .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 60px;
+      text-align: center;
+    }
+
+    /* Logo */
+    .logo {
+      height: 80px;
+      width: auto;
+      margin-bottom: 30px;
+      filter: drop-shadow(0 0 20px rgba(249, 115, 22, 0.5));
+    }
+
+    /* Beta Badge */
+    .beta-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, rgba(249, 115, 22, 0.2), rgba(249, 115, 22, 0.1));
+      border: 2px solid #f97316;
+      border-radius: 30px;
+      padding: 8px 24px;
+      font-size: 16px;
+      font-weight: 700;
+      color: #f97316;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 30px;
+      box-shadow: 0 0 20px rgba(249, 115, 22, 0.3);
+    }
+
+    /* Main Headline */
+    .headline {
+      font-size: 68px;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1.1;
+      margin-bottom: 20px;
+      text-shadow: 0 0 30px rgba(249, 115, 22, 0.3);
+    }
+
+    .headline .gradient-text {
+      background: linear-gradient(90deg, #f97316, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Subheadline */
+    .subheadline {
+      font-size: 28px;
+      color: #a1a1aa;
+      margin-bottom: 40px;
+      line-height: 1.4;
+      max-width: 800px;
+    }
+
+    .subheadline .highlight {
+      color: #ffffff;
+      font-weight: 700;
+    }
+
+    /* Stats Row */
+    .stats-row {
+      display: flex;
+      gap: 50px;
+      margin-bottom: 50px;
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 48px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #f97316, #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* CTA Button */
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #f97316, #fb923c);
+      padding: 20px 60px;
+      border-radius: 12px;
+      font-size: 28px;
+      font-weight: 900;
+      color: #ffffff;
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      box-shadow: 0 10px 40px rgba(249, 115, 22, 0.5);
+      margin-bottom: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* URL */
+    .url {
+      font-size: 20px;
+      color: #71717a;
+      letter-spacing: 1px;
+    }
+
+    .url .domain {
+      color: #f97316;
+      font-weight: 700;
+    }
+
+    /* Urgency note */
+    .urgency {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .urgency .warning {
+      color: #fbbf24;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="post">
+    <div class="gradient-overlay"></div>
+    <div class="border-glow"></div>
+
+    <div class="content">
+      <!-- Logo -->
+      <img src="../../apps/web/public/images/logos/favicon-white-512.png" alt="TFC" class="logo" />
+
+      <!-- Beta Badge -->
+      <div class="beta-badge">🔥 Closed Beta</div>
+
+      <!-- Headline -->
+      <div class="headline">
+        Are you ready to<br/>
+        <span class="gradient-text">prove yourself?</span>
+      </div>
+
+      <!-- Subheadline -->
+      <div class="subheadline">
+        Join elite traders competing for <span class="highlight">weekly prizes</span> in the most intense PvP trading arena.
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-value">50x</div>
+          <div class="stat-label">Max Leverage</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">40+</div>
+          <div class="stat-label">Trading Assets</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value">10%</div>
+          <div class="stat-label">Prize Pool Share</div>
+        </div>
+      </div>
+
+      <!-- CTA Button -->
+      <div class="cta-button">
+        Apply for Beta Access
+      </div>
+
+      <!-- URL -->
+      <div class="url">
+        <span class="domain">tradefightclub.xyz</span>
+      </div>
+    </div>
+
+    <!-- Urgency Note -->
+    <div class="urgency">
+      <span class="warning">⚠</span> Limited spots available • Batch approvals only
+    </div>
+  </div>
+</body>
+</html>

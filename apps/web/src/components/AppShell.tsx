@@ -214,7 +214,7 @@ export function AppShell({ children }: AppShellProps) {
               }`}
             >
               {item.icon}
-              <span className="text-[10px] mt-0.5">{item.label}</span>
+              <span className="text-[10px] mt-0.5 hidden sm:block">{item.label}</span>
               {item.badge && (
                 <span className="absolute top-1 right-1/4 min-w-[16px] h-[16px] px-1 bg-primary-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                   {item.badge}

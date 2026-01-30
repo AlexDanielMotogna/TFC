@@ -701,11 +701,11 @@ export default function TradePage() {
 
       <div className="w-full px-4 py-4">
         {/* Main Trading Terminal - Fixed height boxes with internal scroll */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
           {/* Left column: Order Book + Chart stacked, then Positions below */}
-          <div className="xl:col-span-9 flex flex-col gap-4 order-2 xl:order-1">
+          <div className="xl:col-span-9 flex flex-col gap-2 order-2 xl:order-1">
             {/* Top row: Order Book + Chart side by side */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
               {/* Order Book - fixed height with scroll */}
               <div className="lg:col-span-3 card overflow-hidden">
                 <div className="px-3 py-2 border-b border-surface-700 flex-shrink-0">

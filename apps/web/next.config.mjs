@@ -20,6 +20,17 @@ const nextConfig = {
       },
     ],
   },
+  // Redirect tfc.gg → www.tfc.gg
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'tfc.gg' }],
+        destination: 'https://www.tfc.gg/:path*',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -71,11 +71,11 @@ body {
 
 @layer components {
   .card {
-    @apply bg-surface-850 border border-surface-700 rounded-md;
+    @apply bg-surface-850 border border-surface-700 rounded-none;
   }
 
   .card-elevated {
-    @apply bg-surface-800 border border-surface-700 rounded-md shadow-card;
+    @apply bg-surface-800 border border-surface-700 rounded-none shadow-card;
   }
 
   .card-interactive {
