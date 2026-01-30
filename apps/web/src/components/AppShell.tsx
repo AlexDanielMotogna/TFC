@@ -119,8 +119,8 @@ export function AppShell({ children }: AppShellProps) {
                 <Image
                   src="/images/logos/favicon-white-192.png"
                   alt="Trade Fight Club"
-                  width={36}
-                  height={36}
+                  width={52}
+                  height={52}
                   className="rounded-lg"
                 />
               </Link>

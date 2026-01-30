@@ -469,9 +469,68 @@ export default function ReferralsPage() {
           )}
 
           {activeTab === 'referrals' && (
-            <div className="card p-12 text-center">
-              <GroupsIcon sx={{ fontSize: 48, color: '#52525b', marginBottom: 8 }} />
-              <p className="text-surface-500 text-sm">Full referrals list coming soon</p>
+            <div className="card">
+              <div className="p-6 border-b border-surface-700">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
+                  All Referrals
+                </h3>
+              </div>
+              {dashboard.recentReferrals.length === 0 ? (
+                <div className="p-12 text-center">
+                  <GroupsIcon sx={{ fontSize: 48, color: '#52525b', marginBottom: 8 }} />
+                  <p className="text-surface-500 text-sm">No referrals yet</p>
+                  <p className="text-surface-600 text-xs mt-2">Share your referral link to start earning commissions</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="table-premium w-full">
+                    <thead>
+                      <tr className="border-b border-surface-700 bg-surface-850">
+                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">User</th>
+                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
+                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Commission</th>
+                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-700/50">
+                      {dashboard.recentReferrals.map((ref) => (
+                        <tr key={ref.id} className="hover:bg-surface-800/50 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <div className="avatar w-8 h-8 text-xs">
+                                {ref.user.handle[0]?.toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <span className="text-white text-sm block">{ref.user.handle}</span>
+                                <span className="text-surface-500 text-xs font-mono">
+                                  {ref.user.walletAddress.slice(0, 4)}...{ref.user.walletAddress.slice(-4)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              ref.tier === 1 ? 'bg-primary-500/10 text-primary-400' :
+                              ref.tier === 2 ? 'bg-violet-500/10 text-violet-400' :
+                              'bg-surface-700 text-surface-400'
+                            }`}>
+                              T{ref.tier}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-center text-surface-300 text-sm">
+                            {ref.tier === 1 ? dashboard.commissionRates.t1 :
+                             ref.tier === 2 ? dashboard.commissionRates.t2 :
+                             dashboard.commissionRates.t3}%
+                          </td>
+                          <td className="py-3 px-4 text-right text-surface-400 text-sm">
+                            {new Date(ref.joinedAt).toLocaleDateString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
