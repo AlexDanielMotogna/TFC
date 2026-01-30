@@ -125,7 +125,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
         {/* Logo - Left */}
         <div className="flex-shrink-0">
           <Image
-            src="/images/landing/TFC-Logo.png"
+            src="/images/logos/favicon-white-192.png"
             alt="TFC"
             width={36}
             height={36}
@@ -145,7 +145,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           {/* Arena - SportsKabaddiIcon */}
           <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M11.23 6c.63 0 1.13-.5 1.13-1.13 0-.62-.5-1.12-1.13-1.12-.62 0-1.13.5-1.13 1.12 0 .63.51 1.13 1.13 1.13zM5.5 11.75c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm3.13-3c.62 0 1.12-.5 1.12-1.13 0-.62-.5-1.12-1.13-1.12s-1.12.5-1.12 1.12c0 .63.5 1.13 1.13 1.13zm-2.88 3.5H3.5v-2H.5v4h2v4.25L5.5 21v-5.75l-1-1V12.5h1.5l1.75 2.25l.75 3.25h2l-1-4.5-1.75-2.25zM22 6.5h-2.25l-2-2.25h-1.5l2.25 2.5V9h-2L13 4.75c-.35-.55-1.45-1.15-2.25-.25-.6.75-.15 1.5.15 1.9l3.45 4.1h2.9l1.25 1.5H15v7.5h2V14l1.5 1.5V22h2v-7l-3.5-4.5H18l.35 1h2.15c.83 0 1.5-.67 1.5-1.5V8c0-.83-.67-1.5-1.5-1.5z"/>
+              <path d="M12 5c1.11 0 2-.9 2-2s-.89-2-2-2-2 .9-2 2 .9 2 2 2zm-5.5 6.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5S5 9.17 5 10s.67 1.5 1.5 1.5zM5.5 21h1v-3.8l-.73-2.2L3 17.53l1.71 1.7v1.77H5.5zm6.5.5c.28 0 .5-.22.5-.5v-4.66c0-.24-.12-.47-.31-.62l-1.52-1.17 1.03-4.19.71.67c.19.18.46.28.74.28H15c.55 0 1-.45 1-1s-.45-1-1-1h-1.39l-.31-.29c-.06-.06-.12-.11-.19-.15l-1.33-1.26-.55-1.7c-.11-.34-.39-.62-.73-.71L9.73 5c-.55-.15-1.11.17-1.26.73l-.52 1.91c-.11.38-.01.79.27 1.08l1.37 1.37-1.05 4.5L5.96 9.3c-.29-.53-.95-.72-1.48-.43s-.72.95-.43 1.48l4.99 9.01c.14.25.4.39.68.41l2.2.08c.03 0 .05.01.08.01zM17.5 21h1v-1.77l1.71-1.7L17.44 15l-.73 2.2V21zM17.5 10c.83 0 1.5-.67 1.5-1.5S18.33 7 17.5 7 16 7.67 16 8.5s.67 1.5 1.5 1.5z"/>
             </svg>
             <span>Arena</span>
           </div>
@@ -162,6 +162,13 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
             </svg>
             <span>Rewards</span>
+          </div>
+          {/* Referrals - GroupsIcon */}
+          <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58C.48 14.9 0 15.62 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85-.85-.37-1.79-.58-2.78-.58-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z"/>
+            </svg>
+            <span>Referrals</span>
           </div>
           {/* Profile - PersonIcon */}
           <div className="px-3 py-1.5 text-sm rounded flex items-center gap-1.5 text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50 cursor-pointer">
@@ -260,13 +267,13 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       </div>
 
       {/* Main Content with gaps */}
-      <div className="p-2 flex gap-2">
+      <div className="p-2 flex gap-2 h-[700px]">
         {/* Left side: Order Book + Chart + Positions */}
         <div className="flex-1 flex flex-col gap-2">
           {/* Top Row: Order Book + Chart */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-1">
             {/* Order Book - matches OrderBook.tsx */}
-            <div className="w-72 bg-surface-900 rounded-lg border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col">
+            <div className="w-72 bg-surface-900 rounded-none border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col">
               {/* Header with agg level and size mode selector */}
               <div className="px-2 py-1.5 border-b border-surface-700 flex items-center justify-between">
                 {/* Aggregation level selector */}
@@ -337,7 +344,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             </div>
 
             {/* Chart */}
-            <div className="flex-1 min-w-0 bg-surface-900 rounded-lg border border-surface-800 overflow-hidden">
+            <div className="flex-1 min-w-0 bg-surface-900 rounded-none border border-surface-800 overflow-hidden">
               {/* Market Info Header */}
               <div className="px-3 py-2 border-b border-surface-800 flex items-center gap-4 overflow-x-auto text-[10px]">
               <select className="bg-surface-800 border border-surface-700 rounded px-2 py-1 text-white text-xs font-semibold flex-shrink-0">
@@ -567,7 +574,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
         </div>
 
         {/* Bottom Row: Positions Table (Below Order Book + Chart only) */}
-        <div className="bg-surface-900 rounded-lg border border-surface-800 overflow-hidden flex flex-col min-h-[197px]">
+        <div className="bg-surface-900 rounded-none border border-surface-800 overflow-hidden flex flex-col min-h-[197px]">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-surface-800 flex-shrink-0">
             <div className="flex items-center gap-4">
               {[
@@ -684,7 +691,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       </div>
 
       {/* Right: Place Order */}
-      <div className="w-64 bg-surface-900 rounded-lg border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col max-h-[700px]">
+      <div className="w-64 bg-surface-900 rounded-none border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col max-h-[700px]">
         {/* Header */}
         <div className="px-3 py-2 border-b border-surface-800">
           <span className="text-white text-xs font-semibold tracking-wider">PLACE ORDER</span>
