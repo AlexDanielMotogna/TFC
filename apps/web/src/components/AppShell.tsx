@@ -11,6 +11,7 @@ import { WalletButton } from '@/components/WalletButton';
 import { NotificationBell } from '@/components/NotificationBell';
 import { PrizesBanner } from '@/components/PrizesBanner';
 import { WithdrawModal } from '@/components/WithdrawModal';
+import { MobilePhantomRedirect } from '@/components/MobilePhantomRedirect';
 import { api } from '@/lib/api';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
@@ -329,6 +330,9 @@ export function AppShell({ children }: AppShellProps) {
         onClose={() => setShowWithdrawModal(false)}
         availableBalance={pacificaBalance}
       />
+
+      {/* Mobile Phantom Redirect - prompts mobile users to open in Phantom dApp browser */}
+      <MobilePhantomRedirect />
     </div>
   );
 }

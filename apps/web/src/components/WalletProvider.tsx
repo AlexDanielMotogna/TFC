@@ -12,26 +12,28 @@ import {
 } from '@solana-mobile/wallet-adapter-mobile';
 import { PacificaConnectionSync } from './PacificaConnectionSync';
 import { PacificaWebSocketInit } from './PacificaWebSocketInit';
+import { getDeviceContext, type DeviceContext } from '@/lib/mobile';
 
 // Import wallet adapter styles
 import '@solana/wallet-adapter-react-ui/styles.css';
 
-// Detectar si es móvil (client-side only)
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
+// Detectar contexto del dispositivo (desktop, mobile-browser, phantom-browser)
+function useDeviceContext() {
+  const [context, setContext] = useState<DeviceContext>('desktop');
 
   useEffect(() => {
-    const checkMobile = () => {
-      const userAgent = navigator.userAgent || navigator.vendor;
-      const isMobileDevice = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(
-        userAgent.toLowerCase()
-      );
-      setIsMobile(isMobileDevice);
+    const detectContext = () => {
+      setContext(getDeviceContext());
     };
-    checkMobile();
+
+    detectContext();
+
+    // Re-check on focus (in case user navigated from external app)
+    window.addEventListener('focus', detectContext);
+    return () => window.removeEventListener('focus', detectContext);
   }, []);
 
-  return isMobile;
+  return context;
 }
 
 // Check if user was previously authenticated (has stored auth state)
@@ -55,13 +57,14 @@ function useHasPreviousAuth() {
 }
 
 export function WalletProviderWrapper({ children }: { children: ReactNode }) {
-  const isMobile = useIsMobile();
+  const deviceContext = useDeviceContext();
   const hasPreviousAuth = useHasPreviousAuth();
 
-  // On mobile: only autoConnect if user was previously authenticated
-  // This prevents the "wallet not found" popup on first visit
-  // On desktop: always autoConnect
-  const shouldAutoConnect = !isMobile || hasPreviousAuth;
+  // AutoConnect logic:
+  // - Desktop: always autoConnect
+  // - Phantom browser: always autoConnect (provider is injected)
+  // - Mobile browser: only autoConnect if user was previously authenticated
+  const shouldAutoConnect = deviceContext === 'desktop' || deviceContext === 'phantom-browser' || hasPreviousAuth;
 
   // Use devnet by default, can be changed via environment variable
   const endpoint = useMemo(() => {
@@ -81,10 +84,16 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Configurar wallets según dispositivo
+  // Configure wallets based on device context
   const wallets = useMemo(() => {
-    if (isMobile) {
-      // En móvil: usar Mobile Wallet Adapter para deep linking
+    if (deviceContext === 'phantom-browser') {
+      // Inside Phantom's dApp browser: provider is pre-injected
+      // Only use PhantomWalletAdapter for seamless connection
+      return [new PhantomWalletAdapter()];
+    }
+
+    if (deviceContext === 'mobile-browser') {
+      // Regular mobile browser: use Mobile Wallet Adapter for deep linking
       const cluster = (process.env.NEXT_PUBLIC_SOLANA_NETWORK as 'devnet' | 'mainnet-beta') || 'devnet';
       return [
         new SolanaMobileWalletAdapter({
@@ -100,12 +109,13 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
         }),
       ];
     }
-    // En desktop: usar extensiones de navegador
+
+    // Desktop: use browser extensions
     return [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
     ];
-  }, [isMobile]);
+  }, [deviceContext]);
 
   return (
     <ConnectionProvider endpoint={endpoint}>
