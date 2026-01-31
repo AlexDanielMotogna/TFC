@@ -122,7 +122,7 @@ export function LeaderboardRowSkeleton() {
 // Leaderboard Page Skeleton - Matches actual page layout
 export function LeaderboardSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Title */}
       <div className="text-center mb-4">
         <SkeletonText width="w-48" height="h-10" className="mx-auto mb-2" />
@@ -194,9 +194,9 @@ export function LeaderboardSkeleton() {
 // Profile Page Skeleton
 export function ProfileSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Profile Header */}
-      <SkeletonCard className="flex flex-col md:flex-row items-center md:items-start gap-4 p-6">
+      <SkeletonCard className="flex flex-col md:flex-row items-center md:items-start gap-2 p-6">
         {/* Avatar with rank badge */}
         <div className="relative">
           <SkeletonAvatar size="w-20 h-20" />
@@ -224,7 +224,7 @@ export function ProfileSkeleton() {
       </SkeletonCard>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <SkeletonCard key={i} className="text-center p-4">
             <div className="flex items-center justify-center gap-2 mb-1">
@@ -310,10 +310,10 @@ export function ProfileSkeleton() {
 // Note: Header (title + stats) is rendered by the page wrapper
 export function ArenaSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Tabs and Filters */}
       <div className="border-b border-surface-800 pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           {/* Tabs */}
           <div className="flex gap-1">
             {['Live', 'Pending', 'Finished', 'My Fights'].map((tab, i) => (
@@ -333,7 +333,7 @@ export function ArenaSkeleton() {
 
       {/* Content - Loading state */}
       <div className="card text-center py-16">
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-2">
           <div className="w-10 h-10 rounded-full border-4 border-surface-800 border-t-primary-500 animate-spin" />
           <p className="text-surface-500">Loading fights...</p>
         </div>
@@ -420,7 +420,7 @@ export function PageLoadingSkeleton({ title }: { title?: string }) {
         </div>
       )}
       <div className="flex justify-center py-20">
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col items-center gap-2">
           <div className="relative">
             <div className="w-12 h-12 rounded-full border-4 border-surface-800 border-t-primary-500 animate-spin" />
           </div>

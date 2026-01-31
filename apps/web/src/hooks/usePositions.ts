@@ -32,10 +32,10 @@ export function usePositions() {
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // Disable polling completely when WebSocket is connected (WS provides real-time updates)
-    // This prevents unnecessary re-renders from HTTP polling
-    refetchInterval: wsConnected ? false : 10000,
-    staleTime: wsConnected ? Infinity : 8000,
+    // When WS is connected, reduce polling but keep it as fallback for missed updates
+    // This ensures invalidateQueries works properly after placing orders
+    refetchInterval: wsConnected ? 5000 : 10000,
+    staleTime: wsConnected ? 3000 : 8000,
     retry: 1,
     retryDelay: 2000,
   });
@@ -136,9 +136,9 @@ export function useOpenOrders(symbol?: string) {
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // Disable polling completely when WebSocket is connected (WS provides real-time updates)
-    refetchInterval: wsConnected ? false : 10000,
-    staleTime: wsConnected ? Infinity : 8000,
+    // When WS is connected, reduce polling but keep it as fallback for missed updates
+    refetchInterval: wsConnected ? 5000 : 10000,
+    staleTime: wsConnected ? 3000 : 8000,
     retry: 1,
     retryDelay: 2000,
   });
@@ -250,9 +250,9 @@ export function useTradeHistory(symbol?: string) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     enabled: connected && !!publicKey,
-    // Disable polling completely when WebSocket is connected
-    refetchInterval: wsConnected ? false : 10000,
-    staleTime: wsConnected ? Infinity : 5000,
+    // When WS is connected, reduce polling but keep it as fallback
+    refetchInterval: wsConnected ? 5000 : 10000,
+    staleTime: wsConnected ? 3000 : 5000,
   });
 
   // Flatten all pages into a single array

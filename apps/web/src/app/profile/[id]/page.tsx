@@ -33,6 +33,13 @@ export default function ProfilePage() {
   const [userRank, setUserRank] = useState<number | null>(null);
   const [visibleFights, setVisibleFights] = useState(20);
 
+  // Redirect to /profile when user disconnects
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/profile');
+    }
+  }, [isAuthenticated, router]);
+
   // Redirect to new profile when wallet changes (if viewing own profile)
   useEffect(() => {
     // Skip during loading or if no profile loaded yet
@@ -118,7 +125,7 @@ export default function ProfilePage() {
         <AppShell>
           <div className="flex items-center justify-center py-32">
             <div className="text-center">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-surface-800 flex items-center justify-center">
+              <div className="w-20 h-20 mx-auto mb-2 rounded-full bg-surface-800 flex items-center justify-center">
                 <span className="text-4xl opacity-50">?</span>
               </div>
               <p className="text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
@@ -147,8 +154,8 @@ export default function ProfilePage() {
       <AppShell>
         <div className="container mx-auto px-4 md:px-6 py-8">
         {/* Profile Header */}
-        <div className="card p-6 mb-6">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-4">
+        <div className="card p-6 mb-2">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-2">
             {/* Avatar */}
             <div className="relative">
               <div className="p-1 rounded-full bg-gradient-to-r from-primary-500 to-accent-500">
@@ -219,7 +226,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
           <div className="card p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <SportsKabaddiIcon sx={{ fontSize: 20, color: '#ffffff' }} />
@@ -258,7 +265,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Performance Chart */}
-        <div className="card p-4 mb-6">
+        <div className="card p-4 mb-2">
           <h2 className="font-display text-sm font-semibold uppercase tracking-wide mb-4 text-surface-300">
             Performance History
           </h2>
@@ -386,7 +393,7 @@ export default function ProfilePage() {
 
         {/* Actions for own profile */}
         {isOwnProfile && (
-          <div className="mt-8 flex justify-center gap-4">
+          <div className="mt-8 flex justify-center gap-2">
             <Link href="/trade" className="btn-primary">
               Find a Fight
             </Link>

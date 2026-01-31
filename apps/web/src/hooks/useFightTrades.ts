@@ -52,10 +52,10 @@ export function useFightTrades(fightId: string | null | undefined) {
       return result.data;
     },
     enabled: isAuthenticated && !!token && !!fightId,
-    refetchInterval: 10000, // Poll every 10 seconds (reduced to avoid rate limits)
-    staleTime: 8000,
+    refetchInterval: 3000, // Poll every 3 seconds for faster updates
+    staleTime: 1000, // Low staleTime so invalidateQueries triggers immediate refetch
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 500,
   });
 
   return {

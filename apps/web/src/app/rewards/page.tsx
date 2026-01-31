@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMyPrizes, type UserPrize } from '@/hooks/useMyPrizes';
+import { useAuth } from '@/hooks';
 import { AppShell } from '@/components/AppShell';
 import { BetaGate } from '@/components/BetaGate';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -92,7 +93,7 @@ function PrizeRow({
       {/* Status */}
       <td className="py-4 px-4 text-center">
         {prize.status === 'DISTRIBUTED' ? (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-win-500/10 text-win-400 text-xs font-medium">
+          <span className="inline-flex items-center gap-2.5 px-2.5 py-1 rounded-full bg-win-500/10 text-win-400 text-xs font-medium">
             <CheckCircleIcon sx={{ fontSize: 14 }} />
             Claimed
           </span>
@@ -114,7 +115,7 @@ function PrizeRow({
             href={`https://solscan.io/tx/${prize.txSignature}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 transition-colors text-sm"
+            className="inline-flex items-center gap-2.5 text-primary-400 hover:text-primary-300 transition-colors text-sm"
           >
             <span className="font-mono">{prize.txSignature.slice(0, 6)}...</span>
             <OpenInNewIcon sx={{ fontSize: 14 }} />
@@ -122,12 +123,12 @@ function PrizeRow({
         ) : prize.status === 'PENDING' ? (
           <span className="text-xs text-surface-500">After week ends</span>
         ) : claimResult?.success ? (
-          <div className="flex items-center justify-end gap-1.5 text-win-400 text-sm">
+          <div className="flex items-center justify-end gap-2.5 text-win-400 text-sm">
             <CheckCircleIcon sx={{ fontSize: 16 }} />
             <span>Done!</span>
           </div>
         ) : (
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex flex-col items-end gap-2">
             {claimResult && !claimResult.success && (
               <span className="text-xs text-loss-400">{claimResult.error}</span>
             )}
@@ -153,6 +154,7 @@ function PrizeRow({
 }
 
 export default function RewardsPage() {
+  const { isAuthenticated } = useAuth();
   const {
     prizes,
     isLoading,
@@ -168,12 +170,29 @@ export default function RewardsPage() {
     document.title = 'Rewards - Trading Fight Club';
   }, []);
 
+  // Not authenticated state
+  if (!isAuthenticated) {
+    return (
+      <BetaGate>
+        <AppShell>
+          <div className="container mx-auto px-4 md:px-6 py-8">
+            <div className="card p-12 text-center">
+              <EmojiEventsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
+              <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
+              <p className="text-surface-500">Please connect your wallet to view your rewards.</p>
+            </div>
+          </div>
+        </AppShell>
+      </BetaGate>
+    );
+  }
+
   return (
     <BetaGate>
       <AppShell>
         <div className="container mx-auto px-4 md:px-6 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 sm:gap-3">
               <EmojiEventsIcon sx={{ color: '#f97316', fontSize: 28 }} />
               <div>
@@ -184,7 +203,7 @@ export default function RewardsPage() {
 
             {/* Claimable badge */}
             {totalClaimable > 0 && (
-              <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-primary-500/10 border border-primary-500/30 rounded-lg">
+              <div className="flex items-center gap-2.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-primary-500/10 border border-primary-500/30 rounded-lg">
                 <span className="text-[10px] sm:text-xs text-primary-400 uppercase tracking-wider">Claimable</span>
                 <span className="text-sm sm:text-base font-bold text-primary-400">${totalClaimable.toFixed(2)}</span>
               </div>
@@ -193,7 +212,7 @@ export default function RewardsPage() {
 
           {/* Stats Cards */}
           {!isLoading && !error && prizes.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
               {/* Total Prizes */}
               <div className="card p-6">
                 <div className="flex items-center gap-3 mb-4">
@@ -233,9 +252,9 @@ export default function RewardsPage() {
 
           {/* Loading state */}
           {isLoading && (
-            <div className="animate-pulse space-y-6">
+            <div className="animate-pulse space-y-2">
               {/* Stats Cards Skeleton */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="card p-6">
                     <div className="flex items-center gap-3 mb-4">
@@ -252,7 +271,7 @@ export default function RewardsPage() {
                 <div className="p-6 border-b border-surface-800">
                   <div className="h-4 w-32 bg-surface-700" />
                 </div>
-                <div className="p-4 space-y-4">
+                <div className="p-4 space-y-2">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="flex items-center justify-between py-2">
                       <div className="flex items-center gap-3">
@@ -288,7 +307,7 @@ export default function RewardsPage() {
             <div className="card p-12 text-center">
               <EmojiEventsIcon sx={{ color: '#52525b', fontSize: 64, marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">No prizes yet</h3>
-              <p className="text-surface-500 mb-6">
+              <p className="text-surface-500 mb-2">
                 Win fights to earn weekly prizes! Top 3 traders each week share the prize pool.
               </p>
               <a href="/trade" className="btn-primary inline-block">
@@ -337,7 +356,7 @@ export default function RewardsPage() {
             <h2 className="font-display text-xs font-semibold uppercase tracking-wide text-surface-300 mb-4">
               How Weekly Prizes Work
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
               <div className="flex items-center gap-3">
                 <WorkspacePremiumIcon sx={{ color: '#facc15', fontSize: 28 }} />
                 <div>

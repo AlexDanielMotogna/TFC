@@ -16,6 +16,7 @@ import { CloseOppositeModal } from '@/components/CloseOppositeModal';
 import { MarketSelector } from '@/components/MarketSelector';
 import { Toggle } from '@/components/Toggle';
 import { WithdrawModal } from '@/components/WithdrawModal';
+import { EditOrderModal } from '@/components/EditOrderModal';
 import { BetaGate } from '@/components/BetaGate';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
@@ -94,12 +95,16 @@ export default function TradePage() {
   const [selectedMarket, setSelectedMarket] = useState(() => urlSymbol || 'BTC-USD');
 
   // Update URL when market changes (shallow navigation)
+  // Preserve fight parameter if user is in an active fight
   const handleMarketChange = useCallback((symbol: string) => {
     setSelectedMarket(symbol);
-    // Extract just the base asset (BTC from BTC-USD)
-    const asset = symbol.split('-')[0];
-    router.replace(`/trade?symbol=${symbol}`, { scroll: false });
-  }, [router]);
+    // Preserve fight parameter if exists
+    const currentFightId = searchParams?.get('fight');
+    const url = currentFightId
+      ? `/trade?fight=${currentFightId}&symbol=${symbol}`
+      : `/trade?symbol=${symbol}`;
+    router.replace(url, { scroll: false });
+  }, [router, searchParams]);
 
   // Set page title with current asset
   useEffect(() => {
@@ -136,6 +141,20 @@ export default function TradePage() {
 
   // Withdraw modal state
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+
+  // Edit order modal state
+  const [showEditOrderModal, setShowEditOrderModal] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<{
+    id: number;
+    symbol: string;
+    side: string;
+    price: string;
+    size: string;
+    type: string;
+  } | null>(null);
+
+  // Close all positions state
+  const [isClosingAllPositions, setIsClosingAllPositions] = useState(false);
 
   // Slippage state
   const [slippage, setSlippage] = useState('0.5');
@@ -438,6 +457,29 @@ export default function TradePage() {
     }
   }, [cancelOrder, cancelStopOrder, refetchAccount]);
 
+  const handleEditOrder = useCallback((order: {
+    id: string;
+    symbol: string;
+    side: string;
+    price: string;
+    size: string;
+    type: string;
+  }) => {
+    // Only allow editing LIMIT orders (not TP/SL orders)
+    if (order.type !== 'LIMIT') {
+      return;
+    }
+    setEditingOrder({
+      id: parseInt(order.id),
+      symbol: order.symbol,
+      side: order.side,
+      price: order.price,
+      size: order.size,
+      type: order.type,
+    });
+    setShowEditOrderModal(true);
+  }, []);
+
   const handleClosePosition = useCallback(async (
     positionId: string,
     closeType: 'market' | 'limit' | 'flip' = 'market',
@@ -523,6 +565,37 @@ export default function TradePage() {
       console.error('Failed to close position:', err instanceof Error ? err.message : err);
     }
   }, [apiPositions, createMarketOrder, createLimitOrder, refetchAccount, inActiveFight, fightId, fightPositions]);
+
+  // Close all positions at market price
+  const handleCloseAllPositions = useCallback(async () => {
+    if (!apiPositions || apiPositions.length === 0) return;
+
+    setIsClosingAllPositions(true);
+
+    try {
+      // Close each position with a market order
+      for (const position of apiPositions) {
+        const tokenSymbol = position.symbol.replace('-USD', '');
+        const closeSide = position.side === 'LONG' ? 'ask' : 'bid';
+
+        await createMarketOrder.mutateAsync({
+          symbol: tokenSymbol,
+          side: closeSide,
+          amount: position.size,
+          reduceOnly: true,
+          slippage_percent: '1',
+        });
+      }
+
+      toast.success(`Closed ${apiPositions.length} position${apiPositions.length > 1 ? 's' : ''}`);
+      await refetchAccount();
+    } catch (err) {
+      console.error('Failed to close all positions:', err instanceof Error ? err.message : err);
+      toast.error('Failed to close all positions');
+    } finally {
+      setIsClosingAllPositions(false);
+    }
+  }, [apiPositions, createMarketOrder, refetchAccount]);
 
   const handleSetTpSl = useCallback(async (params: TpSlParams) => {
     try {
@@ -757,7 +830,7 @@ export default function TradePage() {
                     Order Book
                   </h3>
                 </div>
-                <div className="flex-1 xl:h-[570px] overflow-y-auto overscroll-y-contain isolate" style={{ contain: 'strict' }}>
+                <div className="flex-1 xl:h-[570px] overflow-y-auto overscroll-y-auto isolate" style={{ contain: 'strict' }}>
                   <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
                 </div>
               </div>
@@ -765,7 +838,7 @@ export default function TradePage() {
               {/* Chart - full width on mobile (row 1), 9 cols on desktop */}
               <div className="col-span-2 xl:col-span-9 order-1 card overflow-hidden">
                 {/* Chart Header - Market Info like Pacifica */}
-                <div className="px-4 py-2 border-b border-surface-800 overflow-x-auto overscroll-x-contain">
+                <div className="px-4 py-2 border-b border-surface-800 overflow-x-auto overscroll-x-auto">
                   {/* Single row with all info like Pacifica - scrollable on small screens */}
                   <div className="flex items-center gap-4 xl:gap-6 text-sm min-w-max">
                     {/* Symbol selector with dropdown table */}
@@ -855,7 +928,7 @@ export default function TradePage() {
             {/* contain: strict prevents layout changes inside from affecting page scroll */}
             <div className="col-span-2 order-4 card h-[389px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
               {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
-              <div className="flex items-center justify-between border-b border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-contain">
+              <div className="flex items-center justify-between border-b border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-auto">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
                   <button
                     onClick={() => setBottomTab('positions')}
@@ -925,13 +998,15 @@ export default function TradePage() {
               </div>
 
               {/* Tab content - scrollable with overscroll containment to prevent scroll chaining on mobile */}
-              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto overscroll-y-contain'}`}>
+              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto overscroll-y-auto'}`}>
                 {bottomTab === 'positions' && (
                   <Positions
                     positions={activePositions}
                     onClosePosition={handleClosePosition}
                     onSetTpSl={handleSetTpSl}
                     onCancelOrder={handleCancelOrder}
+                    onCloseAll={handleCloseAllPositions}
+                    isClosingAll={isClosingAllPositions}
                     readOnly={showFightOnly && !!fightId}
                     readOnlyMessage="Fight positions - switch to 'All' to close"
                   />
@@ -1077,17 +1152,23 @@ export default function TradePage() {
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono text-surface-300">
                                   {isTpSl ? 'Market' : (
-                                    <span>
+                                    <button
+                                      onClick={() => handleEditOrder({
+                                        id: order.id,
+                                        symbol: order.symbol,
+                                        side: order.side,
+                                        price: order.price,
+                                        size: order.size,
+                                        type: order.type,
+                                      })}
+                                      className="inline-flex items-center gap-1 hover:text-primary-400 transition-colors group"
+                                      title="Edit order price"
+                                    >
                                       {price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })}
-                                      <a
-                                        href={`https://pacifica.fi/trade/${order.symbol}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="ml-1 text-surface-500 hover:text-surface-300"
-                                      >
-                                        ↗
-                                      </a>
-                                    </span>
+                                      <svg className="w-3 h-3 text-surface-500 group-hover:text-primary-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                      </svg>
+                                    </button>
                                   )}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono text-surface-300">
@@ -1474,7 +1555,7 @@ export default function TradePage() {
                 Place Order
               </h3>
             </div>
-            <div className="p-1 flex-1 overflow-y-auto overscroll-y-contain">
+            <div className="p-1 flex-1 overflow-y-auto overscroll-y-auto">
 
               {/* No Pacifica Account Warning */}
               {isAuthenticated && !pacificaConnected && (
@@ -1628,8 +1709,8 @@ export default function TradePage() {
 
               {/* Fight Stake Limit Info - shown when in active fight */}
               {inFight && stake !== null && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-primary-500/10 rounded-lg border border-primary-500/30">
-                  <div className="text-[10px] xl:text-xs text-primary-400 font-semibold mb-1.5 xl:mb-2 uppercase">Fight Capital Limit</div>
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Fight Capital Limit</div>
                   <div className="space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
                     <div className="flex justify-between">
                       <span className="text-surface-400">Fight Stake</span>
@@ -1641,7 +1722,7 @@ export default function TradePage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Max Capital Used</span>
-                      <span className="text-primary-400 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-surface-300 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Available to Trade</span>
@@ -1651,9 +1732,9 @@ export default function TradePage() {
                     </div>
                     {/* Progress bar - shows max capital used (not current, since max never decreases) */}
                     <div className="mt-1.5 xl:mt-2">
-                      <div className="h-1.5 xl:h-2 bg-surface-700 rounded-full overflow-hidden">
+                      <div className="h-1.5 xl:h-2 bg-surface-700 rounded overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-primary-500 to-primary-400 transition-all duration-300"
+                          className="h-full bg-surface-500 transition-all duration-300"
                           style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }}
                         />
                       </div>
@@ -1857,7 +1938,7 @@ export default function TradePage() {
                           setOrderSize(newMargin);
                         }}
                         disabled={!canTrade}
-                        className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                        className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none accent-primary-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&:disabled::-webkit-slider-thumb]:cursor-not-allowed"
                       />
                       {/* Percentage buttons */}
                       <div className="flex gap-1.5 xl:gap-2 mt-1.5 xl:mt-2">
@@ -1917,7 +1998,7 @@ export default function TradePage() {
                     setLeverage(newLev); // Only update local state, no API call
                   }}
                   disabled={!canTrade}
-                  className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                  className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none accent-primary-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&:disabled::-webkit-slider-thumb]:cursor-not-allowed"
                 />
                 <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
                   <span>1x</span>
@@ -2134,7 +2215,8 @@ export default function TradePage() {
                         <span className="text-surface-400">Max Slippage</span>
                         <button
                           onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }}
-                          className="text-primary-400 font-mono hover:text-primary-300 underline decoration-dotted cursor-pointer"
+                          disabled={!isAuthenticated}
+                          className={`font-mono ${isAuthenticated ? 'text-primary-400 hover:text-primary-300 underline decoration-dotted cursor-pointer' : 'text-surface-500 cursor-not-allowed'}`}
                         >
                           {slippage}%
                         </button>
@@ -2199,12 +2281,18 @@ export default function TradePage() {
 
               {/* Challenge CTA */}
               <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-800">
-                <Link
-                  href="/lobby"
-                  className="block text-center py-2.5 xl:py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-xs xl:text-sm font-semibold transition-colors"
-                >
-                  ⚔ Challenge a Trader
-                </Link>
+                {isAuthenticated ? (
+                  <Link
+                    href="/lobby"
+                    className="block text-center py-2.5 xl:py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-xs xl:text-sm font-semibold transition-colors"
+                  >
+                    ⚔ Challenge a Trader
+                  </Link>
+                ) : (
+                  <div className="block text-center py-2.5 xl:py-3 bg-surface-800/50 rounded-lg text-surface-500 text-xs xl:text-sm font-semibold cursor-not-allowed">
+                    ⚔ Challenge a Trader
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2234,6 +2322,16 @@ export default function TradePage() {
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
         availableBalance={account?.availableToSpend ? parseFloat(account.availableToSpend) : null}
+      />
+
+      {/* Edit Order Modal */}
+      <EditOrderModal
+        isOpen={showEditOrderModal}
+        onClose={() => {
+          setShowEditOrderModal(false);
+          setEditingOrder(null);
+        }}
+        order={editingOrder}
       />
 
       {/* Slippage Modal */}

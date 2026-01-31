@@ -5,6 +5,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuthStore } from '@/lib/store';
 import { api } from '@/lib/api';
 import { getStoredReferralCode, clearStoredReferralCode } from '@/lib/hooks/useReferralTracking';
+import { queryClient } from '@/lib/queryClient';
 import bs58 from 'bs58';
 import { PublicKey } from '@solana/web3.js';
 
@@ -128,6 +129,8 @@ export function useAuth() {
     if (isAuthenticated && storedWalletAddress && currentWalletAddress && storedWalletAddress !== currentWalletAddress) {
       console.log('Wallet account changed, re-authenticating...', { stored: storedWalletAddress, current: currentWalletAddress });
       clearAuth();
+      // Clear React Query cache to remove stale user data
+      queryClient.clear();
       hasAttemptedAuth.current = false;
       globalHasAttempted = false;
       // The auto-login effect below will trigger re-authentication
@@ -150,6 +153,8 @@ export function useAuth() {
       if (isAuthenticated && storedWalletAddress && newAddress && storedWalletAddress !== newAddress) {
         console.log(`Account changed via ${walletName} event, clearing auth...`);
         clearAuth();
+        // Clear React Query cache to remove stale user data
+        queryClient.clear();
         hasAttemptedAuth.current = false;
         globalHasAttempted = false;
         // Disconnect to force reconnect with new account
@@ -205,12 +210,16 @@ export function useAuth() {
       globalAuthInProgress = false;
       if (isAuthenticated) {
         clearAuth();
+        // Clear React Query cache to remove stale user data
+        queryClient.clear();
       }
     }
   }, [connected, isAuthenticated, clearAuth]);
 
   const logout = useCallback(() => {
     clearAuth();
+    // Clear React Query cache to remove stale user data
+    queryClient.clear();
     hasAttemptedAuth.current = false;
     globalHasAttempted = false;
     globalAuthInProgress = false;

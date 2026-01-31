@@ -57,6 +57,16 @@ function setCachedState(walletAddress: string, state: Omit<BetaAccessState, 'isL
   }
 }
 
+// Clear cached state from sessionStorage
+function clearCachedState() {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(BETA_CACHE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function useBetaAccess() {
   const { publicKey, connected } = useWallet();
   const walletAddress = publicKey?.toBase58() || null;
@@ -192,6 +202,10 @@ export function useBetaAccess() {
     if (connected && walletAddress) {
       checkAccess();
     } else {
+      // Clear cache and reset state when disconnected
+      clearCachedState();
+      lastCheckedWallet.current = null;
+      hasVerifiedOnce.current = false;
       setState({
         hasAccess: false,
         status: null,

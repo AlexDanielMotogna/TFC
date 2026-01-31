@@ -205,7 +205,7 @@ export default function LobbyPage() {
       <AppShell>
         <div className="container mx-auto px-4 md:px-6 py-6">
           {/* Header matches actual layout - title left, stats center, button right */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
             {/* Title - Left */}
             <div>
               <h2 className="font-display text-2xl font-bold text-white">Arena</h2>
@@ -213,8 +213,8 @@ export default function LobbyPage() {
             </div>
 
             {/* Stats - Center */}
-            <div className="flex items-center gap-4 md:gap-6">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2 md:gap-6">
+              <div className="flex items-center gap-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-surface-500 animate-pulse" />
                 <span className="text-xs text-surface-500">...</span>
               </div>
@@ -242,7 +242,7 @@ export default function LobbyPage() {
     <AppShell>
       <div className="container mx-auto px-4 md:px-6 py-6">
         {/* Compact Header with Stats */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
           <div>
             <h2 className="font-display text-2xl font-bold text-white">Arena</h2>
             <p className="text-surface-400 text-sm">
@@ -251,9 +251,9 @@ export default function LobbyPage() {
           </div>
 
           {/* Inline Stats */}
-          <div className="flex items-center gap-4 md:gap-6">
+          <div className="flex items-center gap-2 md:gap-6">
             {/* WebSocket Status */}
-            <div className="flex items-center gap-1.5" title={wsConnected ? 'Real-time updates active' : 'Connecting...'}>
+            <div className="flex items-center gap-2.5" title={wsConnected ? 'Real-time updates active' : 'Connecting...'}>
               <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-win-400' : 'bg-surface-500 animate-pulse'}`} />
               <span className="text-xs text-surface-500">{wsConnected ? 'Live' : '...'}</span>
             </div>
@@ -297,7 +297,7 @@ export default function LobbyPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-loss-500/20 border border-loss-500/30 rounded-lg text-loss-400 text-center">
+          <div className="mb-2 p-4 bg-loss-500/20 border border-loss-500/30 rounded-lg text-loss-400 text-center">
             {error}
             <button
               onClick={() => fetchFights()}
@@ -309,10 +309,10 @@ export default function LobbyPage() {
         )}
 
         {/* Tabs and Filters */}
-        <div className="border-b border-surface-800 mb-6 overflow-x-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 min-w-max sm:min-w-0">
+        <div className="border-b border-surface-800 mb-2 overflow-x-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-max sm:min-w-0">
             {/* Tabs */}
-            <div className="flex gap-1 flex-shrink-0">
+            <div className="flex gap-2 flex-shrink-0">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -445,7 +445,7 @@ export default function LobbyPage() {
           <div className="flex flex-col">
             {/* Fixed height container for 3 rows of cards (240px each + 16px gaps) */}
             <div className="min-h-[752px]">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 content-start">
+              <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 content-start">
                 {paginatedFights.map((fight) => (
                   <FightCard key={fight.id} fight={fight} onJoinFight={joinFight} onCancelFight={cancelFight} />
                 ))}
@@ -504,7 +504,7 @@ export default function LobbyPage() {
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-2">
               <h3 className="font-display text-xl font-bold uppercase tracking-wide">
                 Create Fight
               </h3>
@@ -539,7 +539,7 @@ export default function LobbyPage() {
             </div>
 
             {/* Max Trading Size Selection */}
-            <div className="mb-6">
+            <div className="mb-2">
               <label className="block text-xs font-medium text-surface-400 mb-2 uppercase tracking-wider">
                 Max Trading Size (USDC)
               </label>

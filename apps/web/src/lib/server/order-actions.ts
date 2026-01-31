@@ -13,7 +13,8 @@ type OrderActionType =
   | 'SET_TPSL'
   | 'CANCEL_STOP'
   | 'ORDER_FILLED'
-  | 'ORDER_PARTIAL';
+  | 'ORDER_PARTIAL'
+  | 'EDIT_ORDER';
 
 interface RecordOrderActionParams {
   walletAddress: string;

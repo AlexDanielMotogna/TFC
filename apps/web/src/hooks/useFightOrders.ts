@@ -75,10 +75,10 @@ export function useFightOrders(fightId: string | null | undefined) {
       return (result.data || []).map(transformToOpenOrder);
     },
     enabled: isAuthenticated && !!token && !!fightId,
-    refetchInterval: 10000, // Poll every 10 seconds
-    staleTime: 5000,
+    refetchInterval: 3000, // Poll every 3 seconds for faster updates
+    staleTime: 1000, // Low staleTime so invalidateQueries triggers immediate refetch
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 500,
   });
 
   return {

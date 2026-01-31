@@ -49,11 +49,50 @@ export function FightBanner() {
 
   return (
     <div className="w-full bg-surface-850 border-b border-surface-800">
-      <div className="max-w-screen-2xl mx-auto px-4">
-        <div className="flex items-center justify-between h-10">
+      <div className="max-w-screen-2xl mx-auto px-2 sm:px-4">
+        {/* Mobile: 2 rows layout */}
+        <div className="sm:hidden py-1.5">
+          {/* Row 1: Opponent + Timer + Status */}
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
+              <span className="text-zinc-400 text-xs">
+                vs <span className="text-zinc-100 font-medium">{opponent.user?.handle || 'Opponent'}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`font-mono text-sm font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
+                {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
+              </span>
+              <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                isWinning
+                  ? 'bg-win-500/10 text-win-500'
+                  : isLosing
+                    ? 'bg-loss-500/10 text-loss-500'
+                    : 'bg-surface-700 text-surface-400'
+              }`}>
+                {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
+              </div>
+            </div>
+          </div>
+          {/* Row 2: Stake + PnL comparison */}
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-surface-500">${maxSize.toLocaleString()} stake</span>
+            <div className="flex items-center gap-3">
+              <span className="text-surface-500">
+                You: <span className={`font-mono tabular-nums ${myPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>{formatPnl(myPnl)}</span>
+              </span>
+              <span className="text-surface-500">
+                Opp: <span className={`font-mono tabular-nums ${opponentPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>{formatPnl(opponentPnl)}</span>
+              </span>
+            </div>
+          </div>
+        </div>
 
+        {/* Desktop: Single row layout */}
+        <div className="hidden sm:flex items-center justify-between h-10 gap-4">
           {/* Left: Status + Opponent */}
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-2">
               <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
               <span className="text-surface-400">Live</span>
@@ -64,9 +103,9 @@ export function FightBanner() {
             </span>
           </div>
 
-          {/* Center: Timer */}
+          {/* Center: Timer + Stake */}
           <div className="flex items-center gap-3">
-            <span className={`font-mono text-base tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
+            <span className={`font-mono text-base font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
               {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
             </span>
             <span className="text-xs text-surface-500">
@@ -74,7 +113,7 @@ export function FightBanner() {
             </span>
           </div>
 
-          {/* Right: PnL */}
+          {/* Right: PnL + Status */}
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-3">
               <div className="text-right">
@@ -100,7 +139,6 @@ export function FightBanner() {
             }`}>
               {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
             </div>
-            {/* External trades warning */}
             {externalTradesDetected && (
               <div className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-500" title="Trades made outside TradeFightClub detected">
                 External Trades

@@ -129,7 +129,7 @@ export default function ReferralsPage() {
       <BetaGate>
         <AppShell>
           <div className="container mx-auto px-4 md:px-6 py-8">
-            <div className="animate-pulse space-y-6">
+            <div className="animate-pulse space-y-2">
               {/* Header Skeleton */}
               <div className="flex items-center gap-3">
                 <div className="w-7 h-7 bg-surface-700" />
@@ -140,7 +140,7 @@ export default function ReferralsPage() {
               </div>
 
               {/* Top Cards Skeleton */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {/* Referral Code Card */}
                 <div className="card p-6">
                   <div className="h-4 w-32 bg-surface-700 mb-4" />
@@ -159,7 +159,7 @@ export default function ReferralsPage() {
               </div>
 
               {/* Stats Cards Skeleton */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="card p-6">
                     <div className="flex items-center gap-3 mb-4">
@@ -180,7 +180,7 @@ export default function ReferralsPage() {
                 <div className="p-6 border-b border-surface-800">
                   <div className="h-4 w-32 bg-surface-700" />
                 </div>
-                <div className="p-4 space-y-4">
+                <div className="p-4 space-y-2">
                   {[1, 2, 3].map((i) => (
                     <div key={i} className="flex items-center justify-between py-2">
                       <div className="flex items-center gap-3">
@@ -243,7 +243,7 @@ export default function ReferralsPage() {
       <AppShell>
         <div className="container mx-auto px-4 md:px-6 py-8">
           {/* Header */}
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-2">
             <GroupsIcon sx={{ color: '#f97316', fontSize: 28 }} />
             <div>
               <h1 className="font-display text-xl sm:text-2xl font-bold text-white">Referral Program</h1>
@@ -252,7 +252,7 @@ export default function ReferralsPage() {
           </div>
 
           {/* Top Cards Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-2">
             {/* Referral Code Card */}
             <div className="card p-6">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-surface-300 mb-4">
@@ -307,7 +307,7 @@ export default function ReferralsPage() {
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
             {/* Total Referrals */}
             <div className="card p-6">
               <div className="flex items-center gap-3 mb-4">
@@ -358,7 +358,7 @@ export default function ReferralsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="mb-6">
+          <div className="mb-2">
             <div className="bg-surface-800 rounded-xl p-1.5 inline-flex border border-surface-800">
               <button
                 onClick={() => setActiveTab('overview')}
@@ -635,7 +635,7 @@ export default function ReferralsPage() {
             <h2 className="font-display text-xs font-semibold uppercase tracking-wide text-surface-300 mb-4">
               How It Works
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-surface-400">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs text-surface-400">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="w-6 h-6 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-400 font-bold text-[10px]">

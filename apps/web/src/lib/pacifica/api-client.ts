@@ -94,6 +94,44 @@ export async function createLimitOrder(
 }
 
 /**
+ * Edit an existing limit order (modify price and/or size)
+ * Note: Editing cancels the original order and creates a new one
+ */
+export async function editOrder(
+  account: string,
+  params: {
+    symbol: string;
+    price: string;
+    amount: string;
+    order_id?: number;
+    client_order_id?: string;
+  },
+  signature: string,
+  timestamp: number
+): Promise<PacificaApiResponse> {
+  const response = await fetch(`${PACIFICA_API_URL}/api/v1/orders/edit`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      account,
+      ...params,
+      signature,
+      timestamp,
+      expiry_window: 5000,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
  * Cancel a specific order
  */
 export async function cancelOrder(

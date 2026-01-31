@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedUpdateLeverage, createSignedWithdraw } from '@/lib/pacifica/signing';
+import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedUpdateLeverage, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
@@ -57,6 +57,13 @@ interface SetPositionTpSlParams {
 interface SetLeverageParams {
   symbol: string;
   leverage: number;
+}
+
+interface EditOrderParams {
+  orderId: number;
+  symbol: string;
+  price: string;
+  amount: string;
 }
 
 /**
@@ -143,18 +150,27 @@ export function useCreateMarketOrder() {
         // Invalidate immediately
         queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
         queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
+        queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
         queryClient.invalidateQueries({ queryKey: ['stake-info'] });
 
-        // Also invalidate after a delay to catch the recorded FightTrade
+        // Invalidate frequently to catch the recorded FightTrade as soon as possible
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
-        }, 2000);
+          queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+        }, 500);
 
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
-        }, 4000);
+          queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+        }, 1500);
+
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
+          queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
+          queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+        }, 3000);
       }
 
       // Format like Pacifica: "0.00082 BTC filled at 93300"
@@ -604,6 +620,68 @@ export function useSetLeverage() {
       } else {
         notify('ORDER', 'Leverage Failed', `Failed to set leverage: ${error.message}`, { variant: 'error' });
       }
+    },
+  });
+}
+
+/**
+ * Hook to edit an existing limit order (modify price and/or size)
+ * Note: Editing cancels the original order and creates a new one with TIF=ALO
+ */
+export function useEditOrder() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: EditOrderParams) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation with wallet
+      const { signature, timestamp } = await createSignedEditOrder(wallet, {
+        symbol,
+        price: params.price,
+        amount: params.amount,
+        order_id: params.orderId,
+      });
+
+      // Send to backend proxy
+      const response = await fetch('/api/orders/edit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          account,
+          symbol,
+          price: params.price,
+          amount: params.amount,
+          order_id: params.orderId,
+          signature,
+          timestamp,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+
+      notify('ORDER', 'Order Edited', `Order price updated to $${variables.price}`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to edit order:', error);
+      notify('ORDER', 'Edit Failed', `Failed to edit order: ${error.message}`, { variant: 'error' });
     },
   });
 }
