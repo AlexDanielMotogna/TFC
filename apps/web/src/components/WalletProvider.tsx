@@ -34,8 +34,34 @@ function useIsMobile() {
   return isMobile;
 }
 
+// Check if user was previously authenticated (has stored auth state)
+function useHasPreviousAuth() {
+  const [hasPreviousAuth, setHasPreviousAuth] = useState(false);
+
+  useEffect(() => {
+    try {
+      const storedAuth = localStorage.getItem('tfc-auth');
+      if (storedAuth) {
+        const parsed = JSON.parse(storedAuth);
+        // Check if there's a valid stored wallet address
+        setHasPreviousAuth(!!parsed?.state?.walletAddress);
+      }
+    } catch {
+      // Ignore parse errors
+    }
+  }, []);
+
+  return hasPreviousAuth;
+}
+
 export function WalletProviderWrapper({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
+  const hasPreviousAuth = useHasPreviousAuth();
+
+  // On mobile: only autoConnect if user was previously authenticated
+  // This prevents the "wallet not found" popup on first visit
+  // On desktop: always autoConnect
+  const shouldAutoConnect = !isMobile || hasPreviousAuth;
 
   // Use devnet by default, can be changed via environment variable
   const endpoint = useMemo(() => {
@@ -83,8 +109,8 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      {/* Deshabilitar autoConnect en móvil para evitar popups repetidos */}
-      <WalletProvider wallets={wallets} autoConnect={!isMobile}>
+      {/* autoConnect: desktop always, mobile only if user was previously authenticated */}
+      <WalletProvider wallets={wallets} autoConnect={shouldAutoConnect}>
         <WalletModalProvider>
           <PacificaConnectionSync />
           <PacificaWebSocketInit />

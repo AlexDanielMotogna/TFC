@@ -10,11 +10,12 @@ export interface User {
 interface AuthState {
   token: string | null;
   user: User | null;
+  walletAddress: string | null; // Store wallet address to detect account changes
   isAuthenticated: boolean;
   pacificaConnected: boolean;
   _hasHydrated: boolean;
 
-  setAuth: (token: string, user: User, pacificaConnected: boolean) => void;
+  setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string) => void;
   setPacificaConnected: (connected: boolean) => void;
   clearAuth: () => void;
   setHasHydrated: (state: boolean) => void;
@@ -25,14 +26,16 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
+      walletAddress: null,
       isAuthenticated: false,
       pacificaConnected: false,
       _hasHydrated: false,
 
-      setAuth: (token, user, pacificaConnected) =>
+      setAuth: (token, user, pacificaConnected, walletAddress) =>
         set({
           token,
           user,
+          walletAddress,
           isAuthenticated: true,
           pacificaConnected,
         }),
@@ -44,6 +47,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           token: null,
           user: null,
+          walletAddress: null,
           isAuthenticated: false,
           pacificaConnected: false,
         }),
@@ -55,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         token: state.token,
         user: state.user,
+        walletAddress: state.walletAddress,
         isAuthenticated: state.isAuthenticated,
         pacificaConnected: state.pacificaConnected,
       }),
