@@ -731,26 +731,28 @@ export default function TradePage() {
       <ActiveFightsSwitcher />
 
       <div className="w-full px-1 py-2">
-        {/* Main Trading Terminal - Fixed height boxes with internal scroll */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
-          {/* Left column: Order Book + Chart stacked, then Positions below */}
-          <div className="xl:col-span-9 flex flex-col gap-2 order-2 xl:order-1">
-            {/* Top row: Order Book + Chart side by side */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-              {/* Order Book - fixed height with scroll */}
-              <div className="lg:col-span-3 card overflow-hidden">
+        {/* Main Trading Terminal - Responsive layout
+            Mobile (< xl): Chart → Order Book + Place Order (side by side) → Tables
+            Desktop (xl+): Current layout with Order Book + Chart side by side, Place Order right */}
+        <div className="grid grid-cols-2 xl:grid-cols-12 gap-1">
+          {/* Left column wrapper - becomes "invisible" on mobile via contents */}
+          <div className="contents xl:col-span-9 xl:flex xl:flex-col xl:gap-1 xl:order-1">
+            {/* Top row: Order Book + Chart - also contents on mobile */}
+            <div className="contents xl:grid xl:grid-cols-12 xl:gap-1">
+              {/* Order Book - half width on mobile (row 2 left), 3 cols on desktop. 600px to show 9 rows */}
+              <div className="col-span-1 xl:col-span-3 order-2 card overflow-hidden h-[600px] xl:h-auto flex flex-col">
                 <div className="px-3 py-2 border-b border-surface-700 flex-shrink-0">
                   <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                     Order Book
                   </h3>
                 </div>
-                <div className="h-[570px] overflow-y-auto">
+                <div className="flex-1 xl:h-[570px] overflow-y-auto">
                   <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
                 </div>
               </div>
 
-              {/* Chart - compact */}
-              <div className="lg:col-span-9 card overflow-hidden">
+              {/* Chart - full width on mobile (row 1), 9 cols on desktop */}
+              <div className="col-span-2 xl:col-span-9 order-1 card overflow-hidden">
                 {/* Chart Header - Market Info like Pacifica */}
                 <div className="px-4 py-2 border-b border-surface-700 overflow-x-auto">
                   {/* Single row with all info like Pacifica - scrollable on small screens */}
@@ -838,8 +840,8 @@ export default function TradePage() {
               </div>
             </div>
 
-            {/* Positions Panel - fixed height with internal scroll */}
-            <div className="card h-[328px] flex flex-col overflow-hidden">
+            {/* Positions Panel - full width on mobile (row 3), full width inside flex on desktop */}
+            <div className="col-span-2 order-4 card h-[354px] flex flex-col overflow-hidden">
               {/* Tab navigation - fixed, scrollable on mobile */}
               <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
@@ -1452,14 +1454,14 @@ export default function TradePage() {
             </div>
           </div>
 
-          {/* Right: Order Entry - fixed height with scroll */}
-          <div className="xl:col-span-3 card order-1 xl:order-2 h-[945px] flex flex-col overflow-hidden">
+          {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
+          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:h-[945px] flex flex-col overflow-hidden card">
             <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-700">
               <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                 Place Order
               </h3>
             </div>
-            <div className="p-4 flex-1 overflow-y-auto">
+            <div className="p-1 flex-1 overflow-y-auto">
 
               {/* No Pacifica Account Warning */}
               {isAuthenticated && !pacificaConnected && (
@@ -1522,25 +1524,25 @@ export default function TradePage() {
                 return (
                   <div className="mb-4">
                     {/* Deposit/Withdraw buttons */}
-                    <div className="flex gap-2 mb-3">
+                    <div className="flex gap-2 mb-2 xl:mb-3">
                       <a
                         href="https://app.pacifica.fi/trade/BTC"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 py-2 text-center text-sm font-semibold bg-primary-500 hover:bg-primary-400 text-white rounded-lg transition-colors"
+                        className="flex-1 py-1.5 xl:py-2 text-center text-xs xl:text-sm font-semibold bg-primary-500 hover:bg-primary-400 text-white rounded-lg transition-colors"
                       >
                         Deposit
                       </a>
                       <button
                         onClick={() => setShowWithdrawModal(true)}
-                        className="flex-1 py-2 text-center text-sm font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded-lg transition-colors"
+                        className="flex-1 py-1.5 xl:py-2 text-center text-xs xl:text-sm font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded-lg transition-colors"
                       >
                         Withdraw
                       </button>
                     </div>
 
                     {/* Account stats */}
-                    <div className="space-y-1.5 text-xs">
+                    <div className="space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
                       <div className="flex justify-between group relative">
                         <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Account Equity</span>
                         <span className="text-white font-mono">${equity.toFixed(2)}</span>
@@ -1611,9 +1613,9 @@ export default function TradePage() {
 
               {/* Fight Stake Limit Info - shown when in active fight */}
               {inFight && stake !== null && (
-                <div className="mb-4 p-3 bg-primary-500/10 rounded-lg border border-primary-500/30">
-                  <div className="text-xs text-primary-400 font-semibold mb-2 uppercase">Fight Capital Limit</div>
-                  <div className="space-y-1.5 text-xs">
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-primary-500/10 rounded-lg border border-primary-500/30">
+                  <div className="text-[10px] xl:text-xs text-primary-400 font-semibold mb-1.5 xl:mb-2 uppercase">Fight Capital Limit</div>
+                  <div className="space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
                     <div className="flex justify-between">
                       <span className="text-surface-400">Fight Stake</span>
                       <span className="text-white font-mono">${stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -1633,14 +1635,14 @@ export default function TradePage() {
                       </span>
                     </div>
                     {/* Progress bar - shows max capital used (not current, since max never decreases) */}
-                    <div className="mt-2">
-                      <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
+                    <div className="mt-1.5 xl:mt-2">
+                      <div className="h-1.5 xl:h-2 bg-surface-700 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-primary-500 to-primary-400 transition-all duration-300"
                           style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-xs text-surface-500 mt-1">
+                      <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
                         <span>{((maxExposureUsed || 0) / stake * 100).toFixed(0)}% used</span>
                         <span>{(100 - (maxExposureUsed || 0) / stake * 100).toFixed(0)}% available</span>
                       </div>
@@ -1650,17 +1652,17 @@ export default function TradePage() {
               )}
 
               {!canTrade && !isAuthenticated && (
-                <div className="mb-4 p-3 bg-surface-800 rounded-lg text-center text-sm text-surface-400">
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-lg text-center text-xs xl:text-sm text-surface-400">
                   {!connected ? 'Connect wallet to trade' : 'Authenticating...'}
                 </div>
               )}
 
               {/* Long/Short Toggle */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="grid grid-cols-2 gap-2 mb-3 xl:mb-4">
                 <button
                   onClick={() => setSelectedSide('LONG')}
                   disabled={!canTrade}
-                  className={`py-3 rounded-lg font-semibold transition-all text-sm ${selectedSide === 'LONG'
+                  className={`py-2 xl:py-3 rounded-lg font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'LONG'
                     ? 'bg-win-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -1670,7 +1672,7 @@ export default function TradePage() {
                 <button
                   onClick={() => setSelectedSide('SHORT')}
                   disabled={!canTrade}
-                  className={`py-3 rounded-lg font-semibold transition-all text-sm ${selectedSide === 'SHORT'
+                  className={`py-2 xl:py-3 rounded-lg font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'SHORT'
                     ? 'bg-loss-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -1680,8 +1682,8 @@ export default function TradePage() {
               </div>
 
               {/* Order Type Selector */}
-              <div className="mb-4">
-                <label className="block text-xs font-medium text-surface-400 mb-2">
+              <div className="mb-3 xl:mb-4">
+                <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
                   Order Type
                 </label>
                 <div className="relative">
@@ -1689,7 +1691,7 @@ export default function TradePage() {
                     value={orderType}
                     onChange={(e) => setOrderType(e.target.value as typeof orderType)}
                     disabled={!canTrade}
-                    className="input text-sm w-full appearance-none cursor-pointer pr-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="input text-xs xl:text-sm w-full appearance-none cursor-pointer pr-10 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="market">Market</option>
                     <option value="limit">Limit</option>
@@ -1706,11 +1708,11 @@ export default function TradePage() {
 
               {/* Price Inputs - Show for non-market orders */}
               {orderType !== 'market' && (
-                <div className="mb-4 space-y-3">
+                <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
                   {/* Trigger Price - for stop orders */}
                   {(orderType === 'stop-market' || orderType === 'stop-limit') && (
                     <div>
-                      <label className="block text-xs font-medium text-surface-400 mb-2">
+                      <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
                         Trigger Price
                       </label>
                       <div className="relative">
@@ -1720,13 +1722,13 @@ export default function TradePage() {
                           onChange={(e) => setTriggerPrice(e.target.value)}
                           placeholder={currentPrice.toFixed(2)}
                           disabled={!canTrade}
-                          className="input text-sm w-full pr-12"
+                          className="input text-xs xl:text-sm w-full pr-12"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
                           USD
                         </span>
                       </div>
-                      <p className="text-xs text-surface-500 mt-1">
+                      <p className="text-[10px] xl:text-xs text-surface-500 mt-1">
                         {selectedSide === 'LONG'
                           ? 'Order triggers when price rises above this level'
                           : 'Order triggers when price falls below this level'}
@@ -1737,7 +1739,7 @@ export default function TradePage() {
                   {/* Limit Price - for limit and stop-limit orders */}
                   {(orderType === 'limit' || orderType === 'stop-limit') && (
                     <div>
-                      <label className="block text-xs font-medium text-surface-400 mb-2">
+                      <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
                         {orderType === 'stop-limit' ? 'Limit Price' : 'Price'}
                       </label>
                       <div className="relative">
@@ -1747,14 +1749,14 @@ export default function TradePage() {
                           onChange={(e) => setLimitPrice(e.target.value)}
                           placeholder={currentPrice.toFixed(2)}
                           disabled={!canTrade}
-                          className="input text-sm w-full pr-12"
+                          className="input text-xs xl:text-sm w-full pr-12"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
                           USD
                         </span>
                       </div>
                       {orderType === 'limit' && (
-                        <p className="text-xs text-surface-500 mt-1">
+                        <p className="text-[10px] xl:text-xs text-surface-500 mt-1">
                           {selectedSide === 'LONG'
                             ? 'Buy when price reaches or goes below this level'
                             : 'Sell when price reaches or goes above this level'}
@@ -1766,8 +1768,8 @@ export default function TradePage() {
               )}
 
               {/* Size Input - Pacifica style */}
-              <div className="mb-4">
-                <label className="block text-xs font-medium text-surface-400 mb-2">
+              <div className="mb-3 xl:mb-4">
+                <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
                   Size
                 </label>
                 {(() => {
@@ -1782,8 +1784,8 @@ export default function TradePage() {
 
                   return (
                     <>
-                      {/* Token and USD inputs side by side */}
-                      <div className="flex gap-2 mb-2">
+                      {/* Token and USD inputs - stacked on mobile, side by side on desktop */}
+                      <div className="flex flex-col xl:flex-row gap-1.5 xl:gap-2 mb-1.5 xl:mb-2">
                         {/* Token amount input (position size in tokens) */}
                         <div className="flex-1 relative">
                           <input
@@ -1795,11 +1797,11 @@ export default function TradePage() {
                               const newMargin = (newTokenAmount * currentPrice) / effectiveLeverage;
                               setOrderSize(newMargin.toFixed(2));
                             }}
-                            className="input text-sm w-full pr-12"
+                            className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
                             placeholder="0.00"
                             disabled={!canTrade}
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary-400 font-medium">
+                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-primary-400 font-medium">
                             {selectedMarket.replace('-USD', '')}
                           </span>
                         </div>
@@ -1814,17 +1816,17 @@ export default function TradePage() {
                               const newMargin = newPositionSize / effectiveLeverage;
                               setOrderSize(newMargin.toFixed(2));
                             }}
-                            className="input text-sm w-full pr-12"
+                            className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
                             placeholder="0.00"
                             disabled={!canTrade}
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400 font-medium">
+                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400 font-medium">
                             USD
                           </span>
                         </div>
                       </div>
-                      {/* Margin indicator */}
-                      <div className="text-xs text-surface-500 mb-2 flex justify-between">
+                      {/* Margin indicator - stacked on mobile, side by side on desktop */}
+                      <div className="text-[10px] xl:text-xs text-surface-500 mb-1.5 xl:mb-2 flex flex-col xl:flex-row xl:justify-between">
                         <span>Margin: ${margin.toFixed(2)}</span>
                         <span>Max: ${maxMargin.toFixed(2)} ({effectiveLeverage}x)</span>
                       </div>
@@ -1840,10 +1842,10 @@ export default function TradePage() {
                           setOrderSize(newMargin);
                         }}
                         disabled={!canTrade}
-                        className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50"
+                        className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
                       />
                       {/* Percentage buttons */}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-1.5 xl:gap-2 mt-1.5 xl:mt-2">
                         {[25, 50, 75, 100].map((percent) => {
                           const currentPercent = maxMargin > 0
                             ? Math.round((margin / maxMargin) * 100)
@@ -1858,7 +1860,7 @@ export default function TradePage() {
                                 setOrderSize(newMargin);
                               }}
                               disabled={!canTrade}
-                              className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected
+                              className={`flex-1 py-1 xl:py-1.5 text-[10px] xl:text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected
                                 ? 'bg-surface-600 text-white border border-surface-500'
                                 : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-transparent'
                                 }`}
@@ -1874,16 +1876,16 @@ export default function TradePage() {
               </div>
 
               {/* Leverage Slider */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-medium text-surface-400">Leverage</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
+              <div className="mb-3 xl:mb-4">
+                <div className="flex justify-between items-center mb-1.5 xl:mb-2">
+                  <label className="text-[10px] xl:text-xs font-medium text-surface-400">Leverage</label>
+                  <div className="flex items-center gap-1.5 xl:gap-2">
+                    <span className="text-[10px] xl:text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
                     {leverage !== savedLeverage && (
                       <button
                         onClick={handleSetLeverage}
                         disabled={!canTrade || setLeverageMutation.isPending}
-                        className="px-2 py-0.5 text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-1.5 xl:px-2 py-0.5 text-[10px] xl:text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {setLeverageMutation.isPending ? '...' : 'Set'}
                       </button>
@@ -1900,9 +1902,9 @@ export default function TradePage() {
                     setLeverage(newLev); // Only update local state, no API call
                   }}
                   disabled={!canTrade}
-                  className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50"
+                  className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
                 />
-                <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
                   <span>1x</span>
                   <span>{Math.floor(maxLeverage / 2)}x</span>
                   <span>{maxLeverage}x</span>
@@ -1911,7 +1913,7 @@ export default function TradePage() {
 
               {/* Take Profit / Stop Loss - For Market and Limit orders */}
               {(orderType === 'market' || orderType === 'limit') && (
-                <div className="mb-4 space-y-3">
+                <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
                   {/* TP/SL Toggle Header */}
                   <Toggle
                     checked={tpEnabled || slEnabled}
@@ -1958,7 +1960,7 @@ export default function TradePage() {
                       <>
                         {/* Take Profit */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between mb-1.5 xl:mb-2">
                             <Toggle
                               checked={tpEnabled}
                               onChange={setTpEnabled}
@@ -1967,7 +1969,7 @@ export default function TradePage() {
                               label="TP Price"
                             />
                             {tpEnabled && takeProfit && (
-                              <span className="text-xs text-win-400">
+                              <span className="text-[10px] xl:text-xs text-win-400">
                                 {selectedSide === 'LONG'
                                   ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
                                   : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
@@ -1983,7 +1985,7 @@ export default function TradePage() {
                                 onChange={(e) => setTakeProfit(e.target.value)}
                                 placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`}
                                 disabled={!canTrade}
-                                className="input text-sm w-full mb-2"
+                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
                               />
                               {/* TP Percentage Buttons */}
                               <div className="flex gap-1">
@@ -1992,7 +1994,7 @@ export default function TradePage() {
                                     key={pct}
                                     onClick={() => setTakeProfit(calcTpPrice(pct))}
                                     disabled={!canTrade}
-                                    className="flex-1 py-1 text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
                                   >
                                     {pct}%
                                   </button>
@@ -2004,7 +2006,7 @@ export default function TradePage() {
 
                         {/* Stop Loss */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between mb-1.5 xl:mb-2">
                             <Toggle
                               checked={slEnabled}
                               onChange={setSlEnabled}
@@ -2013,7 +2015,7 @@ export default function TradePage() {
                               label="SL Price"
                             />
                             {slEnabled && stopLoss && (
-                              <span className="text-xs text-loss-400">
+                              <span className="text-[10px] xl:text-xs text-loss-400">
                                 {selectedSide === 'LONG'
                                   ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
                                   : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
@@ -2029,7 +2031,7 @@ export default function TradePage() {
                                 onChange={(e) => setStopLoss(e.target.value)}
                                 placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`}
                                 disabled={!canTrade}
-                                className="input text-sm w-full mb-2"
+                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
                               />
                               {/* SL Percentage Buttons */}
                               <div className="flex gap-1">
@@ -2038,7 +2040,7 @@ export default function TradePage() {
                                     key={pct}
                                     onClick={() => setStopLoss(calcSlPrice(pct))}
                                     disabled={!canTrade}
-                                    className="flex-1 py-1 text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
                                   >
                                     {pct}%
                                   </button>
@@ -2106,7 +2108,7 @@ export default function TradePage() {
                 }
 
                 return (
-                  <div className="text-xs space-y-1.5 mb-4">
+                  <div className="text-[10px] xl:text-xs space-y-1 xl:space-y-1.5 mb-3 xl:mb-4">
                     {/* Order Type specific info */}
                     <div className="flex justify-between">
                       <span className="text-surface-400">Order Type</span>
@@ -2153,7 +2155,7 @@ export default function TradePage() {
 
               {/* Leverage warning */}
               {leverage !== savedLeverage && canTrade && (
-                <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-xs text-yellow-400 text-center">
+                <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-[10px] xl:text-xs text-yellow-400 text-center">
                   Click "Set" to confirm leverage before placing order
                 </div>
               )}
@@ -2162,7 +2164,7 @@ export default function TradePage() {
               <button
                 onClick={handlePlaceOrder}
                 disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || leverage !== savedLeverage}
-                className={`w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
+                className={`w-full py-2.5 xl:py-3 rounded-lg font-bold text-xs xl:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
                   ? 'bg-gradient-to-r from-win-600 to-win-500 hover:from-win-500 hover:to-win-400 text-white'
                   : 'bg-gradient-to-r from-loss-600 to-loss-500 hover:from-loss-500 hover:to-loss-400 text-white'
                   }`}
@@ -2181,10 +2183,10 @@ export default function TradePage() {
               </button>
 
               {/* Challenge CTA */}
-              <div className="mt-4 pt-4 border-t border-surface-700">
+              <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-700">
                 <Link
-                  href="/trade"
-                  className="block text-center py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-sm font-semibold transition-colors"
+                  href="/lobby"
+                  className="block text-center py-2.5 xl:py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-xs xl:text-sm font-semibold transition-colors"
                 >
                   ⚔ Challenge a Trader
                 </Link>
