@@ -329,7 +329,7 @@ export default function FightResultsPage() {
                 ${parseDecimal(participantA?.finalScoreUsdc).toFixed(4)} USDC
               </p>
               <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
-                {participantATrades.length || participantA?.tradesCount || 0} trades
+                {participantATrades.length || 0} trades
               </p>
               {participantA?.externalTradesDetected && (
                 <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantA.externalTradeIds?.join(', ') || 'N/A'}`}>
@@ -376,7 +376,7 @@ export default function FightResultsPage() {
                     ${parseDecimal(participantB?.finalScoreUsdc).toFixed(4)} USDC
                   </p>
                   <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
-                    {participantBTrades.length || participantB?.tradesCount || 0} trades
+                    {participantBTrades.length || 0} trades
                   </p>
                   {participantB?.externalTradesDetected && (
                     <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantB.externalTradeIds?.join(', ') || 'N/A'}`}>
