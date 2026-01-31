@@ -189,17 +189,21 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
 
   if (positions.length === 0) {
     return (
-      <div className="text-center py-8 text-surface-500">
-        <p>No open positions</p>
-        {readOnly && readOnlyMessage && (
-          <p className="text-xs mt-2 text-surface-400">{readOnlyMessage}</p>
-        )}
+      // Use min-h-full to fill container and prevent layout shift when positions load
+      <div className="flex items-center justify-center min-h-full text-surface-500">
+        <div className="text-center">
+          <p>No open positions</p>
+          {readOnly && readOnlyMessage && (
+            <p className="text-xs mt-2 text-surface-400">{readOnlyMessage}</p>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
+    // contain: layout prevents internal layout changes from affecting parent/page scroll
+    <div className="flex flex-col h-full" style={{ contain: 'layout' }}>
       {/* Info banner for read-only mode */}
       {readOnly && readOnlyMessage && (
         <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2 flex-shrink-0">
@@ -209,8 +213,8 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      {/* Table with horizontal scroll - grows to fill space */}
-      <div className="overflow-x-auto overflow-y-auto flex-1">
+      {/* Table with horizontal scroll - grows to fill space, overscroll containment prevents scroll chaining on mobile */}
+      <div className="overflow-x-auto overflow-y-auto overscroll-y-contain flex-1">
       <table className="w-full text-xs min-w-[900px]">
         <thead>
           <tr className="text-xs text-surface-400">

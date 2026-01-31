@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { usePrices } from '@/hooks/usePrices';
+import { Portal } from './Portal';
 import type { Position, TpSlOrder } from './Positions';
 
 export interface TpSlParams {
@@ -359,7 +360,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
   const canSubmitPartial = hasValidPartialInput && hasValidPartialAmount;
 
   return (
-    <>
+    <Portal>
       {/* Main Modal */}
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -916,6 +917,6 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
           </div>
         </div>
       )}
-    </>
+    </Portal>
   );
 }

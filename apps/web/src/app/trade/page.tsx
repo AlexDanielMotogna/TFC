@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -104,6 +104,7 @@ export default function TradePage() {
     const asset = selectedMarket.split('-')[0];
     document.title = `${asset} - Trade - Trading Fight Club`;
   }, [selectedMarket]);
+
   const [selectedInterval, setSelectedInterval] = useState<'1m' | '5m' | '15m' | '1h' | '4h' | '1d'>('5m');
   const [selectedSide, setSelectedSide] = useState<'LONG' | 'SHORT'>('LONG');
   const [orderSize, setOrderSize] = useState('');
@@ -725,16 +726,24 @@ export default function TradePage() {
     <BetaGate>
     <AppShell>
       {/* Fight Banner - Shows when in active fight */}
-      <FightBanner />
+      {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
+      <div style={{ overflowAnchor: 'none' }}>
+        <FightBanner />
+      </div>
 
       {/* Active Fights Switcher - Shows when user has active fights */}
-      <ActiveFightsSwitcher />
+      {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
+      <div style={{ overflowAnchor: 'none' }}>
+        <ActiveFightsSwitcher />
+      </div>
 
-      <div className="w-full px-1 py-2">
+      {/* Main container - overflow-anchor: none prevents scroll jumping when WebSocket updates components */}
+      <div className="w-full px-1 py-2 touch-pan-y" style={{ overflowAnchor: 'none' }}>
         {/* Main Trading Terminal - Responsive layout
             Mobile (< xl): Chart → Order Book + Place Order (side by side) → Tables
             Desktop (xl+): Current layout with Order Book + Chart side by side, Place Order right */}
-        <div className="grid grid-cols-2 xl:grid-cols-12 gap-1">
+        {/* transform: translateZ(0) creates a new compositing layer to isolate layout changes */}
+        <div className="grid grid-cols-2 xl:grid-cols-12 gap-1" style={{ transform: 'translateZ(0)' }}>
           {/* Left column wrapper - becomes "invisible" on mobile via contents */}
           <div className="contents xl:col-span-9 xl:flex xl:flex-col xl:gap-1 xl:order-1">
             {/* Top row: Order Book + Chart - also contents on mobile */}
@@ -746,7 +755,7 @@ export default function TradePage() {
                     Order Book
                   </h3>
                 </div>
-                <div className="flex-1 xl:h-[570px] overflow-y-auto">
+                <div className="flex-1 xl:h-[570px] overflow-y-auto overscroll-y-contain isolate" style={{ contain: 'strict' }}>
                   <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
                 </div>
               </div>
@@ -754,7 +763,7 @@ export default function TradePage() {
               {/* Chart - full width on mobile (row 1), 9 cols on desktop */}
               <div className="col-span-2 xl:col-span-9 order-1 card overflow-hidden">
                 {/* Chart Header - Market Info like Pacifica */}
-                <div className="px-4 py-2 border-b border-surface-700 overflow-x-auto">
+                <div className="px-4 py-2 border-b border-surface-700 overflow-x-auto overscroll-x-contain">
                   {/* Single row with all info like Pacifica - scrollable on small screens */}
                   <div className="flex items-center gap-4 xl:gap-6 text-sm min-w-max">
                     {/* Symbol selector with dropdown table */}
@@ -841,9 +850,10 @@ export default function TradePage() {
             </div>
 
             {/* Positions Panel - full width on mobile (row 3), full width inside flex on desktop */}
-            <div className="col-span-2 order-4 card h-[354px] flex flex-col overflow-hidden">
-              {/* Tab navigation - fixed, scrollable on mobile */}
-              <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto">
+            {/* contain: strict prevents layout changes inside from affecting page scroll */}
+            <div className="col-span-2 order-4 card h-[387px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
+              {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
+              <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto overscroll-x-contain">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
                   <button
                     onClick={() => setBottomTab('positions')}
@@ -912,8 +922,8 @@ export default function TradePage() {
                 )}
               </div>
 
-              {/* Tab content - scrollable */}
-              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto'}`}>
+              {/* Tab content - scrollable with overscroll containment to prevent scroll chaining on mobile */}
+              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto overscroll-y-contain'}`}>
                 {bottomTab === 'positions' && (
                   <Positions
                     positions={activePositions}
@@ -1455,13 +1465,14 @@ export default function TradePage() {
           </div>
 
           {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
-          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:h-[945px] flex flex-col overflow-hidden card">
+          {/* contain: layout prevents internal changes from affecting page scroll */}
+          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:h-[945px] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
             <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-700">
               <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                 Place Order
               </h3>
             </div>
-            <div className="p-1 flex-1 overflow-y-auto">
+            <div className="p-1 flex-1 overflow-y-auto overscroll-y-contain">
 
               {/* No Pacifica Account Warning */}
               {isAuthenticated && !pacificaConnected && (

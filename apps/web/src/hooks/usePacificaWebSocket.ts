@@ -8,7 +8,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { create } from 'zustand';
-import { useQueryClient } from '@tanstack/react-query';
 
 const PACIFICA_WS_URL = process.env.NEXT_PUBLIC_PACIFICA_WS_URL || 'wss://ws.pacifica.fi/ws';
 const PING_INTERVAL = 30000; // 30 seconds
@@ -164,6 +163,7 @@ export const usePacificaWsStore = create<PacificaWsState>((set, get) => ({
         return remaining > 0;
       })
       .map(normalizeOrder);
+
     set({ orders: normalized, lastUpdate: Date.now() });
   },
 
@@ -257,7 +257,6 @@ export function usePacificaWebSocket() {
   const connectedRef = useRef(connected);
   const publicKeyRef = useRef(publicKey);
   const [error, setError] = useState<string | null>(null);
-  const queryClient = useQueryClient();
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -379,28 +378,19 @@ export function usePacificaWebSocket() {
             return;
           }
 
-          // Handle positions update
+          // Handle positions update - data goes to Zustand store, no need to invalidate React Query
           if (msg.channel === 'account_positions') {
-            console.log('[PacificaWS] Positions update:', msg.data?.length || 0);
             updatePositions(msg.data || []);
-            // Invalidate react-query cache for positions
-            queryClient.invalidateQueries({ queryKey: ['positions'] });
           }
 
           // Handle orders update
           if (msg.channel === 'account_orders') {
-            console.log('[PacificaWS] Orders update:', msg.data?.length || 0);
             updateOrders(msg.data || []);
-            // Invalidate react-query cache for orders
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
           }
 
           // Handle trades update
           if (msg.channel === 'account_trades') {
-            console.log('[PacificaWS] Trades update:', msg.data?.length || 0);
             addTrades(msg.data || []);
-            // Invalidate react-query cache for trade history
-            queryClient.invalidateQueries({ queryKey: ['trade-history'] });
           }
 
           // Handle errors
@@ -449,7 +439,7 @@ export function usePacificaWebSocket() {
       setError('Failed to connect to Pacifica WebSocket');
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicKey, connected, subscribe, setConnected, updatePositions, updateOrders, addTrades, queryClient]);
+  }, [publicKey, connected, subscribe, setConnected, updatePositions, updateOrders, addTrades]);
 
   // Connect when wallet connects
   useEffect(() => {

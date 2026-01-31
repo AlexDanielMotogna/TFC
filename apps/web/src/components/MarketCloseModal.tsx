@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { usePrices } from '@/hooks/usePrices';
+import { Portal } from './Portal';
 import type { Position } from './Positions';
 
 // Lot sizes per symbol (from Pacifica)
@@ -136,11 +137,12 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-    >
-      <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700">
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      >
+        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-surface-700">
           <div className="flex items-center gap-3">
@@ -269,5 +271,6 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

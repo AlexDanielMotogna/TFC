@@ -1,5 +1,7 @@
 'use client';
 
+import { Portal } from './Portal';
+
 interface CloseOppositeModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -30,12 +32,13 @@ export function CloseOppositeModal({
   const willFullyClose = orderValue >= currentPositionValue;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          onClick={onClose}
+        />
 
       {/* Modal */}
       <div className="relative bg-surface-900 border border-surface-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
@@ -171,5 +174,6 @@ export function CloseOppositeModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

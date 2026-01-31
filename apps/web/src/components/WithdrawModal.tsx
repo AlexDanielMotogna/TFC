@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWithdraw } from '@/hooks';
+import { Portal } from './Portal';
 
 interface WithdrawModalProps {
   isOpen: boolean;
@@ -49,12 +50,13 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
   const isValidAmount = amountNum > 0 && (availableBalance === null || amountNum <= availableBalance);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
 
       {/* Modal */}
       <div className="relative bg-surface-850 border border-surface-700 rounded-lg shadow-xl w-full max-w-md mx-4">
@@ -130,5 +132,6 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

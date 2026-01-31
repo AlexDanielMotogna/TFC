@@ -179,7 +179,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
   }
 
   return (
-    <div className="h-full flex flex-col text-xs overflow-hidden">
+    <div className="h-full flex flex-col text-xs overflow-hidden" style={{ contain: 'layout' }}>
       {/* Header with agg level and size mode selector */}
       <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-surface-700">
         {/* Aggregation level selector (server-side) - shows actual tick values */}
@@ -217,16 +217,20 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
         <span className="text-right">Total</span>
       </div>
 
-      {/* Asks (sells) - expand to fill space, rows grow when few items */}
-      <div className="flex-1 flex flex-col justify-end min-h-0 overflow-hidden">
+      {/* Asks (sells) - fixed container height (9 rows × 28px) to prevent layout shifts */}
+      <div className="h-[252px] flex flex-col overflow-hidden">
+        {/* Empty placeholder rows to maintain stable layout */}
+        {Array(Math.max(0, 9 - processedAsks.length)).fill(null).map((_, i) => (
+          <div key={`ask-empty-${i}`} className="h-7" />
+        ))}
         {processedAsks.map((level) => (
           <div
             key={`ask-${level.price}`}
-            className="relative flex-1 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-1 cursor-pointer hover:bg-surface-700/30 items-center"
+            className="relative h-7 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-[width] duration-[50ms] ease-out"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-loss-400 tabular-nums tracking-tight">
@@ -249,16 +253,16 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
         <span className="tabular-nums tracking-tight">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
       </div>
 
-      {/* Bids (buys) - expand to fill space, rows grow when few items */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Bids (buys) - fixed container height (9 rows × 28px) to prevent layout shifts */}
+      <div className="h-[252px] flex flex-col overflow-hidden">
         {processedBids.map((level) => (
           <div
             key={`bid-${level.price}`}
-            className="relative flex-1 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-1 cursor-pointer hover:bg-surface-700/30 items-center"
+            className="relative h-7 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10 transition-[width] duration-[50ms] ease-out"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-win-400 tabular-nums tracking-tight">
@@ -271,6 +275,10 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
               {formatSize(level.total, sizeMode === 'USD', isHighValueToken)}
             </span>
           </div>
+        ))}
+        {/* Empty placeholder rows to maintain stable layout */}
+        {Array(Math.max(0, 9 - processedBids.length)).fill(null).map((_, i) => (
+          <div key={`bid-empty-${i}`} className="h-7" />
         ))}
       </div>
 

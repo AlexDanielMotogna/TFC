@@ -22,22 +22,13 @@ export function FightBanner() {
     externalTradesDetected,
   } = useFight();
 
-  if (!fightId) {
-    return null;
-  }
+  // Return empty placeholder with 0 height to avoid layout shifts
+  // The component always renders but with height:0 when not active
+  const shouldShow = fightId && _hasHydrated && !isLoading && isActive && opponent;
 
-  if (!_hasHydrated || isLoading) {
-    return (
-      <div className="w-full bg-surface-850 border-b border-surface-700">
-        <div className="max-w-screen-2xl mx-auto px-4 h-10 flex items-center justify-center">
-          <div className="spinner" />
-        </div>
-      </div>
-    );
-  }
-
-  if (!isActive || !opponent) {
-    return null;
+  if (!shouldShow) {
+    // Hidden state - no height, no border, no content
+    return <div className="h-0 overflow-hidden" />;
   }
 
   const formatTime = (ms: number) => {
