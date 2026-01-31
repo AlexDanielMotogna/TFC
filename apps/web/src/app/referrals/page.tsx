@@ -540,7 +540,7 @@ export default function ReferralsPage() {
                               <div>
                                 <span className="text-white text-sm block">{ref.user.handle}</span>
                                 <span className="text-surface-500 text-xs font-mono">
-                                  {ref.user.walletAddress.slice(0, 4)}...{ref.user.walletAddress.slice(-4)}
+                                  {ref.user.walletAddress ? `${ref.user.walletAddress.slice(0, 4)}...${ref.user.walletAddress.slice(-4)}` : '-'}
                                 </span>
                               </div>
                             </div>
