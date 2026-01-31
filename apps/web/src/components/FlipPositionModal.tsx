@@ -38,9 +38,9 @@ export function FlipPositionModal({ position, onClose, onConfirm, isSubmitting =
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
         onClick={handleBackdropClick}
       >
-        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700">
+        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800">
           {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-surface-700">
+        <div className="flex items-center justify-between p-4 border-surface-800">
           <h2 className="text-lg font-semibold text-white">Flip Position</h2>
           <button
             onClick={onClose}
@@ -91,7 +91,7 @@ export function FlipPositionModal({ position, onClose, onConfirm, isSubmitting =
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-surface-700">
+        <div className="p-4 border-t border-surface-800">
           <button
             onClick={onConfirm}
             disabled={isSubmitting}

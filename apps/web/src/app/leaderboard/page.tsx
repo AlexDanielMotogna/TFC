@@ -123,7 +123,7 @@ export default function LeaderboardPage() {
           {/* Prize Pool Badge (Weekly only) - Below title, responsive */}
           {range === 'weekly' && (isPrizePoolLoading || prizePool) && (
             <div className="flex justify-center">
-              <div className="inline-flex flex-wrap justify-center items-center gap-4 sm:gap-5 px-4 sm:px-5 py-2.5 sm:py-3 bg-surface-900/50 border border-surface-700 rounded-xl">
+              <div className="inline-flex flex-wrap justify-center items-center gap-4 sm:gap-5 px-4 sm:px-5 py-2.5 sm:py-3 bg-surface-900/50 border border-surface-800 rounded-xl">
                 {isPrizePoolLoading ? (
                   <>
                     <div className="text-center">
@@ -166,7 +166,7 @@ export default function LeaderboardPage() {
 
         {/* Range Toggle */}
         <div className="flex justify-center mb-6">
-          <div className="bg-surface-800 rounded-xl p-1.5 flex border border-surface-700">
+          <div className="bg-surface-800 rounded-xl p-1.5 flex border border-surface-800">
             <button
               onClick={() => setRange('weekly')}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
@@ -232,7 +232,7 @@ export default function LeaderboardPage() {
                       {formatCurrency((prizePool?.totalFeesCollected || 0) * 0.03)}
                     </p>
                   </div>
-                  <div className="border-t border-surface-700/50 pt-3">
+                  <div className="border-t border-surface-800/50 pt-3">
                     <p className="text-surface-500 text-[10px] mb-1.5 uppercase tracking-wide">Current Leader</p>
                     <div className="flex items-center gap-2">
                       <div className="avatar w-8 h-8 text-xs">{second.handle[0]?.toUpperCase() || '?'}</div>
@@ -269,7 +269,7 @@ export default function LeaderboardPage() {
                       {formatCurrency((prizePool?.totalFeesCollected || 0) * 0.05)}
                     </p>
                   </div>
-                  <div className="border-t border-surface-700/50 pt-3">
+                  <div className="border-t border-surface-800/50 pt-3">
                     <p className="text-surface-500 text-[10px] mb-1.5 uppercase tracking-wide">Current Leader</p>
                     <div className="flex items-center gap-2">
                       <div className="avatar w-9 h-9 text-sm">{first.handle[0]?.toUpperCase() || '?'}</div>
@@ -306,7 +306,7 @@ export default function LeaderboardPage() {
                       {formatCurrency((prizePool?.totalFeesCollected || 0) * 0.02)}
                     </p>
                   </div>
-                  <div className="border-t border-surface-700/50 pt-3">
+                  <div className="border-t border-surface-800/50 pt-3">
                     <p className="text-surface-500 text-[10px] mb-1.5 uppercase tracking-wide">Current Leader</p>
                     <div className="flex items-center gap-2">
                       <div className="avatar w-8 h-8 text-xs">{third.handle[0]?.toUpperCase() || '?'}</div>
@@ -332,7 +332,7 @@ export default function LeaderboardPage() {
             <div className="card overflow-x-auto">
               <table className="table-premium w-full min-w-[600px]">
                 <thead>
-                  <tr className="border-b border-surface-700 bg-surface-850">
+                  <tr className="border-b border-surface-800 bg-surface-850">
                     <th className="py-3 px-4 text-left text-xs font-medium text-surface-200 capitalize tracking-wider w-20">
                       Rank
                     </th>

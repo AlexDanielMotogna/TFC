@@ -10,7 +10,7 @@ interface FAQItem {
 
 function FAQItem({ item, isOpen, onToggle }: { item: FAQItem; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div className="border-b border-surface-700/50 last:border-b-0">
+    <div className="border-b border-surface-800/50 last:border-b-0">
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between py-5 text-left group"

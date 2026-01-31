@@ -309,7 +309,7 @@ export default function LobbyPage() {
         )}
 
         {/* Tabs and Filters */}
-        <div className="border-b border-surface-700 mb-6 overflow-x-auto">
+        <div className="border-b border-surface-800 mb-6 overflow-x-auto">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 min-w-max sm:min-w-0">
             {/* Tabs */}
             <div className="flex gap-1 flex-shrink-0">
@@ -346,7 +346,7 @@ export default function LobbyPage() {
                 <select
                   value={filterStatus ?? ''}
                   onChange={(e) => setFilterStatus(e.target.value || null)}
-                  className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+                  className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
                 >
                   <option value="">All Status</option>
                   <option value="WAITING">Waiting</option>
@@ -360,7 +360,7 @@ export default function LobbyPage() {
               <select
                 value={filterDuration ?? ''}
                 onChange={(e) => setFilterDuration(e.target.value ? Number(e.target.value) : null)}
-                className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+                className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
               >
                 <option value="">All Durations</option>
                 {FIGHT_DURATIONS_MINUTES.map((d) => (
@@ -372,7 +372,7 @@ export default function LobbyPage() {
               <select
                 value={filterMaxSize ?? ''}
                 onChange={(e) => setFilterMaxSize(e.target.value ? Number(e.target.value) : null)}
-                className="bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+                className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
               >
                 <option value="">All Sizes</option>
                 {FIGHT_STAKES_USDC.map((s) => (
@@ -529,7 +529,7 @@ export default function LobbyPage() {
                     className={`py-2.5 rounded-lg font-semibold text-sm transition-all ${
                       selectedDuration === duration
                         ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
-                        : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-surface-700'
+                        : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-surface-800'
                     }`}
                   >
                     {duration}m
@@ -551,7 +551,7 @@ export default function LobbyPage() {
                     className={`py-2.5 rounded-lg font-semibold text-sm transition-all ${
                       selectedStake === stake
                         ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
-                        : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-surface-700'
+                        : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-surface-800'
                     }`}
                   >
                     ${stake.toLocaleString()}
@@ -561,7 +561,7 @@ export default function LobbyPage() {
             </div>
 
             {/* Summary */}
-            <div className="bg-surface-800 rounded-xl p-4 mb-5 border border-surface-700">
+            <div className="bg-surface-800 rounded-xl p-4 mb-5 border border-surface-800">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-surface-400">Duration</span>
                 <span className="text-white font-medium">{selectedDuration} min</span>

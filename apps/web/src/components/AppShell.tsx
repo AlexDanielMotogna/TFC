@@ -159,7 +159,7 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="min-h-screen bg-surface-900 text-zinc-100 flex flex-col">
       {/* Header */}
-      <header className="border-b border-surface-700 bg-surface-850 sticky top-0 z-50">
+      <header className="border-surface-800 bg-surface-850 sticky top-0 z-50">
         <div className="w-full px-4">
           <div className="flex items-center h-12 relative">
             {/* Logo - Left */}
@@ -216,7 +216,7 @@ export function AppShell({ children }: AppShellProps) {
 
                 {/* Dropdown Menu */}
                 {showWalletDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-700 rounded-lg shadow-lg overflow-hidden z-50">
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-800 rounded-lg shadow-lg overflow-hidden z-50">
                     <button
                       onClick={handleDepositClick}
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
@@ -226,7 +226,7 @@ export function AppShell({ children }: AppShellProps) {
                     </button>
                     <button
                       onClick={handleWithdrawClick}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-700"
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-800"
                     >
                       <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
                       Withdraw
@@ -265,13 +265,13 @@ export function AppShell({ children }: AppShellProps) {
       </footer>
 
       {/* Bottom Navigation - visible until 1200px */}
-      <nav className="max-[1199px]:flex hidden fixed bottom-0 left-0 right-0 bg-surface-850 border-t border-surface-700 z-50">
+      <nav className="max-[1199px]:flex hidden fixed bottom-0 left-0 right-0 bg-surface-850 border-t border-surface-800 z-50">
         <div className="flex items-center h-14 w-full">
           {/* Balance Display on mobile with dropdown */}
           <div className="relative" ref={mobileDropdownRef}>
             <button
               onClick={() => setShowWalletDropdown(!showWalletDropdown)}
-              className="flex flex-col items-center justify-center h-14 px-3 border-r border-surface-700 hover:bg-surface-800 transition-colors"
+              className="flex flex-col items-center justify-center h-14 px-3 border-r border-surface-800 hover:bg-surface-800 transition-colors"
             >
               <WalletIcon className="w-4 h-4 text-surface-400" />
               <span className="text-[10px] text-surface-200 font-mono mt-0.5">
@@ -281,7 +281,7 @@ export function AppShell({ children }: AppShellProps) {
 
             {/* Mobile Dropdown Menu - opens upward */}
             {showWalletDropdown && (
-              <div className="absolute left-0 bottom-full mb-1 w-40 bg-surface-800 border border-surface-700 rounded-lg shadow-lg overflow-hidden z-50">
+              <div className="absolute left-0 bottom-full mb-1 w-40 bg-surface-800 border border-surface-800 rounded-lg shadow-lg overflow-hidden z-50">
                 <button
                   onClick={handleDepositClick}
                   className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
@@ -291,7 +291,7 @@ export function AppShell({ children }: AppShellProps) {
                 </button>
                 <button
                   onClick={handleWithdrawClick}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-700"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-800"
                 >
                   <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
                   Withdraw

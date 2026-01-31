@@ -51,18 +51,18 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 /* Firefox */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.03) transparent;
 }
 
 /* ===========================================================
@@ -71,11 +71,11 @@ body {
 
 @layer components {
   .card {
-    @apply bg-surface-850 border border-surface-700 rounded-none;
+    @apply bg-surface-850 border-surface-800 rounded-none;
   }
 
   .card-elevated {
-    @apply bg-surface-800 border border-surface-700 rounded-none shadow-card;
+    @apply bg-surface-800 border border-surface-800 rounded-none shadow-card;
   }
 
   .card-interactive {
@@ -171,7 +171,7 @@ body {
 
 @layer components {
   .input {
-    @apply w-full bg-surface-900 border border-surface-700 rounded px-3 py-2 text-zinc-100;
+    @apply w-full bg-surface-900 border-surface-800 rounded px-3 py-2 text-zinc-100;
     @apply placeholder:text-surface-500 transition-colors duration-150;
     @apply focus:outline-none focus:border-surface-500;
   }
@@ -261,8 +261,8 @@ body {
 /* Header Connect Button */
 .wallet-adapter-button {
   background-color: transparent !important;
-  border: 1px solid #3f3f46 !important;
-  border-radius: 8px !important;
+  border: 1px solid #1f1f20 !important;
+  border-radius: 4px !important;
   font-weight: 500 !important;
   font-size: 14px !important;
   padding: 8px 16px !important;
@@ -273,8 +273,8 @@ body {
 }
 
 .wallet-adapter-button:hover {
-  background-color: #27272a !important;
-  border-color: #52525b !important;
+  background-color: #1c1c1f !important;
+  border-color: #212124 !important;
 }
 
 /* Compact wallet button for mobile/tablet (below 1200px) */
@@ -458,7 +458,7 @@ body {
 }
 
 .modal-content {
-  @apply bg-surface-850 border border-surface-700 rounded-lg;
+  @apply bg-surface-850 border border-surface-800 rounded-lg;
   @apply shadow-elevated max-w-md w-full mx-4;
 }
 
@@ -580,7 +580,7 @@ input[type="range"]::-moz-range-thumb {
 
 /* Glass Morphism Cards */
 .glass-card {
-  @apply bg-surface-850/80 backdrop-blur-xl border border-surface-700/50;
+  @apply bg-surface-850/80 backdrop-blur-xl border border-surface-800/50;
   @apply hover:border-surface-600/50 transition-all duration-300;
 }
 
@@ -661,7 +661,7 @@ input[type="range"]::-moz-range-thumb {
 
 /* Feature Card */
 .feature-card {
-  @apply p-6 rounded-xl bg-surface-850 border border-surface-700;
+  @apply p-6 rounded-xl bg-surface-850 border border-surface-800;
   @apply hover:border-surface-600 hover:bg-surface-800 transition-all duration-300;
 }
 
@@ -675,20 +675,20 @@ input[type="range"]::-moz-range-thumb {
 
 /* Stats Card */
 .stats-card {
-  @apply p-6 rounded-xl bg-surface-850/50 border border-surface-700/50;
+  @apply p-6 rounded-xl bg-surface-850/50 border border-surface-800/50;
   @apply backdrop-blur-sm;
 }
 
 /* Price Ticker Card */
 .ticker-card {
-  @apply p-4 rounded-xl bg-surface-850 border border-surface-700;
+  @apply p-4 rounded-xl bg-surface-850 border border-surface-800;
   @apply hover:border-surface-600 transition-all duration-300;
 }
 
 /* Dropdown Menu */
 .dropdown-menu {
   @apply absolute top-full left-0 mt-2 py-2 min-w-48;
-  @apply bg-surface-850 border border-surface-700 rounded-xl shadow-elevated;
+  @apply bg-surface-850 border border-surface-800 rounded-xl shadow-elevated;
   @apply opacity-0 invisible translate-y-2 transition-all duration-200;
 }
 
@@ -728,14 +728,14 @@ input[type="range"]::-moz-range-thumb {
 
 /* Newsletter Input */
 .newsletter-input {
-  @apply w-full bg-surface-800 border border-surface-700 rounded-lg px-4 py-3;
+  @apply w-full bg-surface-800 border border-surface-800 rounded-lg px-4 py-3;
   @apply text-white placeholder:text-surface-500;
   @apply focus:outline-none focus:border-orange-500 transition-colors;
 }
 
 /* Blog Card */
 .blog-card {
-  @apply rounded-xl overflow-hidden bg-surface-850 border border-surface-700;
+  @apply rounded-xl overflow-hidden bg-surface-850 border border-surface-800;
   @apply hover:border-surface-600 transition-all duration-300;
 }
 
@@ -763,21 +763,21 @@ input[type="range"]::-moz-range-thumb {
 
 .logo-badge {
   @apply flex items-center gap-2 px-3 py-2 rounded-full;
-  @apply bg-surface-800 border border-surface-700;
+  @apply bg-surface-800 border border-surface-800;
   @apply text-sm text-surface-300;
 }
 
 /* Trust Badge */
 .trust-badge {
   @apply inline-flex items-center gap-2 px-4 py-2 rounded-full;
-  @apply bg-surface-800/50 border border-surface-700/50;
+  @apply bg-surface-800/50 border border-surface-800/50;
   @apply text-sm text-surface-400;
 }
 
 /* Section Headers */
 .section-badge {
   @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full;
-  @apply border border-surface-700 bg-surface-800/50;
+  @apply border border-surface-800 bg-surface-800/50;
   @apply text-xs font-medium text-surface-300;
 }
 

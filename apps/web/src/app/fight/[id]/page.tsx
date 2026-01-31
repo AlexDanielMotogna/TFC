@@ -224,7 +224,7 @@ export default function FightResultsPage() {
     <BetaGate>
       <div className="min-h-screen bg-surface-900 text-white">
         {/* Header */}
-      <header className="border-b border-surface-700 bg-surface-900/80 backdrop-blur-md sticky top-0 z-40">
+      <header className="border-b border-surface-800 bg-surface-900/80 backdrop-blur-md sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
@@ -450,7 +450,7 @@ export default function FightResultsPage() {
                   </Tooltip>
                   <span className="text-loss-400 font-mono">-${pnlBreakdownA.totalFees.toFixed(4)}</span>
                 </div>
-                <div className="border-t border-surface-700 pt-2 mt-2">
+                <div className="border-t border-surface-800 pt-2 mt-2">
                   <div className="flex justify-between">
                     <Tooltip text="Position PnL minus fees">
                       <span className="text-white font-semibold">Final Result</span>
@@ -502,7 +502,7 @@ export default function FightResultsPage() {
                     </Tooltip>
                     <span className="text-loss-400 font-mono">-${pnlBreakdownB.totalFees.toFixed(4)}</span>
                   </div>
-                  <div className="border-t border-surface-700 pt-2 mt-2">
+                  <div className="border-t border-surface-800 pt-2 mt-2">
                     <div className="flex justify-between">
                       <Tooltip text="Position PnL minus fees">
                         <span className="text-white font-semibold">Final Result</span>
@@ -535,7 +535,7 @@ export default function FightResultsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-surface-400 uppercase tracking-wider border-b border-surface-700">
+                  <tr className="text-xs text-surface-400 uppercase tracking-wider border-b border-surface-800">
                     <th className="text-left py-2 px-2">
                       <Tooltip text="Time when the trade was executed">Time</Tooltip>
                     </th>
@@ -572,7 +572,7 @@ export default function FightResultsPage() {
                     return (
                       <tr
                         key={trade.id}
-                        className="border-b border-surface-700/50 hover:bg-surface-800/30"
+                        className="border-b border-surface-800/50 hover:bg-surface-800/30"
                       >
                         <td className="py-2 px-2 text-surface-400 font-mono text-xs">
                           <Tooltip text={new Date(trade.executedAt).toLocaleString()}>

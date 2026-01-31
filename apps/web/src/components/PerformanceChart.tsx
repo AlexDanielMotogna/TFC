@@ -119,7 +119,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-surface-900 border border-surface-700 p-3 rounded-lg shadow-lg">
+        <div className="bg-surface-900 border border-surface-800 p-3 rounded-lg shadow-lg">
           <p className="text-surface-300 text-xs mb-1">Fight #{label}</p>
           <p className="text-surface-400 text-xs mb-2">{payload[0].payload.date}</p>
           {chartType === 'cumulative' && (
@@ -145,7 +145,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
 
   if (finishedFights.length === 0) {
     return (
-      <div className="h-48 bg-surface-800 rounded-lg flex items-center justify-center border border-surface-700">
+      <div className="h-48 bg-surface-800 rounded-lg flex items-center justify-center border border-surface-800">
         <p className="text-surface-500">No fight history yet</p>
       </div>
     );
@@ -160,7 +160,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
           className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
             chartType === 'cumulative'
               ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-700'
+              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
           }`}
         >
           <ShowChartIcon sx={{ fontSize: 16 }} />
@@ -171,7 +171,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
           className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
             chartType === 'individual'
               ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-700'
+              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
           }`}
         >
           <BarChartIcon sx={{ fontSize: 16 }} />
@@ -182,7 +182,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
           className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
             chartType === 'winrate'
               ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-700'
+              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
           }`}
         >
           <TrendingUpIcon sx={{ fontSize: 16 }} />
@@ -191,7 +191,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
       </div>
 
       {/* Chart */}
-      <div className="h-64 bg-surface-800/50 rounded-lg p-2 sm:p-4 border border-surface-700">
+      <div className="h-64 bg-surface-800/50 rounded-lg p-2 sm:p-4 border border-surface-800">
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'cumulative' && (
             <LineChart data={cumulativeData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>

@@ -19,6 +19,8 @@ import { WithdrawModal } from '@/components/WithdrawModal';
 import { BetaGate } from '@/components/BetaGate';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 // Default market shown while loading from API
 const DEFAULT_MARKET = { symbol: 'BTC-USD', name: 'Bitcoin', maxLeverage: 50 };
@@ -738,7 +740,7 @@ export default function TradePage() {
       </div>
 
       {/* Main container - overflow-anchor: none prevents scroll jumping when WebSocket updates components */}
-      <div className="w-full px-1 py-2 touch-pan-y" style={{ overflowAnchor: 'none' }}>
+      <div className="w-full px-1 py-1 touch-pan-y" style={{ overflowAnchor: 'none' }}>
         {/* Main Trading Terminal - Responsive layout
             Mobile (< xl): Chart → Order Book + Place Order (side by side) → Tables
             Desktop (xl+): Current layout with Order Book + Chart side by side, Place Order right */}
@@ -750,7 +752,7 @@ export default function TradePage() {
             <div className="contents xl:grid xl:grid-cols-12 xl:gap-1">
               {/* Order Book - half width on mobile (row 2 left), 3 cols on desktop. 600px to show 9 rows */}
               <div className="col-span-1 xl:col-span-3 order-2 card overflow-hidden h-[600px] xl:h-auto flex flex-col">
-                <div className="px-3 py-2 border-b border-surface-700 flex-shrink-0">
+                <div className="px-3 py-2 border-b border-surface-800 flex-shrink-0">
                   <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                     Order Book
                   </h3>
@@ -763,7 +765,7 @@ export default function TradePage() {
               {/* Chart - full width on mobile (row 1), 9 cols on desktop */}
               <div className="col-span-2 xl:col-span-9 order-1 card overflow-hidden">
                 {/* Chart Header - Market Info like Pacifica */}
-                <div className="px-4 py-2 border-b border-surface-700 overflow-x-auto overscroll-x-contain">
+                <div className="px-4 py-2 border-b border-surface-800 overflow-x-auto overscroll-x-contain">
                   {/* Single row with all info like Pacifica - scrollable on small screens */}
                   <div className="flex items-center gap-4 xl:gap-6 text-sm min-w-max">
                     {/* Symbol selector with dropdown table */}
@@ -824,7 +826,7 @@ export default function TradePage() {
                   </div>
                 </div>
                 {/* Interval selector */}
-                <div className="flex items-center gap-1 px-4 py-2 border-b border-surface-700">
+                <div className="flex items-center gap-1 px-4 py-2 border-b border-surface-800">
                   {(['1m', '5m', '15m', '1h', '4h', '1d'] as const).map((int) => (
                     <button
                       key={int}
@@ -851,9 +853,9 @@ export default function TradePage() {
 
             {/* Positions Panel - full width on mobile (row 3), full width inside flex on desktop */}
             {/* contain: strict prevents layout changes inside from affecting page scroll */}
-            <div className="col-span-2 order-4 card h-[387px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
+            <div className="col-span-2 order-4 card h-[389px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
               {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
-              <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto overscroll-x-contain">
+              <div className="flex items-center justify-between border-b border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-contain">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
                   <button
                     onClick={() => setBottomTab('positions')}
@@ -1052,7 +1054,7 @@ export default function TradePage() {
                             };
 
                             return (
-                              <tr key={order.id} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                              <tr key={order.id} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
                                   {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
@@ -1215,7 +1217,7 @@ export default function TradePage() {
                             const token = trade.symbol?.replace('-USD', '') || '';
 
                             return (
-                              <tr key={trade.history_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                              <tr key={trade.history_id || index} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
                                   {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
@@ -1248,7 +1250,7 @@ export default function TradePage() {
                       </table>
                       {/* Load More Button - only show for regular trade history (not fight-only) */}
                       {!showFightOnly && hasMoreTrades && (
-                        <div className="p-3 border-t border-surface-700 text-center">
+                        <div className="p-3 border-t border-surface-800 text-center">
                           <button
                             onClick={() => fetchMoreTrades()}
                             disabled={isLoadingMoreTrades}
@@ -1411,7 +1413,7 @@ export default function TradePage() {
                           };
 
                           return (
-                            <tr key={order.order_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                            <tr key={order.order_id || index} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                               <td className="py-2 px-2 text-surface-300 font-mono whitespace-nowrap">
                                 {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}
                               </td>
@@ -1467,7 +1469,7 @@ export default function TradePage() {
           {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
           {/* contain: layout prevents internal changes from affecting page scroll */}
           <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:h-[945px] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
-            <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-700">
+            <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-800">
               <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                 Place Order
               </h3>
@@ -1540,14 +1542,16 @@ export default function TradePage() {
                         href="https://app.pacifica.fi/trade/BTC"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 py-1.5 xl:py-2 text-center text-xs xl:text-sm font-semibold bg-primary-500 hover:bg-primary-400 text-white rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 xl:py-2 text-xs xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                       >
+                        <FileDownloadIcon sx={{ fontSize: 16 }} className="text-surface-400" />
                         Deposit
                       </a>
                       <button
                         onClick={() => setShowWithdrawModal(true)}
-                        className="flex-1 py-1.5 xl:py-2 text-center text-xs xl:text-sm font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 xl:py-2 text-xs xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                       >
+                        <FileUploadIcon sx={{ fontSize: 16 }} className="text-surface-400" />
                         Withdraw
                       </button>
                     </div>
@@ -2194,7 +2198,7 @@ export default function TradePage() {
               </button>
 
               {/* Challenge CTA */}
-              <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-700">
+              <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-800">
                 <Link
                   href="/lobby"
                   className="block text-center py-2.5 xl:py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-xs xl:text-sm font-semibold transition-colors"

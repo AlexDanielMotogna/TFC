@@ -381,7 +381,7 @@ export function VSArena() {
   }, []);
 
   return (
-    <div className={`relative w-full aspect-[16/9] md:aspect-[21/9] bg-surface-900/50 rounded-2xl border border-surface-700/50 overflow-hidden transition-opacity duration-1000 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`relative w-full aspect-[16/9] md:aspect-[21/9] bg-surface-900/50 rounded-2xl border border-surface-800/50 overflow-hidden transition-opacity duration-1000 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}>
       {/* Background grid */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px]" />
 
@@ -423,7 +423,7 @@ export function VSArena() {
       </div>
 
       {/* Bottom stats bar */}
-      <div className="absolute bottom-0 inset-x-0 h-10 sm:h-12 bg-surface-900/80 backdrop-blur-sm border-t border-surface-700/50 flex items-center justify-center gap-2 sm:gap-4 md:gap-8 text-xs sm:text-sm px-2 sm:px-4">
+      <div className="absolute bottom-0 inset-x-0 h-10 sm:h-12 bg-surface-900/80 backdrop-blur-sm border-t border-surface-800/50 flex items-center justify-center gap-2 sm:gap-4 md:gap-8 text-xs sm:text-sm px-2 sm:px-4">
         {/* Left fighter score */}
         <div className="flex items-center gap-1 sm:gap-2">
           <span className="text-orange-400 font-semibold hidden sm:inline">6WZ3...qVaU</span>

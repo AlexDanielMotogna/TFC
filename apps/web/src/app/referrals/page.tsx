@@ -177,7 +177,7 @@ export default function ReferralsPage() {
 
               {/* Table Skeleton */}
               <div className="card">
-                <div className="p-6 border-b border-surface-700">
+                <div className="p-6 border-b border-surface-800">
                   <div className="h-4 w-32 bg-surface-700" />
                 </div>
                 <div className="p-4 space-y-4">
@@ -258,7 +258,7 @@ export default function ReferralsPage() {
               <h2 className="text-sm font-semibold uppercase tracking-wide text-surface-300 mb-4">
                 Your Referral Code
               </h2>
-              <div className="bg-surface-900 rounded-lg p-4 mb-4 border border-surface-700">
+              <div className="bg-surface-900 rounded-lg p-4 mb-4 border border-surface-800">
                 <p className="text-2xl font-mono font-bold text-primary-400 text-center tracking-wider">
                   {dashboard.referralCode}
                 </p>
@@ -359,7 +359,7 @@ export default function ReferralsPage() {
 
           {/* Tabs */}
           <div className="mb-6">
-            <div className="bg-surface-800 rounded-xl p-1.5 inline-flex border border-surface-700">
+            <div className="bg-surface-800 rounded-xl p-1.5 inline-flex border border-surface-800">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
@@ -398,7 +398,7 @@ export default function ReferralsPage() {
             <div className="space-y-6">
               {/* Recent Referrals */}
               <div className="card">
-                <div className="p-6 border-b border-surface-700">
+                <div className="p-6 border-b border-surface-800">
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
                     Recent Referrals
                   </h3>
@@ -412,7 +412,7 @@ export default function ReferralsPage() {
                   <div className="overflow-x-auto">
                     <table className="table-premium w-full">
                       <thead>
-                        <tr className="border-b border-surface-700 bg-surface-850">
+                        <tr className="border-b border-surface-800 bg-surface-850">
                           <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">User</th>
                           <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
                           <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Joined</th>
@@ -447,7 +447,7 @@ export default function ReferralsPage() {
 
               {/* Recent Earnings */}
               <div className="card">
-                <div className="p-6 border-b border-surface-700">
+                <div className="p-6 border-b border-surface-800">
                   <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
                     Recent Earnings
                   </h3>
@@ -461,7 +461,7 @@ export default function ReferralsPage() {
                   <div className="overflow-x-auto">
                     <table className="table-premium w-full">
                       <thead>
-                        <tr className="border-b border-surface-700 bg-surface-850">
+                        <tr className="border-b border-surface-800 bg-surface-850">
                           <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Symbol</th>
                           <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
                           <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Amount</th>
@@ -507,7 +507,7 @@ export default function ReferralsPage() {
 
           {activeTab === 'referrals' && (
             <div className="card">
-              <div className="p-6 border-b border-surface-700">
+              <div className="p-6 border-b border-surface-800">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
                   All Referrals
                 </h3>
@@ -522,7 +522,7 @@ export default function ReferralsPage() {
                 <div className="overflow-x-auto">
                   <table className="table-premium w-full">
                     <thead>
-                      <tr className="border-b border-surface-700 bg-surface-850">
+                      <tr className="border-b border-surface-800 bg-surface-850">
                         <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">User</th>
                         <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
                         <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Commission</th>
@@ -573,7 +573,7 @@ export default function ReferralsPage() {
 
           {activeTab === 'payouts' && (
             <div className="card">
-              <div className="p-6 border-b border-surface-700">
+              <div className="p-6 border-b border-surface-800">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
                   Payout History
                 </h3>
@@ -587,7 +587,7 @@ export default function ReferralsPage() {
                 <div className="overflow-x-auto">
                   <table className="table-premium w-full">
                     <thead>
-                      <tr className="border-b border-surface-700 bg-surface-850">
+                      <tr className="border-b border-surface-800 bg-surface-850">
                         <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Date</th>
                         <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Amount</th>
                         <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Status</th>

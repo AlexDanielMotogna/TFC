@@ -48,7 +48,7 @@ export function FightBanner() {
   const isLowTime = timeRemaining !== null && timeRemaining < 60000;
 
   return (
-    <div className="w-full bg-surface-850 border-b border-surface-700">
+    <div className="w-full bg-surface-850 border-b border-surface-800">
       <div className="max-w-screen-2xl mx-auto px-4">
         <div className="flex items-center justify-between h-10">
 

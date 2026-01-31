@@ -34,7 +34,7 @@ export function SkeletonButton({ width = 'w-24', height = 'h-10' }: { width?: st
 // Card skeleton
 export function SkeletonCard({ children, className = '' }: { children?: ReactNode; className?: string }) {
   return (
-    <div className={`bg-surface-800 border border-surface-700 p-4 ${className}`}>
+    <div className={`bg-surface-800 border border-surface-800 p-4 ${className}`}>
       {children}
     </div>
   );
@@ -79,7 +79,7 @@ export function FightCardSkeleton() {
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center pt-2 border-t border-surface-700">
+      <div className="flex justify-between items-center pt-2 border-t border-surface-800">
         <SkeletonText width="w-24" height="h-5" />
         <SkeletonButton width="w-20" height="h-8" />
       </div>
@@ -90,7 +90,7 @@ export function FightCardSkeleton() {
 // Leaderboard Row Skeleton
 export function LeaderboardRowSkeleton() {
   return (
-    <tr className="border-b border-surface-700/50">
+    <tr className="border-b border-surface-800/50">
       <td className="py-4 px-4">
         <Skeleton className="w-10 h-10 rounded-lg" />
       </td>
@@ -154,7 +154,7 @@ export function LeaderboardSkeleton() {
               <SkeletonText width="w-10" height="h-3" className="mb-1" />
               <SkeletonText width="w-16" height="h-6" />
             </div>
-            <div className="border-t border-surface-700/50 pt-3">
+            <div className="border-t border-surface-800/50 pt-3">
               <SkeletonText width="w-20" height="h-3" className="mb-2" />
               <div className="flex items-center gap-2">
                 <SkeletonAvatar size="w-8 h-8" />
@@ -172,7 +172,7 @@ export function LeaderboardSkeleton() {
       <SkeletonCard className="overflow-hidden p-0">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-surface-700 bg-surface-850">
+            <tr className="border-b border-surface-800 bg-surface-850">
               {['Rank', 'Fighter', 'Fights', 'Record', 'Win Rate', 'Avg PnL', 'Total PnL'].map((h) => (
                 <th key={h} className="py-3 px-4 text-left text-xs text-surface-400 font-medium">
                   {h}
@@ -253,14 +253,14 @@ export function ProfileSkeleton() {
 
       {/* Fight History */}
       <SkeletonCard className="p-0 overflow-hidden">
-        <div className="p-4 border-b border-surface-700">
+        <div className="p-4 border-b border-surface-800">
           <SkeletonText width="w-24" height="h-4" />
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-surface-700">
+              <tr className="border-b border-surface-800">
                 {['Date', 'Duration', 'Stake', 'Opponent', 'Result', 'PnL'].map(
                   (h) => (
                     <th
@@ -276,7 +276,7 @@ export function ProfileSkeleton() {
 
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-surface-700/50">
+                <tr key={i} className="border-b border-surface-800/50">
                   <td className="py-4 px-4">
                     <SkeletonText width="w-24" />
                   </td>
@@ -312,7 +312,7 @@ export function ArenaSkeleton() {
   return (
     <div className="space-y-6">
       {/* Tabs and Filters */}
-      <div className="border-b border-surface-700 pb-3">
+      <div className="border-b border-surface-800 pb-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           {/* Tabs */}
           <div className="flex gap-1">
@@ -334,7 +334,7 @@ export function ArenaSkeleton() {
       {/* Content - Loading state */}
       <div className="card text-center py-16">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-4 border-surface-700 border-t-primary-500 animate-spin" />
+          <div className="w-10 h-10 rounded-full border-4 border-surface-800 border-t-primary-500 animate-spin" />
           <p className="text-surface-500">Loading fights...</p>
         </div>
       </div>
@@ -345,7 +345,7 @@ export function ArenaSkeleton() {
 // Position Row Skeleton (for Trade page)
 export function PositionRowSkeleton() {
   return (
-    <tr className="border-b border-surface-700/50">
+    <tr className="border-b border-surface-800/50">
       <td className="py-3 px-4">
         <div className="flex items-center gap-2">
           <Skeleton className="w-6 h-6 rounded-full" />
@@ -422,7 +422,7 @@ export function PageLoadingSkeleton({ title }: { title?: string }) {
       <div className="flex justify-center py-20">
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-12 h-12 rounded-full border-4 border-surface-700 border-t-primary-500 animate-spin" />
+            <div className="w-12 h-12 rounded-full border-4 border-surface-800 border-t-primary-500 animate-spin" />
           </div>
           <p className="text-surface-400 animate-pulse">Loading...</p>
         </div>

@@ -23,7 +23,7 @@ export function TickerCard({ symbol, tokenInfo, priceData }: TickerCardProps) {
   const priceChange = priceData ? (priceData.price * priceData.change24h / 100) : 0;
 
   return (
-    <div className="rounded-xl bg-surface-850/80 backdrop-blur-sm border border-surface-700/50 p-5 hover:border-surface-600 transition-all">
+    <div className="rounded-xl bg-surface-850/80 backdrop-blur-sm border border-surface-800/50 p-5 hover:border-surface-600 transition-all">
       {/* Header - Token info */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">

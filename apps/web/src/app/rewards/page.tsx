@@ -247,7 +247,7 @@ export default function RewardsPage() {
 
               {/* Table Skeleton */}
               <div className="card">
-                <div className="p-6 border-b border-surface-700">
+                <div className="p-6 border-b border-surface-800">
                   <div className="h-4 w-32 bg-surface-700" />
                 </div>
                 <div className="p-4 space-y-4">
@@ -298,7 +298,7 @@ export default function RewardsPage() {
           {/* Prize table */}
           {!isLoading && !error && prizes.length > 0 && (
             <div className="card">
-              <div className="p-6 border-b border-surface-700">
+              <div className="p-6 border-b border-surface-800">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
                   Prize History
                 </h3>
@@ -306,7 +306,7 @@ export default function RewardsPage() {
               <div className="overflow-x-auto">
                 <table className="table-premium w-full">
                   <thead>
-                    <tr className="border-b border-surface-700 bg-surface-850">
+                    <tr className="border-b border-surface-800 bg-surface-850">
                       <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Rank</th>
                       <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Period</th>
                       <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Amount</th>

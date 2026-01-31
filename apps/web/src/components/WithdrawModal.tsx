@@ -59,9 +59,9 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
         />
 
       {/* Modal */}
-      <div className="relative bg-surface-850 border border-surface-700 rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div className="relative bg-surface-850 border border-surface-800 rounded-lg shadow-xl w-full max-w-md mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
           <h3 className="text-lg font-semibold text-white">Withdraw</h3>
           <button
             onClick={onClose}

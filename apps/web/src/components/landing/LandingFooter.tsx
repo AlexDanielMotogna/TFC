@@ -79,7 +79,7 @@ export function LandingFooter() {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-surface-800 border border-surface-700 flex items-center justify-center text-surface-400 hover:text-white hover:border-surface-600 transition-colors"
+                  className="w-10 h-10 rounded-full bg-surface-800 border border-surface-800 flex items-center justify-center text-surface-400 hover:text-white hover:border-surface-600 transition-colors"
                   aria-label={social.name}
                 >
                   {social.icon}

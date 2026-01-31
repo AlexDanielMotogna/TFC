@@ -41,9 +41,9 @@ export function CloseOppositeModal({
         />
 
       {/* Modal */}
-      <div className="relative bg-surface-900 border border-surface-700 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative bg-surface-900 border border-surface-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-700">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-surface-800">
           <h3 className="text-lg font-display font-semibold text-white">
             Close Opposite Position
           </h3>
@@ -152,7 +152,7 @@ export function CloseOppositeModal({
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 px-5 py-4 border-t border-surface-700 bg-surface-800/50">
+        <div className="flex gap-3 px-5 py-4 border-t border-surface-800 bg-surface-800/50">
           <button
             onClick={onClose}
             disabled={isLoading}

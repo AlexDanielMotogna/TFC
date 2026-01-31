@@ -235,7 +235,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           {positions.map((pos) => (
             <tr
               key={pos.id}
-              className="border-t border-surface-700/50 hover:bg-surface-800/30"
+              className="border-t border-surface-800/50 hover:bg-surface-800/30"
             >
               {/* Token - Symbol with leverage badge */}
               <td className="py-3 px-2">
@@ -406,7 +406,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
       </div>
 
       {/* Summary - fixed at bottom */}
-      <div className="mt-auto pt-3 border-t border-surface-700 flex items-center gap-4 px-2 flex-shrink-0">
+      <div className="mt-auto pt-3 border-t border-surface-800 flex items-center gap-4 px-2 flex-shrink-0">
         <div className="text-xs text-surface-400">
           Positions: <span className="text-white">{positions.length}</span>
         </div>

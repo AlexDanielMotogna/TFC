@@ -267,7 +267,7 @@ export default function ProfilePage() {
 
         {/* Fight History */}
         <div className="card overflow-hidden">
-          <div className="p-4 border-b border-surface-700">
+          <div className="p-4 border-b border-surface-800">
             <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-surface-300">
               Fight History
             </h2>
@@ -286,7 +286,7 @@ export default function ProfilePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-surface-200 capitalize tracking-wider border-b border-surface-700">
+                  <tr className="text-xs text-surface-200 capitalize tracking-wider border-b border-surface-800">
                     <th className="text-left py-3 px-4">Date</th>
                     <th className="text-center py-3 px-4">Duration</th>
                     <th className="text-center py-3 px-4">Stake</th>
@@ -313,7 +313,7 @@ export default function ProfilePage() {
                     const pnlIsPositive = pnl >= 0;
 
                     return (
-                      <tr key={fight.id} className="border-b border-surface-700/50 hover:bg-surface-800/30">
+                      <tr key={fight.id} className="border-b border-surface-800/50 hover:bg-surface-800/30">
                         <td className="py-4 px-4 text-surface-400">
                           {fight.status === 'LIVE'
                             ? 'In Progress'
@@ -373,7 +373,7 @@ export default function ProfilePage() {
           )}
           {/* Load More Button */}
           {fights.length > visibleFights && (
-            <div className="p-4 border-t border-surface-700 text-center">
+            <div className="p-4 border-t border-surface-800 text-center">
               <button
                 onClick={() => setVisibleFights((prev) => prev + 20)}
                 className="text-sm text-primary-400 hover:text-primary-300 transition-colors"

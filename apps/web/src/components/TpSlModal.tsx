@@ -366,9 +366,9 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
         onClick={handleBackdropClick}
       >
-        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700 max-h-[90vh] flex flex-col">
+        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800 max-h-[90vh] flex flex-col">
           {/* Header */}
-          <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-surface-700">
+          <div className="flex-shrink-0 flex items-center justify-between p-4  border-surface-800">
             <h2 className="text-lg font-semibold text-white">TP/SL for Position</h2>
             <button
               onClick={onClose}
@@ -413,7 +413,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
             </div>
 
             {/* Full Position / Partial Toggle */}
-            <div className="flex border border-surface-700 rounded-lg overflow-hidden">
+            <div className="flex border border-surface-800 rounded-lg overflow-hidden">
               <button
                 onClick={() => setIsPartialTab(false)}
                 className={`flex-1 py-2 text-sm font-medium transition-colors ${
@@ -460,7 +460,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                       value={tpPrice}
                       onChange={(e) => setTpPrice(e.target.value)}
                       placeholder="0.00"
-                      className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                      className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                     />
                     <span className="text-surface-400 text-sm">USD</span>
                   </div>
@@ -498,7 +498,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                       value={slPrice}
                       onChange={(e) => setSlPrice(e.target.value)}
                       placeholder="0.00"
-                      className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                      className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                     />
                     <span className="text-surface-400 text-sm">USD</span>
                   </div>
@@ -534,7 +534,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
                 {/* Limit Price Inputs */}
                 {useLimitPrice && (
-                  <div className="space-y-3 p-3 bg-surface-900/50 rounded-lg border border-surface-700">
+                  <div className="space-y-3 p-3 bg-surface-900/50 rounded-lg border border-surface-800">
                     <div className="space-y-1.5">
                       <label className="text-xs text-surface-400">TP Limit Price</label>
                       <div className="flex items-center gap-2">
@@ -543,7 +543,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                           value={tpLimitPrice}
                           onChange={(e) => setTpLimitPrice(e.target.value)}
                           placeholder={tpPrice || '0.00'}
-                          className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
+                          className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
                         />
                         <span className="text-surface-400 text-xs">USD</span>
                       </div>
@@ -556,12 +556,12 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                           value={slLimitPrice}
                           onChange={(e) => setSlLimitPrice(e.target.value)}
                           placeholder={slPrice || '0.00'}
-                          className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
+                          className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
                         />
                         <span className="text-surface-400 text-xs">USD</span>
                       </div>
                     </div>
-                    <div className="pt-2 border-t border-surface-700 space-y-2">
+                    <div className="pt-2 border-t border-surface-800 space-y-2">
                       <p className="text-xs text-surface-400 leading-relaxed">
                         Enabling this converts your TP/SL from a market stop into a limit stop. When the trigger price is hit, a limit order is placed at the prices you specify above.
                       </p>
@@ -654,7 +654,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
           {/* Footer - only show Confirm button for Full Position tab */}
           {!isPartialTab && (
-            <div className="flex-shrink-0 p-4 border-t border-surface-700">
+            <div className="flex-shrink-0 p-4 border-t border-surface-800">
               <button
                 onClick={handleConfirmFullPosition}
                 disabled={isSubmitting || !hasValidFullInput}
@@ -680,9 +680,9 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
           className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={handlePartialBackdropClick}
         >
-          <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700 max-h-[90vh] flex flex-col">
+          <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800 max-h-[90vh] flex flex-col">
             {/* Header */}
-            <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-surface-700">
+            <div className="flex-shrink-0 flex items-center justify-between p-4 border-surface-800">
               <h2 className="text-lg font-semibold text-white">Add Partial TP/SL</h2>
               <button
                 onClick={() => setShowAddPartialModal(false)}
@@ -717,7 +717,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                     value={partialTpPrice}
                     onChange={(e) => setPartialTpPrice(e.target.value)}
                     placeholder="0.00"
-                    className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                   />
                   <span className="text-surface-400 text-sm">USD</span>
                 </div>
@@ -755,7 +755,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                     value={partialSlPrice}
                     onChange={(e) => setPartialSlPrice(e.target.value)}
                     placeholder="0.00"
-                    className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                   />
                   <span className="text-surface-400 text-sm">USD</span>
                 </div>
@@ -791,7 +791,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
               {/* Amount Configuration */}
               {configureAmount && (
-                <div className="space-y-3 p-3 bg-surface-900/50 rounded-lg border border-surface-700">
+                <div className="space-y-3 p-3 bg-surface-900/50 rounded-lg border border-surface-800">
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
@@ -799,7 +799,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                       onChange={(e) => handlePartialAmountChange(e.target.value)}
                       onBlur={handlePartialAmountBlur}
                       placeholder="0.00"
-                      className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                      className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                     />
                     <span className="text-surface-400 text-sm min-w-[50px]">{tokenSymbol}</span>
                   </div>
@@ -858,7 +858,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
               {/* Limit Price Inputs */}
               {partialUseLimitPrice && (
-                <div className="space-y-3 p-3 bg-surface-900/50 rounded-lg border border-surface-700">
+                <div className="space-y-3 p-3 bg-surface-900/50 rounded-lg border border-surface-800">
                   <div className="space-y-1.5">
                     <label className="text-xs text-surface-400">TP Limit Price</label>
                     <div className="flex items-center gap-2">
@@ -867,7 +867,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                         value={partialTpLimitPrice}
                         onChange={(e) => setPartialTpLimitPrice(e.target.value)}
                         placeholder={partialTpPrice || '0.00'}
-                        className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
+                        className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
                       />
                       <span className="text-surface-400 text-xs">USD</span>
                     </div>
@@ -880,12 +880,12 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                         value={partialSlLimitPrice}
                         onChange={(e) => setPartialSlLimitPrice(e.target.value)}
                         placeholder={partialSlPrice || '0.00'}
-                        className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
+                        className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-primary-500"
                       />
                       <span className="text-surface-400 text-xs">USD</span>
                     </div>
                   </div>
-                  <div className="pt-2 border-t border-surface-700 space-y-2">
+                  <div className="pt-2 border-t border-surface-800 space-y-2">
                     <p className="text-xs text-surface-400 leading-relaxed">
                       Enabling this converts your TP/SL from a market stop into a limit stop. When the trigger price is hit, a limit order is placed at the prices you specify above.
                     </p>
@@ -898,7 +898,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
             </div>
 
             {/* Footer */}
-            <div className="flex-shrink-0 p-4 border-t border-surface-700">
+            <div className="flex-shrink-0 p-4 border-t border-surface-800">
               <button
                 onClick={handleConfirmPartial}
                 disabled={isSubmitting || !canSubmitPartial}

@@ -181,13 +181,13 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
   return (
     <div className="h-full flex flex-col text-xs overflow-hidden" style={{ contain: 'layout' }}>
       {/* Header with agg level and size mode selector */}
-      <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-surface-700">
+      <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-surface-800">
         {/* Aggregation level selector (server-side) - shows actual tick values */}
         <div className="relative">
           <select
             value={aggLevel}
             onChange={(e) => setAggLevel(Number(e.target.value) as AggLevel)}
-            className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500"
+            className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer"
           >
             {aggOptions.map((opt) => (
               <option key={opt.level} value={opt.level}>
@@ -202,7 +202,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
           <select
             value={sizeMode}
             onChange={(e) => setSizeMode(e.target.value as 'USD' | 'TOKEN')}
-            className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500"
+            className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer"
           >
             <option value="USD">USD</option>
             <option value="TOKEN">{baseToken}</option>
@@ -211,7 +211,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       </div>
 
       {/* Column headers - responsive: hide Size on narrow screens */}
-      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-700 uppercase">
+      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-800 uppercase">
         <span>Price</span>
         <span className="hidden sm:block text-right">Size({sizeMode === 'USD' ? 'USD' : baseToken})</span>
         <span className="text-right">Total</span>
@@ -247,7 +247,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       </div>
 
       {/* Spread */}
-      <div className="flex-shrink-0 px-2 py-1 border-y border-surface-700 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
+      <div className="flex-shrink-0 px-2 py-1 border-y border-surface-800 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
         <span>Spread</span>
         <span className="tabular-nums tracking-tight">{spread > 0 ? formatPrice(spread) : '-'}</span>
         <span className="tabular-nums tracking-tight">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
@@ -283,7 +283,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       </div>
 
       {/* Buy/Sell percentage bar */}
-      <div className="flex-shrink-0 px-2 py-1.5 border-t border-surface-700">
+      <div className="flex-shrink-0 px-2 py-1.5 border-t border-surface-800">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-win-400 font-medium tabular-nums">
             {buyPercent.toFixed(1)}%

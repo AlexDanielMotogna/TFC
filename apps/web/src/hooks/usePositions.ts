@@ -27,19 +27,15 @@ export function usePositions() {
       const account = publicKey.toBase58();
       const response = await PacificaAPI.getPositions(account);
 
-      console.log('usePositions: Raw Pacifica response:', response);
-
       // Pacifica returns { success, data: [...positions], error, code }
       // data is directly an array of positions, NOT data.positions
-      const positions = Array.isArray(response.data) ? response.data : [];
-      console.log('usePositions: Extracted positions:', positions);
-
-      return positions;
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // Use longer polling interval when WebSocket is connected
-    refetchInterval: wsConnected ? 30000 : 10000,
-    staleTime: wsConnected ? 25000 : 8000,
+    // Disable polling completely when WebSocket is connected (WS provides real-time updates)
+    // This prevents unnecessary re-renders from HTTP polling
+    refetchInterval: wsConnected ? false : 10000,
+    staleTime: wsConnected ? Infinity : 8000,
     retry: 1,
     retryDelay: 2000,
   });
@@ -136,18 +132,13 @@ export function useOpenOrders(symbol?: string) {
       const account = publicKey.toBase58();
       const response = await PacificaAPI.getOpenOrders(account, symbol);
 
-      console.log('useOpenOrders: Raw Pacifica response:', response);
-
       // Pacifica returns { success, data: [...orders] } - data is directly an array
-      const orders = Array.isArray(response.data) ? response.data : [];
-      console.log('useOpenOrders: Extracted orders:', orders);
-
-      return orders;
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // Use longer polling interval when WebSocket is connected
-    refetchInterval: wsConnected ? 30000 : 10000,
-    staleTime: wsConnected ? 25000 : 8000,
+    // Disable polling completely when WebSocket is connected (WS provides real-time updates)
+    refetchInterval: wsConnected ? false : 10000,
+    staleTime: wsConnected ? Infinity : 8000,
     retry: 1,
     retryDelay: 2000,
   });
@@ -250,8 +241,6 @@ export function useTradeHistory(symbol?: string) {
         cursor: pageParam,
       }) as { data: unknown; next_cursor?: string; has_more?: boolean };
 
-      console.log('useTradeHistory: Raw Pacifica response:', response);
-
       return {
         trades: Array.isArray(response.data) ? response.data : [],
         nextCursor: response.next_cursor,
@@ -261,8 +250,9 @@ export function useTradeHistory(symbol?: string) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     enabled: connected && !!publicKey,
-    refetchInterval: wsConnected ? 30000 : 10000,
-    staleTime: wsConnected ? 25000 : 5000,
+    // Disable polling completely when WebSocket is connected
+    refetchInterval: wsConnected ? false : 10000,
+    staleTime: wsConnected ? Infinity : 5000,
   });
 
   // Flatten all pages into a single array
@@ -340,11 +330,8 @@ export function useOrderHistory(symbol?: string) {
         limit: 50,
       });
 
-      console.log('useOrderHistory: Raw Pacifica response:', response);
-
       // Pacifica returns { success, data: [...orders] }
-      const orders = Array.isArray(response.data) ? response.data : [];
-      return orders;
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
     refetchInterval: 10000, // Poll every 10 seconds

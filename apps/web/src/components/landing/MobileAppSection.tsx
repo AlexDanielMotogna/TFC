@@ -128,7 +128,7 @@ export function MobileAppSection() {
         </div>
 
         {/* Full Width Terminal Demo */}
-        <div className="mb-12 rounded-xl border border-surface-700 shadow-2xl overflow-x-auto">
+        <div className="mb-12 rounded-xl border border-surface-800 shadow-2xl overflow-x-auto">
           <FullTerminalDemo highlightFeature={activeFeature} />
         </div>
 
@@ -145,7 +145,7 @@ export function MobileAppSection() {
                 className={`p-4 rounded-xl text-left transition-all duration-200 ${
                   isActive
                     ? `${colors.bg} border-2 ${colors.border} shadow-lg ${colors.glow}`
-                    : 'bg-surface-800/50 border border-surface-700/50 hover:border-surface-600'
+                    : 'bg-surface-800/50 border border-surface-800/50 hover:border-surface-600'
                 }`}
               >
                 <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center mb-3`}>

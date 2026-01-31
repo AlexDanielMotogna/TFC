@@ -121,7 +121,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Single wrapper to ensure consistent width across all sections */}
       <div className="min-w-[1200px]">
       {/* Top Navbar - matches AppShell.tsx */}
-      <div className="bg-surface-850 border-b border-surface-700 px-4 h-12 flex items-center">
+      <div className="bg-surface-850 border-b border-surface-800 px-4 h-12 flex items-center">
         {/* Logo - Left */}
         <div className="flex-shrink-0">
           <Image
@@ -208,7 +208,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Fight Banner - Matches actual FightBanner.tsx */}
       <div
         onClick={() => setShowFightBannerExplain(true)}
-        className={`bg-surface-850 border-b border-surface-700 px-4 h-10 flex items-center justify-between cursor-pointer hover:bg-surface-800/50 transition-colors ${getHighlightClass('fight-banner')}`}
+        className={`bg-surface-850 border-b border-surface-800 px-4 h-10 flex items-center justify-between cursor-pointer hover:bg-surface-800/50 transition-colors ${getHighlightClass('fight-banner')}`}
       >
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
@@ -254,7 +254,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           </div>
           <div
             onClick={() => setShowSwitchFightExplain(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-700 rounded text-xs cursor-pointer transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-800 rounded text-xs cursor-pointer transition-colors"
           >
             <span className="text-surface-400">vs</span>
             <span className="font-medium text-primary-400">6WZ3...qVaU</span>
@@ -275,9 +275,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             {/* Order Book - matches OrderBook.tsx */}
             <div className="w-72 bg-surface-900 rounded-none border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col">
               {/* Header with agg level and size mode selector */}
-              <div className="px-2 py-1.5 border-b border-surface-700 flex items-center justify-between">
+              <div className="px-2 py-1.5 border-b border-surface-800 flex items-center justify-between">
                 {/* Aggregation level selector */}
-                <select className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500">
+                <select className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer">
                   <option>0.01</option>
                   <option>0.02</option>
                   <option>0.05</option>
@@ -286,14 +286,14 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                   <option>10</option>
                 </select>
                 {/* Size mode selector */}
-                <select className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500">
+                <select className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer">
                   <option>USD</option>
                   <option>BTC</option>
                 </select>
               </div>
 
               {/* Column headers */}
-              <div className="grid grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-700 uppercase">
+              <div className="grid grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-800 uppercase">
                 <span>Price</span>
                 <span className="text-right">Size(BTC)</span>
                 <span className="text-right">Total</span>
@@ -312,7 +312,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Spread */}
-              <div className="px-2 py-1 border-y border-surface-700 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
+              <div className="px-2 py-1 border-y border-surface-800 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
                 <span>Spread</span>
                 <span className="tabular-nums tracking-tight">1.000</span>
                 <span className="tabular-nums tracking-tight">0.001%</span>
@@ -331,7 +331,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Buy/Sell percentage bar */}
-              <div className="px-2 py-1.5 border-t border-surface-700">
+              <div className="px-2 py-1.5 border-t border-surface-800">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-win-400 font-medium tabular-nums">32.8%</span>
                   <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden flex">
@@ -347,7 +347,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             <div className="flex-1 min-w-0 bg-surface-900 rounded-none border border-surface-800 overflow-hidden">
               {/* Market Info Header */}
               <div className="px-3 py-2 border-b border-surface-800 flex items-center gap-4 overflow-x-auto text-[10px]">
-              <select className="bg-surface-800 border border-surface-700 rounded px-2 py-1 text-white text-xs font-semibold flex-shrink-0">
+              <select className="bg-surface-800 rounded px-2 py-1 text-white text-xs font-semibold flex-shrink-0">
                 <option>BTC-USD</option>
               </select>
               <div className="flex flex-col flex-shrink-0">
@@ -629,7 +629,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-t border-surface-700/50">
+                <tr className="border-t border-surface-800/50">
                   <td className="py-2 px-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-white font-medium">BTC</span>
@@ -938,9 +938,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
     {/* Modals */}
     {showMarketModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
               <div className="flex items-center gap-3">
                 <h3 className="text-white font-semibold text-lg">Market Close</h3>
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
@@ -1028,9 +1028,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showLimitModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
               <div className="flex items-center gap-3">
                 <h3 className="text-white font-semibold text-lg">Limit Close</h3>
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
@@ -1137,9 +1137,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFlipModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-lg">Flip Position</h3>
               <button onClick={() => setShowFlipModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1177,14 +1177,14 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showTpSlModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 w-full max-w-[420px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 w-full max-w-[420px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-base">TP/SL for {selectedPosition}</h3>
               <button onClick={() => { setShowTpSlModal(false); setTpSlTab('full'); setLimitPriceEnabled(false); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
 
             {/* Tab Switcher */}
-            <div className="flex border-b border-surface-700">
+            <div className="flex border-b border-surface-800">
               <button
                 onClick={() => setTpSlTab('full')}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
@@ -1241,7 +1241,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 {/* Limit Price Toggle */}
-                <div className="flex items-center justify-between py-2 border-t border-surface-700">
+                <div className="flex items-center justify-between py-2 border-t border-surface-800">
                   <span className="text-surface-300 text-sm">Limit Price</span>
                   <button
                     onClick={() => setLimitPriceEnabled(!limitPriceEnabled)}
@@ -1302,8 +1302,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Add Partial TP/SL Modal */}
       {showAddPartialModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 w-full max-w-[420px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 w-full max-w-[420px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-base">Add Partial TP/SL</h3>
               <button onClick={() => { setShowAddPartialModal(false); setConfigureAmountEnabled(false); setLimitPriceEnabled(false); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1344,7 +1344,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Configure Amount Toggle */}
-              <div className="flex items-center justify-between py-2 border-t border-surface-700">
+              <div className="flex items-center justify-between py-2 border-t border-surface-800">
                 <span className="text-surface-300 text-sm">Configure Amount</span>
                 <button
                   onClick={() => setConfigureAmountEnabled(!configureAmountEnabled)}
@@ -1378,7 +1378,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               )}
 
               {/* Limit Price Toggle */}
-              <div className="flex items-center justify-between py-2 border-t border-surface-700">
+              <div className="flex items-center justify-between py-2 border-t border-surface-800">
                 <span className="text-surface-300 text-sm">Limit Price</span>
                 <button
                   onClick={() => setLimitPriceEnabled(!limitPriceEnabled)}
@@ -1421,8 +1421,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Deposit Modal - Opens Pacifica */}
       {showDepositModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-lg">Deposit Funds</h3>
               <button onClick={() => setShowDepositModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1467,8 +1467,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Withdraw Modal - Done in TFC */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-lg">Withdraw Funds</h3>
               <button onClick={() => setShowWithdrawModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1519,9 +1519,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFightBannerExplain && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[540px] shadow-xl max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[540px] shadow-xl max-h-[85vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700 flex-shrink-0">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800 flex-shrink-0">
               <h3 className="text-white font-semibold text-lg">Fight Banner</h3>
               <button onClick={() => setShowFightBannerExplain(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1533,7 +1533,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </p>
 
               {/* Banner Preview - matches actual FightBanner */}
-              <div className="bg-surface-900 rounded-lg p-3 text-sm border border-surface-700 space-y-2.5">
+              <div className="bg-surface-900 rounded-lg p-3 text-sm border border-surface-800 space-y-2.5">
                 {/* Row 1: Live status and opponent */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1544,7 +1544,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 {/* Row 2: Timer, stake, and status */}
-                <div className="flex items-center justify-between border-t border-surface-700 pt-2">
+                <div className="flex items-center justify-between border-t border-surface-800 pt-2">
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-100 font-mono font-bold text-sm">49:47</span>
                     <span className="text-xs text-zinc-100">$5,000 stake</span>
@@ -1553,7 +1553,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 {/* Row 3: PnL comparison */}
-                <div className="flex items-center justify-between border-t border-surface-700 pt-2">
+                <div className="flex items-center justify-between border-t border-surface-800 pt-2">
                   <div>
                     <div className="text-xs text-surface-400">You</div>
                     <div className="text-loss-500 font-mono tabular-nums text-sm font-medium">-12.0423%</div>
@@ -1610,7 +1610,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFightOnlyExplain && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 sm:p-5 w-full max-w-[420px] shadow-xl max-h-[80vh] overflow-y-auto">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 p-4 sm:p-5 w-full max-w-[420px] shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-semibold text-base">Position Filters</h3>
               <button onClick={() => setShowFightOnlyExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
@@ -1648,7 +1648,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFightCapitalExplain && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 sm:p-5 w-full max-w-[480px] shadow-xl max-h-[80vh] overflow-y-auto">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 p-4 sm:p-5 w-full max-w-[480px] shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-semibold text-base">Fight Capital Limit</h3>
               <button onClick={() => setShowFightCapitalExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
@@ -1715,7 +1715,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Switch Fight Explanation Modal */}
       {showSwitchFightExplain && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-xl border border-surface-700 max-w-md w-full p-6 shadow-2xl">
+          <div className="bg-surface-800 rounded-xl border border-surface-800 max-w-md w-full p-6 shadow-2xl">
             {/* Icon */}
             <div className="w-16 h-16 rounded-full bg-primary-500/20 flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1740,7 +1740,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             </p>
 
             {/* Fight Info Preview */}
-            <div className="bg-surface-900/50 rounded-lg p-4 mb-6 border border-surface-700">
+            <div className="bg-surface-900/50 rounded-lg p-4 mb-6 border border-surface-800">
               <p className="text-sm text-surface-400 mb-3">Example: Switching to another fight</p>
               <div className="flex items-center justify-between">
                 <div>

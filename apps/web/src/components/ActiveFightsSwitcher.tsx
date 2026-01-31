@@ -50,7 +50,7 @@ export function ActiveFightsSwitcher() {
     }
 
     return (
-      <div className="w-full bg-surface-800/50 border-b border-surface-700">
+      <div className="w-full bg-surface-800/50 border-b border-surface-800">
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-surface-400">

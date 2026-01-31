@@ -142,9 +142,9 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
         onClick={handleBackdropClick}
       >
-        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700">
+        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-surface-700">
+        <div className="flex items-center justify-between p-4 border-surface-800">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-white">Market Close</h2>
             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
@@ -189,7 +189,7 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 onBlur={handleAmountBlur}
-                className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                 placeholder="0.00"
               />
               <span className="text-surface-400 min-w-[40px]">{tokenSymbol}</span>
@@ -197,7 +197,7 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
                 type="text"
                 value={usdValue.toFixed(2)}
                 readOnly
-                className="w-24 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
+                className="w-24 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
               />
               <span className="text-surface-400">USD</span>
             </div>
@@ -253,7 +253,7 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-surface-700">
+        <div className="p-4 border-t border-surface-800">
           <button
             onClick={handleConfirm}
             disabled={isSubmitting || !amount || parseFloat(amount) <= 0}

@@ -53,9 +53,9 @@ export function TradeTerminalDemo({
   };
 
   return (
-    <div className="bg-surface-900 rounded-xl border border-surface-700 w-full max-w-sm overflow-hidden shadow-2xl">
+    <div className="bg-surface-900 rounded-xl border border-surface-800 w-full max-w-sm overflow-hidden shadow-2xl">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-surface-700 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-surface-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <span className="font-display font-bold text-white">BTC-USD</span>
           <span className="text-white font-mono">${price.toLocaleString()}</span>
@@ -128,7 +128,7 @@ export function TradeTerminalDemo({
                 type="text"
                 value={tokenAmount}
                 onChange={(e) => setTokenAmount(e.target.value)}
-                className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-primary-500 pr-12"
+                className="w-full bg-surface-800 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-primary-500 pr-12"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary-400 font-medium">
                 BTC
@@ -139,7 +139,7 @@ export function TradeTerminalDemo({
                 type="text"
                 value={usdAmount}
                 onChange={(e) => setUsdAmount(e.target.value)}
-                className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-primary-500 pr-12"
+                className="w-full bg-surface-800 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-primary-500 pr-12"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400 font-medium">
                 USD
@@ -151,7 +151,7 @@ export function TradeTerminalDemo({
             {[25, 50, 75, 100].map((pct) => (
               <button
                 key={pct}
-                className="flex-1 py-1.5 text-xs font-medium bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white rounded transition-colors border border-surface-700"
+                className="flex-1 py-1.5 text-xs font-medium bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white rounded transition-colors border border-surface-800"
               >
                 {pct}%
               </button>
@@ -208,7 +208,7 @@ export function TradeTerminalDemo({
                 type="text"
                 value={takeProfit}
                 onChange={(e) => setTakeProfit(e.target.value)}
-                className="w-full bg-surface-800 border border-surface-700 rounded-lg pl-7 pr-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-win-500"
+                className="w-full bg-surface-800 border border-surface-800 rounded-lg pl-7 pr-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-win-500"
               />
             </div>
           )}
@@ -237,14 +237,14 @@ export function TradeTerminalDemo({
                 type="text"
                 value={stopLoss}
                 onChange={(e) => setStopLoss(e.target.value)}
-                className="w-full bg-surface-800 border border-surface-700 rounded-lg pl-7 pr-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-loss-500"
+                className="w-full bg-surface-800 border border-surface-800 rounded-lg pl-7 pr-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-loss-500"
               />
             </div>
           )}
         </div>
 
         {/* Order Preview */}
-        <div className="text-xs space-y-1.5 py-2 border-t border-surface-700">
+        <div className="text-xs space-y-1.5 py-2 border-t border-surface-800">
           <div className="flex justify-between">
             <span className="text-surface-400">Position Size</span>
             <span className="text-white font-mono">${positionSize.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

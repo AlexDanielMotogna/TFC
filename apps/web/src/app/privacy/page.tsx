@@ -37,7 +37,7 @@ export default function PrivacyPage() {
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-white mb-4">1. WHAT WE ARE</h2>
             <p className="mb-4">1.1 TFC is a competitive gaming platform that provides a user interface for 1v1 trading battles.</p>
-            <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-6 mb-4">
+            <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6 mb-4">
               <p className="font-semibold text-primary mb-2">1.2 Important: We do NOT handle, store, or control:</p>
               <ul className="list-disc pl-6 space-y-1 text-surface-300">
                 <li>Your trading funds or positions</li>
@@ -128,7 +128,7 @@ export default function PrivacyPage() {
             <p className="mb-4">4.1 TFC integrates with third-party services that may collect data:</p>
 
             <div className="space-y-4 mb-4">
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <h3 className="font-semibold text-primary mb-2">Pacifica (Trading Infrastructure):</h3>
                 <ul className="list-disc pl-6 space-y-1 text-surface-300 text-sm">
                   <li>Handles all trading, fund custody, and payment processing</li>
@@ -142,7 +142,7 @@ export default function PrivacyPage() {
                 </ul>
               </div>
 
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <h3 className="font-semibold text-primary mb-2">TradingView (Charts and Market Data):</h3>
                 <ul className="list-disc pl-6 space-y-1 text-surface-300 text-sm">
                   <li>Provides charting widgets and market data visualization</li>
@@ -157,7 +157,7 @@ export default function PrivacyPage() {
                 </ul>
               </div>
 
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <h3 className="font-semibold text-primary mb-2">Solana Network:</h3>
                 <p className="text-surface-300 text-sm">
                   All wallet connections and transactions are recorded on the public Solana blockchain. This data is permanent
@@ -165,7 +165,7 @@ export default function PrivacyPage() {
                 </p>
               </div>
 
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <h3 className="font-semibold text-primary mb-2">Analytics Providers:</h3>
                 <p className="text-surface-300 text-sm">
                   We may use analytics services to understand user behavior and improve the platform. These services collect
@@ -300,7 +300,7 @@ export default function PrivacyPage() {
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-white mb-4">13. CONTACT</h2>
             <p className="mb-4">For questions about this Privacy Policy or your data, contact:</p>
-            <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-6">
+            <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6">
               <p className="mb-2"><strong>Company:</strong> Motogna Tech Studio</p>
               <p className="mb-2">
                 <strong>Email:</strong>{' '}
