@@ -412,15 +412,15 @@ export default function ReferralsPage() {
                   <div className="overflow-x-auto">
                     <table className="table-premium w-full">
                       <thead>
-                        <tr className="border-b border-surface-800 bg-surface-850">
-                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">User</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
-                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Joined</th>
+                        <tr className="bg-surface-850">
+                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">User</th>
+                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
+                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Joined</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-surface-700/50">
-                        {dashboard.recentReferrals.map((ref) => (
-                          <tr key={ref.id} className="hover:bg-surface-800/50 transition-colors">
+                      <tbody>
+                        {dashboard.recentReferrals.map((ref, index) => (
+                          <tr key={ref.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-2">
                                 <div className="avatar w-8 h-8 text-xs">
@@ -461,17 +461,17 @@ export default function ReferralsPage() {
                   <div className="overflow-x-auto">
                     <table className="table-premium w-full">
                       <thead>
-                        <tr className="border-b border-surface-800 bg-surface-850">
-                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Symbol</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
-                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Amount</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Status</th>
-                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Date</th>
+                        <tr className="bg-surface-850">
+                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Symbol</th>
+                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
+                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
+                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
+                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Date</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-surface-700/50">
-                        {dashboard.recentEarnings.map((earning) => (
-                          <tr key={earning.id} className="hover:bg-surface-800/50 transition-colors">
+                      <tbody>
+                        {dashboard.recentEarnings.map((earning, index) => (
+                          <tr key={earning.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
                             <td className="py-3 px-4 text-white font-medium">{earning.symbol}</td>
                             <td className="py-3 px-4 text-center">
                               <span className="px-2 py-1 rounded bg-primary-500/10 text-primary-400 text-xs font-medium">
@@ -522,16 +522,16 @@ export default function ReferralsPage() {
                 <div className="overflow-x-auto">
                   <table className="table-premium w-full">
                     <thead>
-                      <tr className="border-b border-surface-800 bg-surface-850">
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">User</th>
-                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Tier</th>
-                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Commission</th>
-                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Joined</th>
+                      <tr className="bg-surface-850">
+                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">User</th>
+                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
+                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Commission</th>
+                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Joined</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-surface-700/50">
-                      {dashboard.recentReferrals.map((ref) => (
-                        <tr key={ref.id} className="hover:bg-surface-800/50 transition-colors">
+                    <tbody>
+                      {dashboard.recentReferrals.map((ref, index) => (
+                        <tr key={ref.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-2">
                               <div className="avatar w-8 h-8 text-xs">
@@ -587,16 +587,16 @@ export default function ReferralsPage() {
                 <div className="overflow-x-auto">
                   <table className="table-premium w-full">
                     <thead>
-                      <tr className="border-b border-surface-800 bg-surface-850">
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Date</th>
-                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Amount</th>
-                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-200">Status</th>
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Wallet</th>
+                      <tr className="bg-surface-850">
+                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Date</th>
+                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
+                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
+                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Wallet</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-surface-700/50">
-                      {dashboard.payoutHistory.map((payout) => (
-                        <tr key={payout.id} className="hover:bg-surface-800/50 transition-colors">
+                    <tbody>
+                      {dashboard.payoutHistory.map((payout, index) => (
+                        <tr key={payout.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
                           <td className="py-3 px-4 text-surface-400 text-sm">
                             {new Date(payout.createdAt).toLocaleDateString()}
                           </td>

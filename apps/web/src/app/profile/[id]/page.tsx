@@ -286,17 +286,17 @@ export default function ProfilePage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-xs text-surface-200 capitalize tracking-wider border-b border-surface-800">
-                    <th className="text-left py-3 px-4">Date</th>
-                    <th className="text-center py-3 px-4">Duration</th>
-                    <th className="text-center py-3 px-4">Stake</th>
-                    <th className="text-center py-3 px-4">Opponent</th>
-                    <th className="text-center py-3 px-4">Result</th>
-                    <th className="text-right py-3 px-4">PnL</th>
+                  <tr className="text-xs text-surface-400 capitalize tracking-wider bg-surface-850">
+                    <th className="text-left py-3 px-4 font-medium">Date</th>
+                    <th className="text-center py-3 px-4 font-medium">Duration</th>
+                    <th className="text-center py-3 px-4 font-medium">Stake</th>
+                    <th className="text-center py-3 px-4 font-medium">Opponent</th>
+                    <th className="text-center py-3 px-4 font-medium">Result</th>
+                    <th className="text-right py-3 px-4 font-medium">PnL</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {fights.slice(0, visibleFights).map((fight) => {
+                  {fights.slice(0, visibleFights).map((fight, index) => {
                     const isWin = fight.winnerId === profile.id;
                     const isDraw = fight.isDraw;
                     const myParticipant = fight.participants?.find(
@@ -313,7 +313,7 @@ export default function ProfilePage() {
                     const pnlIsPositive = pnl >= 0;
 
                     return (
-                      <tr key={fight.id} className="border-b border-surface-800/50 hover:bg-surface-800/30">
+                      <tr key={fight.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
                         <td className="py-4 px-4 text-surface-400">
                           {fight.status === 'LIVE'
                             ? 'In Progress'

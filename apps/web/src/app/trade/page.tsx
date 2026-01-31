@@ -1537,21 +1537,21 @@ export default function TradePage() {
                 return (
                   <div className="mb-4">
                     {/* Deposit/Withdraw buttons */}
-                    <div className="flex gap-2 mb-2 xl:mb-3">
+                    <div className="flex gap-1.5 xl:gap-2 mb-2 xl:mb-3">
                       <a
                         href="https://app.pacifica.fi/trade/BTC"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 xl:py-2 text-xs xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                       >
-                        <FileDownloadIcon sx={{ fontSize: 16 }} className="text-surface-400" />
+                        <FileDownloadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
                         Deposit
                       </a>
                       <button
                         onClick={() => setShowWithdrawModal(true)}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-1.5 xl:py-2 text-xs xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                       >
-                        <FileUploadIcon sx={{ fontSize: 16 }} className="text-surface-400" />
+                        <FileUploadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
                         Withdraw
                       </button>
                     </div>

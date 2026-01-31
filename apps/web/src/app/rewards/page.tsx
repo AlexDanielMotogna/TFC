@@ -41,6 +41,7 @@ function PrizeRow({
   prize,
   onClaim,
   isClaiming,
+  index,
 }: {
   prize: UserPrize;
   onClaim: (prizeId: string) => Promise<{
@@ -50,6 +51,7 @@ function PrizeRow({
     error?: string;
   }>;
   isClaiming: boolean;
+  index: number;
 }) {
   const [claimResult, setClaimResult] = useState<{
     success: boolean;
@@ -68,7 +70,7 @@ function PrizeRow({
   };
 
   return (
-    <tr className="hover:bg-surface-800/50 transition-colors">
+    <tr className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
       {/* Rank */}
       <td className="py-4 px-4">
         <div className="flex items-center gap-2">
@@ -306,7 +308,7 @@ export default function RewardsPage() {
               <div className="overflow-x-auto">
                 <table className="table-premium w-full">
                   <thead>
-                    <tr className="border-b border-surface-800 bg-surface-850">
+                    <tr className="bg-surface-850">
                       <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Rank</th>
                       <th className="py-3 px-4 text-left text-xs font-medium text-surface-200">Period</th>
                       <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Amount</th>
@@ -314,13 +316,14 @@ export default function RewardsPage() {
                       <th className="py-3 px-4 text-right text-xs font-medium text-surface-200">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-700/50">
-                    {prizes.map((prize) => (
+                  <tbody>
+                    {prizes.map((prize, index) => (
                       <PrizeRow
                         key={prize.id}
                         prize={prize}
                         onClaim={claimPrize}
                         isClaiming={claimingPrizeId === prize.id}
+                        index={index}
                       />
                     ))}
                   </tbody>
