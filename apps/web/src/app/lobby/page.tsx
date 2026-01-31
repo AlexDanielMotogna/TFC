@@ -44,7 +44,7 @@ export default function LobbyPage() {
 
   // Read initial tab from URL or default to 'live'
   const getTabFromUrl = useCallback((): ArenaTab => {
-    const tabParam = searchParams.get('tab');
+    const tabParam = searchParams?.get('tab');
     if (tabParam && VALID_TABS.includes(tabParam as ArenaTab)) {
       return tabParam as ArenaTab;
     }
@@ -58,7 +58,7 @@ export default function LobbyPage() {
   const setActiveTab = useCallback((tab: ArenaTab) => {
     setActiveTabState(tab);
     // Update URL without full page reload
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
     if (tab === 'live') {
       params.delete('tab'); // Default tab, no need to show in URL
     } else {

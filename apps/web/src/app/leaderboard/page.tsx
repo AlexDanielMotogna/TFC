@@ -43,7 +43,7 @@ export default function LeaderboardPage() {
 
   // Read initial range from URL or default to 'weekly'
   const getRangeFromUrl = useCallback((): LeaderboardRange => {
-    const rangeParam = searchParams.get('range');
+    const rangeParam = searchParams?.get('range');
     if (rangeParam && VALID_RANGES.includes(rangeParam as LeaderboardRange)) {
       return rangeParam as LeaderboardRange;
     }
@@ -55,7 +55,7 @@ export default function LeaderboardPage() {
   // Update URL when range changes
   const setRange = useCallback((newRange: LeaderboardRange) => {
     setRangeState(newRange);
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
     if (newRange === 'weekly') {
       params.delete('range'); // Default range, no need to show in URL
     } else {

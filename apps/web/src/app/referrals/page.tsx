@@ -25,7 +25,7 @@ export default function ReferralsPage() {
 
   // Read initial tab from URL or default to 'overview'
   const getTabFromUrl = useCallback((): ReferralTab => {
-    const tabParam = searchParams.get('tab');
+    const tabParam = searchParams?.get('tab');
     if (tabParam && VALID_TABS.includes(tabParam as ReferralTab)) {
       return tabParam as ReferralTab;
     }
@@ -37,7 +37,7 @@ export default function ReferralsPage() {
   // Update URL when tab changes
   const setActiveTab = useCallback((tab: ReferralTab) => {
     setActiveTabState(tab);
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(searchParams?.toString() || '');
     if (tab === 'overview') {
       params.delete('tab'); // Default tab, no need to show in URL
     } else {
