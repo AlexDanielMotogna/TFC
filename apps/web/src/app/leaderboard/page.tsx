@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
@@ -34,9 +35,43 @@ interface LeaderboardEntry {
 }
 
 type LeaderboardRange = 'weekly' | 'all_time';
+const VALID_RANGES: LeaderboardRange[] = ['weekly', 'all_time'];
 
 export default function LeaderboardPage() {
-  const [range, setRange] = useState<LeaderboardRange>('weekly');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Read initial range from URL or default to 'weekly'
+  const getRangeFromUrl = useCallback((): LeaderboardRange => {
+    const rangeParam = searchParams.get('range');
+    if (rangeParam && VALID_RANGES.includes(rangeParam as LeaderboardRange)) {
+      return rangeParam as LeaderboardRange;
+    }
+    return 'weekly';
+  }, [searchParams]);
+
+  const [range, setRangeState] = useState<LeaderboardRange>(getRangeFromUrl);
+
+  // Update URL when range changes
+  const setRange = useCallback((newRange: LeaderboardRange) => {
+    setRangeState(newRange);
+    const params = new URLSearchParams(searchParams.toString());
+    if (newRange === 'weekly') {
+      params.delete('range'); // Default range, no need to show in URL
+    } else {
+      params.set('range', newRange);
+    }
+    const newUrl = params.toString() ? `/leaderboard?${params.toString()}` : '/leaderboard';
+    router.replace(newUrl, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync range state when URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const rangeFromUrl = getRangeFromUrl();
+    if (rangeFromUrl !== range) {
+      setRangeState(rangeFromUrl);
+    }
+  }, [searchParams, getRangeFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set page title
   useEffect(() => {

@@ -91,8 +91,8 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
           </div>
 
           {/* Info Box */}
-          <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-400 space-y-1">
-            <p>Daily withdrawal limit is $100,000, resets at UTC 00:00.</p>
+          <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-200 space-y-1">
+            <p>Daily withdrawal limit is $250,000, resets at UTC 00:00.</p>
             <p>Withdrawal fee is $1.</p>
           </div>
 

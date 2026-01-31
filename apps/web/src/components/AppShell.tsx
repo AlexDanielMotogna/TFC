@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect, useCallback } from 'react';
+import { ReactNode, useEffect, useCallback, useState, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -10,6 +10,7 @@ import { useMyPrizes } from '@/hooks/useMyPrizes';
 import { WalletButton } from '@/components/WalletButton';
 import { NotificationBell } from '@/components/NotificationBell';
 import { PrizesBanner } from '@/components/PrizesBanner';
+import { WithdrawModal } from '@/components/WithdrawModal';
 import { api } from '@/lib/api';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
@@ -17,6 +18,10 @@ import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import GroupsIcon from '@mui/icons-material/Groups';
 import PersonIcon from '@mui/icons-material/Person';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
 
 // Wallet icon for balance
 function WalletIcon({ className }: { className?: string }) {
@@ -49,6 +54,50 @@ export function AppShell({ children }: AppShellProps) {
 
   // Get Pacifica balance
   const pacificaBalance = account?.accountEquity ? parseFloat(account.accountEquity) : null;
+
+  // Wallet dropdown state
+  const [showWalletDropdown, setShowWalletDropdown] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const desktopDropdownRef = useRef<HTMLDivElement>(null);
+  const mobileDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      const isOutsideDesktop = desktopDropdownRef.current && !desktopDropdownRef.current.contains(target);
+      const isOutsideMobile = mobileDropdownRef.current && !mobileDropdownRef.current.contains(target);
+
+      // Only close if click is outside both refs
+      if (isOutsideDesktop && isOutsideMobile) {
+        setShowWalletDropdown(false);
+      }
+    }
+    if (showWalletDropdown) {
+      // Use setTimeout to avoid closing immediately on the same click that opened it
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('click', handleClickOutside);
+      };
+    }
+  }, [showWalletDropdown]);
+
+  const handleDepositClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowWalletDropdown(false);
+    window.open(PACIFICA_DEPOSIT_URL, '_blank');
+  };
+
+  const handleWithdrawClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowWalletDropdown(false);
+    setShowWithdrawModal(true);
+  };
 
   const prefetchLeaderboard = useCallback(() => {
     queryClient.prefetchQuery({
@@ -153,12 +202,37 @@ export function AppShell({ children }: AppShellProps) {
 
             {/* Right side: Balance (desktop), Notifications, Wallet */}
             <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-              {/* Balance Display - hidden until 1200px, shown in bottom nav */}
-              <div className="hidden min-[1200px]:flex items-center gap-1.5 px-2 py-1 bg-surface-800 rounded text-sm">
-                <WalletIcon className="w-4 h-4 text-surface-400" />
-                <span className="text-surface-200 font-mono">
-                  {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
-                </span>
+              {/* Balance Display with Dropdown - hidden until 1200px, shown in bottom nav */}
+              <div className="hidden min-[1200px]:block relative" ref={desktopDropdownRef}>
+                <button
+                  onClick={() => setShowWalletDropdown(!showWalletDropdown)}
+                  className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 hover:bg-surface-700 rounded text-sm transition-colors cursor-pointer"
+                >
+                  <WalletIcon className="w-4 h-4 text-surface-400" />
+                  <span className="text-surface-200 font-mono">
+                    {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
+                  </span>
+                </button>
+
+                {/* Dropdown Menu */}
+                {showWalletDropdown && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-700 rounded-lg shadow-lg overflow-hidden z-50">
+                    <button
+                      onClick={handleDepositClick}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
+                    >
+                      <FileDownloadIcon sx={{ fontSize: 18 }} className="text-win-400" />
+                      Deposit
+                    </button>
+                    <button
+                      onClick={handleWithdrawClick}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-700"
+                    >
+                      <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
+                      Withdraw
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Notifications Bell */}
@@ -193,12 +267,37 @@ export function AppShell({ children }: AppShellProps) {
       {/* Bottom Navigation - visible until 1200px */}
       <nav className="max-[1199px]:flex hidden fixed bottom-0 left-0 right-0 bg-surface-850 border-t border-surface-700 z-50">
         <div className="flex items-center h-14 w-full">
-          {/* Balance Display on mobile */}
-          <div className="flex flex-col items-center justify-center h-full px-3 border-r border-surface-700">
-            <WalletIcon className="w-4 h-4 text-surface-400" />
-            <span className="text-[10px] text-surface-200 font-mono mt-0.5">
-              {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
-            </span>
+          {/* Balance Display on mobile with dropdown */}
+          <div className="relative" ref={mobileDropdownRef}>
+            <button
+              onClick={() => setShowWalletDropdown(!showWalletDropdown)}
+              className="flex flex-col items-center justify-center h-14 px-3 border-r border-surface-700 hover:bg-surface-800 transition-colors"
+            >
+              <WalletIcon className="w-4 h-4 text-surface-400" />
+              <span className="text-[10px] text-surface-200 font-mono mt-0.5">
+                {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
+              </span>
+            </button>
+
+            {/* Mobile Dropdown Menu - opens upward */}
+            {showWalletDropdown && (
+              <div className="absolute left-0 bottom-full mb-1 w-40 bg-surface-800 border border-surface-700 rounded-lg shadow-lg overflow-hidden z-50">
+                <button
+                  onClick={handleDepositClick}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
+                >
+                  <FileDownloadIcon sx={{ fontSize: 18 }} className="text-win-400" />
+                  Deposit
+                </button>
+                <button
+                  onClick={handleWithdrawClick}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-700"
+                >
+                  <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
+                  Withdraw
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Nav Items */}
@@ -223,6 +322,13 @@ export function AppShell({ children }: AppShellProps) {
           ))}
         </div>
       </nav>
+
+      {/* Withdraw Modal */}
+      <WithdrawModal
+        isOpen={showWithdrawModal}
+        onClose={() => setShowWithdrawModal(false)}
+        availableBalance={pacificaBalance}
+      />
     </div>
   );
 }

@@ -122,7 +122,7 @@ export default function ProfilePage() {
                 <span className="text-4xl opacity-50">?</span>
               </div>
               <p className="text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
-              <Link href="/trade" className="btn-primary">
+              <Link href="/lobby" className="btn-primary">
                 Back to Arena
               </Link>
             </div>

@@ -156,7 +156,7 @@ export default function FightResultsPage() {
         <div className="min-h-screen bg-surface-900 flex items-center justify-center text-white">
           <div className="text-center">
             <p className="text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
-            <Link href="/trade" className="btn-primary">
+            <Link href="/lobby" className="btn-primary">
               Back to Lobby
             </Link>
           </div>
@@ -228,7 +228,7 @@ export default function FightResultsPage() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
-              href="/trade"
+              href="/lobby"
               className="flex items-center gap-2 text-surface-400 hover:text-white transition-colors"
             >
               <span>←</span>
@@ -329,7 +329,7 @@ export default function FightResultsPage() {
                 ${parseDecimal(participantA?.finalScoreUsdc).toFixed(4)} USDC
               </p>
               <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
-                {participantATrades.length} trades
+                {participantATrades.length || participantA?.tradesCount || 0} trades
               </p>
               {participantA?.externalTradesDetected && (
                 <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantA.externalTradeIds?.join(', ') || 'N/A'}`}>
@@ -376,7 +376,7 @@ export default function FightResultsPage() {
                     ${parseDecimal(participantB?.finalScoreUsdc).toFixed(4)} USDC
                   </p>
                   <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
-                    {participantBTrades.length} trades
+                    {participantBTrades.length || participantB?.tradesCount || 0} trades
                   </p>
                   {participantB?.externalTradesDetected && (
                     <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantB.externalTradeIds?.join(', ') || 'N/A'}`}>
@@ -648,7 +648,7 @@ export default function FightResultsPage() {
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link
-            href="/trade"
+            href="/lobby"
             className="px-6 py-3 bg-surface-700 hover:bg-surface-600 rounded-lg font-semibold text-center transition-colors"
           >
             Back to Lobby

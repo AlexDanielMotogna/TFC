@@ -139,8 +139,39 @@ export default function TradePage() {
   const [showSlippageModal, setShowSlippageModal] = useState(false);
   const [slippageInput, setSlippageInput] = useState('0.5');
 
-  // Bottom tabs
-  const [bottomTab, setBottomTab] = useState<'positions' | 'orders' | 'trades' | 'history'>('positions');
+  // Bottom tabs - with URL persistence
+  type BottomTab = 'positions' | 'orders' | 'trades' | 'history';
+  const VALID_BOTTOM_TABS: BottomTab[] = ['positions', 'orders', 'trades', 'history'];
+
+  const getBottomTabFromUrl = useCallback((): BottomTab => {
+    const tabParam = searchParams?.get('tab');
+    if (tabParam && VALID_BOTTOM_TABS.includes(tabParam as BottomTab)) {
+      return tabParam as BottomTab;
+    }
+    return 'positions';
+  }, [searchParams]);
+
+  const [bottomTab, setBottomTabState] = useState<BottomTab>(getBottomTabFromUrl);
+
+  const setBottomTab = useCallback((tab: BottomTab) => {
+    setBottomTabState(tab);
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    if (tab === 'positions') {
+      params.delete('tab'); // Default tab, no need to show in URL
+    } else {
+      params.set('tab', tab);
+    }
+    const newUrl = params.toString() ? `/trade?${params.toString()}` : '/trade';
+    router.replace(newUrl, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync bottom tab state when URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = getBottomTabFromUrl();
+    if (tabFromUrl !== bottomTab) {
+      setBottomTabState(tabFromUrl);
+    }
+  }, [searchParams, getBottomTabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sort state for tables: { column, desc }
   const [ordersSort, setOrdersSort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
@@ -699,7 +730,7 @@ export default function TradePage() {
       {/* Active Fights Switcher - Shows when user has active fights */}
       <ActiveFightsSwitcher />
 
-      <div className="w-full px-4 py-4">
+      <div className="w-full px-1 py-2">
         {/* Main Trading Terminal - Fixed height boxes with internal scroll */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
           {/* Left column: Order Book + Chart stacked, then Positions below */}

@@ -27,3 +27,5 @@ export type { Notification } from './useNotifications';
 export { useMyPrizes } from './useMyPrizes';
 export type { UserPrize } from './useMyPrizes';
 export { useBetaAccess } from './useBetaAccess';
+export { useUrlState, useMultipleUrlState } from './useUrlState';
+export type { UseUrlStateOptions } from './useUrlState';

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { BetaGate } from '@/components/BetaGate';
@@ -13,10 +14,46 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { toast } from 'sonner';
 
+type ReferralTab = 'overview' | 'referrals' | 'payouts';
+const VALID_TABS: ReferralTab[] = ['overview', 'referrals', 'payouts'];
+
 export default function ReferralsPage() {
   const { token, isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'referrals' | 'payouts'>('overview');
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // Read initial tab from URL or default to 'overview'
+  const getTabFromUrl = useCallback((): ReferralTab => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam as ReferralTab)) {
+      return tabParam as ReferralTab;
+    }
+    return 'overview';
+  }, [searchParams]);
+
+  const [activeTab, setActiveTabState] = useState<ReferralTab>(getTabFromUrl);
+
+  // Update URL when tab changes
+  const setActiveTab = useCallback((tab: ReferralTab) => {
+    setActiveTabState(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'overview') {
+      params.delete('tab'); // Default tab, no need to show in URL
+    } else {
+      params.set('tab', tab);
+    }
+    const newUrl = params.toString() ? `/referrals?${params.toString()}` : '/referrals';
+    router.replace(newUrl, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync tab state when URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = getTabFromUrl();
+    if (tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl);
+    }
+  }, [searchParams, getTabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Set page title
   useEffect(() => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useWalletModal } from '@solana/wallet-adapter-react-ui';
 import { FIGHT_DURATIONS_MINUTES, FIGHT_STAKES_USDC } from '@tfc/shared';
@@ -12,11 +13,14 @@ import { ArenaSkeleton } from '@/components/Skeletons';
 import { BetaGate } from '@/components/BetaGate';
 
 type ArenaTab = 'live' | 'pending' | 'finished' | 'my-fights';
+const VALID_TABS: ArenaTab[] = ['live', 'pending', 'finished', 'my-fights'];
 
 export default function LobbyPage() {
   const { connected, connecting } = useWallet();
   const { setVisible: setWalletModalVisible } = useWalletModal();
   const { isAuthenticated, isAuthenticating, user } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   // Set page title
   useEffect(() => {
@@ -38,8 +42,39 @@ export default function LobbyPage() {
   // Use global socket for real-time updates
   const { isConnected: wsConnected, activeFightsCount } = useGlobalSocket();
 
-  const [activeTab, setActiveTab] = useState<ArenaTab>('live');
+  // Read initial tab from URL or default to 'live'
+  const getTabFromUrl = useCallback((): ArenaTab => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam as ArenaTab)) {
+      return tabParam as ArenaTab;
+    }
+    return 'live';
+  }, [searchParams]);
+
+  const [activeTab, setActiveTabState] = useState<ArenaTab>(getTabFromUrl);
   const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // Update URL when tab changes
+  const setActiveTab = useCallback((tab: ArenaTab) => {
+    setActiveTabState(tab);
+    // Update URL without full page reload
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'live') {
+      params.delete('tab'); // Default tab, no need to show in URL
+    } else {
+      params.set('tab', tab);
+    }
+    const newUrl = params.toString() ? `/lobby?${params.toString()}` : '/lobby';
+    router.replace(newUrl, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync tab state when URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = getTabFromUrl();
+    if (tabFromUrl !== activeTab) {
+      setActiveTabState(tabFromUrl);
+    }
+  }, [searchParams, getTabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedDuration, setSelectedDuration] = useState<number>(FIGHT_DURATIONS_MINUTES[0]);
   const [selectedStake, setSelectedStake] = useState<number>(FIGHT_STAKES_USDC[0]);
   const [isCreating, setIsCreating] = useState(false);
