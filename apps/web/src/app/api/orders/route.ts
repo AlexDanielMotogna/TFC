@@ -4,7 +4,11 @@
  * DELETE /api/orders - Cancel all orders (proxies to Pacifica)
  */
 import { errorResponse, BadRequestError, StakeLimitError } from '@/lib/server/errors';
-import { validateStakeLimit, calculateFightExposure } from '@/lib/server/orders';
+import { validateStakeLimit } from '@/lib/server/orders';
+import {
+  calculateFightExposure,
+  updateMaxExposureIfHigher,
+} from '@/lib/server/fight-exposure';
 import { recordOrderAction } from '@/lib/server/order-actions';
 import { calculateReferralCommissions } from '@/lib/server/services/referral';
 import { prisma, FightStatus } from '@tfc/db';
@@ -565,6 +569,10 @@ async function recordFightTradeWithDetails(
   const totalBought = fightBuysResult._sum.amount ? parseFloat(fightBuysResult._sum.amount.toString()) : 0;
   const totalSold = fightSellsResult._sum.amount ? parseFloat(fightSellsResult._sum.amount.toString()) : 0;
 
+  // TFC net position = totalBought - totalSold (BEFORE this trade)
+  // Positive = LONG opened via TFC, Negative = SHORT opened via TFC
+  const tfcNet = totalBought - totalSold;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // RULE 35 FIX (SIMPLIFIED): Only record fight-relevant trades
   //
@@ -578,7 +586,8 @@ async function recordFightTradeWithDetails(
   // ═══════════════════════════════════════════════════════════════════════════
 
   // Get current Pacifica position for this symbol (AFTER this trade executed)
-  let pacificaPositionAfter = 0;
+  let pacificaPositionAfter: number | null = null;
+  let pacificaFetchFailed = false;
   try {
     const { getPositions } = await import('@/lib/server/pacifica');
     const positions = await getPositions(accountAddress);
@@ -587,22 +596,32 @@ async function recordFightTradeWithDetails(
       const posAmount = parseFloat(pos.amount || '0');
       // Positive for LONG (bid), negative for SHORT (ask)
       pacificaPositionAfter = pos.side === 'ask' ? -posAmount : posAmount;
+    } else {
+      pacificaPositionAfter = 0; // No position found = flat
     }
     console.log('[RULE 35] Pacifica position after trade:', { symbol, pacificaPositionAfter });
   } catch (err) {
     console.error('[RULE 35] Failed to fetch Pacifica position:', err);
+    pacificaFetchFailed = true;
   }
 
   // Calculate position BEFORE this trade executed
   // For SELL: positionBefore = positionAfter + sellAmount
   // For BUY: positionBefore = positionAfter - buyAmount
-  const positionBefore = tradeSide === 'SELL'
-    ? pacificaPositionAfter + tradeAmount
-    : pacificaPositionAfter - tradeAmount;
+  let positionBefore: number;
 
-  // TFC net position = totalBought - totalSold
-  // Positive = LONG opened via TFC, Negative = SHORT opened via TFC
-  const tfcNet = totalBought - totalSold;
+  if (pacificaFetchFailed) {
+    // FALLBACK: When Pacifica API fails, assume all positions are from TFC
+    // This is conservative - it means we record the full trade as fight-relevant
+    // rather than incorrectly excluding it
+    console.warn('[RULE 35] Using TFC net as fallback for position calculation');
+    // Use TFC net as the position before this trade
+    positionBefore = tfcNet;
+  } else {
+    positionBefore = tradeSide === 'SELL'
+      ? pacificaPositionAfter! + tradeAmount
+      : pacificaPositionAfter! - tradeAmount;
+  }
 
   console.log('[RULE 35] Position analysis:', {
     symbol,
@@ -805,7 +824,7 @@ async function recordFightTradeWithDetails(
   // Update maxExposureUsed and emit stake info update via websocket
   try {
     // Calculate current exposure from ALL fight trades (now includes this new trade)
-    const currentExposure = await calculateFightExposure(fight.id, connection.userId);
+    const { currentExposure } = await calculateFightExposure(fight.id, connection.userId);
 
     // Get updated participant data
     const participant = await prisma.fightParticipant.findFirst({
@@ -819,16 +838,17 @@ async function recordFightTradeWithDetails(
     });
 
     if (participant) {
-      let maxExposureUsed = parseFloat(participant.maxExposureUsed?.toString() || '0');
+      const prevMaxExposure = parseFloat(participant.maxExposureUsed?.toString() || '0');
 
-      // Update maxExposureUsed if current exposure is higher (water mark)
-      if (currentExposure > maxExposureUsed) {
-        await prisma.fightParticipant.update({
-          where: { id: participant.id },
-          data: { maxExposureUsed: currentExposure },
-        });
-        console.log(`[MaxExposure] Updated: ${maxExposureUsed.toFixed(2)} -> ${currentExposure.toFixed(2)} USDC`);
-        maxExposureUsed = currentExposure;
+      // Update maxExposureUsed atomically if current exposure is higher (water mark)
+      // This prevents race conditions when multiple trades execute concurrently
+      await updateMaxExposureIfHigher(participant.id, currentExposure);
+
+      // Get the effective max exposure for logging and emit
+      const effectiveMaxExposure = Math.max(prevMaxExposure, currentExposure);
+
+      if (currentExposure > prevMaxExposure) {
+        console.log(`[MaxExposure] Updated: ${prevMaxExposure.toFixed(2)} -> ${currentExposure.toFixed(2)} USDC`);
       }
 
       // Emit real-time stake info update
@@ -837,7 +857,7 @@ async function recordFightTradeWithDetails(
         connection.userId,
         participant.fight.stakeUsdc,
         currentExposure,
-        maxExposureUsed
+        effectiveMaxExposure
       );
     }
   } catch (err) {

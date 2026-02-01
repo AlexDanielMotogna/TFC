@@ -12,6 +12,14 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────────────────────
+// USER ROLES
+// ─────────────────────────────────────────────────────────────
+enum UserRole {
+  USER
+  ADMIN
+}
+
+// ─────────────────────────────────────────────────────────────
 // USERS
 // ─────────────────────────────────────────────────────────────
 model User {
@@ -19,6 +27,7 @@ model User {
   handle        String   @unique
   walletAddress String?  @unique @map("wallet_address")
   avatarUrl     String?  @map("avatar_url")
+  role          UserRole @default(USER)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

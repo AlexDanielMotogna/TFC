@@ -1,10 +1,15 @@
 /**
  * Fight Banner - Active fight status bar
  * Professional, minimal design
+ *
+ * MVP-5: Shows ONLY realized PnL (closed positions)
+ * MVP-6: Warning when open positions exist
+ * @see MVP-SIMPLIFIED-RULES.md
  */
 'use client';
 
 import { useFight } from '@/hooks/useFight';
+import { useFightPositions } from '@/hooks/useFightPositions';
 import { useAuthStore } from '@/lib/store';
 
 export function FightBanner() {
@@ -21,6 +26,10 @@ export function FightBanner() {
     maxSize,
     externalTradesDetected,
   } = useFight();
+
+  // MVP-6: Get open fight positions to show warning
+  const { positions: fightPositions } = useFightPositions(fightId);
+  const hasOpenPositions = fightPositions.length > 0;
 
   // Return empty placeholder with 0 height to avoid layout shifts
   // The component always renders but with height:0 when not active
@@ -113,17 +122,17 @@ export function FightBanner() {
             </span>
           </div>
 
-          {/* Right: PnL + Status */}
+          {/* Right: PnL - MVP-5: Realized only */}
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-3">
-              <div className="text-right">
+              <div className="text-right" title="Realized PnL from closed positions only">
                 <div className="text-xs text-surface-500">You</div>
                 <div className={`font-mono tabular-nums ${myPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>
                   {formatPnl(myPnl)}
                 </div>
               </div>
               <div className="h-6 w-px bg-surface-700" />
-              <div>
+              <div title="Realized PnL from closed positions only">
                 <div className="text-xs text-surface-500">Opp</div>
                 <div className={`font-mono tabular-nums ${opponentPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>
                   {formatPnl(opponentPnl)}
@@ -139,6 +148,16 @@ export function FightBanner() {
             }`}>
               {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
             </div>
+            {/* MVP-6: Open positions warning */}
+            {hasOpenPositions && (
+              <div
+                className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-500 animate-pulse"
+                title="Close positions to lock in PnL! Open positions don't count toward your score."
+              >
+                {fightPositions.length} Open
+              </div>
+            )}
+            {/* External trades warning */}
             {externalTradesDetected && (
               <div className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-500" title="Trades made outside TradeFightClub detected">
                 External Trades

@@ -4,8 +4,10 @@ import { createLogger } from '@tfc/logger';
 import { LOG_EVENTS, WS_EVENTS, PNL_TICK_INTERVAL_MS, type ArenaPnlTickPayload, type PlatformStatsPayload } from '@tfc/shared';
 import { getPrices, getTradeHistory, MarketPrice } from './pacifica-client.js';
 
-// External trades check interval (every 30 seconds)
-const EXTERNAL_TRADES_CHECK_INTERVAL = 30;
+// MVP-9: External trades check moved to end-of-fight only
+// This reduces Pacifica API calls by ~95% during fights
+// @see MVP-SIMPLIFIED-RULES.md
+// const EXTERNAL_TRADES_CHECK_INTERVAL = 30; // Disabled for MVP
 
 // Anti-cheat API configuration
 const WEB_API_URL = process.env.WEB_API_URL || 'http://localhost:3000';
@@ -456,29 +458,18 @@ export class FightEngine {
       },
     });
 
-    // Check for external trades every 30 seconds
-    const shouldCheckExternalTrades = this.tickCount % EXTERNAL_TRADES_CHECK_INTERVAL === 0;
+    // MVP-9: External trades check moved to end-of-fight only
+    // This reduces Pacifica API calls by ~95% during fights
+    // @see MVP-SIMPLIFIED-RULES.md
 
     // Save snapshots every 5 seconds (not every tick to reduce DB load)
     const shouldSaveSnapshot = this.tickCount % SNAPSHOT_SAVE_INTERVAL === 0;
-
-    if (shouldCheckExternalTrades) {
-      logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'External trades check triggered', {
-        tickCount: this.tickCount,
-        liveFightsCount: liveFights.length,
-      });
-    }
 
     // Collect arena PnL data for all live fights
     const arenaPnlData: ArenaPnlTickPayload['fights'] = [];
 
     for (const fight of liveFights) {
       try {
-        // Check for external trades periodically
-        if (shouldCheckExternalTrades && fight.startedAt) {
-          await this.checkExternalTrades(fight);
-        }
-
         const state = await this.calculateFightState(fight);
 
         if (state) {

@@ -5,6 +5,7 @@ export interface User {
   id: string;
   handle: string;
   avatarUrl: string | null;
+  role?: 'USER' | 'ADMIN';
 }
 
 interface AuthState {
@@ -12,6 +13,7 @@ interface AuthState {
   user: User | null;
   walletAddress: string | null; // Store wallet address to detect account changes
   isAuthenticated: boolean;
+  isAdmin: boolean;
   pacificaConnected: boolean;
   _hasHydrated: boolean;
 
@@ -28,6 +30,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       walletAddress: null,
       isAuthenticated: false,
+      isAdmin: false,
       pacificaConnected: false,
       _hasHydrated: false,
 
@@ -37,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
           user,
           walletAddress,
           isAuthenticated: true,
+          isAdmin: user.role === 'ADMIN',
           pacificaConnected,
         }),
 
@@ -49,6 +53,7 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           walletAddress: null,
           isAuthenticated: false,
+          isAdmin: false,
           pacificaConnected: false,
         }),
 
@@ -61,6 +66,7 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         walletAddress: state.walletAddress,
         isAuthenticated: state.isAuthenticated,
+        isAdmin: state.isAdmin,
         pacificaConnected: state.pacificaConnected,
       }),
       onRehydrateStorage: () => (state) => {
