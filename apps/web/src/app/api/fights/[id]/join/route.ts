@@ -67,6 +67,32 @@ export async function POST(
         throw new BadRequestError('Fight is already full');
       }
 
+      // MVP-1: Check if user already has an active fight (LIVE or WAITING)
+      // @see MVP-SIMPLIFIED-RULES.md
+      const existingFight = await prisma.fightParticipant.findFirst({
+        where: {
+          userId: user.userId,
+          fight: {
+            status: { in: ['LIVE', 'WAITING'] },
+          },
+        },
+        include: {
+          fight: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      if (existingFight) {
+        const status = existingFight.fight.status === 'LIVE' ? 'active' : 'pending';
+        throw new BadRequestError(
+          `You already have a ${status} fight. Finish or cancel it before joining another.`
+        );
+      }
+
       // Anti-cheat: Check if users can be matched (repeated matchup limit)
       const matchCheck = await canUsersMatch(fight.creatorId, user.userId);
       if (!matchCheck.canMatch) {

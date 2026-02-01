@@ -115,6 +115,32 @@ export async function POST(request: Request) {
         throw new BadRequestError('Active Pacifica connection required');
       }
 
+      // MVP-1: Check if user already has an active fight (LIVE or WAITING)
+      // @see MVP-SIMPLIFIED-RULES.md
+      const existingFight = await prisma.fightParticipant.findFirst({
+        where: {
+          userId: user.userId,
+          fight: {
+            status: { in: ['LIVE', 'WAITING'] },
+          },
+        },
+        include: {
+          fight: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      if (existingFight) {
+        const status = existingFight.fight.status === 'LIVE' ? 'active' : 'pending';
+        throw new BadRequestError(
+          `You already have a ${status} fight. Finish or cancel it before starting a new one.`
+        );
+      }
+
       // Snapshot creator's current positions from Pacifica
       // This is critical to exclude pre-fight positions from PnL calculation
       // IMPORTANT: We save 'side' to distinguish LONG (bid) vs SHORT (ask) positions

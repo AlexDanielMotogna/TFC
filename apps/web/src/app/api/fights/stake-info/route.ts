@@ -5,9 +5,15 @@
  *
  * If fightId is provided, returns info for that specific fight
  * Otherwise, returns info for any active fight the user is in
+ *
+ * @see MVP-SIMPLIFIED-RULES.md - Stake Limit section
  */
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
 import { prisma, FightStatus } from '@tfc/db';
+import {
+  calculateFightExposure,
+  calculateAvailableCapital,
+} from '@/lib/server/fight-exposure';
 
 export async function GET(request: Request) {
   try {
@@ -75,90 +81,23 @@ export async function GET(request: Request) {
       });
     }
 
-    // Calculate current exposure from FightTrade records for THIS specific fight
-    // This ensures each fight has independent exposure tracking
-    const fightTrades = await prisma.fightTrade.findMany({
-      where: {
-        fightId: participant.fight.id,
-        participantUserId: connection.userId,
-      },
-    });
-
-    // Calculate net position per symbol from fight trades
-    const positionsBySymbol: Record<string, { amount: number; totalNotional: number }> = {};
-
-    for (const trade of fightTrades) {
-      const symbol = trade.symbol;
-      const amount = parseFloat(trade.amount.toString());
-      const price = parseFloat(trade.price.toString());
-
-      if (!positionsBySymbol[symbol]) {
-        positionsBySymbol[symbol] = { amount: 0, totalNotional: 0 };
-      }
-
-      const pos = positionsBySymbol[symbol];
-
-      if (trade.side === 'BUY') {
-        // Opening/adding to LONG, or closing SHORT
-        if (pos.amount < 0) {
-          // Closing SHORT position
-          const shortToClose = Math.min(amount, Math.abs(pos.amount));
-          const longToOpen = amount - shortToClose;
-          // Reduce short notional proportionally
-          if (Math.abs(pos.amount) > 0) {
-            const avgShortEntry = pos.totalNotional / Math.abs(pos.amount);
-            pos.totalNotional -= shortToClose * avgShortEntry;
-          }
-          // Add new long notional if opening long
-          if (longToOpen > 0) {
-            pos.totalNotional += longToOpen * price;
-          }
-        } else {
-          // Opening/adding to LONG
-          pos.totalNotional += amount * price;
-        }
-        pos.amount += amount;
-      } else {
-        // SELL: Opening/adding to SHORT, or closing LONG
-        if (pos.amount > 0) {
-          // Closing LONG position
-          const longToClose = Math.min(amount, pos.amount);
-          const shortToOpen = amount - longToClose;
-          // Reduce long notional proportionally
-          if (pos.amount > 0) {
-            const avgLongEntry = pos.totalNotional / pos.amount;
-            pos.totalNotional -= longToClose * avgLongEntry;
-          }
-          // Add new short notional if opening short
-          if (shortToOpen > 0) {
-            pos.totalNotional += shortToOpen * price;
-          }
-        } else {
-          // Opening/adding to SHORT
-          pos.totalNotional += amount * price;
-        }
-        pos.amount -= amount;
-      }
-    }
-
-    // Current exposure = sum of absolute notional values of open positions from THIS fight
-    const currentExposure = Object.values(positionsBySymbol).reduce((sum: number, pos: any) => {
-      // Only count if there's still an open position
-      if (Math.abs(pos.amount) < 0.0000001) {
-        return sum;
-      }
-      return sum + Math.abs(pos.totalNotional);
-    }, 0);
+    // Calculate current exposure using centralized utility
+    const { currentExposure } = await calculateFightExposure(
+      participant.fight.id,
+      connection.userId
+    );
 
     const stake = participant.fight.stakeUsdc;
-    // maxExposureUsed tracks the highest exposure ever reached during the fight
-    // This never decreases, even when positions are closed
-    const maxExposureUsed = parseFloat(participant.maxExposureUsed?.toString() || '0');
-    // Available = stake - maxExposureUsed + currentExposure
-    // Because capital in open positions can be "reused" (it's already counted in maxExposureUsed)
-    // Example: stake=$100, maxUsed=$80, current=$80 → available=$100 (can close and reopen up to $100)
-    // Example: stake=$100, maxUsed=$80, current=$0 → available=$20 (already used $80, only $20 left)
-    const available = Math.max(0, stake - maxExposureUsed + currentExposure);
+    const maxExposureUsed = parseFloat(
+      participant.maxExposureUsed?.toString() || '0'
+    );
+
+    // Calculate available capital using centralized formula
+    const available = calculateAvailableCapital(
+      stake,
+      maxExposureUsed,
+      currentExposure
+    );
 
     return Response.json({
       success: true,
@@ -166,8 +105,8 @@ export async function GET(request: Request) {
         inFight: true,
         fightId: participant.fight.id,
         stake,
-        currentExposure,  // Still useful to show actual position size
-        maxExposureUsed,  // The actual limit tracker
+        currentExposure,
+        maxExposureUsed,
         available,
       },
     });

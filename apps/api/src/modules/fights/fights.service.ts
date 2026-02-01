@@ -37,12 +37,44 @@ export class FightsService {
   /**
    * Create a new fight
    * @see Master-doc.md Section 2
+   * @see MVP-SIMPLIFIED-RULES.md - MVP-1: One active fight per user
    */
   async createFight(params: {
     creatorId: string;
     durationMinutes: number;
     stakeUsdc: number;
   }) {
+    // MVP-1: Check if user already has an active fight (LIVE or WAITING)
+    const existingFight = await prisma.fightParticipant.findFirst({
+      where: {
+        userId: params.creatorId,
+        fight: {
+          status: { in: [FightStatus.LIVE, FightStatus.WAITING] },
+        },
+      },
+      include: {
+        fight: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (existingFight) {
+      const status = existingFight.fight.status === FightStatus.LIVE ? 'active' : 'pending';
+      logger.warn(LOG_EVENTS.FIGHT_JOIN_REJECTED, 'User already has an active fight', {
+        userId: params.creatorId,
+        existingFightId: existingFight.fight.id,
+        existingStatus: existingFight.fight.status,
+      });
+      throw new HttpException(
+        `You already have a ${status} fight. Finish or cancel it before starting a new one.`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
+
     // Validate duration
     if (!FIGHT_DURATIONS_MINUTES.includes(params.durationMinutes as FightDuration)) {
       throw new HttpException(
@@ -111,6 +143,7 @@ export class FightsService {
   /**
    * Join an existing fight
    * @see Master-doc.md Section 9.4 - Validations
+   * @see MVP-SIMPLIFIED-RULES.md - MVP-1: One active fight per user
    */
   async joinFight(fightId: string, userId: string) {
     updateContext({ fightId, userId });
@@ -119,6 +152,38 @@ export class FightsService {
       fightId,
       userId,
     });
+
+    // MVP-1: Check if user already has an active fight (LIVE or WAITING)
+    const existingFight = await prisma.fightParticipant.findFirst({
+      where: {
+        userId,
+        fight: {
+          status: { in: [FightStatus.LIVE, FightStatus.WAITING] },
+        },
+      },
+      include: {
+        fight: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (existingFight) {
+      const status = existingFight.fight.status === FightStatus.LIVE ? 'active' : 'pending';
+      logger.warn(LOG_EVENTS.FIGHT_JOIN_REJECTED, 'User already has an active fight', {
+        fightId,
+        userId,
+        existingFightId: existingFight.fight.id,
+        existingStatus: existingFight.fight.status,
+      });
+      throw new HttpException(
+        `You already have a ${status} fight. Finish or cancel it before joining another.`,
+        HttpStatus.BAD_REQUEST
+      );
+    }
 
     // Get fight with participants
     const fight = await prisma.fight.findUnique({
