@@ -629,6 +629,11 @@ apps/web/src/
 | POST | `/api/admin/fights/[id]/cancel` | Force cancel | Medium |
 | POST | `/api/admin/fights/[id]/finish` | Force finish | Medium |
 | POST | `/api/admin/fights/[id]/resolve` | Manual resolution | **High** |
+| POST | `/api/admin/fights/[id]/no-contest` | Force NO_CONTEST | **High** |
+| POST | `/api/admin/fights/[id]/restore` | Restore from NO_CONTEST | Medium |
+| GET | `/api/admin/anti-cheat/stats` | Violation statistics | Medium |
+| GET | `/api/admin/anti-cheat/violations` | List all violations | Medium |
+| GET | `/api/admin/anti-cheat/suspicious-users` | Users with violations | Medium |
 | GET | `/api/admin/trades` | Trade list + analytics | Low |
 | POST | `/api/admin/leaderboard/refresh` | Manual refresh | Low |
 | GET | `/api/admin/prize-pool` | All prize pools | Low |
@@ -656,7 +661,8 @@ All protected with `withAdminAuth`.
 2. User ban/unban endpoints
 3. User delete endpoint
 4. Fight manual resolve endpoint
-5. Add action buttons to existing admin pages
+5. Force NO_CONTEST / Restore endpoints
+6. Add action buttons to existing admin pages
 
 ### Phase 2: Core Pages (Original Plan)
 6. Complete user list/detail pages
@@ -668,10 +674,178 @@ All protected with `withAdminAuth`.
 10. Jobs monitor
 11. System health
 12. Leaderboard management
+13. Anti-cheat dashboard + violation stats
+14. Suspicious users / IP analysis
 
 ---
 
-## 13. Verification
+## 13. Anti-Cheat Monitoring & Management
+
+### Current Implementation
+
+The anti-cheat system is already implemented with 5 rules:
+
+| Rule Code | Rule Name | Trigger | Action |
+|-----------|-----------|---------|--------|
+| ZERO_ZERO | No Activity | Both players PnL ≈ $0 or 0 trades | NO_CONTEST |
+| MIN_VOLUME | Minimum Volume | Either player volume < $10 | NO_CONTEST |
+| REPEATED_MATCHUP | Same Pair | Same users fight ≥3x in 24h | NO_CONTEST |
+| SAME_IP_PATTERN | Shared IP | Both players same IP + pattern | NO_CONTEST |
+| EXTERNAL_TRADES | Outside Trading | Trades made outside TFC during fight | FLAGGED |
+
+### Database Models
+
+**AntiCheatViolation** (already exists):
+```prisma
+model AntiCheatViolation {
+  id          String   @id @default(uuid())
+  fightId     String   @map("fight_id")
+  ruleCode    String   @map("rule_code")    // ZERO_ZERO, MIN_VOLUME, etc.
+  ruleName    String   @map("rule_name")
+  ruleMessage String   @map("rule_message")
+  metadata    Json?                          // Rule-specific context
+  actionTaken String   @map("action_taken")  // NO_CONTEST or FLAGGED
+  createdAt   DateTime @default(now())
+
+  fight Fight @relation(fields: [fightId], references: [id])
+}
+```
+
+**FightSession** (IP tracking, already exists):
+```prisma
+model FightSession {
+  id          String   @id @default(uuid())
+  fightId     String   @map("fight_id")
+  userId      String   @map("user_id")
+  ipAddress   String   @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  sessionType String   @map("session_type")  // "join" or "trade"
+  createdAt   DateTime @default(now())
+}
+```
+
+### Existing Admin Endpoints
+
+| Method | Route | Purpose | Status |
+|--------|-------|---------|--------|
+| GET | `/api/admin/fights` | Returns `violationsCount` per fight | ✅ Exists |
+| GET | `/api/admin/fights/[id]` | Returns full `violations[]` and `sessions[]` | ✅ Exists |
+
+### Missing Admin Features
+
+#### New Admin Page: `/admin/anti-cheat`
+
+**Dashboard Stats:**
+- Total violations (all-time, 24h, 7d)
+- Violations by rule (pie chart)
+- NO_CONTEST rate (% of fights)
+- Suspicious users (multiple violations)
+
+**Violations Table:**
+- List all violations with pagination
+- Columns: Fight ID, Rule, Action, User(s), Date
+- Filter by: rule code, action taken, date range
+- Link to fight detail
+
+**Suspicious Users Tab:**
+- Users with multiple violations
+- Columns: User, Violation Count, Most Common Rule, Last Violation
+- Click to view user detail
+
+**IP Analysis Tab:**
+- Same-IP matchups grouped
+- Shows user pairs that share IPs
+- Helps identify multi-accounting
+
+### New API Endpoints
+
+| Method | Route | Purpose | Priority |
+|--------|-------|---------|----------|
+| GET | `/api/admin/anti-cheat/stats` | Violation statistics | Medium |
+| GET | `/api/admin/anti-cheat/violations` | List all violations | Medium |
+| GET | `/api/admin/anti-cheat/suspicious-users` | Users with violations | Medium |
+| GET | `/api/admin/anti-cheat/ip-analysis` | IP pattern analysis | Low |
+| POST | `/api/admin/fights/[id]/no-contest` | Force NO_CONTEST | **High** |
+| POST | `/api/admin/fights/[id]/restore` | Restore to FINISHED | **High** |
+
+### POST `/api/admin/fights/[id]/no-contest` Request
+```typescript
+{
+  reason: string,           // Required admin note
+  ruleCode?: string,        // Optional: which rule to attribute
+  excludeFromLeaderboard: boolean  // Default true
+}
+```
+
+### POST `/api/admin/fights/[id]/restore` Request
+```typescript
+{
+  reason: string            // Required admin note
+}
+```
+Restores a NO_CONTEST fight back to FINISHED (rare, for false positives).
+
+### Configuration Management
+
+**Environment Variables (document in System page):**
+```
+ANTI_CHEAT_ZERO_PNL_THRESHOLD_USDC=0.01
+ANTI_CHEAT_MIN_NOTIONAL_PER_PLAYER=10
+ANTI_CHEAT_MAX_MATCHUPS_PER_24H=3
+ANTI_CHEAT_MATCHUP_WINDOW_HOURS=24
+ANTI_CHEAT_IP_SAME_PAIR_THRESHOLD=2
+```
+
+**Future: Live Configuration**
+- Store thresholds in database instead of env vars
+- Admin UI to adjust thresholds without redeployment
+- Audit log for configuration changes
+
+### Fight Detail Enhancements
+
+The fight detail page (`/admin/fights/[id]`) should show:
+
+1. **Anti-Cheat Warning Box** (if violations exist):
+   - Red banner with violation count
+   - List each violation: rule name + message
+   - Action taken badge (NO_CONTEST / FLAGGED)
+
+2. **Sessions Tab**:
+   - Table with: User, Session Type, IP Address, User Agent, Time
+   - Highlight matching IPs in same color
+   - Show geographic location (if IP geolocation available)
+
+3. **Admin Actions**:
+   - "Mark as NO_CONTEST" button (for FINISHED fights with issues)
+   - "Restore to FINISHED" button (for false positive NO_CONTEST)
+   - Both require reason text
+
+### Updated File Structure
+
+```
+apps/web/src/
+├── app/admin/
+│   ├── anti-cheat/
+│   │   └── page.tsx            # Anti-cheat dashboard (NEW)
+│   ├── fights/
+│   │   └── [id]/page.tsx       # Enhanced with violations UI
+│   └── ...
+├── app/api/admin/
+│   ├── anti-cheat/
+│   │   ├── stats/route.ts      # GET stats (NEW)
+│   │   ├── violations/route.ts # GET list (NEW)
+│   │   ├── suspicious-users/route.ts  # (NEW)
+│   │   └── ip-analysis/route.ts       # (NEW)
+│   ├── fights/
+│   │   └── [id]/
+│   │       ├── no-contest/route.ts    # POST (NEW)
+│   │       └── restore/route.ts       # POST (NEW)
+│   └── ...
+```
+
+---
+
+## 14. Verification
 
 - Run `npx prisma migrate dev` after schema change — verify migration succeeds
 - Test admin auth: connect with admin wallet → verify JWT contains `role: 'ADMIN'`
@@ -681,8 +855,12 @@ All protected with `withAdminAuth`.
 - Test user ban/unban/delete functionality
 - Test fight manual resolution
 - Test force cancel/finish on a fight
+- Test anti-cheat dashboard shows violation stats
+- Test force NO_CONTEST on a valid fight
+- Test restore NO_CONTEST fight to FINISHED
 - Test leaderboard manual refresh
 - Test prize pool finalize/distribute
 - Verify job health checks display correctly
 - Verify existing user-facing functionality is unaffected
 - Verify banned users cannot access the platform
+- Verify NO_CONTEST fights are excluded from leaderboard
