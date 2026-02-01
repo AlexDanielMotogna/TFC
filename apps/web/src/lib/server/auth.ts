@@ -10,6 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production'
 export interface JwtPayload {
   sub: string; // userId
   walletAddress: string;
+  role?: 'USER' | 'ADMIN'; // Optional for backwards compatibility
   iat?: number;
   exp?: number;
 }
@@ -17,11 +18,16 @@ export interface JwtPayload {
 /**
  * Generate a JWT token for a user
  */
-export function generateToken(userId: string, walletAddress: string): string {
+export function generateToken(
+  userId: string,
+  walletAddress: string,
+  role: 'USER' | 'ADMIN' = 'USER'
+): string {
   return jwt.sign(
     {
       sub: userId,
       walletAddress,
+      role,
     },
     JWT_SECRET,
     { expiresIn: '7d' }

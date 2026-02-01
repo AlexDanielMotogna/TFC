@@ -22,7 +22,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/client": "^6.1.0"
+    "@prisma/client": "^6.19.2"
   },
   "devDependencies": {
     "@tfc/tsconfig": "*",
