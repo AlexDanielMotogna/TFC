@@ -4,7 +4,7 @@
  */
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSearchParams } from 'next/navigation';
@@ -112,12 +112,10 @@ export function useStakeInfo() {
     };
   }, [fightId, connected, token, queryClient]);
 
-  // Clear realtime data when REST data updates (to prevent stale realtime data)
-  useEffect(() => {
-    if (data) {
-      setRealtimeData(null);
-    }
-  }, [data?.maxExposureUsed, data?.currentExposure]);
+  // Note: We no longer clear realtimeData when REST data updates
+  // The websocket updates should take priority and persist until component unmounts
+  // This was causing Bug: capital not updating after trades
+  // Old behavior cleared realtimeData when REST refetch triggered, losing websocket updates
 
   // Merge REST data with real-time updates (real-time takes priority)
   const mergedData = realtimeData

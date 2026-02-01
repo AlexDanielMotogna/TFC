@@ -108,10 +108,22 @@ async function calculateUnrealizedPnlFromFightTrades(
           const closeAmount = Math.min(amount, absShort);
           const openAmount = amount - closeAmount;
 
-          // Only count pnl proportionally if partially closing
+          // Calculate PnL for closing portion
+          // If Pacifica's pnl is null, calculate it ourselves from entry/exit prices
           if (closeAmount > 0) {
-            const pnlPortion = closeAmount / amount;
-            realizedPnl += tradePnl * pnlPortion;
+            const avgShortEntry = absShort > 0 ? positionsBySymbol[symbol].totalCost / absShort : price;
+            let closingPnl: number;
+
+            if (tradePnl !== 0) {
+              // Use Pacifica's pnl, adjusted for partial close
+              const pnlPortion = closeAmount / amount;
+              closingPnl = tradePnl * pnlPortion;
+            } else {
+              // Calculate PnL ourselves: SHORT profits when price goes DOWN
+              // PnL = (entryPrice - exitPrice) * closeAmount
+              closingPnl = (avgShortEntry - price) * closeAmount;
+            }
+            realizedPnl += closingPnl;
           }
 
           // Reduce SHORT proportionally
@@ -138,10 +150,24 @@ async function calculateUnrealizedPnlFromFightTrades(
           const closeAmount = Math.min(amount, positionsBySymbol[symbol].amount);
           const openAmount = amount - closeAmount;
 
-          // Only count pnl proportionally if partially closing
+          // Calculate PnL for closing portion
+          // If Pacifica's pnl is null, calculate it ourselves from entry/exit prices
           if (closeAmount > 0) {
-            const pnlPortion = closeAmount / amount;
-            realizedPnl += tradePnl * pnlPortion;
+            const avgLongEntry = positionsBySymbol[symbol].amount > 0
+              ? positionsBySymbol[symbol].totalCost / positionsBySymbol[symbol].amount
+              : price;
+            let closingPnl: number;
+
+            if (tradePnl !== 0) {
+              // Use Pacifica's pnl, adjusted for partial close
+              const pnlPortion = closeAmount / amount;
+              closingPnl = tradePnl * pnlPortion;
+            } else {
+              // Calculate PnL ourselves: LONG profits when price goes UP
+              // PnL = (exitPrice - entryPrice) * closeAmount
+              closingPnl = (price - avgLongEntry) * closeAmount;
+            }
+            realizedPnl += closingPnl;
           }
 
           // Reduce LONG proportionally

@@ -154,22 +154,26 @@ export function useCreateMarketOrder() {
         queryClient.invalidateQueries({ queryKey: ['stake-info'] });
 
         // Invalidate frequently to catch the recorded FightTrade as soon as possible
+        // Backend takes 500-1500ms+ to fetch execution details from Pacifica
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+          queryClient.invalidateQueries({ queryKey: ['stake-info'] });
         }, 500);
 
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+          queryClient.invalidateQueries({ queryKey: ['stake-info'] });
         }, 1500);
 
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+          queryClient.invalidateQueries({ queryKey: ['stake-info'] });
         }, 3000);
       }
 
