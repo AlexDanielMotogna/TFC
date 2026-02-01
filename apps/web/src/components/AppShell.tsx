@@ -14,7 +14,6 @@ import { WithdrawModal } from '@/components/WithdrawModal';
 import { MobilePhantomRedirect } from '@/components/MobilePhantomRedirect';
 import { api } from '@/lib/api';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
-import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -128,7 +127,7 @@ export function AppShell({ children }: AppShellProps) {
   // Navigation items
   const navItems: NavItem[] = [
     { href: '/trade', label: 'Trade', icon: <ShowChartIcon sx={{ fontSize: 20 }} /> },
-    { href: '/lobby', label: 'Arena', icon: <SportsKabaddiIcon sx={{ fontSize: 20 }} /> },
+    { href: '/lobby', label: 'Arena', icon: <span className="text-lg leading-none">⚔</span> },
     { href: '/leaderboard', label: 'Leaderboard', icon: <LeaderboardIcon sx={{ fontSize: 20 }} />, prefetch: prefetchLeaderboard },
   ];
 
