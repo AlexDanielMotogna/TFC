@@ -54,13 +54,17 @@ interface PositionsProps {
   onClosePosition?: (positionId: string, closeType?: 'market' | 'limit' | 'flip', params?: LimitCloseParams | MarketCloseParams) => void;
   onSetTpSl?: (params: TpSlParams) => Promise<void>;
   onCancelOrder?: (orderId: string, symbol: string, orderType: string) => Promise<void>;
+  /** Close all positions at once */
+  onCloseAll?: () => Promise<void>;
+  /** Whether close all is in progress */
+  isClosingAll?: boolean;
   /** When true, hides close buttons and shows info banner (for fight-only view) */
   readOnly?: boolean;
   /** Optional message to show when in read-only mode */
   readOnlyMessage?: string;
 }
 
-export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder, readOnly = false, readOnlyMessage }: PositionsProps) {
+export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder, onCloseAll, isClosingAll, readOnly = false, readOnlyMessage }: PositionsProps) {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closingType, setClosingType] = useState<'market' | 'limit' | 'flip' | null>(null);
   const [marketClosePosition, setMarketClosePosition] = useState<Position | null>(null);
