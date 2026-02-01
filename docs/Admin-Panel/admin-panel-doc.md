@@ -341,16 +341,348 @@ Display last check time and refresh status every 30s
 
 All protected with `withAdminAuth`.
 
+
+## 7. Beta Access Management (`/admin/beta`)
+
+### Current State
+The `BetaWhitelist` model already exists with a `status` field (pending/approved/rejected).
+
+### Schema (Already Exists)
+```prisma
+model BetaWhitelist {
+  id            String    @id @default(uuid())
+  walletAddress String    @unique @map("wallet_address")
+  status        String    @default("pending") // pending, approved, rejected
+  appliedAt     DateTime  @default(now()) @map("applied_at")
+  approvedAt    DateTime? @map("approved_at")
+
+  @@map("beta_whitelist")
+}
+```
+
+### Admin Page Features
+- List all beta applications with status badges (pending/approved/rejected)
+- Search by wallet address
+- Filter by status
+- Bulk approve/reject actions
+- Single-click approve/reject buttons per row
+
+### API Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| GET | `/api/admin/beta` | List all beta applications with pagination |
+| PATCH | `/api/admin/beta/[wallet]` | Update beta status (approve/reject) |
+| POST | `/api/admin/beta/bulk` | Bulk approve/reject multiple applications |
+
+### PATCH `/api/admin/beta/[wallet]` Request
+```typescript
+{
+  status: 'approved' | 'rejected'
+}
+```
+
+### Response
+```typescript
+{
+  success: boolean,
+  walletAddress: string,
+  status: string,
+  approvedAt?: string  // ISO date if approved
+}
+```
+
 ---
 
-## 7. Verification
+## 8. User Account Management (Ban/Delete)
+
+### Schema Change Required
+
+Add `UserStatus` enum and status fields to User model in `packages/db/prisma/schema.prisma`:
+
+```prisma
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
+model User {
+  // ... existing fields ...
+  status       UserStatus @default(ACTIVE)
+  bannedAt     DateTime?  @map("banned_at")
+  bannedReason String?    @map("banned_reason")
+  deletedAt    DateTime?  @map("deleted_at")
+}
+```
+
+### User Management Actions
+
+#### Ban User
+- Sets `status: BANNED`
+- Records `bannedAt` timestamp and optional `bannedReason`
+- User cannot log in or perform any actions while banned
+- All active fights are cancelled
+- User is removed from leaderboards
+
+#### Unban User
+- Sets `status: ACTIVE`
+- Clears `bannedAt` and `bannedReason`
+- User can resume normal activity
+
+#### Delete User (Soft Delete)
+- Sets `status: DELETED` and `deletedAt` timestamp
+- Preserves data for audit trail
+- User cannot log in
+- Handle becomes available after 30 days (optional)
+- Consider GDPR: provide hard delete option for EU users
+
+### API Endpoints
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/api/admin/users/[id]/ban` | Ban a user |
+| POST | `/api/admin/users/[id]/unban` | Unban a user |
+| DELETE | `/api/admin/users/[id]` | Soft delete user account |
+| DELETE | `/api/admin/users/[id]?hard=true` | Hard delete (GDPR) |
+
+### POST `/api/admin/users/[id]/ban` Request
+```typescript
+{
+  reason?: string  // Optional ban reason for audit
+}
+```
+
+### Response
+```typescript
+{
+  success: boolean,
+  userId: string,
+  status: 'BANNED',
+  bannedAt: string,
+  bannedReason?: string,
+  cancelledFights: number  // Count of fights cancelled due to ban
+}
+```
+
+### UI Implementation
+- Add "Ban" and "Delete" buttons to user detail page
+- Confirmation modal for destructive actions
+- Show ban reason input field
+- Display ban status badge on user list/detail
+- Show deleted users in separate tab (hidden by default)
+
+---
+
+## 9. Fight Manual Resolution
+
+### Current State
+Fights are resolved automatically by the realtime engine (`apps/realtime/src/fight-engine.ts`). However, some fights may fail to resolve due to:
+- Realtime server downtime
+- Network issues during resolution
+- Anti-cheat API failures
+- Edge cases in PnL calculation
+
+### Manual Resolution Endpoint
+
+Allows admin to manually resolve a fight that failed automatic resolution.
+
+### API Endpoint
+
+| Method | Route | Purpose |
+|--------|-------|---------|
+| POST | `/api/admin/fights/[id]/resolve` | Manually resolve a failed fight |
+
+### POST `/api/admin/fights/[id]/resolve` Request
+```typescript
+{
+  status: 'FINISHED' | 'NO_CONTEST' | 'CANCELLED',
+  winnerId?: string | null,  // null for draw or NO_CONTEST
+  isDraw?: boolean,          // true for draw result
+  reason?: string            // Admin note for audit trail
+}
+```
+
+### Resolution Logic
+
+1. **Validate fight exists and is in LIVE status** (or stuck state)
+2. **If status = FINISHED:**
+   - Require `winnerId` OR `isDraw: true`
+   - Update `FightParticipant` records with final scores
+   - Set `endedAt` to current timestamp
+3. **If status = NO_CONTEST:**
+   - Fight excluded from rankings
+   - No winner determined
+   - Create `AntiCheatViolation` record with admin reason
+4. **If status = CANCELLED:**
+   - Fight completely cancelled
+   - No impact on rankings or stats
+5. **Broadcast via WebSocket:**
+   - Emit `FIGHT_FINISHED` or `FIGHT_CANCELLED` event
+   - Update arena subscribers
+6. **Create audit log entry** with admin userId and reason
+
+### Response
+```typescript
+{
+  success: boolean,
+  fightId: string,
+  previousStatus: string,
+  newStatus: string,
+  winnerId?: string,
+  isDraw: boolean,
+  resolvedBy: string,  // Admin userId
+  resolvedAt: string   // ISO timestamp
+}
+```
+
+### UI Implementation
+- Add "Resolve" button to fight detail page (only for LIVE fights past `endedAt`)
+- Modal with options:
+  - Select winner from participants dropdown
+  - Mark as draw checkbox
+  - Mark as NO_CONTEST option
+  - Cancel fight option
+  - Reason text field (required)
+- Show resolution history/audit trail on fight detail
+
+### Stuck Fight Detection
+Add to Jobs Monitor page:
+- Count of LIVE fights past `endedAt + 5 minutes`
+- Alert badge when stuck fights exist
+- Quick link to fight list filtered by stuck status
+
+---
+
+## 10. Updated File Structure
+
+```
+apps/web/src/
+├── app/admin/
+│   ├── layout.tsx
+│   ├── page.tsx                # Dashboard
+│   ├── beta/
+│   │   └── page.tsx            # Beta access management (NEW)
+│   ├── users/
+│   │   ├── page.tsx            # User list with ban/delete actions
+│   │   └── [id]/page.tsx       # User detail with actions
+│   ├── fights/
+│   │   ├── page.tsx            # Fight list with resolve action
+│   │   └── [id]/page.tsx       # Fight detail with resolve modal
+│   ├── trades/page.tsx
+│   ├── leaderboard/page.tsx
+│   ├── prize-pool/page.tsx
+│   ├── jobs/page.tsx
+│   ├── system/page.tsx
+│   └── referrals/page.tsx
+├── app/api/admin/
+│   ├── stats/route.ts
+│   ├── beta/
+│   │   ├── route.ts            # GET list, POST bulk (NEW)
+│   │   └── [wallet]/route.ts   # PATCH status (NEW)
+│   ├── users/
+│   │   ├── route.ts
+│   │   └── [id]/
+│   │       ├── route.ts
+│   │       ├── ban/route.ts    # POST ban (NEW)
+│   │       └── unban/route.ts  # POST unban (NEW)
+│   ├── fights/
+│   │   ├── route.ts
+│   │   └── [id]/
+│   │       ├── route.ts
+│   │       ├── cancel/route.ts
+│   │       ├── finish/route.ts
+│   │       └── resolve/route.ts  # POST resolve (NEW)
+│   ├── trades/route.ts
+│   ├── leaderboard/refresh/route.ts
+│   ├── prize-pool/
+│   │   ├── route.ts
+│   │   ├── distribute/route.ts
+│   │   └── finalize/route.ts
+│   ├── jobs/status/route.ts
+│   ├── system/health/route.ts
+│   ├── referrals/
+│   │   ├── route.ts
+│   │   ├── stats/route.ts
+│   │   └── payout/route.ts
+│   └── ...
+```
+
+---
+
+## 11. Updated API Endpoints Summary
+
+| Method | Route | Purpose | Priority |
+|--------|-------|---------|----------|
+| GET | `/api/admin/stats` | Dashboard aggregated stats | Medium |
+| GET | `/api/admin/beta` | List beta applications | **High** |
+| PATCH | `/api/admin/beta/[wallet]` | Approve/reject beta | **High** |
+| POST | `/api/admin/beta/bulk` | Bulk approve/reject | Medium |
+| GET | `/api/admin/users` | List/search users | Medium |
+| GET | `/api/admin/users/[id]` | User detail with relations | Medium |
+| PATCH | `/api/admin/users/[id]` | Update user role | Medium |
+| POST | `/api/admin/users/[id]/ban` | Ban user | **High** |
+| POST | `/api/admin/users/[id]/unban` | Unban user | **High** |
+| DELETE | `/api/admin/users/[id]` | Delete user account | **High** |
+| GET | `/api/admin/fights` | List/filter fights | Medium |
+| GET | `/api/admin/fights/[id]` | Fight detail with trades | Medium |
+| POST | `/api/admin/fights/[id]/cancel` | Force cancel | Medium |
+| POST | `/api/admin/fights/[id]/finish` | Force finish | Medium |
+| POST | `/api/admin/fights/[id]/resolve` | Manual resolution | **High** |
+| GET | `/api/admin/trades` | Trade list + analytics | Low |
+| POST | `/api/admin/leaderboard/refresh` | Manual refresh | Low |
+| GET | `/api/admin/prize-pool` | All prize pools | Low |
+| POST | `/api/admin/prize-pool/distribute` | Distribute prizes | Low |
+| POST | `/api/admin/prize-pool/finalize` | Force finalize | Low |
+| GET | `/api/admin/jobs/status` | Job health checks | Low |
+| GET | `/api/admin/system/health` | Service health status | Low |
+| GET | `/api/admin/referrals` | List referrers | Low |
+| GET | `/api/admin/referrals/stats` | Referral stats | Low |
+| POST | `/api/admin/referrals/payout` | Process payout | Low |
+
+All protected with `withAdminAuth`.
+
+---
+
+## 12. Implementation Priority
+
+### Phase 0: Schema Changes (Required First)
+1. Add `UserStatus` enum to Prisma schema
+2. Add `status`, `bannedAt`, `bannedReason`, `deletedAt` fields to User model
+3. Run migration: `npx prisma migrate dev --name add_user_status`
+
+### Phase 1: High Priority Admin Actions
+1. Beta access management page + API endpoints
+2. User ban/unban endpoints
+3. User delete endpoint
+4. Fight manual resolve endpoint
+5. Add action buttons to existing admin pages
+
+### Phase 2: Core Pages (Original Plan)
+6. Complete user list/detail pages
+7. Complete fight list/detail pages
+8. Prize pool management
+
+### Phase 3: Analytics & Monitoring
+9. Trade analytics
+10. Jobs monitor
+11. System health
+12. Leaderboard management
+
+---
+
+## 13. Verification
 
 - Run `npx prisma migrate dev` after schema change — verify migration succeeds
 - Test admin auth: connect with admin wallet → verify JWT contains `role: 'ADMIN'`
 - Test admin auth: connect with non-admin wallet → verify `/admin` redirects to `/`
 - Test each admin page loads and shows correct data
+- Test beta approve/reject functionality
+- Test user ban/unban/delete functionality
+- Test fight manual resolution
 - Test force cancel/finish on a fight
 - Test leaderboard manual refresh
 - Test prize pool finalize/distribute
 - Verify job health checks display correctly
 - Verify existing user-facing functionality is unaffected
+- Verify banned users cannot access the platform
