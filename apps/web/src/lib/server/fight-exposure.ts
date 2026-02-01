@@ -313,9 +313,10 @@ export async function updateMaxExposureIfHigher(
 ): Promise<void> {
   // Use raw SQL for atomic "update only if higher" operation
   // This prevents race conditions when multiple trades execute concurrently
+  // IMPORTANT: Use COALESCE because GREATEST(NULL, x) returns NULL in PostgreSQL
   await prisma.$executeRaw`
     UPDATE fight_participants
-    SET max_exposure_used = GREATEST(max_exposure_used, ${newExposure}::decimal(18,6))
+    SET max_exposure_used = GREATEST(COALESCE(max_exposure_used, 0), ${newExposure}::decimal(18,6))
     WHERE id = ${participantId}::uuid
   `;
 }
