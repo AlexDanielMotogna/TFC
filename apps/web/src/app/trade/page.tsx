@@ -1559,16 +1559,16 @@ export default function TradePage() {
 
               {/* No Pacifica Account Warning */}
               {isAuthenticated && !pacificaConnected && (
-                <div className="mb-4 p-4 bg-loss-500/10 rounded-lg border border-loss-500/30">
-                  <h4 className="text-sm font-semibold text-loss-400 mb-2">No Pacifica Account Found</h4>
-                  <p className="text-xs text-surface-300 mb-3">
-                    Your wallet does not have a Pacifica trading account. You need to deposit funds on Pacifica first to start trading.
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No Pacifica Account</div>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                    Deposit funds on Pacifica first to start trading.
                   </p>
                   <a
                     href={PACIFICA_DEPOSIT_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full py-2 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-lg transition-colors text-center"
+                    className="block w-full py-1.5 bg-primary-500 hover:bg-primary-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                   >
                     Deposit on Pacifica
                   </a>
@@ -1577,18 +1577,18 @@ export default function TradePage() {
 
               {/* Builder Code Authorization Required - One-time approval */}
               {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
-                <div className="mb-4 p-4 bg-primary-500/10 rounded-lg border border-primary-500/30">
-                  <h4 className="text-sm font-semibold text-primary-400 mb-2">Trading Authorization Required</h4>
-                  <p className="text-xs text-surface-300 mb-2">
-                    To trade through TradeFightClub, you need to authorize our builder code. This is a one-time approval.
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Authorization Required</div>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
+                    Authorize TFC builder code to trade. One-time approval.
                   </p>
-                  <p className="text-xs text-surface-400 mb-3">
-                    TradeFightClub fee: <span className="text-primary-400 font-semibold">0.05%</span>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                    TFC fee: <span className="text-primary-400 font-semibold">0.05%</span>
                   </p>
                   <button
                     onClick={() => approveBuilderCode.mutate('0.0005')}
                     disabled={approveBuilderCode.isPending}
-                    className="w-full py-2 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-1.5 bg-primary-500 hover:bg-primary-400 text-white text-[10px] font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
                   </button>
