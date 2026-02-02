@@ -25,20 +25,30 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production';
 
 interface JwtPayload {
-  userId: string;
+  sub: string;  // User ID (JWT standard)
+  walletAddress: string;
   role: string;
   iat: number;
   exp: number;
 }
 
+// Normalized payload for internal use
+interface AdminTokenPayload {
+  userId: string;
+  role: string;
+}
+
 // Verify JWT token and check admin role
-function verifyAdminToken(token: string): JwtPayload | null {
+function verifyAdminToken(token: string): AdminTokenPayload | null {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     if (decoded.role !== 'ADMIN') {
       return null;
     }
-    return decoded;
+    return {
+      userId: decoded.sub,
+      role: decoded.role,
+    };
   } catch {
     return null;
   }
