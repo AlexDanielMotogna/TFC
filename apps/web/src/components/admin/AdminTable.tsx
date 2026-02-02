@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 
 interface Column<T> {
   key: string;
-  header: string;
+  header: string | React.ReactNode;
   render?: (item: T) => React.ReactNode;
   className?: string;
   align?: 'left' | 'center' | 'right';
