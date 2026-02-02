@@ -26,6 +26,17 @@ export const WS_EVENTS = {
 
   // Platform stats (Server → Client, broadcast to all connected clients)
   PLATFORM_STATS: 'platform:stats',  // Real-time platform statistics
+
+  // Admin events (Server → Client, broadcast to admin subscribers)
+  ADMIN_STATS_UPDATE: 'admin:stats_update',
+  ADMIN_USER_CREATED: 'admin:user_created',
+  ADMIN_USER_UPDATED: 'admin:user_updated',
+  ADMIN_FIGHT_UPDATE: 'admin:fight_update',
+  ADMIN_TRADE_NEW: 'admin:trade_new',
+  ADMIN_JOB_UPDATE: 'admin:job_update',
+  ADMIN_LEADERBOARD_UPDATE: 'admin:leaderboard',
+  ADMIN_PRIZE_POOL_UPDATE: 'admin:prize_pool',
+  ADMIN_SYSTEM_HEALTH: 'admin:system_health',
 } as const;
 
 export type WsEventName = (typeof WS_EVENTS)[keyof typeof WS_EVENTS];
@@ -158,6 +169,117 @@ export interface PlatformStatsPayload {
   totalFees: number;
   activeUsers: number;
   totalTrades: number;
+  timestamp: number;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Admin Event Payload Types
+// ─────────────────────────────────────────────────────────────
+
+export interface AdminStatsPayload {
+  totalUsers: number;
+  totalFights: number;
+  activeFights: number;
+  totalTrades: number;
+  totalVolume: number;
+  totalFees: number;
+  fightsByStatus: {
+    WAITING: number;
+    LIVE: number;
+    FINISHED: number;
+    CANCELLED: number;
+  };
+  timestamp: number;
+}
+
+export interface AdminUserEventPayload {
+  eventType: 'created' | 'updated';
+  user: {
+    id: string;
+    handle: string;
+    walletAddress: string;
+    role: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  timestamp: number;
+}
+
+export interface AdminFightUpdatePayload {
+  eventType: 'created' | 'started' | 'ended' | 'cancelled';
+  fight: {
+    id: string;
+    status: string;
+    stakeUsdc: number;
+    durationMinutes: number;
+    creatorId: string;
+    winnerId?: string | null;
+    isDraw?: boolean;
+    participantA?: { userId: string; handle: string } | null;
+    participantB?: { userId: string; handle: string } | null;
+    createdAt: string;
+    startedAt?: string | null;
+    endedAt?: string | null;
+  };
+  timestamp: number;
+}
+
+export interface AdminTradePayload {
+  trade: {
+    id: string;
+    fightId: string;
+    userId: string;
+    userHandle: string;
+    symbol: string;
+    side: string;
+    amount: number;
+    price: number;
+    fee: number;
+    pnl: number | null;
+    timestamp: string;
+  };
+  timestamp: number;
+}
+
+export interface AdminJobPayload {
+  name: string;
+  status: 'healthy' | 'stale' | 'failed';
+  lastRun: string | null;
+  message: string;
+  timestamp: number;
+}
+
+export interface AdminLeaderboardPayload {
+  range: 'weekly' | 'all_time';
+  entries: Array<{
+    rank: number;
+    userId: string;
+    handle: string;
+    wins: number;
+    losses: number;
+    totalPnlUsdc: number;
+  }>;
+  timestamp: number;
+}
+
+export interface AdminPrizePoolPayload {
+  pools: Array<{
+    id: string;
+    name: string;
+    totalUsdc: number;
+    status: string;
+    winnersCount: number;
+  }>;
+  timestamp: number;
+}
+
+export interface AdminSystemHealthPayload {
+  services: {
+    api: { status: 'healthy' | 'degraded' | 'down'; latencyMs?: number };
+    realtime: { status: 'healthy' | 'degraded' | 'down'; connections?: number };
+    database: { status: 'healthy' | 'degraded' | 'down'; latencyMs?: number };
+    pacifica: { status: 'healthy' | 'degraded' | 'down'; latencyMs?: number };
+  };
   timestamp: number;
 }
 

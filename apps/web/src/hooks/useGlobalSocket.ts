@@ -12,6 +12,16 @@ import { useAuthStore, useStore } from '@/lib/store';
 import { queryClient } from '@/lib/queryClient';
 import { toast } from 'sonner';
 import type { Fight } from '@/lib/api';
+import type {
+  AdminStatsPayload,
+  AdminUserEventPayload,
+  AdminFightUpdatePayload,
+  AdminTradePayload,
+  AdminJobPayload,
+  AdminLeaderboardPayload,
+  AdminPrizePoolPayload,
+  AdminSystemHealthPayload,
+} from '@tfc/shared';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002';
 
@@ -44,6 +54,17 @@ interface GlobalSocketState {
   fights: Map<string, FightUpdate>;
   livePnl: Map<string, { participantA?: { pnlPercent: number }; participantB?: { pnlPercent: number }; timeRemainingMs: number }>;
 
+  // Admin state
+  isAdminSubscribed: boolean;
+  adminStats: AdminStatsPayload | null;
+  adminFights: AdminFightUpdatePayload[];
+  adminTrades: AdminTradePayload[];
+  adminUsers: AdminUserEventPayload[];
+  adminJobs: AdminJobPayload[];
+  adminLeaderboard: AdminLeaderboardPayload | null;
+  adminPrizePool: AdminPrizePoolPayload | null;
+  adminSystemHealth: AdminSystemHealthPayload | null;
+
   // Actions
   setConnected: (connected: boolean) => void;
   setActiveFightsCount: (count: number) => void;
@@ -51,6 +72,18 @@ interface GlobalSocketState {
   removeFight: (fightId: string) => void;
   setFights: (fights: FightUpdate[]) => void;
   updateLivePnl: (data: ArenaPnlTick) => void;
+
+  // Admin actions
+  setAdminSubscribed: (subscribed: boolean) => void;
+  setAdminStats: (stats: AdminStatsPayload) => void;
+  addAdminFight: (fight: AdminFightUpdatePayload) => void;
+  addAdminTrade: (trade: AdminTradePayload) => void;
+  addAdminUser: (user: AdminUserEventPayload) => void;
+  setAdminJob: (job: AdminJobPayload) => void;
+  setAdminLeaderboard: (leaderboard: AdminLeaderboardPayload) => void;
+  setAdminPrizePool: (prizePool: AdminPrizePoolPayload) => void;
+  setAdminSystemHealth: (health: AdminSystemHealthPayload) => void;
+  clearAdminState: () => void;
 }
 
 export const useGlobalSocketStore = create<GlobalSocketState>((set, get) => ({
@@ -59,6 +92,17 @@ export const useGlobalSocketStore = create<GlobalSocketState>((set, get) => ({
   lastUpdate: Date.now(),
   fights: new Map(),
   livePnl: new Map(),
+
+  // Admin state
+  isAdminSubscribed: false,
+  adminStats: null,
+  adminFights: [],
+  adminTrades: [],
+  adminUsers: [],
+  adminJobs: [],
+  adminLeaderboard: null,
+  adminPrizePool: null,
+  adminSystemHealth: null,
 
   setConnected: (connected) => set({ isConnected: connected }),
 
@@ -98,6 +142,53 @@ export const useGlobalSocketStore = create<GlobalSocketState>((set, get) => ({
     }
     set({ livePnl, lastUpdate: Date.now() });
   },
+
+  // Admin actions
+  setAdminSubscribed: (subscribed) => set({ isAdminSubscribed: subscribed }),
+
+  setAdminStats: (stats) => set({ adminStats: stats, lastUpdate: Date.now() }),
+
+  addAdminFight: (fight) => {
+    const adminFights = [fight, ...get().adminFights].slice(0, 50); // Keep last 50
+    set({ adminFights, lastUpdate: Date.now() });
+  },
+
+  addAdminTrade: (trade) => {
+    const adminTrades = [trade, ...get().adminTrades].slice(0, 100); // Keep last 100
+    set({ adminTrades, lastUpdate: Date.now() });
+  },
+
+  addAdminUser: (user) => {
+    const adminUsers = [user, ...get().adminUsers].slice(0, 50); // Keep last 50
+    set({ adminUsers, lastUpdate: Date.now() });
+  },
+
+  setAdminJob: (job) => {
+    const existing = get().adminJobs;
+    const index = existing.findIndex(j => j.name === job.name);
+    const adminJobs = index >= 0
+      ? [...existing.slice(0, index), job, ...existing.slice(index + 1)]
+      : [...existing, job];
+    set({ adminJobs, lastUpdate: Date.now() });
+  },
+
+  setAdminLeaderboard: (leaderboard) => set({ adminLeaderboard: leaderboard, lastUpdate: Date.now() }),
+
+  setAdminPrizePool: (prizePool) => set({ adminPrizePool: prizePool, lastUpdate: Date.now() }),
+
+  setAdminSystemHealth: (health) => set({ adminSystemHealth: health, lastUpdate: Date.now() }),
+
+  clearAdminState: () => set({
+    isAdminSubscribed: false,
+    adminStats: null,
+    adminFights: [],
+    adminTrades: [],
+    adminUsers: [],
+    adminJobs: [],
+    adminLeaderboard: null,
+    adminPrizePool: null,
+    adminSystemHealth: null,
+  }),
 }));
 
 // Singleton socket reference
@@ -207,6 +298,53 @@ function getGlobalSocket(token?: string): Promise<Socket> {
     socket.on('arena:pnl_tick', (data: ArenaPnlTick) => {
       useGlobalSocketStore.getState().updateLivePnl(data);
     });
+
+    // Admin events
+    socket.on('admin:subscribed', () => {
+      console.log('[GlobalSocket] Admin subscribed');
+      useGlobalSocketStore.getState().setAdminSubscribed(true);
+    });
+
+    socket.on('admin:error', (error: { code: string; message: string }) => {
+      console.error('[GlobalSocket] Admin error:', error);
+      useGlobalSocketStore.getState().setAdminSubscribed(false);
+    });
+
+    socket.on('admin:stats_update', (data: AdminStatsPayload) => {
+      useGlobalSocketStore.getState().setAdminStats(data);
+    });
+
+    socket.on('admin:user_created', (data: AdminUserEventPayload) => {
+      useGlobalSocketStore.getState().addAdminUser(data);
+    });
+
+    socket.on('admin:user_updated', (data: AdminUserEventPayload) => {
+      useGlobalSocketStore.getState().addAdminUser(data);
+    });
+
+    socket.on('admin:fight_update', (data: AdminFightUpdatePayload) => {
+      useGlobalSocketStore.getState().addAdminFight(data);
+    });
+
+    socket.on('admin:trade_new', (data: AdminTradePayload) => {
+      useGlobalSocketStore.getState().addAdminTrade(data);
+    });
+
+    socket.on('admin:job_update', (data: AdminJobPayload) => {
+      useGlobalSocketStore.getState().setAdminJob(data);
+    });
+
+    socket.on('admin:leaderboard', (data: AdminLeaderboardPayload) => {
+      useGlobalSocketStore.getState().setAdminLeaderboard(data);
+    });
+
+    socket.on('admin:prize_pool', (data: AdminPrizePoolPayload) => {
+      useGlobalSocketStore.getState().setAdminPrizePool(data);
+    });
+
+    socket.on('admin:system_health', (data: AdminSystemHealthPayload) => {
+      useGlobalSocketStore.getState().setAdminSystemHealth(data);
+    });
   });
 
   return connectionPromise;
@@ -283,4 +421,54 @@ export function useFightRoom(fightId?: string) {
       socket.emit('leave_fight', fightId);
     };
   }, [fightId, socket, isConnected]);
+}
+
+/**
+ * Hook to subscribe to admin room for real-time admin updates
+ * Only subscribes if user has ADMIN role
+ */
+export function useAdminSubscription() {
+  const { socket, isConnected } = useGlobalSocket();
+  const { user, token } = useAuthStore();
+  const {
+    isAdminSubscribed,
+    adminStats,
+    adminFights,
+    adminTrades,
+    adminUsers,
+    adminJobs,
+    adminLeaderboard,
+    adminPrizePool,
+    adminSystemHealth,
+    clearAdminState,
+  } = useGlobalSocketStore();
+
+  useEffect(() => {
+    if (!socket || !isConnected || !token || user?.role !== 'ADMIN') {
+      return;
+    }
+
+    // Subscribe to admin room with token
+    console.log('[AdminSocket] Subscribing to admin room');
+    socket.emit('admin:subscribe', token);
+
+    return () => {
+      console.log('[AdminSocket] Unsubscribing from admin room');
+      socket.emit('admin:unsubscribe');
+      clearAdminState();
+    };
+  }, [socket, isConnected, token, user?.role, clearAdminState]);
+
+  return {
+    isConnected,
+    isAdminSubscribed,
+    adminStats,
+    adminFights,
+    adminTrades,
+    adminUsers,
+    adminJobs,
+    adminLeaderboard,
+    adminPrizePool,
+    adminSystemHealth,
+  };
 }

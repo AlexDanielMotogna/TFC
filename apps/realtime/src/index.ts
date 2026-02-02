@@ -2,13 +2,47 @@ import 'dotenv/config';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { Server } from 'socket.io';
 import { createLogger } from '@tfc/logger';
-import { LOG_EVENTS, WS_EVENTS, type PlatformStatsPayload } from '@tfc/shared';
+import {
+  LOG_EVENTS,
+  WS_EVENTS,
+  type PlatformStatsPayload,
+  type AdminStatsPayload,
+  type AdminUserEventPayload,
+  type AdminFightUpdatePayload,
+  type AdminTradePayload,
+  type AdminJobPayload,
+  type AdminLeaderboardPayload,
+  type AdminPrizePoolPayload,
+  type AdminSystemHealthPayload,
+} from '@tfc/shared';
 import { FightEngine } from './fight-engine.js';
+import jwt from 'jsonwebtoken';
 
 const logger = createLogger({ service: 'realtime' });
 
 const PORT = parseInt(process.env.REALTIME_PORT || '3002', 10);
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production';
+
+interface JwtPayload {
+  userId: string;
+  role: string;
+  iat: number;
+  exp: number;
+}
+
+// Verify JWT token and check admin role
+function verifyAdminToken(token: string): JwtPayload | null {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    if (decoded.role !== 'ADMIN') {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
 
 // Support multiple CORS origins (comma-separated in env var)
 // Default: localhost for development
@@ -159,6 +193,119 @@ async function main() {
             sendJson(res, 200, { success: true });
             break;
 
+          // Admin broadcast endpoints
+          case '/internal/admin/stats': {
+            const statsBody = (await parseBody(req)) as AdminStatsPayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_STATS_UPDATE, {
+              ...statsBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin stats broadcast', {
+              totalUsers: statsBody.totalUsers,
+              activeFights: statsBody.activeFights,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/user-event': {
+            const userBody = (await parseBody(req)) as AdminUserEventPayload;
+            io.to('admin').emit(
+              userBody.eventType === 'created'
+                ? WS_EVENTS.ADMIN_USER_CREATED
+                : WS_EVENTS.ADMIN_USER_UPDATED,
+              { ...userBody, timestamp: Date.now() }
+            );
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin user event broadcast', {
+              eventType: userBody.eventType,
+              userId: userBody.user.id,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/fight-update': {
+            const fightBody = (await parseBody(req)) as AdminFightUpdatePayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_FIGHT_UPDATE, {
+              ...fightBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin fight update broadcast', {
+              eventType: fightBody.eventType,
+              fightId: fightBody.fight.id,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/trade-event': {
+            const tradeBody = (await parseBody(req)) as AdminTradePayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_TRADE_NEW, {
+              ...tradeBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin trade broadcast', {
+              tradeId: tradeBody.trade.id,
+              fightId: tradeBody.trade.fightId,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/job-status': {
+            const jobBody = (await parseBody(req)) as AdminJobPayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_JOB_UPDATE, {
+              ...jobBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin job status broadcast', {
+              name: jobBody.name,
+              status: jobBody.status,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/leaderboard': {
+            const lbBody = (await parseBody(req)) as AdminLeaderboardPayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_LEADERBOARD_UPDATE, {
+              ...lbBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin leaderboard broadcast', {
+              range: lbBody.range,
+              entries: lbBody.entries.length,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/prize-pool': {
+            const poolBody = (await parseBody(req)) as AdminPrizePoolPayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_PRIZE_POOL_UPDATE, {
+              ...poolBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin prize pool broadcast', {
+              pools: poolBody.pools.length,
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
+          case '/internal/admin/system-health': {
+            const healthBody = (await parseBody(req)) as AdminSystemHealthPayload;
+            io.to('admin').emit(WS_EVENTS.ADMIN_SYSTEM_HEALTH, {
+              ...healthBody,
+              timestamp: Date.now(),
+            });
+            logger.info(LOG_EVENTS.WS_BROADCAST, 'Admin system health broadcast', {
+              services: Object.keys(healthBody.services),
+            });
+            sendJson(res, 200, { success: true });
+            break;
+          }
+
           default:
             sendJson(res, 404, { error: 'Not found' });
         }
@@ -220,6 +367,33 @@ async function main() {
         socketId: socket.id,
       });
       socket.leave('arena');
+    });
+
+    // Subscribe to admin room (requires admin JWT)
+    socket.on('admin:subscribe', (token: string) => {
+      const decoded = verifyAdminToken(token);
+      if (!decoded) {
+        logger.warn(LOG_EVENTS.WS_SUBSCRIBE, 'Admin subscription denied - invalid token', {
+          socketId: socket.id,
+        });
+        socket.emit('admin:error', { code: 'UNAUTHORIZED', message: 'Admin access required' });
+        return;
+      }
+
+      logger.info(LOG_EVENTS.WS_SUBSCRIBE, 'Admin subscribed', {
+        socketId: socket.id,
+        userId: decoded.userId,
+      });
+      socket.join('admin');
+      socket.emit('admin:subscribed', { success: true });
+    });
+
+    // Unsubscribe from admin room
+    socket.on('admin:unsubscribe', () => {
+      logger.info(LOG_EVENTS.WS_UNSUBSCRIBE, 'Admin unsubscribed', {
+        socketId: socket.id,
+      });
+      socket.leave('admin');
     });
 
     // Join fight room

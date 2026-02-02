@@ -13,6 +13,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -23,6 +25,8 @@ const navItems = [
   { href: '/admin/trades', label: 'Trades', icon: TrendingUp },
   { href: '/admin/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/admin/prize-pool', label: 'Prize Pool', icon: Gift },
+  { href: '/admin/beta', label: 'Beta Access', icon: UserCheck },
+  { href: '/admin/anti-cheat', label: 'Anti-Cheat', icon: ShieldCheck },
   { href: '/admin/jobs', label: 'Jobs', icon: Activity },
   { href: '/admin/system', label: 'System', icon: Settings },
 ];

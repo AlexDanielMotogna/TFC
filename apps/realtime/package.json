@@ -16,10 +16,12 @@
     "@tfc/logger": "*",
     "socket.io": "^4.8.1",
     "dotenv": "^16.4.7",
+    "jsonwebtoken": "^9.0.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
     "@tfc/tsconfig": "*",
+    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.2",
     "@types/ws": "^8.5.13",
     "tsx": "^4.19.2",

@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminTable, AdminPagination, AdminBadge, getFightStatusVariant } from '@/components/admin';
-import { Clock } from 'lucide-react';
+import { useAdminSubscription } from '@/hooks/useGlobalSocket';
+import { Clock, Wifi, WifiOff } from 'lucide-react';
 
 interface Fight {
   id: string;
@@ -49,6 +50,9 @@ export default function AdminFightsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
 
+  // Subscribe to admin real-time updates
+  const { isConnected, isAdminSubscribed, adminFights } = useAdminSubscription();
+
   const fetchFights = useCallback(async () => {
     if (!token) return;
 
@@ -81,13 +85,37 @@ export default function AdminFightsPage() {
     fetchFights();
   }, [fetchFights]);
 
-  // Auto-refresh for live fights
+  // Handle real-time fight updates - update existing fights in list
   useEffect(() => {
-    if (fights.some((f) => f.status === 'LIVE')) {
-      const interval = setInterval(fetchFights, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [fights, fetchFights]);
+    if (adminFights.length === 0) return;
+
+    const latestUpdate = adminFights[0];
+    if (!latestUpdate) return;
+
+    setFights((currentFights) => {
+      const updatedFightId = latestUpdate.fight.id;
+      const existingIndex = currentFights.findIndex((f) => f.id === updatedFightId);
+
+      const existing = currentFights[existingIndex];
+      if (existingIndex >= 0 && existing) {
+        // Update existing fight - preserve existing properties and update status fields
+        const updated = [...currentFights];
+        updated[existingIndex] = {
+          ...existing,
+          status: latestUpdate.fight.status,
+          winnerId: latestUpdate.fight.winnerId ?? existing.winnerId,
+          isDraw: latestUpdate.fight.isDraw ?? existing.isDraw,
+          startedAt: latestUpdate.fight.startedAt ?? existing.startedAt,
+          endedAt: latestUpdate.fight.endedAt ?? existing.endedAt,
+        };
+        return updated;
+      }
+
+      // For new fights, just refetch the list to get complete data
+      // We could optimistically add, but better to have complete data
+      return currentFights;
+    });
+  }, [adminFights]);
 
   const formatTimeRemaining = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -206,9 +234,24 @@ export default function AdminFightsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Fights</h1>
-        <p className="text-surface-400 mt-1">Monitor and manage fights</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Fights</h1>
+          <p className="text-surface-400 mt-1">Monitor and manage fights</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          {isConnected && isAdminSubscribed ? (
+            <>
+              <Wifi size={16} className="text-win-400" />
+              <span className="text-win-400">Live</span>
+            </>
+          ) : (
+            <>
+              <WifiOff size={16} className="text-surface-500" />
+              <span className="text-surface-500">Connecting...</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -228,12 +271,6 @@ export default function AdminFightsPage() {
           <option value="CANCELLED">Cancelled</option>
           <option value="NO_CONTEST">No Contest</option>
         </select>
-
-        {fights.some((f) => f.status === 'LIVE') && (
-          <span className="text-xs text-surface-500">
-            Auto-refreshing every 10s
-          </span>
-        )}
       </div>
 
       {/* Table */}
