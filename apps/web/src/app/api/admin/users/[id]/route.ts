@@ -249,7 +249,7 @@ export async function DELETE(
         // Delete related records in order (respecting foreign keys)
         await prisma.$transaction([
           prisma.notification.deleteMany({ where: { userId: id } }),
-          prisma.referralEarning.deleteMany({ where: { userId: id } }),
+          prisma.referralEarning.deleteMany({ where: { OR: [{ referrerId: id }, { traderId: id }] } }),
           prisma.referral.deleteMany({ where: { OR: [{ referrerId: id }, { referredId: id }] } }),
           prisma.trade.deleteMany({ where: { userId: id } }),
           prisma.fightParticipant.deleteMany({ where: { userId: id } }),

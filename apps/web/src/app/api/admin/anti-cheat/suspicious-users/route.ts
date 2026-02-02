@@ -85,16 +85,13 @@ export async function GET(request: Request) {
           : [];
 
       // Group breakdown by user
-      const breakdownByUser = violationBreakdown.reduce(
-        (acc, row) => {
-          if (!acc[row.user_id]) {
-            acc[row.user_id] = {};
-          }
-          acc[row.user_id][row.rule_code] = Number(row.count);
-          return acc;
-        },
-        {} as Record<string, Record<string, number>>
-      );
+      const breakdownByUser: Record<string, Record<string, number>> = {};
+      for (const row of violationBreakdown) {
+        if (!breakdownByUser[row.user_id]) {
+          breakdownByUser[row.user_id] = {};
+        }
+        breakdownByUser[row.user_id]![row.rule_code] = Number(row.count);
+      }
 
       return {
         users: suspiciousUsers.map((u) => ({
