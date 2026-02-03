@@ -1,6 +1,6 @@
 /**
- * Admin Force Finish Fight API
- * POST /api/admin/fights/[id]/finish - Force finish a fight
+ * Admin Restore Fight from NO_CONTEST API
+ * POST /api/admin/fights/[id]/restore - Restore a NO_CONTEST fight to FINISHED
  */
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
@@ -15,10 +15,21 @@ export async function POST(
 
   try {
     return withAdminAuth(request, async (adminUser) => {
+      const body = await request.json();
+      const { reason } = body;
+
+      if (!reason) {
+        throw new BadRequestError('reason is required');
+      }
+
       const fight = await prisma.fight.findUnique({
         where: { id },
         include: {
-          participants: true,
+          participants: {
+            include: {
+              user: { select: { id: true, handle: true } },
+            },
+          },
         },
       });
 
@@ -26,14 +37,14 @@ export async function POST(
         throw new NotFoundError('Fight not found');
       }
 
-      // Can only finish LIVE fights
-      if (fight.status !== 'LIVE') {
+      // Can only restore NO_CONTEST fights
+      if (fight.status !== 'NO_CONTEST') {
         throw new BadRequestError(
-          `Cannot finish fight with status ${fight.status}. Only LIVE fights can be finished.`
+          `Cannot restore fight with status ${fight.status}. Only NO_CONTEST fights can be restored.`
         );
       }
 
-      // Get participants
+      // Determine winner based on final PnL
       const participantA = fight.participants.find((p) => p.slot === 'A');
       const participantB = fight.participants.find((p) => p.slot === 'B');
 
@@ -41,7 +52,6 @@ export async function POST(
         throw new BadRequestError('Fight does not have two participants');
       }
 
-      // Determine winner based on final PnL (if available) or set as draw
       let winnerId: string | null = null;
       let isDraw = false;
 
@@ -60,12 +70,11 @@ export async function POST(
         isDraw = true;
       }
 
-      // Update fight status
+      // Update fight to FINISHED
       const updatedFight = await prisma.fight.update({
         where: { id },
         data: {
           status: 'FINISHED',
-          endedAt: new Date(),
           winnerId,
           isDraw,
         },
@@ -78,11 +87,28 @@ export async function POST(
         },
       });
 
+      // Create anti-cheat violation record for restoration
+      await prisma.antiCheatViolation.create({
+        data: {
+          fightId: id,
+          ruleCode: 'ADMIN_RESTORE',
+          ruleName: 'Admin Restored from NO_CONTEST',
+          ruleMessage: reason,
+          actionTaken: 'RESTORED',
+          metadata: {
+            previousStatus: 'NO_CONTEST',
+            restoredBy: adminUser.userId,
+            winnerId,
+            isDraw,
+          },
+        },
+      });
+
       console.log(
-        `[Admin] Fight ${id} force finished by ${adminUser.userId}. Winner: ${winnerId || 'Draw'}`
+        `[Admin] Fight ${id} restored from NO_CONTEST by ${adminUser.userId}. Winner: ${winnerId || (isDraw ? 'Draw' : 'None')}`
       );
 
-      // Broadcast real-time update to admin panel
+      // Broadcast update
       const pA = updatedFight.participants.find((p) => p.slot === 'A');
       const pB = updatedFight.participants.find((p) => p.slot === 'B');
       broadcastAdminFightUpdate('ended', {
@@ -101,11 +127,15 @@ export async function POST(
       });
 
       return {
-        id: updatedFight.id,
-        status: updatedFight.status,
+        success: true,
+        fightId: updatedFight.id,
+        previousStatus: 'NO_CONTEST',
+        newStatus: 'FINISHED',
         winnerId: updatedFight.winnerId,
         isDraw: updatedFight.isDraw,
-        message: 'Fight finished successfully',
+        restoredBy: adminUser.userId,
+        reason,
+        message: 'Fight restored to FINISHED',
       };
     });
   } catch (error) {

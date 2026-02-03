@@ -55,9 +55,8 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/apps/web/public ./apps/web/public
 
-# Copy next module from workspace node_modules
-COPY --from=builder /app/apps/web/node_modules/next ./apps/web/node_modules/next
-COPY --from=builder /app/apps/web/node_modules/@next ./apps/web/node_modules/@next
+# Copy next module from workspace node_modules (if not included in standalone)
+COPY --from=builder /app/node_modules/next ./node_modules/next
 
 # Copy Prisma client (required for database queries)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma

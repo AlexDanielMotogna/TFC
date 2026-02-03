@@ -4,7 +4,10 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminCard, AdminBadge, getRoleVariant, getFightStatusVariant } from '@/components/admin';
-import { ArrowLeft, User, Link2, Trophy, TrendingUp, Shield } from 'lucide-react';
+import { ArrowLeft, User, Link2, Trophy, TrendingUp, Shield, Ban, Trash2, X } from 'lucide-react';
+import { toast } from 'sonner';
+
+type UserStatus = 'ACTIVE' | 'BANNED' | 'DELETED';
 
 interface UserDetail {
   id: string;
@@ -12,6 +15,10 @@ interface UserDetail {
   walletAddress: string | null;
   avatarUrl: string | null;
   role: 'USER' | 'ADMIN';
+  status: UserStatus;
+  bannedAt: string | null;
+  bannedReason: string | null;
+  deletedAt: string | null;
   referralCode: string | null;
   createdAt: string;
   updatedAt: string;
@@ -60,6 +67,10 @@ export default function AdminUserDetailPage({
   const [user, setUser] = useState<UserDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showBanModal, setShowBanModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [deleteType, setDeleteType] = useState<'soft' | 'hard'>('soft');
 
   useEffect(() => {
     async function fetchUser() {
@@ -113,6 +124,123 @@ export default function AdminUserDetailPage({
     }
   };
 
+  const handleBan = async () => {
+    if (!token || !user) return;
+
+    try {
+      setIsUpdating(true);
+      const response = await fetch(`/api/admin/users/${id}/ban`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: banReason || undefined }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'BANNED' as UserStatus,
+                bannedAt: data.bannedAt,
+                bannedReason: banReason || null,
+              }
+            : null
+        );
+        toast.success('User banned successfully');
+        setShowBanModal(false);
+        setBanReason('');
+      } else {
+        toast.error(data.error || 'Failed to ban user');
+      }
+    } catch (error) {
+      console.error('Failed to ban user:', error);
+      toast.error('Failed to ban user');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleUnban = async () => {
+    if (!token || !user) return;
+
+    try {
+      setIsUpdating(true);
+      const response = await fetch(`/api/admin/users/${id}/unban`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setUser((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'ACTIVE' as UserStatus,
+                bannedAt: null,
+                bannedReason: null,
+              }
+            : null
+        );
+        toast.success('User unbanned successfully');
+      } else {
+        toast.error(data.error || 'Failed to unban user');
+      }
+    } catch (error) {
+      console.error('Failed to unban user:', error);
+      toast.error('Failed to unban user');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!token || !user) return;
+
+    try {
+      setIsUpdating(true);
+      const url = deleteType === 'hard' ? `/api/admin/users/${id}?hard=true` : `/api/admin/users/${id}`;
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(deleteType === 'hard' ? 'User permanently deleted' : 'User account deleted');
+        setShowDeleteModal(false);
+        router.push('/admin/users');
+      } else {
+        toast.error(data.error || 'Failed to delete user');
+      }
+    } catch (error) {
+      console.error('Failed to delete user:', error);
+      toast.error('Failed to delete user');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const getStatusVariant = (status: UserStatus): 'success' | 'danger' | 'default' => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'success';
+      case 'BANNED':
+      case 'DELETED':
+        return 'danger';
+      default:
+        return 'default';
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -143,12 +271,20 @@ export default function AdminUserDetailPage({
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-semibold text-white">{user.handle}</h1>
             <AdminBadge variant={getRoleVariant(user.role)}>{user.role}</AdminBadge>
+            <AdminBadge variant={getStatusVariant(user.status)}>{user.status}</AdminBadge>
           </div>
           <p className="text-sm text-surface-400 font-mono mt-1">
             {user.walletAddress || 'No wallet connected'}
           </p>
+          {user.bannedAt && (
+            <p className="text-sm text-loss-400 mt-1">
+              Banned on {new Date(user.bannedAt).toLocaleDateString()}
+              {user.bannedReason && ` - ${user.bannedReason}`}
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
+          {/* Role buttons */}
           {user.role === 'USER' ? (
             <button
               onClick={() => handleRoleChange('ADMIN')}
@@ -164,6 +300,43 @@ export default function AdminUserDetailPage({
               className="px-4 py-2 bg-surface-700 hover:bg-surface-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
             >
               {isUpdating ? 'Updating...' : 'Demote to User'}
+            </button>
+          )}
+
+          {/* Ban/Unban buttons (only for non-admin users) */}
+          {user.role !== 'ADMIN' && user.status !== 'DELETED' && (
+            <>
+              {user.status === 'BANNED' ? (
+                <button
+                  onClick={handleUnban}
+                  disabled={isUpdating}
+                  className="px-4 py-2 bg-win-500/20 hover:bg-win-500/30 text-win-400 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  <Ban size={16} />
+                  Unban
+                </button>
+              ) : (
+                <button
+                  onClick={() => setShowBanModal(true)}
+                  disabled={isUpdating}
+                  className="px-4 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  <Ban size={16} />
+                  Ban
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Delete button (only for non-admin users) */}
+          {user.role !== 'ADMIN' && user.status !== 'DELETED' && (
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              disabled={isUpdating}
+              className="px-4 py-2 bg-loss-500/20 hover:bg-loss-500/30 text-loss-400 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Delete
             </button>
           )}
         </div>
@@ -466,6 +639,128 @@ export default function AdminUserDetailPage({
           <p className="text-surface-500 text-sm">No fights yet</p>
         )}
       </div>
+
+      {/* Ban Modal */}
+      {showBanModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-surface-850 border border-surface-700 rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Ban User</h3>
+              <button
+                onClick={() => setShowBanModal(false)}
+                className="p-1 hover:bg-surface-700 rounded transition-colors"
+              >
+                <X size={20} className="text-surface-400" />
+              </button>
+            </div>
+            <p className="text-surface-400 text-sm mb-4">
+              Are you sure you want to ban <span className="text-white font-medium">@{user.handle}</span>?
+              This will prevent them from logging in and cancel all active fights.
+            </p>
+            <div className="mb-4">
+              <label className="block text-sm text-surface-400 mb-2">
+                Ban Reason (optional)
+              </label>
+              <textarea
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="Enter reason for ban..."
+                className="w-full px-3 py-2 bg-surface-800 border border-surface-700 rounded-lg text-white text-sm placeholder:text-surface-500 focus:outline-none focus:border-surface-500 resize-none"
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowBanModal(false)}
+                className="px-4 py-2 bg-surface-700 hover:bg-surface-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBan}
+                disabled={isUpdating}
+                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {isUpdating ? 'Banning...' : 'Ban User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+          <div className="bg-surface-850 border border-surface-700 rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white">Delete User</h3>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="p-1 hover:bg-surface-700 rounded transition-colors"
+              >
+                <X size={20} className="text-surface-400" />
+              </button>
+            </div>
+            <p className="text-surface-400 text-sm mb-4">
+              Are you sure you want to delete <span className="text-white font-medium">@{user.handle}</span>?
+            </p>
+            <div className="mb-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteType"
+                  checked={deleteType === 'soft'}
+                  onChange={() => setDeleteType('soft')}
+                  className="mt-1"
+                />
+                <div>
+                  <p className="text-white text-sm font-medium">Soft Delete</p>
+                  <p className="text-surface-400 text-xs">
+                    Mark account as deleted. Data preserved for audit trail.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="deleteType"
+                  checked={deleteType === 'hard'}
+                  onChange={() => setDeleteType('hard')}
+                  className="mt-1"
+                />
+                <div>
+                  <p className="text-white text-sm font-medium">Hard Delete (GDPR)</p>
+                  <p className="text-surface-400 text-xs">
+                    Permanently remove all user data. Cannot be undone.
+                  </p>
+                </div>
+              </label>
+            </div>
+            {deleteType === 'hard' && (
+              <div className="mb-4 p-3 bg-loss-500/10 border border-loss-500/30 rounded-lg">
+                <p className="text-loss-400 text-sm">
+                  Warning: This action is irreversible. All user data including fights, trades, and referrals will be permanently deleted.
+                </p>
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="px-4 py-2 bg-surface-700 hover:bg-surface-600 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isUpdating}
+                className="px-4 py-2 bg-loss-500 hover:bg-loss-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
+              >
+                {isUpdating ? 'Deleting...' : deleteType === 'hard' ? 'Permanently Delete' : 'Delete User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

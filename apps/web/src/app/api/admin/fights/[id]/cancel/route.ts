@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
 
 export async function POST(
   request: Request,
@@ -50,8 +51,25 @@ export async function POST(
         `[Admin] Fight ${id} force cancelled by ${adminUser.userId}`
       );
 
-      // TODO: Notify realtime server about the cancellation
-      // notifyRealtime('fight-cancelled', id);
+      // Broadcast real-time update to admin panel
+      const participantA = updatedFight.participants.find((p) => p.slot === 'A');
+      const participantB = updatedFight.participants.find((p) => p.slot === 'B');
+      broadcastAdminFightUpdate('cancelled', {
+        id: updatedFight.id,
+        status: updatedFight.status,
+        stakeUsdc: Number(updatedFight.stakeUsdc),
+        durationMinutes: updatedFight.durationMinutes,
+        creatorId: updatedFight.creatorId,
+        participantA: participantA
+          ? { userId: participantA.userId, handle: participantA.user.handle }
+          : null,
+        participantB: participantB
+          ? { userId: participantB.userId, handle: participantB.user.handle }
+          : null,
+        createdAt: updatedFight.createdAt,
+        startedAt: updatedFight.startedAt,
+        endedAt: updatedFight.endedAt,
+      });
 
       return {
         id: updatedFight.id,

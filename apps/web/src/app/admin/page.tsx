@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminCard, AdminCardSkeleton } from '@/components/admin';
+import { useAdminSubscription } from '@/hooks/useGlobalSocket';
 import {
   Users,
   Link2,
@@ -10,6 +11,8 @@ import {
   TrendingUp,
   DollarSign,
   Activity,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 
 interface AdminStats {
@@ -28,6 +31,9 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Subscribe to admin real-time updates
+  const { isConnected, isAdminSubscribed, adminStats } = useAdminSubscription();
 
   useEffect(() => {
     async function fetchStats() {
@@ -61,6 +67,20 @@ export default function AdminDashboardPage() {
     fetchStats();
   }, [token]);
 
+  // Use live stats if available, otherwise fall back to fetched stats
+  const displayStats = adminStats
+    ? {
+        totalUsers: adminStats.totalUsers,
+        activeUsers7d: stats?.activeUsers7d || 0,
+        pacificaConnected: stats?.pacificaConnected || 0,
+        fightsByStatus: adminStats.fightsByStatus,
+        totalTrades: adminStats.totalTrades,
+        totalFees: adminStats.totalFees,
+        tradingVolume24h: stats?.tradingVolume24h || 0,
+        tradingVolumeAll: adminStats.totalVolume,
+      }
+    : stats;
+
   if (error) {
     return (
       <div className="p-4 bg-loss-500/10 border border-loss-500/30 rounded-lg">
@@ -69,15 +89,30 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const totalFights = stats
-    ? Object.values(stats.fightsByStatus).reduce((a, b) => a + b, 0)
+  const totalFights = displayStats
+    ? Object.values(displayStats.fightsByStatus).reduce((a, b) => a + b, 0)
     : 0;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
-        <p className="text-surface-400 mt-1">Overview of platform statistics</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+          <p className="text-surface-400 mt-1">Overview of platform statistics</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          {isConnected && isAdminSubscribed ? (
+            <>
+              <Wifi size={16} className="text-win-400" />
+              <span className="text-win-400">Live</span>
+            </>
+          ) : (
+            <>
+              <WifiOff size={16} className="text-surface-500" />
+              <span className="text-surface-500">Connecting...</span>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Users Section */}
@@ -96,17 +131,17 @@ export default function AdminDashboardPage() {
             <>
               <AdminCard
                 title="Total Users"
-                value={stats?.totalUsers.toLocaleString() || '0'}
+                value={displayStats?.totalUsers.toLocaleString() || '0'}
                 icon={Users}
               />
               <AdminCard
                 title="Active Users (7d)"
-                value={stats?.activeUsers7d.toLocaleString() || '0'}
+                value={displayStats?.activeUsers7d.toLocaleString() || '0'}
                 icon={Activity}
               />
               <AdminCard
                 title="Pacifica Connected"
-                value={stats?.pacificaConnected.toLocaleString() || '0'}
+                value={displayStats?.pacificaConnected.toLocaleString() || '0'}
                 icon={Link2}
               />
             </>
@@ -131,12 +166,12 @@ export default function AdminDashboardPage() {
             <>
               <AdminCard
                 title="Total Trades"
-                value={stats?.totalTrades.toLocaleString() || '0'}
+                value={displayStats?.totalTrades.toLocaleString() || '0'}
                 icon={TrendingUp}
               />
               <AdminCard
                 title="Total Fees"
-                value={`$${(stats?.totalFees || 0).toLocaleString(undefined, {
+                value={`$${(displayStats?.totalFees || 0).toLocaleString(undefined, {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}`}
@@ -145,7 +180,7 @@ export default function AdminDashboardPage() {
               />
               <AdminCard
                 title="Volume (24h)"
-                value={`$${(stats?.tradingVolume24h || 0).toLocaleString(undefined, {
+                value={`$${(displayStats?.tradingVolume24h || 0).toLocaleString(undefined, {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,
                 })}`}
@@ -153,7 +188,7 @@ export default function AdminDashboardPage() {
               />
               <AdminCard
                 title="Volume (All Time)"
-                value={`$${(stats?.tradingVolumeAll || 0).toLocaleString(undefined, {
+                value={`$${(displayStats?.tradingVolumeAll || 0).toLocaleString(undefined, {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,
                 })}`}
@@ -187,24 +222,24 @@ export default function AdminDashboardPage() {
               />
               <AdminCard
                 title="Live"
-                value={stats?.fightsByStatus?.LIVE?.toString() || '0'}
+                value={displayStats?.fightsByStatus?.LIVE?.toString() || '0'}
                 variant="danger"
               />
               <AdminCard
                 title="Waiting"
-                value={stats?.fightsByStatus?.WAITING?.toString() || '0'}
+                value={displayStats?.fightsByStatus?.WAITING?.toString() || '0'}
                 variant="warning"
               />
               <AdminCard
                 title="Finished"
-                value={stats?.fightsByStatus?.FINISHED?.toString() || '0'}
+                value={displayStats?.fightsByStatus?.FINISHED?.toString() || '0'}
               />
               <AdminCard
                 title="Cancelled"
                 value={
                   (
-                    (stats?.fightsByStatus?.CANCELLED || 0) +
-                    (stats?.fightsByStatus?.NO_CONTEST || 0)
+                    (displayStats?.fightsByStatus?.CANCELLED || 0) +
+                    ((displayStats?.fightsByStatus as Record<string, number>)?.NO_CONTEST || 0)
                   ).toString()
                 }
               />

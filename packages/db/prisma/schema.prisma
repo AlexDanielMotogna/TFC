@@ -19,17 +19,29 @@ enum UserRole {
   ADMIN
 }
 
+enum UserStatus {
+  ACTIVE
+  BANNED
+  DELETED
+}
+
 // ─────────────────────────────────────────────────────────────
 // USERS
 // ─────────────────────────────────────────────────────────────
 model User {
-  id            String   @id @default(uuid())
-  handle        String   @unique
-  walletAddress String?  @unique @map("wallet_address")
-  avatarUrl     String?  @map("avatar_url")
-  role          UserRole @default(USER)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id            String     @id @default(uuid())
+  handle        String     @unique
+  walletAddress String?    @unique @map("wallet_address")
+  avatarUrl     String?    @map("avatar_url")
+  role          UserRole   @default(USER)
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  // Ban/Delete tracking
+  bannedAt     DateTime? @map("banned_at")
+  bannedReason String?   @map("banned_reason")
+  deletedAt    DateTime? @map("deleted_at")
 
   // Referral system
   referralCode String? @unique @map("referral_code")

@@ -2,10 +2,12 @@
  * Admin User Detail API
  * GET /api/admin/users/[id] - Get user details
  * PATCH /api/admin/users/[id] - Update user (role)
+ * DELETE /api/admin/users/[id] - Delete user account (soft delete, ?hard=true for GDPR)
  */
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { broadcastUserUpdated } from '@/lib/server/admin-realtime';
 
 export async function GET(
   request: Request,
@@ -80,6 +82,10 @@ export async function GET(
         walletAddress: user.walletAddress,
         avatarUrl: user.avatarUrl,
         role: user.role,
+        status: user.status,
+        bannedAt: user.bannedAt,
+        bannedReason: user.bannedReason,
+        deletedAt: user.deletedAt,
         referralCode: user.referralCode,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
@@ -177,13 +183,135 @@ export async function PATCH(
           handle: true,
           walletAddress: true,
           role: true,
+          createdAt: true,
           updatedAt: true,
         },
       });
 
       console.log(`[Admin] User ${id} role changed to ${role} by ${adminUser.userId}`);
 
+      // Broadcast real-time update to admin panel
+      broadcastUserUpdated(updatedUser);
+
       return updatedUser;
+    });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  try {
+    return withAdminAuth(request, async (adminUser) => {
+      const { searchParams } = new URL(request.url);
+      const hardDelete = searchParams.get('hard') === 'true';
+
+      // Prevent self-deletion
+      if (adminUser.userId === id) {
+        throw new BadRequestError('Cannot delete yourself');
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, status: true, role: true, handle: true },
+      });
+
+      if (!user) {
+        throw new NotFoundError('User not found');
+      }
+
+      // Prevent deleting admins
+      if (user.role === 'ADMIN') {
+        throw new BadRequestError('Cannot delete an admin user');
+      }
+
+      if (hardDelete) {
+        // Hard delete - GDPR compliance
+        // First cancel active fights
+        await prisma.fight.updateMany({
+          where: {
+            status: { in: ['WAITING', 'LIVE'] },
+            participants: {
+              some: { userId: id },
+            },
+          },
+          data: {
+            status: 'CANCELLED',
+            endedAt: new Date(),
+          },
+        });
+
+        // Delete related records in order (respecting foreign keys)
+        await prisma.$transaction([
+          prisma.notification.deleteMany({ where: { userId: id } }),
+          prisma.referralEarning.deleteMany({ where: { OR: [{ referrerId: id }, { traderId: id }] } }),
+          prisma.referral.deleteMany({ where: { OR: [{ referrerId: id }, { referredId: id }] } }),
+          prisma.trade.deleteMany({ where: { userId: id } }),
+          prisma.fightParticipant.deleteMany({ where: { userId: id } }),
+          prisma.leaderboardSnapshot.deleteMany({ where: { userId: id } }),
+          prisma.pacificaConnection.deleteMany({ where: { userId: id } }),
+          prisma.user.delete({ where: { id } }),
+        ]);
+
+        console.log(`[Admin] User ${id} (${user.handle}) HARD DELETED by ${adminUser.userId}`);
+
+        return {
+          success: true,
+          userId: id,
+          deleted: true,
+          hardDelete: true,
+          message: 'User permanently deleted',
+        };
+      } else {
+        // Soft delete
+        // Cancel active fights
+        const cancelledFights = await prisma.fight.updateMany({
+          where: {
+            status: { in: ['WAITING', 'LIVE'] },
+            participants: {
+              some: { userId: id },
+            },
+          },
+          data: {
+            status: 'CANCELLED',
+            endedAt: new Date(),
+          },
+        });
+
+        const updatedUser = await prisma.user.update({
+          where: { id },
+          data: {
+            status: 'DELETED',
+            deletedAt: new Date(),
+          },
+          select: {
+            id: true,
+            handle: true,
+            walletAddress: true,
+            role: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
+        console.log(`[Admin] User ${id} (${user.handle}) soft deleted by ${adminUser.userId}`);
+
+        broadcastUserUpdated(updatedUser);
+
+        return {
+          success: true,
+          userId: id,
+          deleted: true,
+          hardDelete: false,
+          cancelledFights: cancelledFights.count,
+          message: 'User account deleted',
+        };
+      }
     });
   } catch (error) {
     return errorResponse(error);

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminBadge } from '@/components/admin';
-import { RefreshCw, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { useAdminSubscription } from '@/hooks/useGlobalSocket';
+import { RefreshCw, Clock, CheckCircle, AlertTriangle, XCircle, Wifi, WifiOff } from 'lucide-react';
 
 interface JobStatus {
   name: string;
@@ -18,6 +19,9 @@ export default function AdminJobsPage() {
   const [jobs, setJobs] = useState<JobStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+  // Subscribe to admin real-time updates
+  const { isConnected, isAdminSubscribed, adminJobs } = useAdminSubscription();
 
   const fetchJobStatus = async () => {
     if (!token) return;
@@ -88,11 +92,30 @@ export default function AdminJobsPage() {
 
   useEffect(() => {
     fetchJobStatus();
-
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchJobStatus, 30000);
-    return () => clearInterval(interval);
   }, [token]);
+
+  // Merge real-time job updates with fetched jobs
+  useEffect(() => {
+    if (adminJobs.length === 0) return;
+
+    setJobs((currentJobs) => {
+      const merged = [...currentJobs];
+      for (const liveJob of adminJobs) {
+        const existingIndex = merged.findIndex((j) => j.name === liveJob.name);
+        const existing = merged[existingIndex];
+        if (existingIndex >= 0 && existing) {
+          merged[existingIndex] = {
+            ...existing,
+            status: liveJob.status,
+            lastRun: liveJob.lastRun,
+            message: liveJob.message,
+          };
+        }
+      }
+      setLastRefresh(new Date());
+      return merged;
+    });
+  }, [adminJobs]);
 
   const getStatusIcon = (status: JobStatus['status']) => {
     switch (status) {
@@ -128,6 +151,19 @@ export default function AdminJobsPage() {
           </p>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected && isAdminSubscribed ? (
+              <>
+                <Wifi size={16} className="text-win-400" />
+                <span className="text-win-400">Live</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={16} className="text-surface-500" />
+                <span className="text-surface-500">Connecting...</span>
+              </>
+            )}
+          </div>
           {lastRefresh && (
             <span className="text-xs text-surface-500">
               Last updated: {lastRefresh.toLocaleTimeString()}
