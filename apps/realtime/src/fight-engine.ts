@@ -1084,7 +1084,8 @@ export class FightEngine {
     console.log(`🎯 [${fightId}] Determined winner: ${determinedWinnerId || (determinedDraw ? 'DRAW' : 'NONE')}`);
 
     // Call anti-cheat API to validate fight and get final status
-    let finalStatus: 'FINISHED' | 'NO_CONTEST' = 'FINISHED';
+    // FAIL SAFE: Default to NO_CONTEST - only set FINISHED if API succeeds
+    let finalStatus: 'FINISHED' | 'NO_CONTEST' = 'NO_CONTEST';
     let winnerId = determinedWinnerId;
     let isDraw = determinedDraw;
 
