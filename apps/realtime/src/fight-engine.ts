@@ -305,16 +305,20 @@ async function calculateUnrealizedPnlFromFightTrades(
 }
 
 /**
- * Detect external trades during a fight using simple BUY vs SELL comparison.
+ * Detect external trades during a fight using the leverage field.
  *
- * Logic: For each symbol traded, if SELL amount > BUY amount in fight_trades,
- * then the user must have bought externally (outside TFC) because you can't
- * sell more than you bought through the platform.
+ * Logic: The `leverage` field indicates whether a trade is OPENING or CLOSING a position:
+ * - Trade WITH leverage = Opening a position (entering the market)
+ * - Trade WITHOUT leverage (null) = Closing a position (exiting the market)
  *
- * This is simpler and more reliable than comparing Pacifica history_ids because:
- * - ALL trades go through Pacifica (they all have history_ids)
- * - The fight_trades table only records trades made through TFC
- * - If SELL > BUY, the extra selling came from external position
+ * For each symbol, if CLOSING amount > OPENING amount, the user closed a position
+ * they didn't open through TFC (i.e., they opened it externally).
+ *
+ * Previous BUY vs SELL logic was wrong because:
+ * - BUY = Open LONG or Close SHORT
+ * - SELL = Open SHORT or Close LONG
+ * A legitimate SHORT trade (open SHORT, close SHORT) would have SELL > BUY,
+ * triggering a false positive for external trades.
  *
  * @param fightId - The fight ID
  * @param userId - The user ID
@@ -325,67 +329,61 @@ async function detectExternalTrades(
   userId: string
 ): Promise<{ detected: boolean; externalTradeIds: string[]; details: Array<{ symbol: string; buyAmount: number; sellAmount: number; difference: number }> }> {
   try {
-    // IMPORTANT: Use the `trade` table (full amounts), NOT `fightTrade` table (capped amounts)
-    // The fight_trades table has amounts capped by Rule 35 to fight-relevant portions,
-    // so comparing BUY vs SELL there would always balance out.
-    // The trades table has the FULL trade amounts, which reveals external positions.
-    //
-    // Example:
-    // - User buys 0.20 SOL externally (not through TFC)
-    // - User buys 0.20 SOL through TFC during fight
-    // - User sells 0.40 SOL through TFC during fight
-    // - trades table: BUY 0.20, SELL 0.40 → SELL > BUY (detected!)
-    // - fight_trades table: BUY 0.20, SELL 0.20 (capped) → Equal (NOT detected)
+    // Use the `trade` table to check for external positions
     const trades = await prisma.trade.findMany({
       where: { fightId, userId },
-      select: { symbol: true, side: true, amount: true },
+      select: { symbol: true, side: true, amount: true, leverage: true },
     });
 
-    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Checking for external trades (using trades table)', {
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Checking for external trades (using leverage field)', {
       fightId,
       userId,
       tradesCount: trades.length,
     });
 
-    // Calculate BUY vs SELL totals per symbol from FULL trade amounts
-    const symbolTotals: Record<string, { buy: number; sell: number }> = {};
+    // Calculate OPENING vs CLOSING totals per symbol
+    // Opening = trades with leverage field set
+    // Closing = trades without leverage field (null)
+    const symbolTotals: Record<string, { opening: number; closing: number }> = {};
 
     for (const trade of trades) {
       const symbol = trade.symbol;
       const amount = parseFloat(trade.amount.toString());
+      const isOpening = trade.leverage !== null && trade.leverage !== undefined;
 
       if (!symbolTotals[symbol]) {
-        symbolTotals[symbol] = { buy: 0, sell: 0 };
+        symbolTotals[symbol] = { opening: 0, closing: 0 };
       }
 
-      if (trade.side === 'BUY') {
-        symbolTotals[symbol].buy += amount;
+      if (isOpening) {
+        symbolTotals[symbol].opening += amount;
       } else {
-        symbolTotals[symbol].sell += amount;
+        symbolTotals[symbol].closing += amount;
       }
     }
 
-    // Find symbols where SELL > BUY (indicates external buys)
+    // Find symbols where CLOSING > OPENING (indicates external opens)
     const imbalancedSymbols: Array<{ symbol: string; buyAmount: number; sellAmount: number; difference: number }> = [];
 
     for (const [symbol, totals] of Object.entries(symbolTotals)) {
       // Use small tolerance for floating point comparison
-      const diff = totals.sell - totals.buy;
+      const diff = totals.closing - totals.opening;
       if (diff > 0.0000001) {
         imbalancedSymbols.push({
           symbol,
-          buyAmount: totals.buy,
-          sellAmount: totals.sell,
+          buyAmount: totals.opening,  // renamed for backwards compatibility
+          sellAmount: totals.closing, // renamed for backwards compatibility
           difference: diff,
         });
       }
     }
 
     if (imbalancedSymbols.length > 0) {
-      logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected (SELL > BUY in trades table)', {
+      logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected (CLOSING > OPENING)', {
         fightId,
         userId,
         imbalancedSymbols,
+        symbolTotals,
       });
     } else {
       logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'No external trades detected', {
@@ -397,7 +395,7 @@ async function detectExternalTrades(
 
     return {
       detected: imbalancedSymbols.length > 0,
-      externalTradeIds: imbalancedSymbols.map((s) => `${s.symbol}:sold_${s.sellAmount.toFixed(6)}_bought_${s.buyAmount.toFixed(6)}`),
+      externalTradeIds: imbalancedSymbols.map((s) => `${s.symbol}:closed_${s.sellAmount.toFixed(6)}_opened_${s.buyAmount.toFixed(6)}`),
       details: imbalancedSymbols,
     };
   } catch (error) {
