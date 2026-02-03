@@ -166,12 +166,17 @@ async function validateZeroZeroRule(data: FightDataForValidation): Promise<Valid
     };
   }
 
-  const pnlA = participantA.finalScoreUsdc ? parseFloat(participantA.finalScoreUsdc.toString()) : 0;
-  const pnlB = participantB.finalScoreUsdc ? parseFloat(participantB.finalScoreUsdc.toString()) : 0;
-  // Count trades directly from fight_trades table, not from participant.tradesCount
-  // (tradesCount field is updated AFTER anti-cheat runs, so it would always be 0)
-  const tradesA = trades.filter((t) => t.participantUserId === participantA.userId).length;
-  const tradesB = trades.filter((t) => t.participantUserId === participantB.userId).length;
+  // Calculate PnL and trade count directly from fight_trades table
+  // (finalScoreUsdc and tradesCount are updated AFTER anti-cheat runs, so they would always be 0)
+  const userATradesFiltered = trades.filter((t) => t.participantUserId === participantA.userId);
+  const userBTradesFiltered = trades.filter((t) => t.participantUserId === participantB.userId);
+
+  const tradesA = userATradesFiltered.length;
+  const tradesB = userBTradesFiltered.length;
+
+  // Sum PnL from trades (pnl field contains the realized PnL for each trade)
+  const pnlA = userATradesFiltered.reduce((sum, t) => sum + (t.pnl ? Number(t.pnl) : 0), 0);
+  const pnlB = userBTradesFiltered.reduce((sum, t) => sum + (t.pnl ? Number(t.pnl) : 0), 0);
 
   console.log('[AntiCheat] ZERO_ZERO check:', {
     pnlA,
