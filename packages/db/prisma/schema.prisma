@@ -171,6 +171,9 @@ model FightParticipant {
   externalTradesDetected Boolean  @default(false) @map("external_trades_detected")
   externalTradeIds       String[] @default([]) @map("external_trade_ids")
 
+  // Symbols blocked for trading (positions held at fight start)
+  blockedSymbols String[] @default([]) @map("blocked_symbols")
+
   @@unique([fightId, userId])
   @@unique([fightId, slot])
   @@map("fight_participants")
