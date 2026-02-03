@@ -13,7 +13,7 @@
 import { prisma, FightStatus } from '@tfc/db';
 import { createLogger } from '@tfc/logger';
 
-const logger = createLogger({ service: 'fight-scanner' });
+const logger = createLogger({ service: 'job' });
 
 // ─────────────────────────────────────────────────────────────
 // TYPES
@@ -617,4 +617,4 @@ export function formatReportForConsole(report: ScanReport): string {
 }
 
 // Export para uso directo
-export { ScanResult, ScanReport };
+export type { ScanResult, ScanReport };
