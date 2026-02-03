@@ -14,21 +14,29 @@ import { settleFightWithAntiCheat } from '@/lib/server/anti-cheat';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 
 export async function POST(request: Request) {
+  console.log('[AntiCheat API] Settle endpoint called');
+
   // Validate internal key
   const key = request.headers.get('X-Internal-Key');
+  console.log('[AntiCheat API] Key validation:', { receivedKey: key ? 'present' : 'missing', expectedKey: INTERNAL_API_KEY ? 'configured' : 'default' });
+
   if (key !== INTERNAL_API_KEY) {
+    console.log('[AntiCheat API] Unauthorized - key mismatch');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const body = await request.json();
     const { fightId, determinedWinnerId, isDraw } = body;
+    console.log('[AntiCheat API] Request body:', { fightId, determinedWinnerId, isDraw });
 
     if (!fightId) {
       return NextResponse.json({ success: false, error: 'fightId is required' }, { status: 400 });
     }
 
+    console.log('[AntiCheat API] Calling settleFightWithAntiCheat...');
     const result = await settleFightWithAntiCheat(fightId, determinedWinnerId || null, isDraw || false);
+    console.log('[AntiCheat API] Settlement result:', result);
 
     return NextResponse.json({
       success: true,

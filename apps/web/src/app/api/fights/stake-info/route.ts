@@ -99,6 +99,9 @@ export async function GET(request: Request) {
       currentExposure
     );
 
+    // Get blocked symbols (symbols with pre-fight positions that can't be traded)
+    const blockedSymbols = (participant as any).blockedSymbols as string[] || [];
+
     return Response.json({
       success: true,
       data: {
@@ -108,6 +111,7 @@ export async function GET(request: Request) {
         currentExposure,
         maxExposureUsed,
         available,
+        blockedSymbols,
       },
     });
   } catch (error) {

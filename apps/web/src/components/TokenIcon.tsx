@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 // Fallback icons for non-crypto assets (forex, stocks, commodities)
 const FALLBACK_ICONS: Record<string, string> = {
@@ -85,7 +85,7 @@ const FALLBACK_TEXT_SIZES: Record<string, string> = {
 export function TokenIcon({ symbol, size = 'md', className = '', showFallback = true }: TokenIconProps) {
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [showTextFallback, setShowTextFallback] = useState(false);
-  const [urls] = useState(() => getIconUrls(symbol));
+  const urls = useMemo(() => getIconUrls(symbol), [symbol]);
 
   const baseSymbol = extractBaseSymbol(symbol).toUpperCase();
   const sizeClass = SIZE_CLASSES[size];

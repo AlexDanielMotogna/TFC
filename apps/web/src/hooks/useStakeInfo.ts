@@ -117,7 +117,8 @@ export function useStakeInfo() {
   // This was causing Bug: capital not updating after trades
   // Old behavior cleared realtimeData when REST refetch triggered, losing websocket updates
 
-  // Merge REST data with real-time updates (real-time takes priority)
+  // Merge REST data with real-time updates (real-time takes priority for dynamic values)
+  // blockedSymbols comes from REST only (static during fight)
   const mergedData = realtimeData
     ? {
         inFight: true,
@@ -126,6 +127,7 @@ export function useStakeInfo() {
         currentExposure: realtimeData.currentExposure,
         maxExposureUsed: realtimeData.maxExposureUsed,
         available: realtimeData.available,
+        blockedSymbols: data?.blockedSymbols, // From REST, not websocket
       }
     : data;
 
@@ -137,6 +139,7 @@ export function useStakeInfo() {
     currentExposure: mergedData?.currentExposure || null,
     maxExposureUsed: mergedData?.maxExposureUsed || null,
     available: mergedData?.available || null,
+    blockedSymbols: mergedData?.blockedSymbols || [],
     isLoading,
     error: error?.message || null,
     refetch,

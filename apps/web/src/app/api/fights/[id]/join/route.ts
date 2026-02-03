@@ -151,29 +151,45 @@ export async function POST(
       const creatorInitialPositions = simplifyPositions(creatorPositions);
       const joinerInitialPositions = simplifyPositions(joinerPositions);
 
+      // Extract blocked symbols (symbols with pre-fight positions)
+      // These symbols cannot be traded during the fight to avoid PnL contamination
+      // Convert from Pacifica format (BTC) to TFC format (BTC-USD)
+      const creatorBlockedSymbols = [...new Set(creatorInitialPositions.map((p: any) =>
+        p.symbol.includes('-USD') ? p.symbol : `${p.symbol}-USD`
+      ))];
+      const joinerBlockedSymbols = [...new Set(joinerInitialPositions.map((p: any) =>
+        p.symbol.includes('-USD') ? p.symbol : `${p.symbol}-USD`
+      ))];
+
       console.log(`[JoinFight] Fight ${params.id} - Position snapshots:`);
       console.log(`  Creator (${fight.creatorId}): ${creatorInitialPositions.length} positions`,
         creatorInitialPositions.length > 0 ? JSON.stringify(creatorInitialPositions) : '(none)');
+      console.log(`  Creator blocked symbols:`, creatorBlockedSymbols.length > 0 ? creatorBlockedSymbols : '(none)');
       console.log(`  Joiner (${user.userId}): ${joinerInitialPositions.length} positions`,
         joinerInitialPositions.length > 0 ? JSON.stringify(joinerInitialPositions) : '(none)');
+      console.log(`  Joiner blocked symbols:`, joinerBlockedSymbols.length > 0 ? joinerBlockedSymbols : '(none)');
 
       // Join fight and start it
       const updatedFight = await prisma.$transaction(async (tx: any) => {
-        // Update creator (participant A) with their CURRENT positions
+        // Update creator (participant A) with their CURRENT positions and blocked symbols
         // Note: Creator's positions were also captured at fight creation time,
         // but we update them here in case they changed while waiting for a joiner
         await tx.fightParticipant.updateMany({
           where: { fightId: params.id, slot: 'A' },
-          data: { initialPositions: creatorInitialPositions },
+          data: {
+            initialPositions: creatorInitialPositions,
+            blockedSymbols: creatorBlockedSymbols,
+          },
         });
 
-        // Create joiner (participant B) with their initial positions
+        // Create joiner (participant B) with their initial positions and blocked symbols
         await tx.fightParticipant.create({
           data: {
             fightId: params.id,
             userId: user.userId,
             slot: 'B',
             initialPositions: joinerInitialPositions,
+            blockedSymbols: joinerBlockedSymbols,
           },
         });
 

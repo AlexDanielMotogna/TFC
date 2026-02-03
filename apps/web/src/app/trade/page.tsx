@@ -80,7 +80,7 @@ export default function TradePage() {
   // Stake limit info (available capital in fight)
   // maxExposureUsed = highest exposure ever reached (never resets when closing positions)
   // available = stake - maxExposureUsed (once capital is used, it can't be reused)
-  const { inFight, stake, currentExposure, maxExposureUsed, available: availableStake } = useStakeInfo();
+  const { inFight, stake, currentExposure, maxExposureUsed, available: availableStake, blockedSymbols } = useStakeInfo();
 
   // Fight-specific data hooks
   const { positions: fightPositions } = useFightPositions(fightId);
@@ -93,6 +93,11 @@ export default function TradePage() {
 
   // Trading terminal state - initialize from URL if present
   const [selectedMarket, setSelectedMarket] = useState(() => urlSymbol || 'BTC-USD');
+
+  // Check if currently selected symbol is blocked (pre-fight position exists)
+  const isSymbolBlocked = useMemo(() => {
+    return inFight && blockedSymbols.includes(selectedMarket);
+  }, [inFight, blockedSymbols, selectedMarket]);
 
   // Update URL when market changes (shallow navigation)
   // Preserve fight parameter if user is in an active fight
@@ -219,6 +224,20 @@ export default function TradePage() {
   // Markets and prices from Pacifica API (dynamic, not hardcoded)
   const { markets, getPrice } = usePrices({
   });
+
+  // Auto-select first non-blocked symbol when in a fight and current symbol is blocked
+  useEffect(() => {
+    if (!inFight || !blockedSymbols.length || markets.length === 0) return;
+
+    // If current symbol is blocked, find first non-blocked symbol
+    if (blockedSymbols.includes(selectedMarket)) {
+      const firstNonBlocked = markets.find((m: { symbol: string }) => !blockedSymbols.includes(m.symbol));
+      if (firstNonBlocked) {
+        console.log(`[Trade] Auto-switching from blocked ${selectedMarket} to ${firstNonBlocked.symbol}`);
+        handleMarketChange(firstNonBlocked.symbol);
+      }
+    }
+  }, [inFight, blockedSymbols, markets, selectedMarket, handleMarketChange]);
 
   const currentPriceData = getPrice(selectedMarket);
   // Use oracle price as the main price (closer to last traded price than mark price)
@@ -760,7 +779,7 @@ export default function TradePage() {
     const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
     return {
-      id: `fight-${pos.symbol}-${pos.side}`,
+      id: `${pos.symbol}-${pos.side}`, // Same format as regular positions for handleClosePosition
       symbol: pos.symbol,
       side: pos.side,
       size: positionValueAtMark,
@@ -780,7 +799,13 @@ export default function TradePage() {
   });
 
   // Choose which positions/trades/orders to display based on toggle
-  const activePositions = showFightOnly && fightId ? displayFightPositions : displayPositions;
+  // For Fight Only: use Pacifica positions (instant WebSocket) filtered by blockedSymbols
+  // Since pre-fight symbols are blocked, all remaining positions are fight positions
+  // This gives instant updates vs slow REST polling from displayFightPositions
+  const fightFilteredPositions = displayPositions.filter(
+    (pos) => !blockedSymbols.includes(pos.symbol)
+  );
+  const activePositions = showFightOnly && fightId ? fightFilteredPositions : displayPositions;
   const activeTrades = showFightOnly && fightId ? fightTrades : tradeHistory;
   const activeOpenOrders = showFightOnly && fightId ? fightOpenOrders : openOrders;
   const activeOrderHistory = showFightOnly && fightId ? fightOrderHistory : orderHistoryData;
@@ -788,10 +813,10 @@ export default function TradePage() {
   // Calculate real-time unrealized PnL from positions (updates with WebSocket prices)
   const realtimeUnrealizedPnl = displayPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
 
-  // Calculate fight PnL from positions (for local display in positions table only)
+  // Calculate fight PnL from filtered positions (for local display in positions table only)
   // Banner PnL comes from WebSocket (server-calculated) for consistency between clients
-  const fightPnl = displayFightPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
-  const fightMargin = displayFightPositions.reduce((sum, pos) => sum + pos.margin, 0);
+  const fightPnl = fightFilteredPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
+  const fightMargin = fightFilteredPositions.reduce((sum, pos) => sum + pos.margin, 0);
   const fightRoi = fightMargin > 0 ? (fightPnl / fightMargin) * 100 : 0;
 
   const builderCodeApproved = builderCodeStatus?.approved ?? false;
@@ -847,6 +872,7 @@ export default function TradePage() {
                       selectedMarket={selectedMarket}
                       onSelectMarket={handleMarketChange}
                       getPrice={getPrice}
+                      blockedSymbols={inFight ? blockedSymbols : []}
                     />
 
                     {/* Last Traded Price (Oracle) */}
@@ -1007,8 +1033,6 @@ export default function TradePage() {
                     onCancelOrder={handleCancelOrder}
                     onCloseAll={handleCloseAllPositions}
                     isClosingAll={isClosingAllPositions}
-                    readOnly={showFightOnly && !!fightId}
-                    readOnlyMessage="Fight positions - switch to 'All' to close"
                   />
                 )}
                 {bottomTab === 'orders' && (
@@ -2251,32 +2275,41 @@ export default function TradePage() {
               })()}
 
               {/* Leverage warning */}
-              {leverage !== savedLeverage && canTrade && (
+              {leverage !== savedLeverage && canTrade && !isSymbolBlocked && (
                 <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-[10px] xl:text-xs text-yellow-400 text-center">
                   Click "Set" to confirm leverage before placing order
+                </div>
+              )}
+
+              {/* Blocked symbol warning */}
+              {isSymbolBlocked && (
+                <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[10px] xl:text-xs text-amber-400 text-center">
+                  ⚠️ {selectedMarket.replace('-USD', '')} is blocked - you had a position before the fight started
                 </div>
               )}
 
               {/* Submit Button */}
               <button
                 onClick={handlePlaceOrder}
-                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || leverage !== savedLeverage}
+                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || leverage !== savedLeverage || isSymbolBlocked}
                 className={`w-full py-2.5 xl:py-3 rounded-lg font-bold text-xs xl:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
                   ? 'bg-gradient-to-r from-win-600 to-win-500 hover:from-win-500 hover:to-win-400 text-white'
                   : 'bg-gradient-to-r from-loss-600 to-loss-500 hover:from-loss-500 hover:to-loss-400 text-white'
                   }`}
               >
-                {(createMarketOrder.isPending || createLimitOrder.isPending)
-                  ? 'Placing Order...'
-                  : (() => {
-                    const orderTypeLabel = orderType === 'market' ? '' :
-                      orderType === 'limit' ? ' Limit' :
-                        orderType === 'stop-market' ? ' Stop' :
-                          ' Stop Limit';
-                    return selectedSide === 'LONG'
-                      ? `⬆ Long${orderTypeLabel}`
-                      : `⬇ Short${orderTypeLabel}`;
-                  })()}
+                {isSymbolBlocked
+                  ? '🚫 Symbol Blocked'
+                  : (createMarketOrder.isPending || createLimitOrder.isPending)
+                    ? 'Placing Order...'
+                    : (() => {
+                      const orderTypeLabel = orderType === 'market' ? '' :
+                        orderType === 'limit' ? ' Limit' :
+                          orderType === 'stop-market' ? ' Stop' :
+                            ' Stop Limit';
+                      return selectedSide === 'LONG'
+                        ? `⬆ Long${orderTypeLabel}`
+                        : `⬇ Short${orderTypeLabel}`;
+                    })()}
               </button>
 
               {/* Challenge CTA */}

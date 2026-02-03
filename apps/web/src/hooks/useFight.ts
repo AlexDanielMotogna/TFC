@@ -26,7 +26,7 @@ interface FightParticipant {
 
 interface Fight {
   id: string;
-  status: 'WAITING' | 'LIVE' | 'FINISHED' | 'CANCELLED';
+  status: 'WAITING' | 'LIVE' | 'FINISHED' | 'CANCELLED' | 'NO_CONTEST';
   durationMinutes: number;
   stakeUsdc: number;
   creator: {

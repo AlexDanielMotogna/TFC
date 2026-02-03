@@ -4,6 +4,48 @@ import { LOG_EVENTS, calculateScore, ScoringInput } from '@tfc/shared';
 
 const logger = createLogger({ service: 'job' });
 
+const WEB_API_URL = process.env.WEB_API_URL || 'http://localhost:3001';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
+
+/**
+ * Call anti-cheat settle API to get final status
+ * This ensures reconciled fights also respect anti-cheat violations
+ */
+async function callAntiCheatSettle(
+  fightId: string,
+  winnerId: string | null,
+  isDraw: boolean
+): Promise<{ finalStatus: 'FINISHED' | 'NO_CONTEST'; winnerId: string | null; isDraw: boolean }> {
+  try {
+    const response = await fetch(`${WEB_API_URL}/api/internal/anti-cheat/settle`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Key': INTERNAL_API_KEY,
+      },
+      body: JSON.stringify({ fightId, winnerId, isDraw }),
+    });
+
+    if (!response.ok) {
+      logger.warn(LOG_EVENTS.FIGHT_RECONCILE_TRIGGERED, 'Anti-cheat API failed, defaulting to FINISHED', {
+        fightId,
+        status: response.status,
+      });
+      return { finalStatus: 'FINISHED', winnerId, isDraw };
+    }
+
+    const result = await response.json();
+    return {
+      finalStatus: result.finalStatus || 'FINISHED',
+      winnerId: result.winnerId ?? winnerId,
+      isDraw: result.isDraw ?? isDraw,
+    };
+  } catch (error) {
+    logger.error(LOG_EVENTS.FIGHT_RECONCILE_FAILURE, 'Anti-cheat API error', error as Error);
+    return { finalStatus: 'FINISHED', winnerId, isDraw };
+  }
+}
+
 /**
  * Reconcile LIVE fights that should have ended
  * This is a safety net in case the realtime service misses ending a fight
@@ -102,16 +144,33 @@ async function finalizeFight(
     }
   }
 
-  // Update fight
-  await prisma.fight.update({
-    where: { id: fightId },
+  // Call anti-cheat API to get final status (respects violations like MIN_VOLUME, ZERO_ZERO)
+  const antiCheatResult = await callAntiCheatSettle(fightId, winnerId, isDraw);
+
+  // Update fight with anti-cheat result
+  // Use updateMany with status check to prevent race conditions with realtime service
+  const updateResult = await prisma.fight.updateMany({
+    where: {
+      id: fightId,
+      status: FightStatus.LIVE, // Only update if still LIVE
+    },
     data: {
-      status: FightStatus.FINISHED,
+      status: antiCheatResult.finalStatus === 'NO_CONTEST'
+        ? FightStatus.NO_CONTEST
+        : FightStatus.FINISHED,
       endedAt: new Date(),
-      winnerId,
-      isDraw,
+      winnerId: antiCheatResult.winnerId,
+      isDraw: antiCheatResult.isDraw,
     },
   });
+
+  // If no rows updated, realtime service already handled this fight
+  if (updateResult.count === 0) {
+    logger.info(LOG_EVENTS.FIGHT_RECONCILE_TRIGGERED, 'Fight already settled by realtime service, skipping', {
+      fightId,
+    });
+    return;
+  }
 
   // Update participants
   for (const participant of participants) {
@@ -130,7 +189,8 @@ async function finalizeFight(
 
   logger.info(LOG_EVENTS.FIGHT_RECONCILE_SUCCESS, 'Fight reconciled', {
     fightId,
-    winnerId,
-    isDraw,
+    finalStatus: antiCheatResult.finalStatus,
+    winnerId: antiCheatResult.winnerId,
+    isDraw: antiCheatResult.isDraw,
   });
 }

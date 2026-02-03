@@ -52,10 +52,10 @@ export function useFightPositions(fightId: string | null | undefined) {
       return result.data;
     },
     enabled: isAuthenticated && !!token && !!fightId,
-    refetchInterval: 2000, // Poll every 2 seconds for faster updates
-    staleTime: 500, // Low staleTime so invalidateQueries triggers immediate refetch
+    refetchInterval: 5000, // Poll every 5 seconds (increased from 2s to avoid 429 rate limits)
+    staleTime: 2000, // Low staleTime so invalidateQueries triggers immediate refetch
     retry: 1,
-    retryDelay: 500,
+    retryDelay: 1000,
   });
 
   return {

@@ -26,9 +26,10 @@ interface MarketSelectorProps {
   selectedMarket: string;
   onSelectMarket: (symbol: string) => void;
   getPrice: (symbol: string) => PriceData | undefined | null;
+  blockedSymbols?: string[]; // Symbols blocked from trading (pre-fight positions)
 }
 
-export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPrice }: MarketSelectorProps) {
+export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPrice, blockedSymbols = [] }: MarketSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'volume' | 'change' | 'symbol'>('volume');
@@ -247,28 +248,38 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
               const nextFunding = priceData?.nextFunding || 0;
               const isSelected = market.symbol === selectedMarket;
               const marketBaseSymbol = extractBaseSymbol(market.symbol);
+              const isBlocked = blockedSymbols.includes(market.symbol);
 
               return (
                 <tr
                   key={market.symbol}
                   onClick={() => {
+                    if (isBlocked) return; // Don't allow selecting blocked symbols
                     onSelectMarket(market.symbol);
                     setIsOpen(false);
                     setSearchQuery('');
                   }}
-                  className={`border-b border-surface-800/50 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-primary-500/10'
-                      : 'hover:bg-surface-800/50'
+                  className={`border-b border-surface-800/50 transition-colors ${
+                    isBlocked
+                      ? 'opacity-50 cursor-not-allowed'
+                      : isSelected
+                        ? 'bg-primary-500/10 cursor-pointer'
+                        : 'hover:bg-surface-800/50 cursor-pointer'
                   }`}
+                  title={isBlocked ? 'Blocked: You had a position in this symbol before the fight started' : undefined}
                 >
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
                       <TokenIcon symbol={market.symbol} size="md" />
-                      <span className="text-sm font-medium text-white">{marketBaseSymbol}</span>
+                      <span className={`text-sm font-medium ${isBlocked ? 'text-surface-500' : 'text-white'}`}>{marketBaseSymbol}</span>
                       <span className="px-1.5 py-0.5 text-[10px] font-medium bg-surface-700 text-surface-300 rounded">
                         {market.maxLeverage}x
                       </span>
+                      {isBlocked && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
+                          Blocked
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="py-2 px-3 text-right">

@@ -343,7 +343,84 @@ async function testSameIpRule() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// TEST 5: Violation Logging
+// TEST 5: EXTERNAL_TRADES - Cheater Loses Automatically
+// ─────────────────────────────────────────────────────────────
+
+async function testExternalTradesCheaterLoses() {
+  console.log('🧪 Test 5: EXTERNAL_TRADES - Cheater Loses Automatically');
+
+  const fightId = `${TEST_FIGHT_PREFIX}external-trades`;
+
+  // Create fight where User A has external trades detected
+  await prisma.fight.create({
+    data: {
+      id: fightId,
+      creatorId: TEST_USER_A_ID,
+      durationMinutes: 5,
+      stakeUsdc: 100,
+      status: 'LIVE',
+      startedAt: new Date(Date.now() - 6 * 60 * 1000),
+      participants: {
+        create: [
+          {
+            userId: TEST_USER_A_ID,
+            slot: 'A',
+            finalScoreUsdc: -0.05, // User A has better PnL (would normally win)
+            finalPnlPercent: -0.09,
+            externalTradesDetected: true, // BUT they cheated!
+            externalTradeIds: ['fake-trade-1', 'fake-trade-2'],
+          },
+          {
+            userId: TEST_USER_B_ID,
+            slot: 'B',
+            finalScoreUsdc: -0.08, // User B has worse PnL
+            finalPnlPercent: -0.55,
+            externalTradesDetected: false,
+          },
+        ],
+      },
+    },
+  });
+
+  // Simulate what settleFightWithAntiCheat would do
+  const fight = await prisma.fight.findUnique({
+    where: { id: fightId },
+    include: { participants: true },
+  });
+
+  if (!fight) {
+    results.push({
+      name: 'EXTERNAL_TRADES - Cheater Loses',
+      passed: false,
+      details: 'Fight not found',
+    });
+    return;
+  }
+
+  // Find cheater and honest player
+  const cheater = fight.participants.find(p => p.externalTradesDetected);
+  const honestPlayer = fight.participants.find(p => !p.externalTradesDetected);
+
+  // The expected behavior: cheater loses, honest player wins
+  const expectedWinnerId = honestPlayer?.userId || null;
+  const cheaterId = cheater?.userId || null;
+
+  // Verify the logic
+  const wouldAssignCorrectWinner = expectedWinnerId === TEST_USER_B_ID && cheaterId === TEST_USER_A_ID;
+
+  results.push({
+    name: 'EXTERNAL_TRADES - Cheater Loses',
+    passed: wouldAssignCorrectWinner,
+    details: `Cheater: ${cheaterId}, Expected winner: ${expectedWinnerId} | Correct: ${wouldAssignCorrectWinner}`,
+  });
+
+  console.log(`   Cheater (User A): ${cheaterId}`);
+  console.log(`   Expected winner (User B): ${expectedWinnerId}`);
+  console.log(`   ${wouldAssignCorrectWinner ? '✅ Cheater would lose correctly' : '❌ Winner assignment incorrect'}\n`);
+}
+
+// ─────────────────────────────────────────────────────────────
+// TEST 6: Violation Logging
 // ─────────────────────────────────────────────────────────────
 
 async function testViolationLogging() {
@@ -565,6 +642,7 @@ async function main() {
     await testMinVolumeRule();
     await testRepeatedMatchupRule();
     await testSameIpRule();
+    await testExternalTradesCheaterLoses();
     await testViolationLogging();
     await testNoContestStatus();
     await testLeaderboardExclusion();

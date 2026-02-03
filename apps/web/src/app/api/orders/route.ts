@@ -159,6 +159,33 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    // Check if symbol is blocked for this user in their active fight
+    // Blocked symbols = symbols with pre-fight open positions (to avoid PnL contamination)
+    if (fightValidation) {
+      const connection = await prisma.pacificaConnection.findUnique({
+        where: { accountAddress: account },
+        select: { userId: true },
+      });
+
+      if (connection) {
+        const participant = await prisma.fightParticipant.findFirst({
+          where: {
+            userId: connection.userId,
+            fightId: fightValidation.fightId,
+          },
+        });
+
+        // blockedSymbols is String[] - check if symbol is in the list
+        // Allow pre-fight flip trades to bypass this check (they close pre-existing positions)
+        const blockedSymbols = (participant as any)?.blockedSymbols as string[] | undefined;
+        if (blockedSymbols?.includes(symbol) && !is_pre_fight_flip) {
+          throw new BadRequestError(
+            `Symbol ${symbol} is blocked for this fight. You had an open position in this symbol before the fight started. Close pre-fight positions before joining a fight to trade that symbol.`
+          );
+        }
+      }
+    }
+
     // Proxy to Pacifica API
     let endpoint;
     let requestBody: Record<string, any>;
@@ -390,6 +417,10 @@ async function recordAllTrades(
   }
 
   // Save to Trade table (ALL trades for platform metrics)
+  // Don't assign fightId if this is closing a pre-fight position
+  // Pre-fight closes should not count as fight activity for anti-cheat validation
+  const shouldAssignFightId = resolvedFightId && !isPreFightFlip;
+
   try {
     const trade = await prisma.trade.create({
       data: {
@@ -403,7 +434,7 @@ async function recordAllTrades(
         fee,
         pnl,
         leverage: leverage || null,
-        fightId: resolvedFightId || null,
+        fightId: shouldAssignFightId ? resolvedFightId : null,
         executedAt: new Date(),
       },
     });
@@ -824,7 +855,13 @@ async function recordFightTradeWithDetails(
   // Update maxExposureUsed and emit stake info update via websocket
   try {
     // Calculate current exposure from ALL fight trades (now includes this new trade)
-    const { currentExposure } = await calculateFightExposure(fight.id, connection.userId);
+    const exposureResult = await calculateFightExposure(fight.id, connection.userId);
+    const { currentExposure, cumulativeOpeningNotional, positionsBySymbol } = exposureResult;
+
+    console.log(`[MaxExposure] Calculated exposure for fight ${fight.id}, user ${connection.userId}:`);
+    console.log(`[MaxExposure]   currentExposure: ${currentExposure}`);
+    console.log(`[MaxExposure]   cumulativeOpeningNotional: ${cumulativeOpeningNotional}`);
+    console.log(`[MaxExposure]   positionsBySymbol:`, JSON.stringify(positionsBySymbol));
 
     // Get updated participant data
     const participant = await prisma.fightParticipant.findFirst({
@@ -840,18 +877,30 @@ async function recordFightTradeWithDetails(
     if (participant) {
       const prevMaxExposure = parseFloat(participant.maxExposureUsed?.toString() || '0');
 
-      // Update maxExposureUsed atomically if current exposure is higher (water mark)
-      // This prevents race conditions when multiple trades execute concurrently
-      await updateMaxExposureIfHigher(participant.id, currentExposure);
+      console.log(`[MaxExposure] Participant ${participant.id}: prevMax=${prevMaxExposure}, cumulative=${cumulativeOpeningNotional}`);
 
-      // Get the effective max exposure for logging and emit
-      const effectiveMaxExposure = Math.max(prevMaxExposure, currentExposure);
+      // Update maxExposureUsed with cumulative opening notional (total capital ever committed)
+      // This is NOT the current open exposure, but the SUM of all capital used for OPENING positions
+      // Example: Open $50 BTC, close it, open $30 ETH → maxExposureUsed = $80 (not $30)
+      await updateMaxExposureIfHigher(participant.id, cumulativeOpeningNotional);
 
-      if (currentExposure > prevMaxExposure) {
-        console.log(`[MaxExposure] Updated: ${prevMaxExposure.toFixed(2)} -> ${currentExposure.toFixed(2)} USDC`);
+      // Verify the update worked by re-reading
+      const updatedParticipant = await prisma.fightParticipant.findUnique({
+        where: { id: participant.id },
+        select: { maxExposureUsed: true },
+      });
+      console.log(`[MaxExposure] After update: maxExposureUsed = ${updatedParticipant?.maxExposureUsed}`);
+
+      // Get the effective max exposure (cumulative, not just current open positions)
+      const effectiveMaxExposure = Math.max(prevMaxExposure, cumulativeOpeningNotional);
+
+      if (cumulativeOpeningNotional > prevMaxExposure) {
+        console.log(`[MaxExposure] Updated: ${prevMaxExposure.toFixed(2)} -> ${cumulativeOpeningNotional.toFixed(2)} USDC (cumulative)`);
       }
 
       // Emit real-time stake info update
+      // currentExposure = open positions value (for display)
+      // effectiveMaxExposure = cumulative capital used (for stake limit calculation)
       await emitStakeInfo(
         fight.id,
         connection.userId,
@@ -859,6 +908,8 @@ async function recordFightTradeWithDetails(
         currentExposure,
         effectiveMaxExposure
       );
+    } else {
+      console.error(`[MaxExposure] No participant found for fight ${fight.id}, user ${connection.userId}`);
     }
   } catch (err) {
     console.error('Failed to update maxExposure/emit stake info:', err);

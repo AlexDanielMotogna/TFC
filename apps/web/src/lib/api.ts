@@ -89,9 +89,15 @@ export async function linkPacificaAccount(
 // Fights
 // ─────────────────────────────────────────────────────────────
 
+export interface FightViolation {
+  ruleCode: string;
+  ruleName: string;
+  ruleMessage: string;
+}
+
 export interface Fight {
   id: string;
-  status: 'WAITING' | 'LIVE' | 'FINISHED' | 'CANCELLED';
+  status: 'WAITING' | 'LIVE' | 'FINISHED' | 'CANCELLED' | 'NO_CONTEST';
   durationMinutes: number;
   stakeUsdc: number;
   creator: User;
@@ -102,6 +108,7 @@ export interface Fight {
   winnerId: string | null;
   isDraw: boolean;
   updatedAt: string;
+  violations?: FightViolation[];
 }
 
 export interface FightParticipant {
@@ -328,6 +335,7 @@ export interface StakeInfo {
   currentExposure: number | null;  // Current positions value (can decrease when closing)
   maxExposureUsed: number | null;  // Highest exposure ever reached (never decreases)
   available: number | null;        // stake - maxExposureUsed (based on max, not current)
+  blockedSymbols?: string[];       // Symbols blocked from trading (had pre-fight positions)
 }
 
 export async function getStakeInfo(account: string, fightId?: string): Promise<StakeInfo> {

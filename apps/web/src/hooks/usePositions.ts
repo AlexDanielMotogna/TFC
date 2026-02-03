@@ -32,12 +32,12 @@ export function usePositions() {
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // When WS is connected, reduce polling but keep it as fallback for missed updates
-    // This ensures invalidateQueries works properly after placing orders
-    refetchInterval: wsConnected ? 5000 : 10000,
-    staleTime: wsConnected ? 3000 : 8000,
+    // When WS is connected, reduce polling significantly since WS provides real-time updates
+    // Only poll as fallback for missed updates (increased intervals to avoid 429 rate limits)
+    refetchInterval: wsConnected ? 30000 : 15000,
+    staleTime: wsConnected ? 20000 : 10000,
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 3000,
   });
 
   // If WebSocket is connected and has data, prefer it
@@ -136,11 +136,12 @@ export function useOpenOrders(symbol?: string) {
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // When WS is connected, reduce polling but keep it as fallback for missed updates
-    refetchInterval: wsConnected ? 5000 : 10000,
-    staleTime: wsConnected ? 3000 : 8000,
+    // When WS is connected, reduce polling significantly since WS provides real-time updates
+    // Only poll as fallback for missed updates (increased intervals to avoid 429 rate limits)
+    refetchInterval: wsConnected ? 30000 : 15000,
+    staleTime: wsConnected ? 20000 : 10000,
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 3000,
   });
 
   // If WebSocket is connected and has data, merge with HTTP data
@@ -250,9 +251,10 @@ export function useTradeHistory(symbol?: string) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     enabled: connected && !!publicKey,
-    // When WS is connected, reduce polling but keep it as fallback
-    refetchInterval: wsConnected ? 5000 : 10000,
-    staleTime: wsConnected ? 3000 : 5000,
+    // When WS is connected, reduce polling significantly since WS provides real-time updates
+    // Only poll as fallback for missed updates (increased intervals to avoid 429 rate limits)
+    refetchInterval: wsConnected ? 30000 : 15000,
+    staleTime: wsConnected ? 20000 : 10000,
   });
 
   // Flatten all pages into a single array
@@ -334,7 +336,7 @@ export function useOrderHistory(symbol?: string) {
       return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    refetchInterval: 10000, // Poll every 10 seconds
-    staleTime: 5000,
+    refetchInterval: 30000, // Poll every 30 seconds (reduced to avoid 429 rate limits)
+    staleTime: 20000,
   });
 }

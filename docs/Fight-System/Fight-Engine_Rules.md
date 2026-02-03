@@ -169,13 +169,47 @@
     * Cumple las reglas temporales,
       **afecta el resultado del fight**.
 35. Si un asset se compra en pacifica pero se vende en TFC en un fight no deberia pasar nada como si la transaccion no existiera
-     
+
     * Usuario compra pre-fight o in fight assets en Pacifica pero los vende en TFC en el fight
     * Esto no deberia contar como Fight Capital Limit ni afectar al PNL
-    
+
 
 36. Si un jugador deberia poder cerrar solo las posiciones de los assets que estan en el fight only desde fight only view! Aun asi si tiene el mismo asset pre comprado el system debe saber lo que el usuario compro en el fight y mostrar esos detalles en las tablas de posiciones, open order, trade history y open orders...
 
-35. El sistema debe detectar tramposos, fights que terminan en draw con 0% - 0% pnl, se puede considerar que una persona con mas cuentas esta entrando en sus propios fights y dejando la cuenta a 50% de winrate sin hacer ningun trading. Este tipo de fights no deben contar en el PNL o ranking del usuario, ningun fight que termine con 0% - 0% pnl
+---
 
-36. La applicacion debe deducir cuando se esta intentanto hacer trampas, por ejemplo debemos 
+## 11. Detección de Trades Externos (Actualizado 2026-02-01)
+
+37. **Método de detección simplificado**: Comparación BUY vs SELL por símbolo.
+
+38. **Lógica**: Para cada símbolo en `fight_trades`:
+    * Sumar todas las cantidades BUY
+    * Sumar todas las cantidades SELL
+    * Si SELL > BUY → trades externos detectados
+    * El usuario no puede vender más de lo que compró a través de TFC
+
+39. **Ejemplo de detección**:
+    ```
+    Usuario compra 0.13 SOL via TFC
+    Usuario vende 0.27 SOL via TFC
+    → SELL (0.27) > BUY (0.13)
+    → Diferencia: 0.14 SOL vino de fuente externa
+    → ¡Trades externos detectados!
+    ```
+
+40. **Registro de violaciones**: Cuando se detectan trades externos:
+    * Se crea un registro en `anti_cheat_violations`
+    * `ruleCode`: 'EXTERNAL_TRADES'
+    * `actionTaken`: 'FLAGGED'
+    * Se actualiza `externalTradesDetected = true` en FightParticipant
+    * Se emite evento WebSocket `EXTERNAL_TRADES_DETECTED`
+
+41. **Timing**: La detección se ejecuta al finalizar el fight (no durante).
+
+---
+
+## 12. Anti-Cheat y Detección de Trampas
+
+42. El sistema debe detectar tramposos, fights que terminan en draw con 0% - 0% pnl, se puede considerar que una persona con mas cuentas esta entrando en sus propios fights y dejando la cuenta a 50% de winrate sin hacer ningun trading. Este tipo de fights no deben contar en el PNL o ranking del usuario, ningun fight que termine con 0% - 0% pnl
+
+43. La applicacion debe deducir cuando se esta intentanto hacer trampas, por ejemplo debemos 

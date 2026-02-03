@@ -24,6 +24,7 @@ interface PositionState {
  */
 export interface FightExposureResult {
   currentExposure: number; // Current open position notional value
+  cumulativeOpeningNotional: number; // Total capital committed to OPENING positions (not closing)
   positionsBySymbol: Record<string, PositionState>;
 }
 
@@ -49,7 +50,15 @@ export async function calculateFightExposure(
     },
   });
 
-  return calculateExposureFromTrades(fightTrades);
+  console.log(`[calculateFightExposure] Found ${fightTrades.length} trades for fight ${fightId}, user ${userId}`);
+  fightTrades.forEach((t, i) => {
+    console.log(`[calculateFightExposure]   Trade ${i + 1}: ${t.side} ${t.amount} ${t.symbol} @ ${t.price}`);
+  });
+
+  const result = calculateExposureFromTrades(fightTrades);
+  console.log(`[calculateFightExposure] Result: currentExposure=${result.currentExposure}, cumulativeOpeningNotional=${result.cumulativeOpeningNotional}`);
+
+  return result;
 }
 
 /**
@@ -66,6 +75,10 @@ export function calculateExposureFromTrades(
 ): FightExposureResult {
   const positionsBySymbol: Record<string, PositionState> = {};
 
+  // Track cumulative notional used for OPENING positions (not closing)
+  // This is the total capital ever committed, regardless of whether positions were later closed
+  let cumulativeOpeningNotional = 0;
+
   for (const trade of trades) {
     const symbol = trade.symbol;
     const amount = parseFloat(trade.amount.toString());
@@ -80,7 +93,7 @@ export function calculateExposureFromTrades(
     if (trade.side === 'BUY') {
       // Opening/adding to LONG, or closing SHORT
       if (pos.amount < 0) {
-        // Closing SHORT position
+        // Closing SHORT position (and possibly opening LONG)
         const shortToClose = Math.min(amount, Math.abs(pos.amount));
         const longToOpen = amount - shortToClose;
 
@@ -90,19 +103,22 @@ export function calculateExposureFromTrades(
           pos.totalNotional -= shortToClose * avgShortEntry;
         }
 
-        // Add new long notional if opening long
+        // Add new long notional if opening long (flip case)
         if (longToOpen > 0) {
           pos.totalNotional += longToOpen * price;
+          // Only the OPENING portion counts toward cumulative
+          cumulativeOpeningNotional += longToOpen * price;
         }
       } else {
-        // Opening/adding to LONG
+        // Opening/adding to LONG - entire amount is opening
         pos.totalNotional += amount * price;
+        cumulativeOpeningNotional += amount * price;
       }
       pos.amount += amount;
     } else {
       // SELL: Opening/adding to SHORT, or closing LONG
       if (pos.amount > 0) {
-        // Closing LONG position
+        // Closing LONG position (and possibly opening SHORT)
         const longToClose = Math.min(amount, pos.amount);
         const shortToOpen = amount - longToClose;
 
@@ -112,13 +128,16 @@ export function calculateExposureFromTrades(
           pos.totalNotional -= longToClose * avgLongEntry;
         }
 
-        // Add new short notional if opening short
+        // Add new short notional if opening short (flip case)
         if (shortToOpen > 0) {
           pos.totalNotional += shortToOpen * price;
+          // Only the OPENING portion counts toward cumulative
+          cumulativeOpeningNotional += shortToOpen * price;
         }
       } else {
-        // Opening/adding to SHORT
+        // Opening/adding to SHORT - entire amount is opening
         pos.totalNotional += amount * price;
+        cumulativeOpeningNotional += amount * price;
       }
       pos.amount -= amount;
     }
@@ -141,6 +160,7 @@ export function calculateExposureFromTrades(
 
   return {
     currentExposure,
+    cumulativeOpeningNotional,
     positionsBySymbol,
   };
 }
@@ -302,7 +322,7 @@ export async function hasWaitingFight(userId: string): Promise<{
 
 /**
  * Update maxExposureUsed for a participant after a trade
- * Uses atomic update to prevent race conditions
+ * Only updates if newExposure is higher than current value (water mark)
  *
  * @param participantId - FightParticipant ID
  * @param newExposure - New calculated exposure after trade
@@ -311,14 +331,28 @@ export async function updateMaxExposureIfHigher(
   participantId: string,
   newExposure: number
 ): Promise<void> {
-  // Use raw SQL for atomic "update only if higher" operation
-  // This prevents race conditions when multiple trades execute concurrently
-  // IMPORTANT: Use COALESCE because GREATEST(NULL, x) returns NULL in PostgreSQL
-  await prisma.$executeRaw`
-    UPDATE fight_participants
-    SET max_exposure_used = GREATEST(COALESCE(max_exposure_used, 0), ${newExposure}::decimal(18,6))
-    WHERE id = ${participantId}::uuid
-  `;
+  console.log(`[updateMaxExposureIfHigher] Called with participantId=${participantId}, newExposure=${newExposure}`);
+
+  // Get current value
+  const current = await prisma.fightParticipant.findUnique({
+    where: { id: participantId },
+    select: { maxExposureUsed: true },
+  });
+
+  const currentMax = parseFloat(current?.maxExposureUsed?.toString() || '0');
+  console.log(`[updateMaxExposureIfHigher] Current maxExposureUsed=${currentMax}`);
+
+  // Only update if new value is higher
+  if (newExposure > currentMax) {
+    console.log(`[updateMaxExposureIfHigher] Updating: ${currentMax} -> ${newExposure}`);
+    const result = await prisma.fightParticipant.update({
+      where: { id: participantId },
+      data: { maxExposureUsed: newExposure },
+    });
+    console.log(`[updateMaxExposureIfHigher] Update result: maxExposureUsed=${result.maxExposureUsed}`);
+  } else {
+    console.log(`[updateMaxExposureIfHigher] No update needed (${newExposure} <= ${currentMax})`);
+  }
 }
 
 /**

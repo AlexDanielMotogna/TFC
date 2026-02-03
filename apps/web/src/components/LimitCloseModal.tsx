@@ -33,6 +33,10 @@ const LOT_SIZES: Record<string, number> = {
   PAXG: 0.0001,
   ENA: 0.1,
   KPEPE: 1,
+  // Forex pairs
+  USDJPY: 0.001,
+  EURUSD: 0.001,
+  GBPUSD: 0.001,
 };
 
 interface LimitCloseModalProps {

@@ -146,29 +146,18 @@ export function useCreateMarketOrder() {
       }
 
       // Invalidate fight-related queries if in a fight
+      // Backend takes 500-1500ms+ to fetch execution details from Pacifica
+      // Reduced invalidations to avoid 429 rate limits (was 4 sets, now 2)
       if (variables.fightId) {
-        // Invalidate immediately
-        queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
-        queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
-        queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
-        queryClient.invalidateQueries({ queryKey: ['stake-info'] });
-
-        // Invalidate frequently to catch the recorded FightTrade as soon as possible
-        // Backend takes 500-1500ms+ to fetch execution details from Pacifica
+        // First invalidation after backend has time to process
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['stake-info'] });
-        }, 500);
+        }, 1000);
 
-        setTimeout(() => {
-          queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
-          queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
-          queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
-          queryClient.invalidateQueries({ queryKey: ['stake-info'] });
-        }, 1500);
-
+        // Second invalidation as backup
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });

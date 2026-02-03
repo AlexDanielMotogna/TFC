@@ -17,8 +17,9 @@ Per **Fight-Engine_Rules.md**:
 | **22-25** | PnL includes all trading fees (Pacifica + 0.05% platform fee) |
 | **30-32** | 30-second warning before fight ends |
 
-## Core Formula
+## Core Formula (Updated 2026-02-01)
 
+### Backend (Fight Engine)
 ```
 pnlPercent = (realizedPnl / effectiveMargin) * 100
 ```
@@ -26,6 +27,18 @@ pnlPercent = (realizedPnl / effectiveMargin) * 100
 Where:
 - **realizedPnl** = Sum of PnL from CLOSING trades only (opening trades don't count!)
 - **effectiveMargin** = currentMargin > 0 ? currentMargin : maxExposureUsed
+
+### Frontend (Fight Results Page)
+```
+roiPercent = (netPnl / totalNotionalUsed) * 100
+```
+
+Where:
+- **netPnl** = grossPnl - totalFees (includes all trading fees)
+- **totalNotionalUsed** = Sum of all OPENING notional values (capital committed)
+- **grossPnl** = Profit/loss from price movement only (before fees)
+
+**Important**: The frontend calculates ROI locally from `fight_trades` to ensure consistency between "Final Result" (netPnl) and "ROI%" display. This prevents the bug where Final Result was negative but ROI was positive.
 
 ## Critical: Only CLOSING Trades Count
 
@@ -292,9 +305,63 @@ Tests cover:
 | Backend Calculation | `apps/realtime/src/fight-engine.ts` |
 | PnL Calculator (testable) | `apps/realtime/src/fight-pnl-calculator.ts` |
 | Unit Tests | `apps/realtime/src/fight-pnl-calculator.test.ts` |
-| Frontend Display | `apps/web/src/components/FightBanner.tsx` |
+| Frontend Display (Live) | `apps/web/src/components/FightBanner.tsx` |
+| Frontend Display (Results) | `apps/web/src/app/fight/[id]/page.tsx` |
 | WebSocket Hook | `apps/web/src/hooks/useSocket.ts` |
 | Rules Document | `docs/Fight-Engine_Rules.md` |
+
+## Frontend PnL Breakdown (Updated 2026-02-01)
+
+The fight results page (`fight/[id]/page.tsx`) calculates PnL locally from `fight_trades` to ensure consistency:
+
+### calculatePnlBreakdown Function
+
+```typescript
+const calculatePnlBreakdown = (participantTrades: FightTrade[]) => {
+  let totalFees = 0;
+  let grossPnl = 0;         // Profit from price movement only
+  let totalNotionalUsed = 0; // Sum of all OPENING notional
+
+  // Track positions per symbol
+  const positionsBySymbol: Record<string, { amount: number; totalCost: number }> = {};
+
+  for (const trade of sortedTrades) {
+    totalFees += Math.abs(fee);
+
+    if (trade.side === 'BUY') {
+      if (pos.amount < 0) {
+        // Closing SHORT - calculate gross profit
+        grossPnl += (avgEntry - price) * closeAmount;
+        // Any remaining opens new LONG - new capital used
+        if (openAmount > 0) totalNotionalUsed += openAmount * price;
+      } else {
+        // Opening LONG - new capital used
+        totalNotionalUsed += notional;
+      }
+    } else {
+      // SELL - similar logic for closing LONG or opening SHORT
+    }
+  }
+
+  const netPnl = grossPnl - totalFees;
+  const roiPercent = totalNotionalUsed > 0 ? (netPnl / totalNotionalUsed) * 100 : 0;
+
+  return { totalFees, grossPnl, netPnl, totalNotionalUsed, roiPercent };
+};
+```
+
+### Display Values
+
+| Field | Formula | Description |
+|-------|---------|-------------|
+| Position PnL | `grossPnl` | Profit from price movement (before fees) |
+| Fees | `totalFees` | All trading fees paid |
+| Final Result | `netPnl = grossPnl - totalFees` | Net profit after fees |
+| ROI | `netPnl / totalNotionalUsed * 100` | Return on capital used |
+
+**Consistency**: ROI is now calculated from netPnl (not grossPnl), ensuring:
+- If Final Result is negative, ROI is negative
+- If Final Result is positive, ROI is positive
 
 ## Win/Lose Determination
 
@@ -324,7 +391,46 @@ At fight end:
 
 **Answer**: Opening fees don't count for fight PnL. Only closing trade PnL counts.
 
+## External Trades Detection (Updated 2026-02-01)
+
+External trades are detected using a simple BUY vs SELL comparison:
+
+### Detection Logic
+
+```typescript
+// For each symbol in fight_trades
+const symbolTotals: Record<string, { buy: number; sell: number }> = {};
+
+for (const trade of fightTrades) {
+  if (trade.side === 'BUY') symbolTotals[symbol].buy += amount;
+  else symbolTotals[symbol].sell += amount;
+}
+
+// If SELL > BUY for any symbol, external trades detected
+for (const [symbol, totals] of Object.entries(symbolTotals)) {
+  if (totals.sell > totals.buy) {
+    // External trades detected!
+  }
+}
+```
+
+### Why This Works
+
+- Users can only sell what they bought through TFC during the fight
+- If SELL > BUY, the extra came from an external source (Pacifica direct, pre-fight position)
+- This is more reliable than comparing Pacifica history_ids (all trades have history_ids)
+
+### When Detected
+
+| Action | Description |
+|--------|-------------|
+| FightParticipant update | `externalTradesDetected = true` |
+| AntiCheatViolation record | Created with `ruleCode: 'EXTERNAL_TRADES'` |
+| WebSocket event | `EXTERNAL_TRADES_DETECTED` emitted to fight room |
+| UI indicator | "External trades detected" shown in fight results |
+
 ## Related Documentation
 
 - [Fight Engine Rules](./Fight-Engine_Rules.md) - The authoritative rules
+- [MVP Simplified Rules](./MVP-SIMPLIFIED-RULES.md) - MVP implementation details
 - [Master Doc](./Master-doc.md) - Overall system documentation

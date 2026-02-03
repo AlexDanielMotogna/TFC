@@ -54,6 +54,14 @@ export async function GET(
             },
           },
         },
+        // Include violations for NO_CONTEST fights to show reason in UI
+        violations: {
+          select: {
+            ruleCode: true,
+            ruleName: true,
+            ruleMessage: true,
+          },
+        },
       },
     });
 
