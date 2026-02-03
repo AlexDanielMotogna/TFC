@@ -150,7 +150,7 @@ function calculateParticipantNotional(trades: FightTrade[], userId: string): num
  * If both players have PnL ~ 0 or 0 trades, mark as NO_CONTEST
  */
 async function validateZeroZeroRule(data: FightDataForValidation): Promise<ValidationResult> {
-  const { participants } = data;
+  const { participants, trades } = data;
   const threshold = ANTI_CHEAT_CONSTANTS.ZERO_PNL_THRESHOLD_USDC;
 
   const participantA = participants.find((p) => p.slot === 'A');
@@ -167,8 +167,10 @@ async function validateZeroZeroRule(data: FightDataForValidation): Promise<Valid
 
   const pnlA = participantA.finalScoreUsdc ? parseFloat(participantA.finalScoreUsdc.toString()) : 0;
   const pnlB = participantB.finalScoreUsdc ? parseFloat(participantB.finalScoreUsdc.toString()) : 0;
-  const tradesA = participantA.tradesCount || 0;
-  const tradesB = participantB.tradesCount || 0;
+  // Count trades directly from fight_trades table, not from participant.tradesCount
+  // (tradesCount field is updated AFTER anti-cheat runs, so it would always be 0)
+  const tradesA = trades.filter((t) => t.participantUserId === participantA.userId).length;
+  const tradesB = trades.filter((t) => t.participantUserId === participantB.userId).length;
 
   console.log('[AntiCheat] ZERO_ZERO check:', {
     pnlA,
