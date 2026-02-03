@@ -34,7 +34,11 @@ async function callAntiCheatSettle(
       return { finalStatus: 'FINISHED', winnerId, isDraw };
     }
 
-    const result = await response.json();
+    const result = await response.json() as {
+      finalStatus?: 'FINISHED' | 'NO_CONTEST';
+      winnerId?: string | null;
+      isDraw?: boolean;
+    };
     return {
       finalStatus: result.finalStatus || 'FINISHED',
       winnerId: result.winnerId ?? winnerId,
