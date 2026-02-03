@@ -5,12 +5,13 @@
  * Each rule is implemented as a separate function that returns a ValidationResult.
  *
  * Rules:
- * - ZERO_ZERO: Both players PnL ~ 0 or 0 trades
+ * - ZERO_ZERO: Both players PnL ~ 0 or 0 trades (counts from fight_trades table)
  * - MIN_VOLUME: Total notional < MIN_NOTIONAL_PER_PLAYER
  * - REPEATED_MATCHUP: Same pair fought >= 3 times in 24h
  * - SAME_IP_PATTERN: Same IP + repeated matchup pattern
  *
  * @see Anti-Cheat.md for full documentation
+ * @updated 2026-02-03 - Fixed ZERO_ZERO to count trades from fight_trades table
  */
 
 import { prisma } from './db';
