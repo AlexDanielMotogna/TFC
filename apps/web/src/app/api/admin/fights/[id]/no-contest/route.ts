@@ -6,6 +6,7 @@ import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
 import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
+import { SETTLEMENT_LOCK_TIMEOUT_MS } from '@tfc/db';
 
 export async function POST(
   request: Request,
@@ -42,6 +43,16 @@ export async function POST(
         throw new BadRequestError(
           `Cannot mark fight as NO_CONTEST with status ${fight.status}`
         );
+      }
+
+      // Check if fight is being settled by another process (only for LIVE fights)
+      if (fight.status === 'LIVE' && fight.settlingBy && fight.settlingAt) {
+        const lockAge = Date.now() - fight.settlingAt.getTime();
+        if (lockAge < SETTLEMENT_LOCK_TIMEOUT_MS) {
+          throw new BadRequestError(
+            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`
+          );
+        }
       }
 
       const previousStatus = fight.status;

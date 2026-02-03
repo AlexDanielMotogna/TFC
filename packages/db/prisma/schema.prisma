@@ -125,6 +125,11 @@ model Fight {
 
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // Settlement lock fields (prevents race conditions between realtime engine and reconcile job)
+  // @see docs/Agents/Fight-Enginer-Scanner.md
+  settlingAt DateTime? @map("settling_at") // Timestamp when settlement started
+  settlingBy String?   @map("settling_by") // Process ID holding the lock (e.g., "realtime-abc123", "job-reconcile")
+
   participants FightParticipant[]
   trades       FightTrade[]
   snapshots    FightSnapshot[]
@@ -133,6 +138,7 @@ model Fight {
 
   @@index([status])
   @@index([createdAt])
+  @@index([settlingAt])
   @@map("fights")
 }
 
@@ -631,4 +637,35 @@ model BetaWhitelist {
   approvedAt    DateTime? @map("approved_at")
 
   @@map("beta_whitelist")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FIGHT AUDIT LOG
+// Diagnostic table to capture ALL fight status/settling changes
+// Used to identify the source of race conditions in settlement
+// @see docs/Agents/Fight-Enginer-Scanner.md
+// ─────────────────────────────────────────────────────────────
+model FightAuditLog {
+  id Int @id @default(autoincrement())
+
+  fightId String @map("fight_id")
+
+  // Status change tracking
+  oldStatus String? @map("old_status")
+  newStatus String? @map("new_status")
+
+  // Settlement lock tracking
+  oldSettlingBy String?   @map("old_settling_by")
+  newSettlingBy String?   @map("new_settling_by")
+  oldSettlingAt DateTime? @map("old_settling_at")
+  newSettlingAt DateTime? @map("new_settling_at")
+
+  // PostgreSQL metadata (set by trigger)
+  changedAt       DateTime @default(now()) @map("changed_at")
+  pgBackendPid    Int?     @map("pg_backend_pid")
+  applicationName String?  @map("application_name")
+
+  @@index([fightId])
+  @@index([changedAt])
+  @@map("fight_audit_log")
 }

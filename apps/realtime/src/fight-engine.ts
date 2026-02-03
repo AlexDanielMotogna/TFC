@@ -1,5 +1,15 @@
 import { Server } from 'socket.io';
-import { prisma, FightStatus, Fight, FightParticipant, User } from '@tfc/db';
+import {
+  prisma,
+  FightStatus,
+  Fight,
+  FightParticipant,
+  User,
+  acquireSettlementLock,
+  releaseSettlementLock,
+  SETTLEMENT_LOCK_PREFIX,
+  generateProcessId,
+} from '@tfc/db';
 import { createLogger } from '@tfc/logger';
 import { LOG_EVENTS, WS_EVENTS, PNL_TICK_INTERVAL_MS, type ArenaPnlTickPayload, type PlatformStatsPayload } from '@tfc/shared';
 import { getPrices, MarketPrice } from './pacifica-client.js';
@@ -432,6 +442,7 @@ const FIGHT_ENDING_WARNING_MS = 30000;
 
 export class FightEngine {
   private io: Server;
+  private instanceId: string; // Unique ID for this instance (used for distributed lock)
   private activeFights: Map<string, FightState> = new Map();
   private fightWarningsSent: Set<string> = new Set(); // Track fights that have received 30-second warning
   private settlingFights: Set<string> = new Set(); // Track fights currently being settled (prevents race condition)
@@ -441,6 +452,9 @@ export class FightEngine {
 
   constructor(io: Server) {
     this.io = io;
+    // Generate unique instance ID for distributed lock identification
+    // Useful for debugging and horizontal scaling
+    this.instanceId = generateProcessId(SETTLEMENT_LOCK_PREFIX.REALTIME, process.env.INSTANCE_ID);
   }
 
   /**
@@ -942,6 +956,10 @@ export class FightEngine {
 
   /**
    * End a fight
+   *
+   * Uses distributed lock (settling_at/settling_by fields) to prevent race conditions
+   * with the reconcile-fights job.
+   * @see docs/Agents/Fight-Enginer-Scanner.md
    */
   private async endFight(fightId: string, state: FightState) {
     // ========== DEBUG LOGS - ENDFIGHT CALLED ==========
@@ -950,16 +968,34 @@ export class FightEngine {
     console.log('========================================');
     console.log('Fight ID:', fightId);
     console.log('Timestamp:', new Date().toISOString());
+    console.log('Instance ID:', this.instanceId);
     console.log('========================================\n');
     // ==================================================
 
-    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Ending fight', { fightId });
+    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Ending fight', { fightId, instanceId: this.instanceId });
 
-    // CRITICAL: Add to settlingFights FIRST to prevent tick loop from re-adding to activeFights
-    // This must happen before any async operations
+    // STEP 1: Acquire distributed lock in DB FIRST
+    // This prevents race conditions with reconcile-fights job
+    const lockResult = await acquireSettlementLock(prisma, fightId, this.instanceId);
+
+    if (!lockResult.acquired) {
+      console.log(`⛔ [${fightId}] SETTLEMENT LOCK NOT ACQUIRED - another process is handling this fight`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Settlement lock held by another process, skipping', {
+        fightId,
+        settlingBy: lockResult.settlingBy,
+        settlingAt: lockResult.settlingAt,
+        fightStatus: lockResult.fightStatus,
+      });
+      return;
+    }
+
+    console.log(`🔒 [${fightId}] SETTLEMENT LOCK ACQUIRED by ${this.instanceId}`);
+
+    // STEP 2: Add to local settlingFights set (backup for tick loop)
     if (this.settlingFights.has(fightId)) {
       console.log(`⛔ [${fightId}] DUPLICATE ENDFIGHT BLOCKED (settlingFights)`);
-      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight already being settled, skipping duplicate call', { fightId });
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight already being settled locally, skipping duplicate call', { fightId });
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
       return;
     }
     this.settlingFights.add(fightId);
@@ -980,6 +1016,7 @@ export class FightEngine {
 
     if (!fight) {
       logger.error(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight not found for settlement', { fightId });
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
       this.settlingFights.delete(fightId);
       return;
     }
@@ -991,6 +1028,7 @@ export class FightEngine {
         fightId,
         currentStatus: fight.status,
       });
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
       this.settlingFights.delete(fightId);
       return;
     }
@@ -1002,6 +1040,13 @@ export class FightEngine {
         participants: fight.participants,
       });
     }
+
+    // DEBUG: Check status after external trades check
+    const afterExtTradesCheck = await prisma.fight.findUnique({
+      where: { id: fightId },
+      select: { status: true },
+    });
+    console.log(`🔍 [${fightId}] AFTER external trades check: status=${afterExtTradesCheck?.status}`);
 
     // Recalculate state to get final REALIZED PnL
     // Only closed positions count for winner determination
@@ -1016,29 +1061,6 @@ export class FightEngine {
 
     // Use settlement state for final scores, fallback to live state if calculation fails
     const finalState = settlementState || state;
-
-    // Update participant final scores FIRST (needed for anti-cheat validation)
-    if (finalState.participantA) {
-      await prisma.fightParticipant.updateMany({
-        where: { fightId, userId: finalState.participantA.userId },
-        data: {
-          finalPnlPercent: finalState.participantA.pnlPercent,
-          finalScoreUsdc: finalState.participantA.scoreUsdc,
-          tradesCount: finalState.participantA.tradesCount,
-        },
-      });
-    }
-
-    if (finalState.participantB) {
-      await prisma.fightParticipant.updateMany({
-        where: { fightId, userId: finalState.participantB.userId },
-        data: {
-          finalPnlPercent: finalState.participantB.pnlPercent,
-          finalScoreUsdc: finalState.participantB.scoreUsdc,
-          tradesCount: finalState.participantB.tradesCount,
-        },
-      });
-    }
 
     // Determine winner based on REALIZED PnL only
     // Use tolerance for floating point comparison to avoid false wins due to precision errors
@@ -1059,10 +1081,57 @@ export class FightEngine {
       }
     }
 
+    console.log(`🎯 [${fightId}] Determined winner: ${determinedWinnerId || (determinedDraw ? 'DRAW' : 'NONE')}`);
+
     // Call anti-cheat API to validate fight and get final status
     let finalStatus: 'FINISHED' | 'NO_CONTEST' = 'FINISHED';
     let winnerId = determinedWinnerId;
     let isDraw = determinedDraw;
+
+    // PRE-HTTP LOCK VERIFICATION
+    // Check that we still hold the lock BEFORE making the HTTP call
+    // This helps diagnose if the lock is being stolen during processing
+    const preLockCheckRaw = await prisma.fight.findUnique({
+      where: { id: fightId },
+    });
+    // Type assertion needed because settlingBy/settlingAt fields may not be in generated types yet
+    const preLockCheck = preLockCheckRaw as typeof preLockCheckRaw & {
+      settlingBy?: string | null;
+      settlingAt?: Date | null;
+    };
+
+    console.log(`🔐 [${fightId}] PRE-HTTP lock check:`, {
+      status: preLockCheck?.status,
+      settlingBy: preLockCheck?.settlingBy,
+      expectedSettlingBy: this.instanceId,
+      match: preLockCheck?.settlingBy === this.instanceId,
+    });
+
+    if (preLockCheck?.status !== 'LIVE') {
+      console.log(`⛔ [${fightId}] Fight no longer LIVE before anti-cheat call! Status: ${preLockCheck?.status}`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight status changed before anti-cheat call', {
+        fightId,
+        currentStatus: preLockCheck?.status,
+        settlingBy: preLockCheck?.settlingBy,
+        expectedSettlingBy: this.instanceId,
+      });
+      this.settlingFights.delete(fightId);
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
+      return;
+    }
+
+    if (preLockCheck?.settlingBy !== this.instanceId) {
+      console.log(`⛔ [${fightId}] Lock was stolen before anti-cheat call!`);
+      console.log(`   Expected settlingBy: ${this.instanceId}`);
+      console.log(`   Actual settlingBy: ${preLockCheck?.settlingBy}`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Settlement lock stolen before anti-cheat call', {
+        fightId,
+        currentSettlingBy: preLockCheck?.settlingBy,
+        expectedSettlingBy: this.instanceId,
+      });
+      this.settlingFights.delete(fightId);
+      return;
+    }
 
     logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Calling anti-cheat API', {
       fightId,
@@ -1157,25 +1226,89 @@ export class FightEngine {
     console.log('========================================\n');
     // ================================================
 
-    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Updating fight in database', {
+    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Updating fight in database with atomic transaction', {
       fightId,
       finalStatus,
       statusToSave: finalStatus === 'NO_CONTEST' ? 'NO_CONTEST' : 'FINISHED',
       winnerId,
       isDraw,
+      instanceId: this.instanceId,
     });
 
-    const updateResult = await prisma.fight.updateMany({
-      where: {
-        id: fightId,
-        status: FightStatus.LIVE, // Only update if still LIVE - prevents race conditions
-      },
-      data: {
-        status: finalStatus === 'NO_CONTEST' ? FightStatus.NO_CONTEST : FightStatus.FINISHED,
-        endedAt: new Date(),
-        winnerId,
-        isDraw,
-      },
+    // Use atomic transaction to:
+    // 1. Lock the row with FOR UPDATE to prevent any concurrent modifications
+    // 2. Verify we still hold the lock and fight is LIVE
+    // 3. Update participant scores
+    // 4. Update fight status
+    // 5. Clear the lock
+    // ALL writes happen in this single transaction - nothing can interfere
+    const updateResult = await prisma.$transaction(async (tx) => {
+      // Lock the row with FOR UPDATE - blocks any concurrent access
+      const lockedRows = await tx.$queryRaw<Array<{
+        id: string;
+        status: string;
+        settling_by: string | null;
+      }>>`
+        SELECT id, status, settling_by
+        FROM fights
+        WHERE id = ${fightId}
+        FOR UPDATE
+      `;
+
+      const currentFight = lockedRows[0];
+      if (!currentFight) {
+        return { success: false, reason: 'fight_not_found' };
+      }
+
+      console.log(`🔒 [${fightId}] Transaction FOR UPDATE acquired: status=${currentFight.status}, settlingBy=${currentFight.settling_by}`);
+
+      if (currentFight.status !== 'LIVE') {
+        return { success: false, reason: 'already_settled', currentStatus: currentFight.status };
+      }
+
+      if (currentFight.settling_by !== this.instanceId) {
+        return { success: false, reason: 'lock_stolen', lockHolder: currentFight.settling_by };
+      }
+
+      // Update participant A scores (inside transaction)
+      if (finalState.participantA) {
+        await tx.fightParticipant.updateMany({
+          where: { fightId, userId: finalState.participantA.userId },
+          data: {
+            finalPnlPercent: finalState.participantA.pnlPercent,
+            finalScoreUsdc: finalState.participantA.scoreUsdc,
+            tradesCount: finalState.participantA.tradesCount,
+          },
+        });
+      }
+
+      // Update participant B scores (inside transaction)
+      if (finalState.participantB) {
+        await tx.fightParticipant.updateMany({
+          where: { fightId, userId: finalState.participantB.userId },
+          data: {
+            finalPnlPercent: finalState.participantB.pnlPercent,
+            finalScoreUsdc: finalState.participantB.scoreUsdc,
+            tradesCount: finalState.participantB.tradesCount,
+          },
+        });
+      }
+
+      // Update fight status and clear lock in one atomic operation
+      await tx.fight.update({
+        where: { id: fightId },
+        data: {
+          status: finalStatus === 'NO_CONTEST' ? FightStatus.NO_CONTEST : FightStatus.FINISHED,
+          endedAt: new Date(),
+          winnerId,
+          isDraw,
+          settlingAt: null, // Clear the lock
+          settlingBy: null,
+        },
+      });
+
+      console.log(`✅ [${fightId}] Transaction committed: participants updated, fight status=${finalStatus}`);
+      return { success: true };
     });
 
     // ========== DEBUG LOGS - AFTER UPDATE ==========
@@ -1183,24 +1316,27 @@ export class FightEngine {
     console.log('✅ DATABASE UPDATE RESULT');
     console.log('========================================');
     console.log('Fight ID:', fightId);
-    console.log('Rows updated:', updateResult.count);
+    console.log('Transaction result:', JSON.stringify(updateResult));
     console.log('finalStatus was:', finalStatus);
     console.log('========================================\n');
     // ================================================
 
-    if (updateResult.count === 0) {
-      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight already settled by another process, skipping update', {
+    if (!updateResult.success) {
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight settlement transaction failed', {
         fightId,
         attemptedStatus: finalStatus,
+        reason: updateResult.reason,
+        ...(updateResult.currentStatus && { currentStatus: updateResult.currentStatus }),
+        ...(updateResult.lockHolder && { lockHolder: updateResult.lockHolder }),
       });
       this.settlingFights.delete(fightId);
       return;
     }
 
-    // Cleanup tracking sets
+    // Cleanup tracking sets (lock already cleared in transaction)
     this.fightWarningsSent.delete(fightId);
     this.settlingFights.delete(fightId);
-    console.log(`✅ [${fightId}] ENDFIGHT COMPLETE - removed from settlingFights`);
+    console.log(`✅ [${fightId}] ENDFIGHT COMPLETE - removed from settlingFights, lock cleared`);
 
     // Emit FIGHT_FINISHED with settlement scores (realized PnL only)
     this.io.to(`fight:${fightId}`).emit(WS_EVENTS.FIGHT_FINISHED, {
