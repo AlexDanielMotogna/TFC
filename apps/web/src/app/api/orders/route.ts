@@ -351,17 +351,41 @@ async function recordAllTrades(
 
   // Auto-detect active fight if not explicitly provided
   let resolvedFightId = specificFightId;
+  let activeFightParticipant: { fightId: string; blockedSymbols: string[] } | null = null;
   if (!resolvedFightId) {
-    const activeFight = await prisma.fightParticipant.findFirst({
+    activeFightParticipant = await prisma.fightParticipant.findFirst({
       where: {
         userId: connection.userId,
         fight: { status: FightStatus.LIVE },
       },
-      select: { fightId: true },
+      select: { fightId: true, blockedSymbols: true },
     });
-    if (activeFight) {
-      resolvedFightId = activeFight.fightId;
+    if (activeFightParticipant) {
+      resolvedFightId = activeFightParticipant.fightId;
       console.log('[recordAllTrades] Auto-detected active fight:', resolvedFightId);
+    }
+  }
+
+  // Auto-detect if this is closing a pre-fight position
+  // Use blockedSymbols from FightParticipant (set when user joined fight with open positions)
+  let autoDetectedPreFightFlip = isPreFightFlip;
+
+  if (!autoDetectedPreFightFlip && resolvedFightId && !leverage && activeFightParticipant?.blockedSymbols) {
+    // This is a CLOSING trade (no leverage) during a fight
+    // Check if this symbol is in the user's blockedSymbols list
+    // blockedSymbols contains symbols with pre-fight positions (e.g., ["BTC-USD", "ETH-USD"])
+    const normalizedSymbol = symbol.includes('-USD') ? symbol : `${symbol}-USD`;
+    const blockedSymbols = activeFightParticipant.blockedSymbols;
+
+    if (blockedSymbols.includes(normalizedSymbol)) {
+      console.log('[recordAllTrades] Auto-detected pre-fight position close via blockedSymbols', {
+        symbol,
+        normalizedSymbol,
+        userId: connection.userId,
+        fightId: resolvedFightId,
+        blockedSymbols,
+      });
+      autoDetectedPreFightFlip = true;
     }
   }
 
@@ -419,7 +443,7 @@ async function recordAllTrades(
   // Save to Trade table (ALL trades for platform metrics)
   // Don't assign fightId if this is closing a pre-fight position
   // Pre-fight closes should not count as fight activity for anti-cheat validation
-  const shouldAssignFightId = resolvedFightId && !isPreFightFlip;
+  const shouldAssignFightId = resolvedFightId && !autoDetectedPreFightFlip;
 
   try {
     const trade = await prisma.trade.create({
@@ -481,7 +505,7 @@ async function recordAllTrades(
 
   // Record to FightTrade if user is in a fight and not a pre-fight flip
   // Pass the execution details we already fetched to avoid duplicate API calls
-  if (!isPreFightFlip) {
+  if (!autoDetectedPreFightFlip) {
     await recordFightTradeWithDetails(
       accountAddress,
       symbol,
