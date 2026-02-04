@@ -939,14 +939,14 @@ export default function TradePage() {
           <div className="contents xl:col-span-9 xl:flex xl:flex-col xl:gap-1 xl:order-1 xl:h-full">
             {/* Top row: Order Book + Chart - also contents on mobile */}
             <div className="contents xl:grid xl:grid-cols-12 xl:gap-1">
-              {/* Order Book - half width on mobile (row 2 left), 3 cols on desktop. 600px to show 9 rows */}
-              <div className="col-span-1 xl:col-span-3 order-2 card overflow-hidden h-[600px] xl:h-auto flex flex-col">
+              {/* Order Book - half width on mobile (row 2 left), 3 cols on desktop */}
+              <div className="col-span-1 xl:col-span-3 order-2 card overflow-hidden h-[645px] xl:h-auto flex flex-col">
                 <div className="px-3 py-2 border-b border-surface-800 flex-shrink-0">
                   <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                     Order Book
                   </h3>
                 </div>
-                <div className="flex-1 xl:h-[570px] overflow-y-auto overscroll-y-auto isolate" style={{ contain: 'strict' }}>
+                <div className="flex-1 xl:h-[615px] overflow-y-auto overscroll-y-auto isolate" style={{ contain: 'strict' }}>
                   <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
                 </div>
               </div>
@@ -1016,10 +1016,10 @@ export default function TradePage() {
                   </div>
                 </div>
                 {/* Chart */}
-                <div className="h-[460px]">
+                <div className="h-[505px]">
                   <TradingViewChartAdvanced
                     symbol={selectedMarket}
-                    height={460}
+                    height={505}
                   />
                 </div>
               </div>
@@ -1027,7 +1027,7 @@ export default function TradePage() {
 
             {/* Positions Panel - full width on mobile (row 3), full width inside flex on desktop */}
             {/* contain: strict prevents layout changes inside from affecting page scroll */}
-            <div className="col-span-2 order-4 card min-h-[389px] xl:min-h-[calc(100vh-3rem-460px-64px)] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
+            <div className="col-span-2 order-4 card min-h-[389px] xl:min-h-[calc(100vh-3rem-505px-64px)] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
               {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
               <div className="flex items-center justify-between border-b border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-auto">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">

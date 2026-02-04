@@ -12,6 +12,7 @@ type OrderActionType =
   | 'CANCEL_ALL'
   | 'SET_TPSL'
   | 'CANCEL_STOP'
+  | 'CREATE_STOP'
   | 'ORDER_FILLED'
   | 'ORDER_PARTIAL'
   | 'EDIT_ORDER';
@@ -23,9 +24,11 @@ interface RecordOrderActionParams {
   side?: string;
   orderType?: string;
   amount?: string;
+  size?: string;
   price?: string;
   takeProfit?: string;
   stopLoss?: string;
+  reduceOnly?: boolean;
   pacificaOrderId?: number | bigint;
   pacificaHistoryId?: number | bigint;
   filledAmount?: string;
@@ -50,6 +53,9 @@ export async function recordOrderAction(params: RecordOrderActionParams): Promis
 
     const userId = user?.id || 'unknown';
 
+    // Use size as alias for amount if amount not provided
+    const amountValue = params.amount || params.size;
+
     await prisma.tfcOrderAction.create({
       data: {
         userId,
@@ -58,7 +64,7 @@ export async function recordOrderAction(params: RecordOrderActionParams): Promis
         symbol: params.symbol,
         side: params.side || null,
         orderType: params.orderType || null,
-        amount: params.amount ? parseFloat(params.amount) : null,
+        amount: amountValue ? parseFloat(amountValue) : null,
         price: params.price ? parseFloat(params.price) : null,
         takeProfit: params.takeProfit ? parseFloat(params.takeProfit) : null,
         stopLoss: params.stopLoss ? parseFloat(params.stopLoss) : null,
