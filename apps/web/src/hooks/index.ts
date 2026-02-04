@@ -9,7 +9,7 @@ export { useOrderBook } from './useOrderBook';
 export type { AggLevel } from './useOrderBook';
 export { useCandles } from './useCandles';
 export type { CandleData } from './useCandles';
-export { useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useWithdraw, useEditOrder } from './useOrders';
+export { useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useSetLeverage, useWithdraw, useEditOrder } from './useOrders';
 export { usePositions, useAccountInfo, useAccountSettings, useOpenOrders, useMarkets, useMarket, useTradeHistory, useOrderHistory } from './usePositions';
 export { usePacificaConnection } from './usePacificaConnection';
 export { useBuilderCodeStatus, useApproveBuilderCode, getBuilderCode } from './useBuilderCode';

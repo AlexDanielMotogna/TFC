@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedUpdateLeverage, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
+import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
@@ -57,6 +57,16 @@ interface SetPositionTpSlParams {
 interface SetLeverageParams {
   symbol: string;
   leverage: number;
+}
+
+interface CreateStopOrderParams {
+  symbol: string;
+  side: 'LONG' | 'SHORT'; // Position side (order will be opposite to close)
+  stopPrice: string;
+  amount: string; // Partial amount in token units
+  limitPrice?: string; // Optional limit price for stop-limit orders
+  type: 'TAKE_PROFIT' | 'STOP_LOSS';
+  fightId?: string;
 }
 
 interface EditOrderParams {
@@ -359,8 +369,20 @@ export function useCancelStopOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
+      // Invalidate immediately
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['positions'] });
+
+      // Force refetch after a delay to ensure Pacifica has processed the cancellation
+      // This helps when WebSocket data might be stale
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['positions'] });
+      }, 500);
+
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+      }, 1500);
 
       notify('ORDER', 'TP/SL Cancelled', `TP/SL order cancelled`, { variant: 'success' });
     },
@@ -451,18 +473,18 @@ export function useSetPositionTpSl() {
       const side = params.side === 'LONG' ? 'ask' : 'bid';
 
       // Build params for signing - account is NOT in signed data (same as market orders)
-      // NOTE: size is NOT included for full position TP/SL (per Pacifica API)
+      // NOTE: size is NOT included in signed data - Pacifica's set_position_tpsl
+      // operation type doesn't support it in the signature verification.
+      // Size is sent in the request body separately (if Pacifica supports it there).
       const signParams: {
         symbol: string;
         side: 'bid' | 'ask';
-        size?: string;
         take_profit?: { stop_price: string; limit_price?: string } | null;
         stop_loss?: { stop_price: string; limit_price?: string } | null;
       } = {
         symbol: params.symbol.replace('-USD', ''),
         side,
       };
-      // Size is only for partial TP/SL - omit for full position
 
       // Handle take_profit: null means remove, undefined means don't change, object means set
       if (params.take_profit === null) {
@@ -491,7 +513,6 @@ export function useSetPositionTpSl() {
 
       // Build request body - must match exactly what was signed
       // NOTE: builder_code is NOT a valid field for TP/SL endpoint per Pacifica docs
-      // NOTE: size is NOT included for full position TP/SL (per Pacifica API)
       const requestBody: Record<string, any> = {
         account,
         symbol: params.symbol.replace('-USD', ''),
@@ -500,6 +521,11 @@ export function useSetPositionTpSl() {
         timestamp,
         fight_id: params.fightId, // Track as fight order if in fight
       };
+
+      // Include size for partial TP/SL orders
+      if (params.size) {
+        requestBody.size = params.size;
+      }
 
       // Use the same take_profit/stop_loss structure as what was signed
       // null = remove, undefined = don't include, object = set
@@ -539,8 +565,19 @@ export function useSetPositionTpSl() {
       return result.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['positions'] });
-      queryClient.invalidateQueries({ queryKey: ['account'] });
+      // Force immediate refetch (not just invalidate) to show TP/SL faster
+      // refetchQueries actually triggers a fetch, unlike invalidateQueries which just marks stale
+      queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+      queryClient.refetchQueries({ queryKey: ['positions'], type: 'active' });
+
+      // Also refetch after short delays to catch any propagation delay from Pacifica
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+      }, 300);
+
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+      }, 800);
 
       const parts = [];
       if (variables.take_profit) {
@@ -554,6 +591,145 @@ export function useSetPositionTpSl() {
     onError: (error: Error) => {
       console.error('Failed to set TP/SL:', error);
       notify('ORDER', 'TP/SL Failed', `Failed to set TP/SL: ${error.message}`, { variant: 'error' });
+    },
+  });
+}
+
+/**
+ * Hook to create partial TP/SL orders
+ *
+ * Due to how Pacifica's create_stop_order works (triggers based on price direction):
+ * - Stop orders only work for SL (price moving against you)
+ * - For TP (price moving in your favor), we use limit orders with reduce_only
+ *
+ * This creates separate orders without overwriting existing TP/SL
+ */
+export function useCreateStopOrder() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: CreateStopOrderParams) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Determine order side for closing position
+      // - LONG position: need to SELL (ask) to close
+      // - SHORT position: need to BUY (bid) to close
+      const closingSide = params.side === 'LONG' ? 'ask' : 'bid';
+
+      // For TAKE PROFIT: Use limit order with reduce_only
+      // (Limit orders execute when price reaches the level)
+      if (params.type === 'TAKE_PROFIT') {
+        console.log('Creating TP as limit order reduce_only');
+
+        const limitParams = {
+          symbol,
+          side: closingSide,
+          price: params.stopPrice,
+          amount: params.amount,
+          reduce_only: true,
+          tif: 'GTC' as const,
+        };
+
+        // Sign as limit order
+        const { signature, timestamp } = await createSignedLimitOrder(wallet, limitParams);
+
+        // Send to backend
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            account,
+            symbol,
+            side: closingSide,
+            type: 'LIMIT',
+            price: params.stopPrice,
+            amount: params.amount,
+            reduce_only: true,
+            tif: 'GTC',
+            signature,
+            timestamp,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+          throw new Error(error.error || `HTTP ${response.status}`);
+        }
+
+        const result = await response.json();
+        return result.data;
+      }
+
+      // For STOP LOSS: Use stop order
+      // Stop orders trigger when price moves against you
+      const stopOrderParams = {
+        symbol,
+        side: closingSide as 'bid' | 'ask',
+        reduce_only: true,
+        stop_order: {
+          stop_price: params.stopPrice,
+          amount: params.amount,
+          ...(params.limitPrice && { limit_price: params.limitPrice }),
+        },
+      };
+
+      console.log('Creating SL as stop order:', stopOrderParams);
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedStopOrder(wallet, stopOrderParams);
+
+      // Send to backend
+      const response = await fetch('/api/orders/stop/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          account,
+          ...stopOrderParams,
+          signature,
+          timestamp,
+          fight_id: params.fightId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    },
+    onSuccess: (_, variables) => {
+      // Force immediate refetch to show new order
+      queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+      queryClient.refetchQueries({ queryKey: ['positions'], type: 'active' });
+
+      // Also refetch after delays
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+      }, 300);
+
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
+      }, 800);
+
+      const typeLabel = variables.type === 'TAKE_PROFIT' ? 'TP' : 'SL';
+      const orderType = variables.type === 'TAKE_PROFIT' ? 'Limit' : 'Stop';
+      notify('ORDER', `${typeLabel} Order Created`, `${variables.symbol} ${typeLabel} (${orderType}): $${variables.stopPrice} (${variables.amount})`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to create partial TP/SL:', error);
+      notify('ORDER', 'Order Failed', `Failed to create order: ${error.message}`, { variant: 'error' });
     },
   });
 }

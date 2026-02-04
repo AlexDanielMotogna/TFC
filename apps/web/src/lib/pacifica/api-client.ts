@@ -333,16 +333,60 @@ export async function getOpenOrders(account: string, symbol?: string): Promise<P
 
 /**
  * Get markets info
+ * Uses /api/v1/info endpoint which returns market info including symbols, leverage, tick/lot sizes
  */
 export async function getMarkets(): Promise<PacificaApiResponse> {
-  const response = await fetch(`${PACIFICA_API_URL}/api/v1/markets`);
+  const response = await fetch(`${PACIFICA_API_URL}/api/v1/info`);
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }));
     throw new Error(error.error || `HTTP ${response.status}`);
   }
 
-  // Pacifica API already returns {success, data, error, code}
+  // Pacifica API returns {success, data: [...markets]}
+  // Each market has: symbol, max_leverage, tick_size, lot_size, etc.
+  return response.json();
+}
+
+/**
+ * Create a stop order (for partial TP/SL)
+ * Unlike set_position_tpsl, this endpoint allows specifying a custom amount
+ * and creates a separate stop order without overwriting existing ones
+ */
+export async function createStopOrder(
+  account: string,
+  params: {
+    symbol: string;
+    side: 'bid' | 'ask'; // bid = buy, ask = sell
+    reduce_only: boolean;
+    stop_order: {
+      stop_price: string;
+      limit_price?: string;
+      amount: string;
+    };
+  },
+  signature: string,
+  timestamp: number
+): Promise<PacificaApiResponse> {
+  const response = await fetch(`${PACIFICA_API_URL}/api/v1/orders/stop/create`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      account,
+      ...params,
+      signature,
+      timestamp,
+      expiry_window: 5000,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+
   return response.json();
 }
 
