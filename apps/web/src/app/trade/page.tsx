@@ -4,9 +4,9 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
-import { PacificaChart } from '@/components/PacificaChart';
+import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
 import { OrderBook } from '@/components/OrderBook';
 import { Positions, type Position, type LimitCloseParams, type MarketCloseParams, type TpSlParams } from '@/components/Positions';
 import { FightBanner } from '@/components/FightBanner';
@@ -56,6 +56,7 @@ export default function TradePage() {
   const cancelStopOrder = useCancelStopOrder();
   const cancelAllOrders = useCancelAllOrders();
   const setPositionTpSl = useSetPositionTpSl();
+  const createStopOrder = useCreateStopOrder();
   const setLeverageMutation = useSetLeverage();
 
   // Account settings (for leverage per symbol)
@@ -117,7 +118,6 @@ export default function TradePage() {
     document.title = `${asset} - Trade - Trading Fight Club`;
   }, [selectedMarket]);
 
-  const [selectedInterval, setSelectedInterval] = useState<'1m' | '5m' | '15m' | '1h' | '4h' | '1d'>('5m');
   const [selectedSide, setSelectedSide] = useState<'LONG' | 'SHORT'>('LONG');
   const [orderSize, setOrderSize] = useState('');
   const [leverage, setLeverage] = useState(5);
@@ -259,6 +259,13 @@ export default function TradePage() {
     return rounded.toFixed(precision);
   };
 
+  // Helper to round price to tick size (Pacifica requires prices to be multiples of tick size)
+  const roundToTickSize = useCallback((price: number): string => {
+    const rounded = Math.round(price / tickSize) * tickSize;
+    const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
+    return rounded.toFixed(decimals);
+  }, [tickSize]);
+
   // Check if leverage can be set (validates against open positions)
   const canSetLeverage = useCallback((lev: number): { valid: boolean; error?: string } => {
     const marketSymbol = selectedMarket.replace('-USD', '');
@@ -328,8 +335,13 @@ export default function TradePage() {
       const orderAmount = roundToLotSize(rawAmount, lotSize);
 
       // Build TP/SL params if enabled (for market and limit orders)
-      const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit ? { stop_price: takeProfit } : undefined;
-      const slParam = (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss ? { stop_price: stopLoss } : undefined;
+      // Round to tick size to avoid "Invalid stop tick" errors from Pacifica
+      const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit
+        ? { stop_price: roundToTickSize(parseFloat(takeProfit)) }
+        : undefined;
+      const slParam = (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss
+        ? { stop_price: roundToTickSize(parseFloat(stopLoss)) }
+        : undefined;
 
       const symbol = selectedMarket.replace('-USD', ''); // Convert BTC-USD to BTC
       const side = selectedSide === 'LONG' ? 'bid' : 'ask';
@@ -383,7 +395,7 @@ export default function TradePage() {
       // Error notification is handled by the hook's onError handler
       console.error('Failed to place order:', err instanceof Error ? err.message : err);
     }
-  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, orderType, limitPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize, slippage]);
+  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, orderType, limitPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize, slippage, roundToTickSize]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (!isAuthenticated) {
@@ -618,27 +630,66 @@ export default function TradePage() {
 
   const handleSetTpSl = useCallback(async (params: TpSlParams) => {
     try {
-      // Handle null = remove, object = set, undefined = no change
-      const takeProfit = params.takeProfit === null
-        ? null // Explicitly remove
-        : params.takeProfit
-          ? { stop_price: params.takeProfit.stopPrice, limit_price: params.takeProfit.limitPrice }
-          : undefined; // No change
+      // For PARTIAL orders, use create_stop_order endpoint which supports custom amounts
+      // The set_position_tpsl endpoint only supports full position TP/SL and overwrites existing orders
+      if (params.isPartial && params.partialAmount) {
+        const promises: Promise<any>[] = [];
 
-      const stopLoss = params.stopLoss === null
-        ? null // Explicitly remove
-        : params.stopLoss
-          ? { stop_price: params.stopLoss.stopPrice, limit_price: params.stopLoss.limitPrice }
-          : undefined; // No change
+        // Create partial TP order if specified
+        if (params.takeProfit) {
+          promises.push(
+            createStopOrder.mutateAsync({
+              symbol: params.symbol,
+              side: params.side,
+              stopPrice: params.takeProfit.stopPrice,
+              amount: params.partialAmount,
+              limitPrice: params.takeProfit.limitPrice,
+              type: 'TAKE_PROFIT',
+              fightId: fightId || undefined,
+            })
+          );
+        }
 
-      await setPositionTpSl.mutateAsync({
-        symbol: params.symbol,
-        side: params.side,
-        size: params.size,
-        take_profit: takeProfit,
-        stop_loss: stopLoss,
-        fightId: fightId || undefined, // Track as fight order if in fight
-      });
+        // Create partial SL order if specified
+        if (params.stopLoss) {
+          promises.push(
+            createStopOrder.mutateAsync({
+              symbol: params.symbol,
+              side: params.side,
+              stopPrice: params.stopLoss.stopPrice,
+              amount: params.partialAmount,
+              limitPrice: params.stopLoss.limitPrice,
+              type: 'STOP_LOSS',
+              fightId: fightId || undefined,
+            })
+          );
+        }
+
+        await Promise.all(promises);
+      } else {
+        // For FULL position TP/SL, use set_position_tpsl endpoint
+        // Handle null = remove, object = set, undefined = no change
+        const takeProfit = params.takeProfit === null
+          ? null // Explicitly remove
+          : params.takeProfit
+            ? { stop_price: params.takeProfit.stopPrice, limit_price: params.takeProfit.limitPrice }
+            : undefined; // No change
+
+        const stopLoss = params.stopLoss === null
+          ? null // Explicitly remove
+          : params.stopLoss
+            ? { stop_price: params.stopLoss.stopPrice, limit_price: params.stopLoss.limitPrice }
+            : undefined; // No change
+
+        await setPositionTpSl.mutateAsync({
+          symbol: params.symbol,
+          side: params.side,
+          size: params.size,
+          take_profit: takeProfit,
+          stop_loss: stopLoss,
+          fightId: fightId || undefined, // Track as fight order if in fight
+        });
+      }
 
       // Refresh account data
       await refetchAccount();
@@ -647,7 +698,7 @@ export default function TradePage() {
       console.error('Failed to set TP/SL:', message);
       toast.error(message);
     }
-  }, [setPositionTpSl, refetchAccount, fightId]);
+  }, [setPositionTpSl, createStopOrder, refetchAccount, fightId]);
 
   // Get account equity for cross margin liq price calculation
   const accountEquity = account ? parseFloat(account.accountEquity) || 0 : 0;
@@ -708,10 +759,30 @@ export default function TradePage() {
     const oppositeOrderSide = pos.side === 'LONG' ? 'SHORT' : 'LONG';
 
     // Find ALL Take Profit orders for this position
+    // TP orders can be:
+    // 1. Native Pacifica TP: order.type includes 'TP' or 'take_profit'
+    // 2. Hybrid approach: reduce_only LIMIT orders on opposite side at profit-taking price
+    //    - For LONG position: TP price is ABOVE entry price
+    //    - For SHORT position: TP price is BELOW entry price
     const tpOrders = openOrders.filter(order => {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
-      const isTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
-      return orderSymbol === posSymbol && order.side === oppositeOrderSide && isTP;
+      if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
+
+      // Check for native Pacifica TP orders
+      const isNativeTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
+      if (isNativeTP) return true;
+
+      // Check for hybrid TP (limit orders with reduce_only at profit-taking price)
+      // These are limit orders (not stop orders) that are reduce_only
+      const isLimitOrder = order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
+      if (isLimitOrder && order.reduceOnly) {
+        const orderPrice = parseFloat(order.price) || 0;
+        // For LONG: TP is above entry, for SHORT: TP is below entry
+        if (pos.side === 'LONG' && orderPrice > entryPrice) return true;
+        if (pos.side === 'SHORT' && orderPrice < entryPrice) return true;
+      }
+
+      return false;
     }).map(order => ({
       orderId: order.id,
       type: 'TP' as const,
@@ -722,10 +793,30 @@ export default function TradePage() {
     }));
 
     // Find ALL Stop Loss orders for this position
+    // SL orders can be:
+    // 1. Native Pacifica SL: order.type includes 'SL' or 'stop_loss'
+    // 2. Hybrid approach: reduce_only STOP orders on opposite side at loss-limiting price
+    //    - For LONG position: SL price is BELOW entry price
+    //    - For SHORT position: SL price is ABOVE entry price
     const slOrders = openOrders.filter(order => {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
-      const isSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
-      return orderSymbol === posSymbol && order.side === oppositeOrderSide && isSL;
+      if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
+
+      // Check for native Pacifica SL orders
+      const isNativeSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
+      if (isNativeSL) return true;
+
+      // Check for hybrid SL (stop orders with reduce_only at loss-limiting price)
+      // These are stop_market orders that are reduce_only
+      const isStopOrder = order.type?.toUpperCase().includes('STOP') && !order.type?.includes('TP') && !order.type?.includes('SL');
+      if (isStopOrder && order.reduceOnly) {
+        const triggerPrice = parseFloat(order.stopPrice || order.price) || 0;
+        // For LONG: SL is below entry, for SHORT: SL is above entry
+        if (pos.side === 'LONG' && triggerPrice < entryPrice) return true;
+        if (pos.side === 'SHORT' && triggerPrice > entryPrice) return true;
+      }
+
+      return false;
     }).map(order => ({
       orderId: order.id,
       type: 'SL' as const,
@@ -838,14 +929,14 @@ export default function TradePage() {
       </div>
 
       {/* Main container - overflow-anchor: none prevents scroll jumping when WebSocket updates components */}
-      <div className="w-full px-1 py-1 touch-pan-y" style={{ overflowAnchor: 'none' }}>
+      <div className="w-full px-1 py-1 touch-pan-y min-h-[calc(100vh-3rem)]" style={{ overflowAnchor: 'none' }}>
         {/* Main Trading Terminal - Responsive layout
             Mobile (< xl): Chart → Order Book + Place Order (side by side) → Tables
             Desktop (xl+): Current layout with Order Book + Chart side by side, Place Order right */}
         {/* transform: translateZ(0) creates a new compositing layer to isolate layout changes */}
-        <div className="grid grid-cols-2 xl:grid-cols-12 gap-1" style={{ transform: 'translateZ(0)' }}>
+        <div className="grid grid-cols-2 xl:grid-cols-12 gap-1 h-full" style={{ transform: 'translateZ(0)' }}>
           {/* Left column wrapper - becomes "invisible" on mobile via contents */}
-          <div className="contents xl:col-span-9 xl:flex xl:flex-col xl:gap-1 xl:order-1">
+          <div className="contents xl:col-span-9 xl:flex xl:flex-col xl:gap-1 xl:order-1 xl:h-full">
             {/* Top row: Order Book + Chart - also contents on mobile */}
             <div className="contents xl:grid xl:grid-cols-12 xl:gap-1">
               {/* Order Book - half width on mobile (row 2 left), 3 cols on desktop. 600px to show 9 rows */}
@@ -924,26 +1015,10 @@ export default function TradePage() {
                     </div>
                   </div>
                 </div>
-                {/* Interval selector */}
-                <div className="flex items-center gap-1 px-4 py-2 border-b border-surface-800">
-                  {(['1m', '5m', '15m', '1h', '4h', '1d'] as const).map((int) => (
-                    <button
-                      key={int}
-                      onClick={() => setSelectedInterval(int)}
-                      className={`px-3 py-1 text-xs rounded transition-colors ${selectedInterval === int
-                        ? 'bg-primary-500 text-white'
-                        : 'text-surface-400 hover:text-white hover:bg-surface-700'
-                        }`}
-                    >
-                      {int}
-                    </button>
-                  ))}
-                </div>
                 {/* Chart */}
                 <div className="h-[460px]">
-                  <PacificaChart
+                  <TradingViewChartAdvanced
                     symbol={selectedMarket}
-                    interval={selectedInterval}
                     height={460}
                   />
                 </div>
@@ -952,7 +1027,7 @@ export default function TradePage() {
 
             {/* Positions Panel - full width on mobile (row 3), full width inside flex on desktop */}
             {/* contain: strict prevents layout changes inside from affecting page scroll */}
-            <div className="col-span-2 order-4 card h-[389px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
+            <div className="col-span-2 order-4 card min-h-[389px] xl:min-h-[calc(100vh-3rem-460px-64px)] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
               {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
               <div className="flex items-center justify-between border-b border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-auto">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
@@ -1573,7 +1648,7 @@ export default function TradePage() {
 
           {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
           {/* contain: layout prevents internal changes from affecting page scroll */}
-          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:h-[945px] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
+          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:min-h-[calc(100vh-3rem-8px)] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
             <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-800">
               <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                 Place Order

@@ -334,6 +334,27 @@ export async function createSignedEditOrder(
 }
 
 /**
+ * Sign a stop order creation (for partial TP/SL)
+ * NOTE: account is NOT included in signed data (same as other operations)
+ * NOTE: Uses 'bid'/'ask' for side (same as other order types)
+ */
+export async function createSignedStopOrder(
+  wallet: WalletContextState,
+  params: {
+    symbol: string;
+    side: 'bid' | 'ask'; // bid = buy, ask = sell
+    reduce_only: boolean;
+    stop_order: {
+      stop_price: string;
+      limit_price?: string;
+      amount: string;
+    };
+  }
+): Promise<SignedOperation> {
+  return signPacificaOperation(wallet, 'create_stop_order', params);
+}
+
+/**
  * Sign builder code approval
  * Required before placing orders through the TradeFightClub builder program
  *
