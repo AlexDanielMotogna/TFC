@@ -136,3 +136,9 @@ temp
 # Windows specific
 # ─────────────────────────────────────────────────────────────
 nul
+
+# ─────────────────────────────────────────────────────────────
+# TradingView Charting Library (Licensed - do not commit)
+# ─────────────────────────────────────────────────────────────
+apps/web/public/charting_library/
+apps/web/public/datafeeds/
