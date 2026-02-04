@@ -67,15 +67,26 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
   const [partialPercentage, setPartialPercentage] = useState(100);
 
   // Combine existing TP/SL orders for display
-  const existingOrders: TpSlOrder[] = useMemo(() => {
+  // Filter to only show PARTIAL orders (amount < full position size)
+  // Full position TP/SL is managed in the "Full Position" tab
+  const existingPartialOrders: TpSlOrder[] = useMemo(() => {
     const orders: TpSlOrder[] = [];
     if (position.tpOrders) orders.push(...position.tpOrders);
     if (position.slOrders) orders.push(...position.slOrders);
-    // Sort by trigger price descending (TPs first, then SLs)
-    return orders.sort((a, b) => b.triggerPrice - a.triggerPrice);
-  }, [position.tpOrders, position.slOrders]);
 
-  const hasExistingOrders = existingOrders.length > 0;
+    // Filter out full position orders (amount >= 99% of position size to account for rounding)
+    const partialOnly = orders.filter(order => {
+      const orderAmount = order.amount;
+      const positionSize = position.sizeInToken;
+      // Consider it "full" if it's >= 99% of position size
+      return orderAmount < positionSize * 0.99;
+    });
+
+    // Sort by trigger price descending (TPs first, then SLs)
+    return partialOnly.sort((a, b) => b.triggerPrice - a.triggerPrice);
+  }, [position.tpOrders, position.slOrders, position.sizeInToken]);
+
+  const hasExistingPartialOrders = existingPartialOrders.length > 0;
   const tokenSymbol = position.symbol.replace('-USD', '');
 
   // Get live mark price, lot size, and tick size from WebSocket
@@ -287,7 +298,9 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
   // Confirm partial TP/SL
   const handleConfirmPartial = () => {
-    const effectiveSize = configureAmount ? (parseFloat(partialAmount) || position.sizeInToken) : position.sizeInToken;
+    // Always use the partial amount for orders from the Partial tab
+    // This ensures the order appears in the Partial tab (not full position)
+    const effectiveSize = parseFloat(partialAmount) || position.sizeInToken;
 
     const params: TpSlParams = {
       positionId: position.id,
@@ -295,7 +308,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
       side: position.side,
       size: effectiveSize.toString(),
       isPartial: true,
-      partialAmount: configureAmount ? partialAmount : undefined,
+      partialAmount: partialAmount,
     };
 
     if (partialTpPrice && parseFloat(partialTpPrice) > 0) {
@@ -319,15 +332,15 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
     onConfirm(params);
     // Close partial modal but keep main modal open
     setShowAddPartialModal(false);
-    // Reset partial form
+    // Reset partial form (keep configureAmount true for next time)
     setPartialTpPrice('');
     setPartialSlPrice('');
     setPartialUseLimitPrice(false);
     setPartialTpLimitPrice('');
     setPartialSlLimitPrice('');
-    setConfigureAmount(false);
+    setConfigureAmount(true);
     setPartialAmount('');
-    setPartialPercentage(100);
+    setPartialPercentage(50);
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -344,8 +357,10 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
   // Open Add Partial modal
   const handleOpenAddPartial = () => {
-    // Initialize with full position size
-    handlePartialPercentageChange(100);
+    // Initialize with 50% of position (actual partial, not full position)
+    // and enable Configure Amount toggle by default
+    setConfigureAmount(true);
+    handlePartialPercentageChange(50);
     setShowAddPartialModal(true);
   };
 
@@ -356,7 +371,8 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
   // Validation for partial
   const hasValidPartialInput = (partialTpPrice && parseFloat(partialTpPrice) > 0) ||
                                (partialSlPrice && parseFloat(partialSlPrice) > 0);
-  const hasValidPartialAmount = !configureAmount || (parseFloat(partialAmount) > 0);
+  const partialAmountNum = parseFloat(partialAmount) || 0;
+  const hasValidPartialAmount = partialAmountNum > 0 && partialAmountNum < position.sizeInToken * 0.99;
   const canSubmitPartial = hasValidPartialInput && hasValidPartialAmount;
 
   return (
@@ -382,17 +398,14 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Position Info */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm p-3 bg-surface-900/30 rounded-lg">
-              <div className="flex justify-between">
+            {/* Position Info - Vertical layout like Pacifica */}
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center">
                 <span className="text-surface-400">Symbol</span>
                 <span className="text-white font-medium">{tokenSymbol}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-surface-400">Entry</span>
-                <span className="text-white font-mono">${formatPrice(position.entryPrice)}</span>
-              </div>
-              <div className="flex justify-between items-center col-span-2 pt-1">
+              <div className="flex justify-between items-center">
+                <span className="text-surface-400">Position</span>
                 <div className="flex items-center gap-2">
                   <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
                     position.side === 'LONG'
@@ -401,14 +414,16 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                   }`}>
                     {position.leverage}x {position.side === 'LONG' ? 'Long' : 'Short'}
                   </span>
-                  <span className="text-white font-mono text-sm">{position.sizeInToken.toFixed(5)} {tokenSymbol}</span>
+                  <span className="text-white font-mono">{position.sizeInToken.toFixed(5)} {tokenSymbol}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-mono tabular-nums">${formatPrice(livePrice)}</span>
-                  <span className="text-[10px] text-win-400 bg-win-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
-                    LIVE
-                  </span>
-                </div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-surface-400">Entry Price</span>
+                <span className="text-white font-mono">${formatPrice(position.entryPrice)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-surface-400">Mark Price</span>
+                <span className="text-white font-mono">${formatPrice(livePrice)}</span>
               </div>
             </div>
 
@@ -587,10 +602,10 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                   </button>
                 </div>
 
-                {/* Existing Orders List */}
-                {hasExistingOrders ? (
+                {/* Existing Partial Orders List - only shows orders with amount < full position */}
+                {hasExistingPartialOrders ? (
                   <div className="space-y-2">
-                    {existingOrders.map((order) => (
+                    {existingPartialOrders.map((order) => (
                       <div
                         key={order.orderId}
                         className={`p-3 rounded-lg border ${
@@ -822,7 +837,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
                   {/* Quick buttons */}
                   <div className="flex gap-2">
-                    {[25, 50, 75, 100].map((pct) => (
+                    {[25, 50, 75].map((pct) => (
                       <button
                         key={pct}
                         onClick={() => handlePartialPercentageChange(pct)}
@@ -836,6 +851,9 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
                       </button>
                     ))}
                   </div>
+                  <p className="text-xs text-surface-500 mt-2">
+                    Use the Full Position tab to set TP/SL for 100% of your position.
+                  </p>
                 </div>
               )}
 

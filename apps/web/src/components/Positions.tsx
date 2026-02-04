@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LimitCloseModal } from './LimitCloseModal';
 import { FlipPositionModal } from './FlipPositionModal';
 import { MarketCloseModal, type MarketCloseParams } from './MarketCloseModal';
@@ -64,6 +64,13 @@ interface PositionsProps {
   readOnlyMessage?: string;
 }
 
+// Sort state type
+type SortColumn = 'token' | 'size' | 'value' | 'entry' | 'mark' | 'pnl' | 'liq' | 'margin' | 'funding';
+interface SortState {
+  col: SortColumn;
+  desc: boolean;
+}
+
 export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder, onCloseAll, isClosingAll, readOnly = false, readOnlyMessage }: PositionsProps) {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closingType, setClosingType] = useState<'market' | 'limit' | 'flip' | null>(null);
@@ -75,6 +82,33 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
   const [isSubmittingLimit, setIsSubmittingLimit] = useState(false);
   const [isSubmittingFlip, setIsSubmittingFlip] = useState(false);
   const [isSubmittingTpSl, setIsSubmittingTpSl] = useState(false);
+
+  // Sorting state
+  const [sort, setSort] = useState<SortState>({ col: 'pnl', desc: true });
+
+  // Sync tpSlPosition with updated position from props when orders change
+  // This ensures the modal shows current orders after cancellation
+  useEffect(() => {
+    if (tpSlPosition) {
+      const updatedPosition = positions.find(p => p.id === tpSlPosition.id);
+      if (updatedPosition) {
+        // Only update if orders have changed
+        const ordersChanged =
+          JSON.stringify(updatedPosition.tpOrders) !== JSON.stringify(tpSlPosition.tpOrders) ||
+          JSON.stringify(updatedPosition.slOrders) !== JSON.stringify(tpSlPosition.slOrders);
+        if (ordersChanged) {
+          setTpSlPosition(updatedPosition);
+        }
+      }
+    }
+  }, [positions, tpSlPosition]);
+
+  const toggleSort = (col: SortColumn) => {
+    setSort(prev => ({
+      col,
+      desc: prev.col === col ? !prev.desc : true
+    }));
+  };
 
   const handleClose = async (positionId: string, closeType: 'market' | 'limit' | 'flip' = 'market') => {
     // For market close, show modal with percentage slider
@@ -206,8 +240,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
   }
 
   return (
-    // contain: layout prevents internal layout changes from affecting parent/page scroll
-    <div className="flex flex-col h-full" style={{ contain: 'layout' }}>
+    <div className="flex flex-col h-full">
       {/* Info banner for read-only mode */}
       {readOnly && readOnlyMessage && (
         <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2 flex-shrink-0">
@@ -217,26 +250,92 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      {/* Table with horizontal scroll - grows to fill space, overscroll containment prevents scroll chaining on mobile */}
-      <div className="overflow-x-auto overflow-y-auto overscroll-y-contain flex-1">
+      {/* Table with horizontal scroll only */}
+      <div className="overflow-x-auto flex-1">
       <table className="w-full text-xs min-w-[900px]">
         <thead>
-          <tr className="text-xs text-surface-400">
-            <th className="text-left py-2 px-2 font-medium whitespace-nowrap">Token</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Size</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Pos Value</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Entry</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Mark</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">PnL (ROI%)</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Liq Price</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Margin</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Funding</th>
+          <tr className="text-xs text-surface-400 tracking-wider">
+            <th
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('token')}
+            >
+              Token {sort.col === 'token' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('size')}
+            >
+              Size {sort.col === 'size' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('value')}
+            >
+              Pos Value {sort.col === 'value' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('entry')}
+            >
+              Entry {sort.col === 'entry' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('mark')}
+            >
+              Mark {sort.col === 'mark' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('pnl')}
+            >
+              PnL (ROI%) {sort.col === 'pnl' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('liq')}
+            >
+              Liq Price {sort.col === 'liq' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('margin')}
+            >
+              Margin {sort.col === 'margin' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('funding')}
+            >
+              Funding {sort.col === 'funding' && (sort.desc ? '↓' : '↑')}
+            </th>
             <th className="text-center py-2 px-2 font-medium whitespace-nowrap">TP/SL</th>
             {!readOnly && <th className="text-center py-2 px-2 font-medium whitespace-nowrap">Close</th>}
           </tr>
         </thead>
         <tbody>
-          {positions.map((pos) => (
+          {[...positions].sort((a, b) => {
+            const getValue = (pos: Position) => {
+              switch (sort.col) {
+                case 'token': return pos.symbol;
+                case 'size': return pos.sizeInToken;
+                case 'value': return pos.size;
+                case 'entry': return pos.entryPrice;
+                case 'mark': return pos.markPrice;
+                case 'pnl': return pos.unrealizedPnl;
+                case 'liq': return pos.liquidationPrice;
+                case 'margin': return pos.margin;
+                case 'funding': return pos.funding;
+                default: return 0;
+              }
+            };
+            const valA = getValue(a);
+            const valB = getValue(b);
+            if (typeof valA === 'string') {
+              return sort.desc ? valB.toString().localeCompare(valA) : valA.localeCompare(valB.toString());
+            }
+            return sort.desc ? (valB as number) - (valA as number) : (valA as number) - (valB as number);
+          }).map((pos) => (
             <tr
               key={pos.id}
               className="border-t border-surface-800/50 hover:bg-surface-800/30"
@@ -268,17 +367,17 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Entry Price */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300">
+              <td className="py-3 px-2 text-right font-mono text-surface-300 min-w-[85px]">
                 {formatPrice(pos.entryPrice)}
               </td>
 
               {/* Mark Price */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300">
+              <td className="py-3 px-2 text-right font-mono text-surface-300 min-w-[85px]">
                 {formatPrice(pos.markPrice)}
               </td>
 
               {/* PnL with ROI% */}
-              <td className="py-3 px-2 text-right">
+              <td className="py-3 px-2 text-right min-w-[140px]">
                 <div
                   className={`font-mono font-medium ${
                     pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
@@ -295,7 +394,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Liquidation Price */}
-              <td className="py-3 px-2 text-right font-mono text-loss-400">
+              <td className="py-3 px-2 text-right font-mono text-loss-400 min-w-[85px]">
                 {formatPrice(pos.liquidationPrice)}
               </td>
 

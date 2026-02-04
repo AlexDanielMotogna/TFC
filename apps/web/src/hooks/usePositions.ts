@@ -144,49 +144,81 @@ export function useOpenOrders(symbol?: string) {
     retryDelay: 3000,
   });
 
-  // If WebSocket is connected and has data, merge with HTTP data
+  // If WebSocket is connected, merge with HTTP data bidirectionally
   // WebSocket provides real-time updates but may be missing some fields (like stop_price)
-  // HTTP provides complete data, so we merge to preserve fields WebSocket might not have
-  if (wsConnected && wsOrders.length > 0) {
-    // Filter by symbol if provided
-    const filteredOrders = symbol
+  // HTTP provides complete data and may have orders that WebSocket hasn't received yet
+  if (wsConnected) {
+    // Filter WS orders by symbol if provided
+    const filteredWsOrders = symbol
       ? wsOrders.filter(o => o.symbol === symbol)
       : wsOrders;
 
-    // Create a map of HTTP orders by order_id for quick lookup
-    const httpOrdersMap = new Map<number, any>();
-    if (query.data && Array.isArray(query.data)) {
-      query.data.forEach((order: any) => {
-        if (order.order_id) {
-          httpOrdersMap.set(order.order_id, order);
-        }
+    // Create a map of WS orders by order_id
+    const wsOrdersMap = new Map<number, any>();
+    filteredWsOrders.forEach(o => {
+      if (o.order_id) {
+        wsOrdersMap.set(o.order_id, o);
+      }
+    });
+
+    // Get HTTP orders (filtered by symbol if provided)
+    const httpOrders = query.data && Array.isArray(query.data)
+      ? (symbol ? query.data.filter((o: any) => o.symbol === symbol) : query.data)
+      : [];
+
+    // Build merged list: start with WS orders, add HTTP-only orders
+    const mergedOrders: any[] = [];
+    const seenOrderIds = new Set<number>();
+
+    // First, add all WS orders (with HTTP data merged in)
+    filteredWsOrders.forEach(o => {
+      const httpOrder = httpOrders.find((h: any) => h.order_id === o.order_id);
+      seenOrderIds.add(o.order_id);
+
+      mergedOrders.push({
+        order_id: o.order_id,
+        client_order_id: o.client_order_id,
+        symbol: o.symbol,
+        side: o.side,
+        price: o.price,
+        initial_amount: o.initial_amount,
+        amount: o.initial_amount,
+        filled_amount: o.filled_amount,
+        cancelled_amount: o.cancelled_amount,
+        order_type: o.order_type,
+        // Prefer WebSocket stop_price, fall back to HTTP if WebSocket has null
+        stop_price: o.stop_price || httpOrder?.stop_price || null,
+        reduce_only: o.reduce_only,
+        created_at: o.created_at,
+        updated_at: o.created_at,
       });
-    }
+    });
+
+    // Then, add any HTTP orders that aren't in WebSocket yet (newly created orders)
+    httpOrders.forEach((httpOrder: any) => {
+      if (!seenOrderIds.has(httpOrder.order_id)) {
+        mergedOrders.push({
+          order_id: httpOrder.order_id,
+          client_order_id: httpOrder.client_order_id,
+          symbol: httpOrder.symbol,
+          side: httpOrder.side,
+          price: httpOrder.price || httpOrder.stop_price,
+          initial_amount: httpOrder.initial_amount || httpOrder.amount,
+          amount: httpOrder.initial_amount || httpOrder.amount,
+          filled_amount: httpOrder.filled_amount || '0',
+          cancelled_amount: httpOrder.cancelled_amount || '0',
+          order_type: httpOrder.order_type,
+          stop_price: httpOrder.stop_price,
+          reduce_only: httpOrder.reduce_only,
+          created_at: httpOrder.created_at,
+          updated_at: httpOrder.updated_at || httpOrder.created_at,
+        });
+      }
+    });
 
     return {
       ...query,
-      data: filteredOrders.map(o => {
-        // Get corresponding HTTP order data if available
-        const httpOrder = httpOrdersMap.get(o.order_id);
-
-        return {
-          order_id: o.order_id,
-          client_order_id: o.client_order_id,
-          symbol: o.symbol,
-          side: o.side,
-          price: o.price,
-          initial_amount: o.initial_amount,
-          amount: o.initial_amount, // Also provide as 'amount' for compatibility
-          filled_amount: o.filled_amount,
-          cancelled_amount: o.cancelled_amount,
-          order_type: o.order_type,
-          // Prefer WebSocket stop_price, fall back to HTTP if WebSocket has null
-          stop_price: o.stop_price || httpOrder?.stop_price || null,
-          reduce_only: o.reduce_only,
-          created_at: o.created_at,
-          updated_at: o.created_at,
-        };
-      }),
+      data: mergedOrders,
       isLoading: false,
     };
   }

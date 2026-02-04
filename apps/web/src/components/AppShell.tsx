@@ -259,9 +259,9 @@ export function AppShell({ children }: AppShellProps) {
       </main>
 
       {/* Footer - hidden until 1200px */}
-      <footer className="hidden min-[1200px]:block border-t border-surface-800 py-3">
+      <footer className="hidden min-[1200px]:block border-t border-surface-800 py-1">
         <div className="w-full px-4">
-          <div className="flex items-center justify-center text-xs text-surface-500">
+          <div className="flex items-center justify-center text-[10px] text-surface-500">
             <span>Trading Fight Club</span>
           </div>
         </div>
