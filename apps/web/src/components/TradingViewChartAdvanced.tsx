@@ -17,6 +17,35 @@ interface ChartWidget {
   setSymbol: (symbol: string, resolution: string, callback?: () => void) => void;
   remove: () => void;
   subscribe: (event: string, callback: (...args: unknown[]) => void) => void;
+  save: (callback: (data: object) => void) => void;
+  load: (data: object) => void;
+}
+
+// LocalStorage key for chart data
+const CHART_STORAGE_KEY = 'tfc_tradingview_chart_data';
+
+// Save chart data to localStorage
+function saveChartData(data: object): void {
+  try {
+    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(data));
+    console.log('[TradingView] Chart data saved');
+  } catch (error) {
+    console.error('[TradingView] Failed to save chart data:', error);
+  }
+}
+
+// Load chart data from localStorage
+function loadChartData(): object | null {
+  try {
+    const data = localStorage.getItem(CHART_STORAGE_KEY);
+    if (data) {
+      console.log('[TradingView] Chart data loaded from storage');
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error('[TradingView] Failed to load chart data:', error);
+  }
+  return null;
 }
 
 function TradingViewChartAdvancedComponent({
@@ -96,6 +125,12 @@ function TradingViewChartAdvancedComponent({
         foregroundColor: '#6366f1',
       },
 
+      // Auto-save settings (save after 1 second of inactivity)
+      auto_save_delay: 1,
+
+      // Load saved chart data if available
+      saved_data: loadChartData(),
+
       overrides: {
         'paneProperties.background': '#111113',
         'paneProperties.backgroundGradientStartColor': '#111113',
@@ -163,6 +198,13 @@ function TradingViewChartAdvancedComponent({
           if (newResolution && onIntervalChange) {
             onIntervalChange(resolutionToInterval(newResolution));
           }
+        });
+
+        // Subscribe to auto-save events to persist chart data
+        widget.subscribe('onAutoSaveNeeded', () => {
+          widget.save((data: object) => {
+            saveChartData(data);
+          });
         });
       });
     } catch (error) {
