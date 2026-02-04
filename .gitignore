@@ -138,7 +138,6 @@ temp
 nul
 
 # ─────────────────────────────────────────────────────────────
-# TradingView Charting Library (Licensed - do not commit)
+# TradingView Charting Library
 # ─────────────────────────────────────────────────────────────
-apps/web/public/charting_library/
-apps/web/public/datafeeds/
+# Note: Library files now committed for deployment
