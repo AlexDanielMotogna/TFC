@@ -364,6 +364,46 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
           </div>
         </div>
       )}
+
+      {/* NO_CONTEST State */}
+      {fight.status === 'NO_CONTEST' && (
+        <div className="flex-1 flex flex-col justify-between overflow-hidden">
+          {/* Participants */}
+          <div className="space-y-2">
+            {fight.participants?.map((p, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-2 rounded-lg bg-surface-800/30 opacity-60"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="avatar w-7 h-7 text-xs">
+                    {p.user?.handle?.[0]?.toUpperCase() || '?'}
+                  </div>
+                  <span className="font-medium text-sm truncate max-w-[100px] text-surface-300">
+                    {p.user?.handle || 'Unknown'}
+                  </span>
+                </div>
+                <span className="font-mono text-sm text-surface-500">
+                  {Number(p.finalPnlPercent ?? 0) >= 0 ? '+' : ''}
+                  {Number(p.finalPnlPercent ?? 0).toFixed(4)}%
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Reason */}
+          <div className="text-center py-2">
+            <span className="text-xs text-surface-500">
+              Fight invalidated - no valid activity
+            </span>
+          </div>
+          <Link
+            href={`/fight/${fight.id}`}
+            className="btn-ghost w-full text-center text-sm py-2 mt-auto text-surface-400"
+          >
+            View Details →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

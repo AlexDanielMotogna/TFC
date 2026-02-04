@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth, useAccount } from '@/hooks';
+import { useAuth, useAccount, useArenaSocket } from '@/hooks';
 import { useMyPrizes } from '@/hooks/useMyPrizes';
 import { WalletButton } from '@/components/WalletButton';
 import { NotificationBell } from '@/components/NotificationBell';
@@ -50,6 +50,9 @@ export function AppShell({ children }: AppShellProps) {
   const { isAuthenticated, user } = useAuth();
   const { account } = useAccount();
   const { claimablePrizes } = useMyPrizes();
+
+  // Global arena socket for real-time fight notifications
+  useArenaSocket();
   const queryClient = useQueryClient();
 
   // Get Pacifica balance

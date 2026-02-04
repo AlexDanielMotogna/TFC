@@ -971,3 +971,12 @@ input[type="range"]::-moz-range-thumb {
 .animate-float-up {
   animation: float-up 3s ease-out forwards;
 }
+
+/* ===========================================================
+   Sonner Toast Overrides
+   =========================================================== */
+
+/* Override sonner's default description color */
+[data-sonner-toast][data-styled=true] [data-description] {
+  color: #c7c7c7 !important;
+}

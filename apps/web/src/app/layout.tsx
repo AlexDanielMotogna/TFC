@@ -47,6 +47,7 @@ export default function RootLayout({
             classNames: {
               success: 'bg-surface-800 border-win-500/50',
               error: 'bg-surface-800 border-loss-500/50',
+              description: 'text-[#c7c7c7]',
             },
           }}
         />
