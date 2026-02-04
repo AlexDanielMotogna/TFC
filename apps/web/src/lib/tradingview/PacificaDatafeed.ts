@@ -309,9 +309,10 @@ export class PacificaDatafeed {
       bars.sort((a, b) => a.time - b.time);
 
       // Store last bar for real-time updates
-      if (bars.length > 0) {
+      const lastBar = bars[bars.length - 1];
+      if (lastBar) {
         const key = `${symbolInfo.name}:${resolution}`;
-        this.lastBars.set(key, bars[bars.length - 1]);
+        this.lastBars.set(key, lastBar);
       }
 
       console.log(`[Datafeed] Loaded ${bars.length} bars for ${symbolInfo.name}`);

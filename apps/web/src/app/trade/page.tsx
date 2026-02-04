@@ -1215,7 +1215,30 @@ export default function TradePage() {
                             const originalSize = parseFloat(order.size) || 0;
                             const filledSize = parseFloat(order.filled) || 0;
                             const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                            const isTpSl = order.type.includes('TP') || order.type.includes('SL');
+
+                            // Detect TP/SL orders (native and hybrid)
+                            const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') ||
+                              order.type.toLowerCase().includes('take_profit') || order.type.toLowerCase().includes('stop_loss');
+                            // Hybrid TP: limit order with reduceOnly
+                            const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
+                            // Hybrid SL: stop order with reduceOnly (not native TP/SL)
+                            const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
+                            const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
+
+                            // Determine display type
+                            let displayType = order.type;
+                            if (order.type.includes('TP') || order.type.toLowerCase().includes('take_profit')) {
+                              displayType = 'TP MARKET';
+                            } else if (order.type.includes('SL') || order.type.toLowerCase().includes('stop_loss')) {
+                              displayType = 'SL MARKET';
+                            } else if (isHybridTp) {
+                              displayType = 'TP (Partial)';
+                            } else if (isHybridSl) {
+                              displayType = 'SL (Partial)';
+                            } else if (order.type === 'LIMIT') {
+                              displayType = 'Limit Order';
+                            }
+
                             const orderValue = originalSize * price;
                             const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
 
@@ -1233,7 +1256,7 @@ export default function TradePage() {
                                   {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">
-                                  {order.type === 'LIMIT' ? 'Limit Order' : order.type}
+                                  {displayType}
                                 </td>
                                 <td className="py-2 px-2">
                                   <span className="text-primary-400">{order.symbol}</span>
