@@ -416,59 +416,10 @@ async function recordAllTrades(
     }
   }
 
-  // Auto-detect if this is closing a pre-fight position
-  // Check when: there's an active fight AND this is a closing trade (no leverage)
-  // A closing trade has leverage == null (opening trades always have leverage set)
-  let autoDetectedPreFightFlip = isPreFightFlip;
-
-  if (!autoDetectedPreFightFlip && resolvedFightId && !leverage) {
-    // This is a CLOSING trade during a fight (no leverage = closing position)
-    // Check if user has a pre-fight opening trade for this symbol
-    try {
-      // Get the fight's start time
-      const fight = await prisma.fight.findUnique({
-        where: { id: resolvedFightId },
-        select: { startedAt: true },
-      });
-
-      if (fight?.startedAt) {
-        // Check if user has an opening trade (ANY side with leverage) in this symbol
-        // that was executed BEFORE the fight started and NOT part of any fight
-        // Note: Don't filter by side - LONG opens with bid, SHORT opens with ask
-        const preFightOpen = await prisma.trade.findFirst({
-          where: {
-            userId: connection.userId,
-            symbol,
-            leverage: { not: null }, // Opening trades always have leverage
-            executedAt: { lt: fight.startedAt },
-            fightId: null, // Not assigned to any fight
-          },
-        });
-
-        if (preFightOpen) {
-          console.log('[recordAllTrades] Auto-detected pre-fight position close', {
-            symbol,
-            userId: connection.userId,
-            fightId: resolvedFightId,
-            closingSide: side, // 'ask' = closing LONG, 'bid' = closing SHORT
-            preFightTradeId: preFightOpen.id,
-            preFightSide: preFightOpen.side,
-            preFightTradeDate: preFightOpen.executedAt,
-            fightStartedAt: fight.startedAt,
-          });
-          autoDetectedPreFightFlip = true;
-        }
-      }
-    } catch (err) {
-      console.error('[recordAllTrades] Failed to check for pre-fight position:', err);
-      // On error, don't block - proceed with original isPreFightFlip value
-    }
-  }
-
   // Save to Trade table (ALL trades for platform metrics)
   // Don't assign fightId if this is closing a pre-fight position
   // Pre-fight closes should not count as fight activity for anti-cheat validation
-  const shouldAssignFightId = resolvedFightId && !autoDetectedPreFightFlip;
+  const shouldAssignFightId = resolvedFightId && !isPreFightFlip;
 
   try {
     const trade = await prisma.trade.create({
@@ -530,7 +481,7 @@ async function recordAllTrades(
 
   // Record to FightTrade if user is in a fight and not a pre-fight flip
   // Pass the execution details we already fetched to avoid duplicate API calls
-  if (!autoDetectedPreFightFlip) {
+  if (!isPreFightFlip) {
     await recordFightTradeWithDetails(
       accountAddress,
       symbol,
