@@ -620,7 +620,7 @@ export function useCreateStopOrder() {
       // Determine order side for closing position
       // - LONG position: need to SELL (ask) to close
       // - SHORT position: need to BUY (bid) to close
-      const closingSide = params.side === 'LONG' ? 'ask' : 'bid';
+      const closingSide: 'bid' | 'ask' = params.side === 'LONG' ? 'ask' : 'bid';
 
       // For TAKE PROFIT: Use limit order with reduce_only
       // (Limit orders execute when price reaches the level)
