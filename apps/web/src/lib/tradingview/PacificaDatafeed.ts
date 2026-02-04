@@ -257,7 +257,8 @@ export class PacificaDatafeed {
         data_status: 'streaming',
       };
 
-      onResolve(symbolInfo);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      onResolve(symbolInfo as any);
     }, 0);
   }
 

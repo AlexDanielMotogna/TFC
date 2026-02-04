@@ -142,7 +142,8 @@ function TradingViewChartAdvancedComponent({
 
     try {
       console.log('[TradingView] Creating widget...');
-      const widget = new window.TradingView.widget(widgetOptions) as unknown as ChartWidget;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const widget = new window.TradingView.widget(widgetOptions as any) as unknown as ChartWidget;
       widgetRef.current = widget;
 
       widget.onChartReady(() => {
