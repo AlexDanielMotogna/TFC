@@ -3,7 +3,8 @@
  * POST /api/orders - Place order (proxies to Pacifica)
  * DELETE /api/orders - Cancel all orders (proxies to Pacifica)
  */
-import { errorResponse, BadRequestError, StakeLimitError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError, GatewayTimeoutError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { validateStakeLimit } from '@/lib/server/orders';
 import {
   calculateFightExposure,
@@ -130,12 +131,12 @@ export async function POST(request: Request) {
     } = body;
 
     if (!account || !symbol || !side || !type || !amount || !signature || !timestamp) {
-      throw new BadRequestError('account, symbol, side, type, amount, signature, and timestamp are required');
+      throw new BadRequestError('account, symbol, side, type, amount, signature, and timestamp are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
     }
 
     // Feature flag: Check if trading is enabled
     if (!FeatureFlags.isTradingEnabled()) {
-      throw new BadRequestError('Trading is temporarily disabled');
+      throw new ServiceUnavailableError('Trading is temporarily disabled', ErrorCode.ERR_ORDER_TRADING_DISABLED);
     }
 
     // Validate stake limit for users in active fights
@@ -180,7 +181,8 @@ export async function POST(request: Request) {
         const blockedSymbols = (participant as any)?.blockedSymbols as string[] | undefined;
         if (blockedSymbols?.includes(symbol) && !is_pre_fight_flip) {
           throw new BadRequestError(
-            `Symbol ${symbol} is blocked for this fight. You had an open position in this symbol before the fight started. Close pre-fight positions before joining a fight to trade that symbol.`
+            `Symbol ${symbol} is blocked for this fight. You had an open position in this symbol before the fight started. Close pre-fight positions before joining a fight to trade that symbol.`,
+            ErrorCode.ERR_ORDER_SYMBOL_BLOCKED
           );
         }
       }
@@ -211,7 +213,7 @@ export async function POST(request: Request) {
     } else {
       // LIMIT
       if (!price) {
-        throw new BadRequestError('price is required for limit orders');
+        throw new BadRequestError('price is required for limit orders', ErrorCode.ERR_ORDER_PRICE_REQUIRED);
       }
       endpoint = `${PACIFICA_API_URL}/api/v1/orders/create`;
       // Note: post_only is NOT a valid Pacifica parameter for limit orders
@@ -257,7 +259,14 @@ export async function POST(request: Request) {
     if (!response.ok || !result.success) {
       const errorMessage = result.error || `Pacifica API error: ${response.status}`;
       console.error('Pacifica order error:', errorMessage);
-      throw new BadRequestError(errorMessage);
+      // Determine appropriate error class based on status code
+      if (response.status === 504) {
+        throw new GatewayTimeoutError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else if (response.status >= 500) {
+        throw new ServiceUnavailableError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else {
+        throw new BadRequestError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      }
     }
 
     console.log('Order placed successfully', {
@@ -949,7 +958,7 @@ export async function DELETE(request: Request) {
     const timestamp = searchParams.get('timestamp');
 
     if (!account || !signature || !timestamp) {
-      throw new BadRequestError('account, signature, and timestamp are required');
+      throw new BadRequestError('account, signature, and timestamp are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
     }
 
     const requestBody: Record<string, any> = {
@@ -990,7 +999,14 @@ export async function DELETE(request: Request) {
     if (!response.ok || !result.success) {
       const errorMessage = result.error || `Pacifica API error: ${response.status}`;
       console.error('Pacifica cancel error:', errorMessage);
-      throw new BadRequestError(errorMessage);
+      // Determine appropriate error class based on status code
+      if (response.status === 504) {
+        throw new GatewayTimeoutError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else if (response.status >= 500) {
+        throw new ServiceUnavailableError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else {
+        throw new BadRequestError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      }
     }
 
     console.log('All orders cancelled', {

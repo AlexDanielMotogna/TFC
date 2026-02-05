@@ -4,6 +4,7 @@
  */
 import * as Pacifica from '@/lib/server/pacifica';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function GET(
   request: Request,
@@ -16,7 +17,7 @@ export async function GET(
     const endTimeStr = searchParams.get('endTime');
 
     if (!interval || !startTimeStr) {
-      throw new BadRequestError('interval and startTime are required');
+      throw new BadRequestError('interval and startTime are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     const klines = await Pacifica.getKlines({

@@ -4,6 +4,7 @@
  */
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function GET(
   request: Request,
@@ -18,7 +19,7 @@ export async function GET(
     });
 
     if (!profile) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError('User not found', ErrorCode.ERR_USER_NOT_FOUND);
     }
 
     // Calculate stats

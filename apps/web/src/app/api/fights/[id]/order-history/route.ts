@@ -6,6 +6,7 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -26,7 +27,7 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight');
+        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
       }
 
       // Get fight details for time range

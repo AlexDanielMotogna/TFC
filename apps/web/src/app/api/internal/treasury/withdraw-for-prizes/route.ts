@@ -8,31 +8,27 @@
  * Body: { amount: number }
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { UnauthorizedError, BadRequestError, errorResponse } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import * as Treasury from '@/lib/server/treasury';
 
 const INTERNAL_API_SECRET = process.env.INTERNAL_API_SECRET;
 
 export async function POST(request: NextRequest) {
-  // Verify internal API secret
-  const authHeader = request.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-
-  if (!INTERNAL_API_SECRET || token !== INTERNAL_API_SECRET) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
-
   try {
+    // Verify internal API secret
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!INTERNAL_API_SECRET || token !== INTERNAL_API_SECRET) {
+      throw new UnauthorizedError('Unauthorized', ErrorCode.ERR_AUTH_UNAUTHORIZED);
+    }
+
     const body = await request.json();
     const { amount } = body;
 
     if (!amount || typeof amount !== 'number' || amount <= 0) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid amount' },
-        { status: 400 }
-      );
+      throw new BadRequestError('Invalid amount', ErrorCode.ERR_ORDER_INVALID_AMOUNT);
     }
 
     // Get current balances
@@ -98,9 +94,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Treasury] Withdraw for prizes error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }

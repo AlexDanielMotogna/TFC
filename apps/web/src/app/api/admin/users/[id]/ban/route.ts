@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastUserUpdated } from '@/lib/server/admin-realtime';
 
 export async function POST(
@@ -20,7 +21,7 @@ export async function POST(
 
       // Prevent self-ban
       if (adminUser.userId === id) {
-        throw new BadRequestError('Cannot ban yourself');
+        throw new BadRequestError('Cannot ban yourself', ErrorCode.ERR_USER_CANNOT_BAN_SELF);
       }
 
       const user = await prisma.user.findUnique({
@@ -29,16 +30,16 @@ export async function POST(
       });
 
       if (!user) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('User not found', ErrorCode.ERR_USER_NOT_FOUND);
       }
 
       if (user.status === 'BANNED') {
-        throw new BadRequestError('User is already banned');
+        throw new BadRequestError('User is already banned', ErrorCode.ERR_USER_CANNOT_BAN_SELF);
       }
 
       // Prevent banning other admins
       if (user.role === 'ADMIN') {
-        throw new BadRequestError('Cannot ban an admin user');
+        throw new BadRequestError('Cannot ban an admin user', ErrorCode.ERR_USER_CANNOT_BAN_ADMIN);
       }
 
       // Cancel any active fights

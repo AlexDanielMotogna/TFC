@@ -2,7 +2,8 @@
  * Account Withdraw endpoint
  * POST /api/account/withdraw - Request withdrawal of funds
  */
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -12,13 +13,13 @@ export async function POST(request: Request) {
     const { account, amount, signature, timestamp } = body;
 
     if (!account || !amount || !signature || !timestamp) {
-      throw new BadRequestError('account, amount, signature, and timestamp are required');
+      throw new BadRequestError('account, amount, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Validate amount is a positive number
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      throw new BadRequestError('amount must be a positive number');
+      throw new BadRequestError('amount must be a positive number', ErrorCode.ERR_ORDER_INVALID_AMOUNT);
     }
 
     console.log('Requesting withdrawal:', { account, amount });
@@ -43,11 +44,11 @@ export async function POST(request: Request) {
     try {
       result = JSON.parse(responseText);
     } catch {
-      throw new Error(`Failed to parse Pacifica response: ${responseText}`);
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || `Pacifica API error: ${response.status}`);
+      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Withdrawal requested successfully', { account, amount });

@@ -2,7 +2,8 @@
  * Cancel order endpoint
  * DELETE /api/orders/[orderId]
  */
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
@@ -20,7 +21,7 @@ export async function DELETE(
     const timestamp = searchParams.get('timestamp');
 
     if (!account || !symbol || !signature || !timestamp) {
-      throw new BadRequestError('account, symbol, signature, and timestamp are required');
+      throw new BadRequestError('account, symbol, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     const requestBody = {
@@ -50,11 +51,11 @@ export async function DELETE(
     try {
       result = JSON.parse(responseText);
     } catch {
-      throw new Error(`Failed to parse Pacifica response: ${responseText}`);
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     if (!response.ok || !result.success) {
-      throw new Error(result.error || `Pacifica API error: ${response.status}`);
+      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Order cancelled', {

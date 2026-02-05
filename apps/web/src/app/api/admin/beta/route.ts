@@ -6,6 +6,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function GET(request: Request) {
   try {
@@ -81,11 +82,11 @@ export async function POST(request: Request) {
       const { walletAddresses, status } = body;
 
       if (!walletAddresses || !Array.isArray(walletAddresses) || walletAddresses.length === 0) {
-        throw new BadRequestError('walletAddresses array is required');
+        throw new BadRequestError('walletAddresses array is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
       }
 
       if (!['approved', 'rejected'].includes(status)) {
-        throw new BadRequestError('status must be "approved" or "rejected"');
+        throw new BadRequestError('status must be "approved" or "rejected"', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
 
       const updateData: Record<string, unknown> = { status };

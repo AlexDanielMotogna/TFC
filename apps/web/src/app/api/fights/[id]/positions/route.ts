@@ -7,6 +7,7 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { getPrices, getPositions } from '@/lib/server/pacifica';
 
 // Default max leverage per symbol (from Pacifica settings)
@@ -43,7 +44,7 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight');
+        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
       }
 
       // Get FightTrade records for THIS specific fight

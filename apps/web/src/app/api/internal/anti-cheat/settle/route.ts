@@ -9,29 +9,31 @@
  */
 
 import { NextResponse } from 'next/server';
+import { UnauthorizedError, BadRequestError, errorResponse } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { settleFightWithAntiCheat } from '@/lib/server/anti-cheat';
 
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 
 export async function POST(request: Request) {
-  console.log('[AntiCheat API] Settle endpoint called');
-
-  // Validate internal key
-  const key = request.headers.get('X-Internal-Key');
-  console.log('[AntiCheat API] Key validation:', { receivedKey: key ? 'present' : 'missing', expectedKey: INTERNAL_API_KEY ? 'configured' : 'default' });
-
-  if (key !== INTERNAL_API_KEY) {
-    console.log('[AntiCheat API] Unauthorized - key mismatch');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    console.log('[AntiCheat API] Settle endpoint called');
+
+    // Validate internal key
+    const key = request.headers.get('X-Internal-Key');
+    console.log('[AntiCheat API] Key validation:', { receivedKey: key ? 'present' : 'missing', expectedKey: INTERNAL_API_KEY ? 'configured' : 'default' });
+
+    if (key !== INTERNAL_API_KEY) {
+      console.log('[AntiCheat API] Unauthorized - key mismatch');
+      throw new UnauthorizedError('Unauthorized', ErrorCode.ERR_AUTH_UNAUTHORIZED);
+    }
+
     const body = await request.json();
     const { fightId, determinedWinnerId, isDraw } = body;
     console.log('[AntiCheat API] Request body:', { fightId, determinedWinnerId, isDraw });
 
     if (!fightId) {
-      return NextResponse.json({ success: false, error: 'fightId is required' }, { status: 400 });
+      throw new BadRequestError('fightId is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     console.log('[AntiCheat API] Calling settleFightWithAntiCheat...');
@@ -44,12 +46,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('[AntiCheat] Settlement error:', error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Settlement failed',
-      },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }

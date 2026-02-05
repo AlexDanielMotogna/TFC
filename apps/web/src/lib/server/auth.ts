@@ -4,6 +4,7 @@
  */
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError, ForbiddenError } from './errors';
+import { ErrorCode } from './error-codes';
 import { prisma } from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production';
@@ -43,7 +44,10 @@ export function verifyToken(token: string): JwtPayload {
     const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
     return decoded;
   } catch (error) {
-    throw new UnauthorizedError('Invalid or expired token');
+    if (error instanceof jwt.TokenExpiredError) {
+      throw new UnauthorizedError('Token has expired', ErrorCode.ERR_AUTH_EXPIRED_TOKEN);
+    }
+    throw new UnauthorizedError('Invalid or expired token', ErrorCode.ERR_AUTH_INVALID_TOKEN);
   }
 }
 
@@ -71,7 +75,7 @@ export async function withAuth<T>(
   try {
     const token = extractBearerToken(request);
     if (!token) {
-      throw new UnauthorizedError('Missing authorization token');
+      throw new UnauthorizedError('Missing authorization token', ErrorCode.ERR_AUTH_MISSING_TOKEN);
     }
 
     const payload = verifyToken(token);
@@ -83,17 +87,18 @@ export async function withAuth<T>(
     });
 
     if (!user) {
-      throw new UnauthorizedError('User not found');
+      throw new UnauthorizedError('User not found', ErrorCode.ERR_AUTH_UNAUTHORIZED);
     }
 
     if (user.status === 'BANNED') {
       throw new ForbiddenError(
-        user.bannedReason || 'Your account has been banned. Please contact support.'
+        user.bannedReason || 'Your account has been banned. Please contact support.',
+        ErrorCode.ERR_AUTH_USER_BANNED
       );
     }
 
     if (user.status === 'DELETED') {
-      throw new ForbiddenError('This account has been deleted.');
+      throw new ForbiddenError('This account has been deleted.', ErrorCode.ERR_AUTH_USER_DELETED);
     }
 
     const result = await handler({

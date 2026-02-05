@@ -12,7 +12,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/server/db';
 import { verifyToken } from '@/lib/server/auth';
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ConflictError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { Prisma } from '@prisma/client';
 
 const MIN_PAYOUT_AMOUNT = 0.05; // $0.05 minimum (TESTING - restore to 10 after)
@@ -87,20 +88,8 @@ export async function POST(request: Request) {
           });
 
           // Idempotent response - return existing payout
-          return NextResponse.json(
-            {
-              success: true,
-              payout: {
-                id: pendingPayout.id,
-                amount: Number(pendingPayout.amount),
-                status: pendingPayout.status,
-                walletAddress: pendingPayout.walletAddress,
-                createdAt: pendingPayout.createdAt.toISOString(),
-              },
-              message: 'Payout was already initiated and is being processed.',
-            },
-            { status: 200 }
-          );
+          // Use ConflictError for consistency (409 status)
+          throw new ConflictError('Payout was already initiated and is being processed.', ErrorCode.ERR_REFERRAL_PAYOUT_PENDING);
         }
 
         // 3. Calculate total from locked earnings
@@ -120,7 +109,8 @@ export async function POST(request: Request) {
         // 4. Check minimum payout amount
         if (unclaimedAmount < MIN_PAYOUT_AMOUNT) {
           throw new BadRequestError(
-            `Minimum payout amount is $${MIN_PAYOUT_AMOUNT}. You have $${unclaimedAmount.toFixed(2)} available.`
+            `Minimum payout amount is $${MIN_PAYOUT_AMOUNT}. You have $${unclaimedAmount.toFixed(2)} available.`,
+            ErrorCode.ERR_REFERRAL_BELOW_MINIMUM
           );
         }
 
@@ -135,7 +125,7 @@ export async function POST(request: Request) {
         });
 
         if (!user || !user.walletAddress) {
-          throw new BadRequestError('Wallet address not set. Please connect your wallet first.');
+          throw new BadRequestError('Wallet address not set. Please connect your wallet first.', ErrorCode.ERR_REFERRAL_NO_WALLET);
         }
 
         // 6. Create payout record with "pending" status (still within lock)

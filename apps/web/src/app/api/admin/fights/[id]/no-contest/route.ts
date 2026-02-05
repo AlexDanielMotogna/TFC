@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
 import { SETTLEMENT_LOCK_TIMEOUT_MS } from '@tfc/db';
 
@@ -20,7 +21,7 @@ export async function POST(
       const { reason, ruleCode, excludeFromLeaderboard = true } = body;
 
       if (!reason) {
-        throw new BadRequestError('reason is required');
+        throw new BadRequestError('reason is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
       }
 
       const fight = await prisma.fight.findUnique({
@@ -35,13 +36,14 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Can force NO_CONTEST on LIVE or FINISHED fights
       if (!['LIVE', 'FINISHED'].includes(fight.status)) {
         throw new BadRequestError(
-          `Cannot mark fight as NO_CONTEST with status ${fight.status}`
+          `Cannot mark fight as NO_CONTEST with status ${fight.status}`,
+          ErrorCode.ERR_FIGHT_INVALID_STATUS
         );
       }
 
@@ -50,7 +52,8 @@ export async function POST(
         const lockAge = Date.now() - fight.settlingAt.getTime();
         if (lockAge < SETTLEMENT_LOCK_TIMEOUT_MS) {
           throw new BadRequestError(
-            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`
+            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`,
+            ErrorCode.ERR_FIGHT_INVALID_STATUS
           );
         }
       }

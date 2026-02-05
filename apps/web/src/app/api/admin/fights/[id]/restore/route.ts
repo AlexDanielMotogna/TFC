@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
 
 export async function POST(
@@ -19,7 +20,7 @@ export async function POST(
       const { reason } = body;
 
       if (!reason) {
-        throw new BadRequestError('reason is required');
+        throw new BadRequestError('reason is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
       }
 
       const fight = await prisma.fight.findUnique({
@@ -34,13 +35,14 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Can only restore NO_CONTEST fights
       if (fight.status !== 'NO_CONTEST') {
         throw new BadRequestError(
-          `Cannot restore fight with status ${fight.status}. Only NO_CONTEST fights can be restored.`
+          `Cannot restore fight with status ${fight.status}. Only NO_CONTEST fights can be restored.`,
+          ErrorCode.ERR_FIGHT_INVALID_STATUS
         );
       }
 
@@ -49,7 +51,7 @@ export async function POST(
       const participantB = fight.participants.find((p) => p.slot === 'B');
 
       if (!participantA || !participantB) {
-        throw new BadRequestError('Fight does not have two participants');
+        throw new BadRequestError('Fight does not have two participants', ErrorCode.ERR_FIGHT_INVALID_STATUS);
       }
 
       let winnerId: string | null = null;

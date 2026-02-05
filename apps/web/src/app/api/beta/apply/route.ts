@@ -4,6 +4,7 @@
  */
 import { prisma } from '@tfc/db';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
     const { walletAddress } = body;
 
     if (!walletAddress) {
-      throw new BadRequestError('walletAddress is required');
+      throw new BadRequestError('walletAddress is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Check if already applied

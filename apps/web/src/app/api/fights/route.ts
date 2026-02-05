@@ -5,10 +5,11 @@
  */
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ConflictError } from '@/lib/server/errors';
 import { getPositions } from '@/lib/server/pacifica';
 import { FeatureFlags, StakeLimits } from '@/lib/server/feature-flags';
 import { recordFightSession } from '@/lib/server/anti-cheat';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -112,7 +113,7 @@ export async function POST(request: Request) {
       });
 
       if (!connection?.isActive) {
-        throw new BadRequestError('Active Pacifica connection required');
+        throw new BadRequestError('Active Pacifica connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
       }
 
       // MVP-1: Check if user already has an active fight (LIVE or WAITING)
@@ -136,8 +137,9 @@ export async function POST(request: Request) {
 
       if (existingFight) {
         const status = existingFight.fight.status === 'LIVE' ? 'active' : 'pending';
-        throw new BadRequestError(
-          `You already have a ${status} fight. Finish or cancel it before starting a new one.`
+        throw new ConflictError(
+          `You already have a ${status} fight. Finish or cancel it before starting a new one.`,
+          ErrorCode.ERR_FIGHT_USER_HAS_ACTIVE
         );
       }
 

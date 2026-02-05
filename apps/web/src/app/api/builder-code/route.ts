@@ -3,7 +3,8 @@
  * GET /api/builder-code - Check if user has approved the builder code
  * POST /api/builder-code - Approve the builder code for trading
  */
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 const BUILDER_CODE = process.env.PACIFICA_BUILDER_CODE || 'TradeClub';
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
     const account = searchParams.get('account');
 
     if (!account) {
-      throw new BadRequestError('account is required');
+      throw new BadRequestError('account is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Query Pacifica for user's approved builder codes
@@ -45,14 +46,14 @@ export async function GET(request: Request) {
       } catch {
         error = { error: responseText };
       }
-      throw new Error(error.error || `Pacifica API error: ${response.status}`);
+      throw new ServiceUnavailableError(error.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     let approvals;
     try {
       approvals = JSON.parse(responseText);
     } catch {
-      throw new Error(`Failed to parse Pacifica response: ${responseText}`);
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     // Pacifica may return {success, data} or just an array
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
     const { account, signature, timestamp, max_fee_rate } = body;
 
     if (!account || !signature || !timestamp) {
-      throw new BadRequestError('account, signature, and timestamp are required');
+      throw new BadRequestError('account, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Proxy to Pacifica API
@@ -122,15 +123,15 @@ export async function POST(request: Request) {
     try {
       result = JSON.parse(responseText);
     } catch {
-      throw new Error(`Failed to parse Pacifica response: ${responseText}`);
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     if (!response.ok) {
       // Provide more helpful error messages
       if (response.status === 404 || (result.error && result.error.includes('not found'))) {
-        throw new Error(`Builder code "${BUILDER_CODE}" is not registered with Pacifica. Please contact the TradeFightClub team.`);
+        throw new ServiceUnavailableError(`Builder code "${BUILDER_CODE}" is not registered with Pacifica. Please contact the TradeFightClub team.`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
       }
-      throw new Error(result.error || `Pacifica API error: ${response.status}`);
+      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Builder code approved successfully', {
