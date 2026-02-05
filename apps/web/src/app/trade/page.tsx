@@ -1253,7 +1253,7 @@ export default function TradePage() {
                             return (
                               <tr key={order.id} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
-                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                                  {timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">
                                   {displayType}
@@ -1422,7 +1422,7 @@ export default function TradePage() {
                             return (
                               <tr key={trade.history_id || index} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
-                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                                  {timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">{token}</td>
                                 <td className="py-2 px-2">
@@ -1618,7 +1618,7 @@ export default function TradePage() {
                           return (
                             <tr key={order.order_id || index} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                               <td className="py-2 px-2 text-surface-300 font-mono whitespace-nowrap">
-                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}
+                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}
                               </td>
                               <td className="py-2 px-2 font-medium text-white">{order.symbol}</td>
                               <td className={`py-2 px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>
@@ -1671,7 +1671,7 @@ export default function TradePage() {
 
           {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
           {/* contain: layout prevents internal changes from affecting page scroll */}
-          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[600px] xl:min-h-[calc(100vh-3rem-8px)] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
+          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[644px] xl:min-h-[calc(100vh-3rem-8px)] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
             <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-800">
               <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                 Place Order
