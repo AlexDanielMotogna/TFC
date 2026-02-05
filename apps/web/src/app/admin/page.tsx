@@ -204,9 +204,10 @@ export default function AdminDashboardPage() {
         <h2 className="text-sm font-medium text-surface-400 uppercase tracking-wider mb-3">
           Fights
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
           {isLoading ? (
             <>
+              <AdminCardSkeleton />
               <AdminCardSkeleton />
               <AdminCardSkeleton />
               <AdminCardSkeleton />
@@ -235,13 +236,15 @@ export default function AdminDashboardPage() {
                 value={displayStats?.fightsByStatus?.FINISHED?.toString() || '0'}
               />
               <AdminCard
-                title="Cancelled"
+                title="No Contest"
                 value={
-                  (
-                    (displayStats?.fightsByStatus?.CANCELLED || 0) +
-                    ((displayStats?.fightsByStatus as Record<string, number>)?.NO_CONTEST || 0)
-                  ).toString()
+                  ((displayStats?.fightsByStatus as Record<string, number>)?.NO_CONTEST || 0).toString()
                 }
+                variant="danger"
+              />
+              <AdminCard
+                title="Cancelled"
+                value={(displayStats?.fightsByStatus?.CANCELLED || 0).toString()}
               />
             </>
           )}

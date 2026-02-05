@@ -70,15 +70,19 @@ export async function GET(request: Request) {
         fightsByStatusObj[item.status] = item._count;
       }
 
+      const tradingVolumeAll = Number(volumeAllResult[0]?.volume || 0);
+      // TFC platform fee is 0.05% of total volume
+      const platformFees = tradingVolumeAll * 0.0005;
+
       return {
         totalUsers,
         activeUsers7d: activeUsers7dResult.length,
         pacificaConnected,
         fightsByStatus: fightsByStatusObj,
         totalTrades: tradeStats._count,
-        totalFees: Number(tradeStats._sum.fee || 0),
+        totalFees: platformFees,
         tradingVolume24h: Number(volume24hResult[0]?.volume || 0),
-        tradingVolumeAll: Number(volumeAllResult[0]?.volume || 0),
+        tradingVolumeAll,
       };
     });
   } catch (error) {

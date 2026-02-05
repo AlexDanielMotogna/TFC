@@ -61,11 +61,22 @@ export default function AdminLeaderboardPage() {
 
     try {
       setIsRefreshing(true);
-      // This would call a refresh endpoint if available
-      alert('Leaderboard refresh triggered. Data will update shortly.');
+      const [weeklyRes, allTimeRes] = await Promise.all([
+        fetch('/api/leaderboard?range=weekly'),
+        fetch('/api/leaderboard?range=all_time'),
+      ]);
+
+      const weeklyJson = await weeklyRes.json();
+      const allTimeJson = await allTimeRes.json();
+
+      if (weeklyJson.success) {
+        setWeeklyData(weeklyJson.data?.entries || []);
+      }
+      if (allTimeJson.success) {
+        setAllTimeData(allTimeJson.data?.entries || []);
+      }
     } catch (error) {
       console.error('Failed to refresh leaderboard:', error);
-      alert('Failed to refresh leaderboard');
     } finally {
       setIsRefreshing(false);
     }

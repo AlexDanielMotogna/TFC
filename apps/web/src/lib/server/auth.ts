@@ -3,7 +3,8 @@
  * Replaces NestJS JWT strategy and guards
  */
 import jwt from 'jsonwebtoken';
-import { UnauthorizedError } from './errors';
+import { UnauthorizedError, ForbiddenError } from './errors';
+import { prisma } from './db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-not-for-production';
 
@@ -60,6 +61,8 @@ export function extractBearerToken(request: Request): string | null {
 /**
  * Middleware wrapper for authenticated API routes
  * Usage: return withAuth(request, async (user) => { ... })
+ *
+ * Validates JWT token AND checks user status (blocks BANNED/DELETED users)
  */
 export async function withAuth<T>(
   request: Request,
@@ -72,6 +75,26 @@ export async function withAuth<T>(
     }
 
     const payload = verifyToken(token);
+
+    // Check user status in database
+    const user = await prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { status: true, bannedReason: true },
+    });
+
+    if (!user) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    if (user.status === 'BANNED') {
+      throw new ForbiddenError(
+        user.bannedReason || 'Your account has been banned. Please contact support.'
+      );
+    }
+
+    if (user.status === 'DELETED') {
+      throw new ForbiddenError('This account has been deleted.');
+    }
 
     const result = await handler({
       userId: payload.sub,
@@ -90,6 +113,12 @@ export async function withAuth<T>(
       return Response.json(
         { success: false, error: error.message },
         { status: 401 }
+      );
+    }
+    if (error instanceof ForbiddenError) {
+      return Response.json(
+        { success: false, error: error.message },
+        { status: 403 }
       );
     }
     throw error;

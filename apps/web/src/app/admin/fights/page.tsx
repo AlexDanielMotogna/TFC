@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminTable, AdminPagination, AdminBadge, getFightStatusVariant } from '@/components/admin';
 import { useAdminSubscription } from '@/hooks/useGlobalSocket';
-import { Clock, Wifi, WifiOff } from 'lucide-react';
+import { Clock, Wifi, WifiOff, Copy, Check, Shield } from 'lucide-react';
+import Link from 'next/link';
 
 interface Fight {
   id: string;
@@ -49,6 +50,13 @@ export default function AdminFightsPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedId(text);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   // Subscribe to admin real-time updates
   const { isConnected, isAdminSubscribed, adminFights } = useAdminSubscription();
@@ -124,6 +132,35 @@ export default function AdminFightsPage() {
   };
 
   const columns = [
+    {
+      key: 'fightId',
+      header: 'Fight ID',
+      render: (fight: Fight) => (
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <span className="font-mono text-sm text-surface-300">
+            {fight.id.slice(0, 8)}...
+          </span>
+          <button
+            onClick={() => copyToClipboard(fight.id)}
+            className="p-1 hover:bg-surface-700 rounded transition-colors"
+            title="Copy full ID"
+          >
+            {copiedId === fight.id ? (
+              <Check size={14} className="text-win-400" />
+            ) : (
+              <Copy size={14} className="text-surface-400 hover:text-white" />
+            )}
+          </button>
+          <Link
+            href={`/admin/anti-cheat?search=${fight.id}`}
+            className="p-1 hover:bg-surface-700 rounded transition-colors"
+            title="View in Anti-Cheat"
+          >
+            <Shield size={14} className="text-surface-400 hover:text-primary-400" />
+          </Link>
+        </div>
+      ),
+    },
     {
       key: 'status',
       header: 'Status',

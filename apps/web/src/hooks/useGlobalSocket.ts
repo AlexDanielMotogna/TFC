@@ -5,7 +5,7 @@
  * Manages arena events, fight updates, and real-time data
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { create } from 'zustand';
 import { useAuthStore, useStore } from '@/lib/store';
@@ -48,6 +48,7 @@ interface ArenaPnlTick {
 }
 
 interface GlobalSocketState {
+  socket: Socket | null;
   isConnected: boolean;
   activeFightsCount: number;
   lastUpdate: number;
@@ -66,6 +67,7 @@ interface GlobalSocketState {
   adminSystemHealth: AdminSystemHealthPayload | null;
 
   // Actions
+  setSocket: (socket: Socket | null) => void;
   setConnected: (connected: boolean) => void;
   setActiveFightsCount: (count: number) => void;
   updateFight: (fight: FightUpdate) => void;
@@ -87,6 +89,7 @@ interface GlobalSocketState {
 }
 
 export const useGlobalSocketStore = create<GlobalSocketState>((set, get) => ({
+  socket: null,
   isConnected: false,
   activeFightsCount: 0,
   lastUpdate: Date.now(),
@@ -104,6 +107,7 @@ export const useGlobalSocketStore = create<GlobalSocketState>((set, get) => ({
   adminPrizePool: null,
   adminSystemHealth: null,
 
+  setSocket: (socket) => set({ socket }),
   setConnected: (connected) => set({ isConnected: connected }),
 
   setActiveFightsCount: (count) => set({ activeFightsCount: count }),
@@ -219,9 +223,13 @@ function getGlobalSocket(token?: string): Promise<Socket> {
 
     socket.on('connect', () => {
       console.log('[GlobalSocket] Connected');
-      useGlobalSocketStore.getState().setConnected(true);
       globalSocket = socket;
       connectionPromise = null;
+
+      // Set socket in store first, then connected - this ensures socket is available
+      // when components react to isConnected change
+      useGlobalSocketStore.getState().setSocket(socket);
+      useGlobalSocketStore.getState().setConnected(true);
 
       // Subscribe to arena events
       socket.emit('arena:subscribe');
@@ -231,6 +239,7 @@ function getGlobalSocket(token?: string): Promise<Socket> {
     socket.on('disconnect', (reason) => {
       console.log('[GlobalSocket] Disconnected:', reason);
       useGlobalSocketStore.getState().setConnected(false);
+      useGlobalSocketStore.getState().setSocket(null);
     });
 
     socket.on('connect_error', (error) => {
@@ -358,15 +367,12 @@ function getGlobalSocket(token?: string): Promise<Socket> {
  */
 export function useGlobalSocket() {
   const { token } = useAuthStore();
-  const socketRef = useRef<Socket | null>(null);
 
-  const { isConnected, activeFightsCount, lastUpdate, fights, livePnl } = useGlobalSocketStore();
+  const { socket, isConnected, activeFightsCount, lastUpdate, fights, livePnl } = useGlobalSocketStore();
 
   useEffect(() => {
-    // Establish connection
-    getGlobalSocket(token || undefined).then(socket => {
-      socketRef.current = socket;
-    });
+    // Establish connection (socket will be stored in Zustand when connected)
+    getGlobalSocket(token || undefined);
 
     // Cleanup on unmount only disconnects if no other components are using it
     return () => {
@@ -376,18 +382,18 @@ export function useGlobalSocket() {
 
   // Method to emit events through the global socket
   const emit = useCallback((event: string, data?: unknown) => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit(event, data);
+    if (socket?.connected) {
+      socket.emit(event, data);
     }
-  }, []);
+  }, [socket]);
 
   // Method to subscribe to specific events
   const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
-    socketRef.current?.on(event, handler);
+    socket?.on(event, handler);
     return () => {
-      socketRef.current?.off(event, handler);
+      socket?.off(event, handler);
     };
-  }, []);
+  }, [socket]);
 
   // Helper to get live PnL for a specific fight
   const getLivePnl = useCallback((fightId: string) => {
@@ -403,7 +409,7 @@ export function useGlobalSocket() {
     getLivePnl,
     emit,
     on,
-    socket: socketRef.current,
+    socket,
   };
 }
 
