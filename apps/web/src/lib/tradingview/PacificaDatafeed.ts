@@ -5,6 +5,9 @@
 
 import { wsManager, type Bar } from './WebSocketManager';
 
+// Use our aggregated chart API (Pacifica + Binance/Bybit for historical data)
+const CHART_API_BASE = '';
+// Pacifica API for market info (not candles)
 const PACIFICA_API_BASE = 'https://api.pacifica.fi';
 
 // TradingView resolution to Pacifica interval mapping
@@ -264,6 +267,7 @@ export class PacificaDatafeed {
 
   /**
    * Get historical bars
+   * Uses aggregated API that fetches from Pacifica (Jun 2025+) and Binance/Bybit (historical)
    */
   async getBars(
     symbolInfo: LibrarySymbolInfo,
@@ -274,7 +278,6 @@ export class PacificaDatafeed {
   ): Promise<void> {
     console.log('[Datafeed] getBars:', symbolInfo.name, resolution, periodParams);
 
-    const pacificaSymbol = symbolToPacifica(symbolInfo.name);
     const interval = RESOLUTION_MAP[resolution] || '5m';
 
     // Convert from/to from seconds to milliseconds
@@ -282,14 +285,16 @@ export class PacificaDatafeed {
     const toMs = periodParams.to * 1000;
 
     try {
-      const url = `${PACIFICA_API_BASE}/api/v1/kline?symbol=${pacificaSymbol}&interval=${interval}&start_time=${fromMs}&end_time=${toMs}`;
+      // Use our aggregated chart API that combines Pacifica + Binance/Bybit
+      const url = `${CHART_API_BASE}/api/chart/candles?symbol=${symbolInfo.name}&interval=${interval}&start=${fromMs}&end=${toMs}`;
+      console.log('[Datafeed] Fetching from:', url);
       const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data: PacificaKlineResponse = await response.json();
+      const data = await response.json();
 
       if (!data.success || !data.data || data.data.length === 0) {
         onResult([], { noData: true });
@@ -297,13 +302,14 @@ export class PacificaDatafeed {
       }
 
       // Convert to TradingView bar format (time in ms)
-      const bars: Bar[] = data.data.map((c) => ({
+      // Our API returns numbers already parsed
+      const bars: Bar[] = data.data.map((c: { t: number; o: number; h: number; l: number; c: number; v: number }) => ({
         time: c.t,
-        open: parseFloat(c.o),
-        high: parseFloat(c.h),
-        low: parseFloat(c.l),
-        close: parseFloat(c.c),
-        volume: parseFloat(c.v),
+        open: c.o,
+        high: c.h,
+        low: c.l,
+        close: c.c,
+        volume: c.v,
       }));
 
       // Sort by time ascending
@@ -316,7 +322,7 @@ export class PacificaDatafeed {
         this.lastBars.set(key, lastBar);
       }
 
-      console.log(`[Datafeed] Loaded ${bars.length} bars for ${symbolInfo.name}`);
+      console.log(`[Datafeed] Loaded ${bars.length} bars for ${symbolInfo.name} (from aggregated API)`);
       onResult(bars);
     } catch (error) {
       console.error('[Datafeed] getBars error:', error);
