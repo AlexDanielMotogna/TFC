@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
 import { SETTLEMENT_LOCK_TIMEOUT_MS } from '@tfc/db';
 
@@ -24,13 +25,14 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Can only finish LIVE fights
       if (fight.status !== 'LIVE') {
         throw new BadRequestError(
-          `Cannot finish fight with status ${fight.status}. Only LIVE fights can be finished.`
+          `Cannot finish fight with status ${fight.status}. Only LIVE fights can be finished.`,
+          ErrorCode.ERR_FIGHT_INVALID_STATUS
         );
       }
 
@@ -39,7 +41,8 @@ export async function POST(
         const lockAge = Date.now() - fight.settlingAt.getTime();
         if (lockAge < SETTLEMENT_LOCK_TIMEOUT_MS) {
           throw new BadRequestError(
-            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`
+            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`,
+            ErrorCode.ERR_FIGHT_INVALID_STATUS
           );
         }
       }
@@ -49,7 +52,7 @@ export async function POST(
       const participantB = fight.participants.find((p) => p.slot === 'B');
 
       if (!participantA || !participantB) {
-        throw new BadRequestError('Fight does not have two participants');
+        throw new BadRequestError('Fight does not have two participants', ErrorCode.ERR_FIGHT_INVALID_STATUS);
       }
 
       // Determine winner based on final PnL (if available) or set as draw

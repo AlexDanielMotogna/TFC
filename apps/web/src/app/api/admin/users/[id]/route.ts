@@ -7,6 +7,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastUserUpdated } from '@/lib/server/admin-realtime';
 
 export async function GET(
@@ -39,7 +40,7 @@ export async function GET(
       });
 
       if (!user) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('User not found', ErrorCode.ERR_USER_NOT_FOUND);
       }
 
       // Get recent fights
@@ -157,22 +158,22 @@ export async function PATCH(
 
       // Validate role if provided
       if (role && !['USER', 'ADMIN'].includes(role)) {
-        throw new BadRequestError('Invalid role. Must be USER or ADMIN');
+        throw new BadRequestError('Invalid role. Must be USER or ADMIN', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
 
       // Validate status if provided
       if (status && !['ACTIVE', 'BANNED'].includes(status)) {
-        throw new BadRequestError('Invalid status. Must be ACTIVE or BANNED');
+        throw new BadRequestError('Invalid status. Must be ACTIVE or BANNED', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
 
       // Prevent self-demotion
       if (adminUser.userId === id && role === 'USER') {
-        throw new BadRequestError('Cannot demote yourself');
+        throw new BadRequestError('Cannot demote yourself', ErrorCode.ERR_USER_CANNOT_BAN_SELF);
       }
 
       // Prevent self-ban
       if (adminUser.userId === id && status === 'BANNED') {
-        throw new BadRequestError('Cannot ban yourself');
+        throw new BadRequestError('Cannot ban yourself', ErrorCode.ERR_USER_CANNOT_BAN_SELF);
       }
 
       const user = await prisma.user.findUnique({
@@ -181,12 +182,12 @@ export async function PATCH(
       });
 
       if (!user) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('User not found', ErrorCode.ERR_USER_NOT_FOUND);
       }
 
       // Prevent banning admins (unless they're being demoted first)
       if (status === 'BANNED' && user.role === 'ADMIN' && !role) {
-        throw new BadRequestError('Cannot ban an admin user. Demote them first.');
+        throw new BadRequestError('Cannot ban an admin user. Demote them first.', ErrorCode.ERR_USER_CANNOT_BAN_ADMIN);
       }
 
       // Build update data
@@ -256,7 +257,7 @@ export async function DELETE(
 
       // Prevent self-deletion
       if (adminUser.userId === id) {
-        throw new BadRequestError('Cannot delete yourself');
+        throw new BadRequestError('Cannot delete yourself', ErrorCode.ERR_USER_CANNOT_BAN_SELF);
       }
 
       const user = await prisma.user.findUnique({
@@ -265,12 +266,12 @@ export async function DELETE(
       });
 
       if (!user) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('User not found', ErrorCode.ERR_USER_NOT_FOUND);
       }
 
       // Prevent deleting admins
       if (user.role === 'ADMIN') {
-        throw new BadRequestError('Cannot delete an admin user');
+        throw new BadRequestError('Cannot delete an admin user', ErrorCode.ERR_USER_CANNOT_BAN_ADMIN);
       }
 
       if (hardDelete) {

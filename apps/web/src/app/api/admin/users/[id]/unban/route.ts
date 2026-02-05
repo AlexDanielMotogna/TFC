@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastUserUpdated } from '@/lib/server/admin-realtime';
 
 export async function POST(
@@ -21,11 +22,11 @@ export async function POST(
       });
 
       if (!user) {
-        throw new NotFoundError('User not found');
+        throw new NotFoundError('User not found', ErrorCode.ERR_USER_NOT_FOUND);
       }
 
       if (user.status !== 'BANNED') {
-        throw new BadRequestError('User is not banned');
+        throw new BadRequestError('User is not banned', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
 
       // Update user status

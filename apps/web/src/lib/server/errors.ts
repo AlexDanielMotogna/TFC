@@ -3,8 +3,8 @@
  * Enhanced with error codes, tracking IDs, and structured logging
  */
 
-import { ErrorCode } from './error-codes.js';
-import { errorLogger } from './logger.js';
+import { ErrorCode } from './error-codes';
+import { errorLogger } from './logger';
 import { randomUUID } from 'crypto';
 
 export class ApiError extends Error {

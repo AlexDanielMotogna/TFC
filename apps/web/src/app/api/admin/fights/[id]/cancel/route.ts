@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
 import { SETTLEMENT_LOCK_TIMEOUT_MS } from '@tfc/db';
 
@@ -22,13 +23,14 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Can only cancel WAITING or LIVE fights
       if (!['WAITING', 'LIVE'].includes(fight.status)) {
         throw new BadRequestError(
-          `Cannot cancel fight with status ${fight.status}`
+          `Cannot cancel fight with status ${fight.status}`,
+          ErrorCode.ERR_FIGHT_CANNOT_CANCEL
         );
       }
 
@@ -37,7 +39,8 @@ export async function POST(
         const lockAge = Date.now() - fight.settlingAt.getTime();
         if (lockAge < SETTLEMENT_LOCK_TIMEOUT_MS) {
           throw new BadRequestError(
-            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`
+            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`,
+            ErrorCode.ERR_FIGHT_INVALID_STATUS
           );
         }
       }

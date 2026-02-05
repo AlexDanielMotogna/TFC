@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function PATCH(
   request: Request,
@@ -18,7 +19,7 @@ export async function PATCH(
       const { status } = body;
 
       if (!['approved', 'rejected'].includes(status)) {
-        throw new BadRequestError('status must be "approved" or "rejected"');
+        throw new BadRequestError('status must be "approved" or "rejected"', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
 
       const existing = await prisma.betaWhitelist.findUnique({
@@ -26,7 +27,7 @@ export async function PATCH(
       });
 
       if (!existing) {
-        throw new NotFoundError('Beta application not found');
+        throw new NotFoundError('Beta application not found', ErrorCode.ERR_USER_NOT_FOUND);
       }
 
       const updateData: Record<string, unknown> = { status };

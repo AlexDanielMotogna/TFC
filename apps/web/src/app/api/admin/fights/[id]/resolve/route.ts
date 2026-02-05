@@ -5,6 +5,7 @@
 import { withAdminAuth } from '@/lib/server/admin-auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, NotFoundError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { broadcastAdminFightUpdate } from '@/lib/server/admin-realtime';
 import { SETTLEMENT_LOCK_TIMEOUT_MS } from '@tfc/db';
 
@@ -21,12 +22,12 @@ export async function POST(
 
       // Validate status
       if (!['FINISHED', 'NO_CONTEST', 'CANCELLED'].includes(status)) {
-        throw new BadRequestError('status must be FINISHED, NO_CONTEST, or CANCELLED');
+        throw new BadRequestError('status must be FINISHED, NO_CONTEST, or CANCELLED', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
 
       // Validate winner/draw for FINISHED status
       if (status === 'FINISHED' && !winnerId && !isDraw) {
-        throw new BadRequestError('FINISHED status requires winnerId or isDraw: true');
+        throw new BadRequestError('FINISHED status requires winnerId or isDraw: true', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
       }
 
       const fight = await prisma.fight.findUnique({
@@ -41,13 +42,14 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Only allow resolving LIVE fights (or stuck states)
       if (!['LIVE', 'WAITING'].includes(fight.status)) {
         throw new BadRequestError(
-          `Cannot resolve fight with status ${fight.status}. Only LIVE or WAITING fights can be resolved.`
+          `Cannot resolve fight with status ${fight.status}. Only LIVE or WAITING fights can be resolved.`,
+          ErrorCode.ERR_FIGHT_INVALID_STATUS
         );
       }
 
@@ -56,7 +58,8 @@ export async function POST(
         const lockAge = Date.now() - fight.settlingAt.getTime();
         if (lockAge < SETTLEMENT_LOCK_TIMEOUT_MS) {
           throw new BadRequestError(
-            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`
+            `Fight is currently being settled by ${fight.settlingBy}. Please wait and try again.`,
+            ErrorCode.ERR_FIGHT_INVALID_STATUS
           );
         }
       }
@@ -65,7 +68,7 @@ export async function POST(
       if (winnerId) {
         const isParticipant = fight.participants.some((p) => p.userId === winnerId);
         if (!isParticipant) {
-          throw new BadRequestError('winnerId must be a participant in this fight');
+          throw new BadRequestError('winnerId must be a participant in this fight', ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
         }
       }
 

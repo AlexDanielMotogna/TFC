@@ -8,8 +8,8 @@
  * - Discord webhooks for critical alerts
  */
 
-import { ErrorCode, ErrorCodeMetadata } from './error-codes.js';
-import { ApiError } from './errors.js';
+import { ErrorCode, ErrorCodeMetadata } from './error-codes';
+import { ApiError } from './errors';
 
 export interface ErrorLogEntry {
   errorId: string;
