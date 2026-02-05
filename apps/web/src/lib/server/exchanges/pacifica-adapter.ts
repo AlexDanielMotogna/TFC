@@ -110,13 +110,14 @@ export class PacificaAdapter implements ExchangeAdapter {
       endTime: params.endTime,
     });
 
-    return candles.map((c) => ({
-      timestamp: c.timestamp,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-      volume: c.volume,
+    // Pacifica returns {t, o, h, l, c, v} format, normalize to adapter format
+    return candles.map((c: any) => ({
+      timestamp: c.t || c.timestamp,
+      open: c.o || c.open,
+      high: c.h || c.high,
+      low: c.l || c.low,
+      close: c.c || c.close,
+      volume: c.v || c.volume,
     }));
   }
 

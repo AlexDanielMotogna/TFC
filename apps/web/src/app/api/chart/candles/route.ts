@@ -203,6 +203,8 @@ async function fetchFromPacifica(
         endTime,
       });
 
+      // Adapter returns normalized {timestamp, open, high, low, close, volume}
+      // Convert to chart format {t, o, h, l, c, v}
       return rawCandles.map(c => ({
         t: c.timestamp,
         o: parseFloat(c.open),
