@@ -1,0 +1,301 @@
+/**
+ * Cached Exchange Adapter Wrapper
+ * Adds Redis caching, request deduplication, and cache invalidation
+ */
+
+import Redis from 'ioredis';
+import {
+  ExchangeAdapter,
+  AuthContext,
+  Market,
+  Price,
+  Orderbook,
+  Candle,
+  RecentTrade,
+  Account,
+  Position,
+  Order,
+  TradeHistoryItem,
+  AccountSetting,
+  MarketOrderParams,
+  LimitOrderParams,
+  CancelOrderParams,
+  CancelAllOrdersParams,
+  KlineParams,
+  TradeHistoryParams,
+} from './adapter';
+
+/**
+ * Cached wrapper for any ExchangeAdapter
+ * Adds Redis caching, request deduplication, and rate limiting
+ */
+export class CachedExchangeAdapter implements ExchangeAdapter {
+  private adapter: ExchangeAdapter;
+  private redis: Redis;
+  private pendingRequests: Map<string, Promise<any>> = new Map();
+
+  readonly name: string;
+  readonly version: string;
+
+  constructor(adapter: ExchangeAdapter, redisUrl: string) {
+    this.adapter = adapter;
+    this.redis = new Redis(redisUrl);
+    this.name = adapter.name;
+    this.version = adapter.version;
+
+    // Handle Redis errors gracefully
+    this.redis.on('error', (err) => {
+      console.warn('[CachedAdapter] Redis error (will fallback to direct calls):', err.message);
+    });
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Public Market Data (Cached)
+  // ─────────────────────────────────────────────────────────────
+
+  async getMarkets(): Promise<Market[]> {
+    return this.withCache(
+      'markets:all',
+      () => this.adapter.getMarkets(),
+      300 // Cache for 5 minutes
+    );
+  }
+
+  async getPrices(): Promise<Price[]> {
+    return this.withCache(
+      'prices:all',
+      () => this.adapter.getPrices(),
+      5 // Cache for 5 seconds (real-time data)
+    );
+  }
+
+  async getOrderbook(symbol: string, aggLevel = 1): Promise<Orderbook> {
+    return this.withCache(
+      `orderbook:${symbol}:${aggLevel}`,
+      () => this.adapter.getOrderbook(symbol, aggLevel),
+      3 // Cache for 3 seconds
+    );
+  }
+
+  async getKlines(params: KlineParams): Promise<Candle[]> {
+    const cacheKey = `klines:${params.symbol}:${params.interval}:${params.startTime}:${params.endTime}`;
+    return this.withCache(
+      cacheKey,
+      () => this.adapter.getKlines(params),
+      60 // Cache for 1 minute
+    );
+  }
+
+  async getRecentTrades(symbol: string): Promise<RecentTrade[]> {
+    return this.withCache(
+      `trades:recent:${symbol}`,
+      () => this.adapter.getRecentTrades(symbol),
+      5 // Cache for 5 seconds
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Account Data (Cached with Deduplication)
+  // ─────────────────────────────────────────────────────────────
+
+  async getAccount(accountId: string): Promise<Account> {
+    return this.withCacheAndDedup(
+      `account:${accountId}`,
+      () => this.adapter.getAccount(accountId),
+      5 // Cache for 5 seconds
+    );
+  }
+
+  async getPositions(accountId: string): Promise<Position[]> {
+    return this.withCacheAndDedup(
+      `positions:${accountId}`,
+      () => this.adapter.getPositions(accountId),
+      5 // Cache for 5 seconds
+    );
+  }
+
+  async getOpenOrders(accountId: string): Promise<Order[]> {
+    return this.withCacheAndDedup(
+      `orders:${accountId}`,
+      () => this.adapter.getOpenOrders(accountId),
+      3 // Cache for 3 seconds (orders change frequently)
+    );
+  }
+
+  async getTradeHistory(params: TradeHistoryParams): Promise<TradeHistoryItem[]> {
+    const cacheKey = `trades:history:${params.accountId}:${params.symbol || 'all'}:${params.startTime || 'all'}`;
+    return this.withCache(
+      cacheKey,
+      () => this.adapter.getTradeHistory(params),
+      10 // Cache for 10 seconds
+    );
+  }
+
+  async getAccountSettings(accountId: string): Promise<AccountSetting[]> {
+    return this.withCache(
+      `settings:${accountId}`,
+      () => this.adapter.getAccountSettings(accountId),
+      60 // Cache for 1 minute (settings rarely change)
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Trading Operations (NO CACHE - Always Fresh)
+  // ─────────────────────────────────────────────────────────────
+
+  async createMarketOrder(auth: AuthContext, params: MarketOrderParams): Promise<{ orderId: string | number }> {
+    // Invalidate cache after order placement
+    const result = await this.adapter.createMarketOrder(auth, params);
+    await this.invalidateAccountCache(auth.accountId);
+    return result;
+  }
+
+  async createLimitOrder(auth: AuthContext, params: LimitOrderParams): Promise<{ orderId: string | number }> {
+    const result = await this.adapter.createLimitOrder(auth, params);
+    await this.invalidateAccountCache(auth.accountId);
+    return result;
+  }
+
+  async cancelOrder(auth: AuthContext, params: CancelOrderParams): Promise<{ success: boolean }> {
+    const result = await this.adapter.cancelOrder(auth, params);
+    await this.invalidateAccountCache(auth.accountId);
+    return result;
+  }
+
+  async cancelAllOrders(auth: AuthContext, params: CancelAllOrdersParams): Promise<{ cancelledCount: number }> {
+    const result = await this.adapter.cancelAllOrders(auth, params);
+    await this.invalidateAccountCache(auth.accountId);
+    return result;
+  }
+
+  async updateLeverage(auth: AuthContext, symbol: string, leverage: number): Promise<{ success: boolean }> {
+    const result = await this.adapter.updateLeverage(auth, symbol, leverage);
+    await this.redis.del(`${this.adapter.name}:settings:${auth.accountId}`).catch(() => {
+      // Ignore cache invalidation errors
+    });
+    return result;
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Optional Methods (Pass-through)
+  // ─────────────────────────────────────────────────────────────
+
+  async approveBuilderCode?(auth: AuthContext, builderCode: string, maxFeeRate: number): Promise<{ success: boolean }> {
+    if (this.adapter.approveBuilderCode) {
+      return this.adapter.approveBuilderCode(auth, builderCode, maxFeeRate);
+    }
+    throw new Error('approveBuilderCode not supported by this exchange');
+  }
+
+  async withdraw?(auth: AuthContext, amount: string): Promise<{ success: boolean }> {
+    if (this.adapter.withdraw) {
+      const result = await this.adapter.withdraw(auth, amount);
+      await this.invalidateAccountCache(auth.accountId);
+      return result;
+    }
+    throw new Error('withdraw not supported by this exchange');
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Cache Helpers
+  // ─────────────────────────────────────────────────────────────
+
+  /**
+   * Cache with Redis
+   */
+  private async withCache<T>(
+    cacheKey: string,
+    fetcher: () => Promise<T>,
+    ttlSeconds: number
+  ): Promise<T> {
+    const prefixedKey = `${this.adapter.name}:${cacheKey}`;
+
+    try {
+      // Try cache first
+      const cached = await this.redis.get(prefixedKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (error) {
+      console.warn('[CachedAdapter] Redis cache read failed:', error);
+      // Fall through to fetcher
+    }
+
+    // Cache miss - fetch from exchange
+    const result = await fetcher();
+
+    // Store in cache (fire and forget)
+    this.redis.setex(prefixedKey, ttlSeconds, JSON.stringify(result)).catch((error) => {
+      console.warn('[CachedAdapter] Redis cache write failed:', error);
+    });
+
+    return result;
+  }
+
+  /**
+   * Cache with deduplication (share promise across concurrent requests)
+   */
+  private async withCacheAndDedup<T>(
+    cacheKey: string,
+    fetcher: () => Promise<T>,
+    ttlSeconds: number
+  ): Promise<T> {
+    const prefixedKey = `${this.adapter.name}:${cacheKey}`;
+
+    try {
+      // Try cache first
+      const cached = await this.redis.get(prefixedKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (error) {
+      console.warn('[CachedAdapter] Redis cache read failed:', error);
+      // Fall through to fetcher
+    }
+
+    // Check if request is already in flight
+    if (this.pendingRequests.has(prefixedKey)) {
+      return this.pendingRequests.get(prefixedKey)!;
+    }
+
+    // Create new request
+    const promise = fetcher()
+      .then((result) => {
+        // Store in cache
+        this.redis.setex(prefixedKey, ttlSeconds, JSON.stringify(result)).catch((error) => {
+          console.warn('[CachedAdapter] Redis cache write failed:', error);
+        });
+        return result;
+      })
+      .finally(() => {
+        // Clean up pending request
+        this.pendingRequests.delete(prefixedKey);
+      });
+
+    this.pendingRequests.set(prefixedKey, promise);
+
+    return promise;
+  }
+
+  /**
+   * Invalidate account-related cache keys
+   */
+  private async invalidateAccountCache(accountId: string): Promise<void> {
+    const keys = [
+      `${this.adapter.name}:account:${accountId}`,
+      `${this.adapter.name}:positions:${accountId}`,
+      `${this.adapter.name}:orders:${accountId}`,
+    ];
+
+    await this.redis.del(...keys).catch((error) => {
+      console.warn('[CachedAdapter] Redis cache invalidation failed:', error);
+    });
+  }
+
+  /**
+   * Disconnect Redis (cleanup)
+   */
+  async disconnect(): Promise<void> {
+    await this.redis.quit();
+  }
+}
