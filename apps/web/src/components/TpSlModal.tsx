@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { usePrices } from '@/hooks/usePrices';
 import { Portal } from './Portal';
+import { Spinner } from './Spinner';
 import type { Position, TpSlOrder } from './Positions';
 
 export interface TpSlParams {
@@ -677,7 +678,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <Spinner size="xs" variant="white" />
                     Submitting...
                   </span>
                 ) : (
@@ -924,7 +925,7 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <Spinner size="xs" variant="white" />
                     Submitting...
                   </span>
                 ) : (

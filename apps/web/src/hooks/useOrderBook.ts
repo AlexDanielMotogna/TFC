@@ -38,8 +38,8 @@ const symbolToPacifica = (symbol: string): string => {
   return symbol.replace('-USD', '');
 };
 
-// Valid agg_level values per docs: 1, 2, 5, 10, 100, 1000
-export type AggLevel = 1 | 2 | 5 | 10 | 100 | 1000;
+// Valid agg_level values - powers of 10 to match Pacifica
+export type AggLevel = 1 | 10 | 100 | 1000 | 10000;
 
 export function useOrderBook(symbol: string, aggLevel: AggLevel = 1) {
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);

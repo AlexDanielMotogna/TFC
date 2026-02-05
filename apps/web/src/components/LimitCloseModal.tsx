@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrices } from '@/hooks/usePrices';
 import { Portal } from './Portal';
+import { Spinner } from './Spinner';
 import type { Position } from './Positions';
 
 // Lot sizes per symbol (from Pacifica)
@@ -282,7 +283,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Spinner size="xs" variant="white" />
                 Submitting...
               </span>
             ) : (

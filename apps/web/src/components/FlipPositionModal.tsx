@@ -1,6 +1,7 @@
 'use client';
 
 import { Portal } from './Portal';
+import { Spinner } from './Spinner';
 import type { Position } from './Positions';
 
 interface FlipPositionModalProps {
@@ -99,7 +100,7 @@ export function FlipPositionModal({ position, onClose, onConfirm, isSubmitting =
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Spinner size="xs" variant="white" />
                 Flipping...
               </span>
             ) : (

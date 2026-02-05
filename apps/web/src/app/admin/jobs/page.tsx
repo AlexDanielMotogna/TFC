@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminBadge } from '@/components/admin';
+import { Spinner } from '@/components/Spinner';
 import { useAdminSubscription } from '@/hooks/useGlobalSocket';
 import { RefreshCw, Clock, CheckCircle, AlertTriangle, XCircle, Wifi, WifiOff } from 'lucide-react';
 
@@ -203,7 +204,7 @@ export default function AdminJobsPage() {
       <div className="space-y-4">
         {isLoading && jobs.length === 0 ? (
           <div className="bg-surface-850 border border-surface-700 rounded-lg p-8 text-center">
-            <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <Spinner size="sm" className="mx-auto" />
           </div>
         ) : (
           jobs.map((job) => (

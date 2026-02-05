@@ -67,6 +67,19 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Format date for display (e.g., "Jan 5, 14:30")
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+  };
+
   // Calculate time remaining for live fights (fallback when no WebSocket data)
   const getTimeRemaining = () => {
     if (!fight.startedAt) return null;
@@ -271,16 +284,22 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
           </div>
 
           {/* Time + Action */}
-          <div className="mt-auto pt-1.5 space-y-1.5">
+          <div className="mt-auto pt-1.5 space-y-1">
             {fight.startedAt && (
-              <div className="flex items-center justify-center gap-2 text-xs">
-                <span className="text-surface-400">Time:</span>
-                <span className="font-mono font-bold text-white">
-                  {livePnl?.timeRemainingMs !== undefined
-                    ? formatTimeRemaining(livePnl.timeRemainingMs)
-                    : getTimeRemaining()}
-                </span>
-              </div>
+              <>
+                <div className="flex items-center justify-center gap-2 text-xs">
+                  <span className="text-surface-500">Started:</span>
+                  <span className="text-surface-400">{formatDate(fight.startedAt)}</span>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-xs">
+                  <span className="text-surface-400">Remaining:</span>
+                  <span className="font-mono font-bold text-white">
+                    {livePnl?.timeRemainingMs !== undefined
+                      ? formatTimeRemaining(livePnl.timeRemainingMs)
+                      : getTimeRemaining()}
+                  </span>
+                </div>
+              </>
             )}
             {user && fight.participants.some(p => p.userId === user.id) ? (
               <Link
@@ -334,11 +353,13 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
               );
             })}
           </div>
-          {fight.isDraw && (
-            <div className="text-center py-1">
-              <span className="badge-finished text-xs">DRAW</span>
-            </div>
-          )}
+          {/* Draw badge + Timestamps on same row */}
+          <div className="flex items-center justify-center gap-2 text-xs text-surface-500 py-1">
+            {fight.isDraw && <span className="badge-finished text-xs">DRAW</span>}
+            {fight.startedAt && <span>{formatDate(fight.startedAt)}</span>}
+            {fight.startedAt && fight.endedAt && <span>→</span>}
+            {fight.endedAt && <span>{formatDate(fight.endedAt)}</span>}
+          </div>
           <Link
             href={`/fight/${fight.id}`}
             className="btn-ghost w-full text-center text-sm py-2 mt-auto"
@@ -390,11 +411,16 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
               </div>
             ))}
           </div>
-          {/* Reason */}
-          <div className="text-center py-2">
+          {/* Reason + Timestamps */}
+          <div className="text-center py-1 space-y-1">
             <span className="text-xs text-surface-500">
               Fight invalidated - no valid activity
             </span>
+            <div className="flex items-center justify-center gap-3 text-xs text-surface-500">
+              {fight.startedAt && <span>{formatDate(fight.startedAt)}</span>}
+              {fight.startedAt && fight.endedAt && <span>→</span>}
+              {fight.endedAt && <span>{formatDate(fight.endedAt)}</span>}
+            </div>
           </div>
           <Link
             href={`/fight/${fight.id}`}

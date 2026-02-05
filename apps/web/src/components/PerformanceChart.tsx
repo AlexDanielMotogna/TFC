@@ -40,16 +40,32 @@ interface PerformanceChartProps {
 }
 
 type ChartType = 'cumulative' | 'individual' | 'winrate';
+type TimeRange = 'all' | '30d' | '7d';
 
 export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
   const [chartType, setChartType] = useState<ChartType>('cumulative');
+  const [timeRange, setTimeRange] = useState<TimeRange>('all');
 
   // Filter and sort finished fights by date
   const finishedFights = useMemo(() => {
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+
     return fights
-      .filter((f) => f.status === 'FINISHED' && f.endedAt)
+      .filter((f) => {
+        if (f.status !== 'FINISHED' || !f.endedAt) return false;
+
+        // Apply time range filter
+        if (timeRange !== 'all') {
+          const endedAt = new Date(f.endedAt).getTime();
+          const daysAgo = timeRange === '7d' ? 7 : 30;
+          if (now - endedAt > daysAgo * dayMs) return false;
+        }
+
+        return true;
+      })
       .sort((a, b) => new Date(a.endedAt!).getTime() - new Date(b.endedAt!).getTime());
-  }, [fights]);
+  }, [fights, timeRange]);
 
   // Process data for cumulative PnL chart
   const cumulativeData = useMemo(() => {
@@ -115,6 +131,18 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
     });
   }, [finishedFights, userId]);
 
+  // Calculate optimal X-axis interval based on data length
+  const xAxisInterval = useMemo(() => {
+    const dataLength = finishedFights.length;
+    if (dataLength <= 10) return 0; // Show all
+    if (dataLength <= 30) return Math.floor(dataLength / 10);
+    if (dataLength <= 50) return Math.floor(dataLength / 8);
+    return Math.floor(dataLength / 6); // For large datasets, show ~6 labels
+  }, [finishedFights.length]);
+
+  // Determine if we should show dots (only for small datasets)
+  const showDots = finishedFights.length <= 30;
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -145,68 +173,113 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
 
   if (finishedFights.length === 0) {
     return (
-      <div className="h-48 bg-surface-800 rounded-lg flex items-center justify-center border border-surface-800">
-        <p className="text-surface-500">No fight history yet</p>
+      <div className="space-y-4">
+        {/* Time Range Filter (still show even when no data) */}
+        <div className="flex justify-end">
+          <div className="flex gap-1 sm:gap-2">
+            {(['7d', '30d', 'all'] as TimeRange[]).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  timeRange === range
+                    ? 'bg-surface-700 text-white'
+                    : 'text-surface-500 hover:text-surface-300'
+                }`}
+              >
+                {range === 'all' ? 'All' : range.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="h-48 bg-surface-800 rounded-lg flex items-center justify-center border border-surface-800">
+          <p className="text-surface-500">
+            {timeRange === 'all' ? 'No fight history yet' : `No fights in the last ${timeRange === '7d' ? '7 days' : '30 days'}`}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Chart Type Tabs - responsive */}
-      <div className="flex gap-1 sm:gap-2">
-        <button
-          onClick={() => setChartType('cumulative')}
-          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
-            chartType === 'cumulative'
-              ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
-          }`}
-        >
-          <ShowChartIcon sx={{ fontSize: 16 }} />
-          <span className="text-xs sm:text-sm font-medium">PnL</span>
-        </button>
-        <button
-          onClick={() => setChartType('individual')}
-          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
-            chartType === 'individual'
-              ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
-          }`}
-        >
-          <BarChartIcon sx={{ fontSize: 16 }} />
-          <span className="text-xs sm:text-sm font-medium">Results</span>
-        </button>
-        <button
-          onClick={() => setChartType('winrate')}
-          className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
-            chartType === 'winrate'
-              ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-              : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
-          }`}
-        >
-          <TrendingUpIcon sx={{ fontSize: 16 }} />
-          <span className="text-xs sm:text-sm font-medium">Win %</span>
-        </button>
+      {/* Controls Row - Chart Type and Time Range */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        {/* Chart Type Tabs */}
+        <div className="flex gap-1 sm:gap-2">
+          <button
+            onClick={() => setChartType('cumulative')}
+            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
+              chartType === 'cumulative'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+            }`}
+          >
+            <ShowChartIcon sx={{ fontSize: 16 }} />
+            <span className="text-xs sm:text-sm font-medium">PnL</span>
+          </button>
+          <button
+            onClick={() => setChartType('individual')}
+            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
+              chartType === 'individual'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+            }`}
+          >
+            <BarChartIcon sx={{ fontSize: 16 }} />
+            <span className="text-xs sm:text-sm font-medium">Results</span>
+          </button>
+          <button
+            onClick={() => setChartType('winrate')}
+            className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
+              chartType === 'winrate'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+            }`}
+          >
+            <TrendingUpIcon sx={{ fontSize: 16 }} />
+            <span className="text-xs sm:text-sm font-medium">Win %</span>
+          </button>
+        </div>
+
+        {/* Time Range Filter */}
+        <div className="flex gap-1 sm:gap-2">
+          {(['7d', '30d', 'all'] as TimeRange[]).map((range) => (
+            <button
+              key={range}
+              onClick={() => setTimeRange(range)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                timeRange === range
+                  ? 'bg-surface-700 text-white'
+                  : 'text-surface-500 hover:text-surface-300'
+              }`}
+            >
+              {range === 'all' ? 'All' : range.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Chart */}
       <div className="h-64 bg-surface-800/50 rounded-lg p-2 sm:p-4 border border-surface-800">
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'cumulative' && (
-            <LineChart data={cumulativeData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <LineChart data={cumulativeData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
               <XAxis
                 dataKey="index"
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `#${value}`}
+                interval={xAxisInterval}
+                axisLine={{ stroke: '#27272a' }}
               />
               <YAxis
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `$${value}`}
                 width={45}
+                axisLine={false}
               />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#52525b" strokeDasharray="3 3" />
@@ -215,29 +288,32 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
                 dataKey="pnl"
                 stroke="#f97316"
                 strokeWidth={2}
-                dot={{ fill: '#f97316', r: 3 }}
-                activeDot={{ r: 5 }}
+                dot={showDots ? { fill: '#f97316', r: 2 } : false}
+                activeDot={{ r: 4 }}
               />
             </LineChart>
           )}
           {chartType === 'individual' && (
-            <BarChart data={individualData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <BarChart data={individualData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
               <XAxis
                 dataKey="index"
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `#${value}`}
+                interval={xAxisInterval}
+                axisLine={{ stroke: '#27272a' }}
               />
               <YAxis
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `$${value}`}
                 width={45}
+                axisLine={false}
               />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#52525b" strokeDasharray="3 3" />
-              <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="pnl" radius={[2, 2, 0, 0]} maxBarSize={showDots ? 20 : 8}>
                 {individualData.map((entry, index) => (
                   <Cell
                     key={`cell-${index}`}
@@ -248,13 +324,15 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
             </BarChart>
           )}
           {chartType === 'winrate' && (
-            <LineChart data={winRateData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
+            <LineChart data={winRateData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
               <XAxis
                 dataKey="index"
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `#${value}`}
+                interval={xAxisInterval}
+                axisLine={{ stroke: '#27272a' }}
               />
               <YAxis
                 stroke="#71717a"
@@ -262,6 +340,7 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
                 domain={[0, 100]}
                 tickFormatter={(value: number) => `${value}%`}
                 width={40}
+                axisLine={false}
               />
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={50} stroke="#52525b" strokeDasharray="3 3" />
@@ -270,8 +349,8 @@ export function PerformanceChart({ fights, userId }: PerformanceChartProps) {
                 dataKey="winRate"
                 stroke="#f97316"
                 strokeWidth={2}
-                dot={{ fill: '#f97316', r: 3 }}
-                activeDot={{ r: 5 }}
+                dot={showDots ? { fill: '#f97316', r: 2 } : false}
+                activeDot={{ r: 4 }}
               />
             </LineChart>
           )}

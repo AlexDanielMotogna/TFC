@@ -7,6 +7,7 @@ import {
   CandlestickSeries,
   HistogramSeries,
 } from 'lightweight-charts';
+import { Spinner } from './Spinner';
 import type {
   IChartApi,
   ISeriesApi,
@@ -540,7 +541,7 @@ function PacificaChartComponent({
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface-900/80">
           <div className="text-center">
-            <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-2" />
+            <Spinner size="md" className="mx-auto mb-2" />
             <p className="text-surface-400 text-sm">Loading chart data...</p>
           </div>
         </div>

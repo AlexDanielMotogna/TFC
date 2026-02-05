@@ -9,7 +9,6 @@ import { AppShell } from '@/components/AppShell';
 import { BetaGate } from '@/components/BetaGate';
 import { ProfileSkeleton } from '@/components/Skeletons';
 import { PerformanceChart } from '@/components/PerformanceChart';
-import SportsKabaddiIcon from '@mui/icons-material/SportsKabaddi';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
@@ -229,7 +228,7 @@ export default function ProfilePage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
           <div className="card p-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
-              <SportsKabaddiIcon sx={{ fontSize: 20, color: '#ffffff' }} />
+              <span className="text-lg leading-none">⚔</span>
               <p className="text-2xl font-bold text-white">{stats.totalFights}</p>
             </div>
             <p className="text-xs text-surface-400">Total Fights</p>
@@ -294,12 +293,12 @@ export default function ProfilePage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs text-surface-400 capitalize tracking-wider bg-surface-850">
-                    <th className="text-left py-3 px-4 font-medium">Date</th>
-                    <th className="text-center py-3 px-4 font-medium">Duration</th>
-                    <th className="text-center py-3 px-4 font-medium">Stake</th>
-                    <th className="text-center py-3 px-4 font-medium">Opponent</th>
-                    <th className="text-center py-3 px-4 font-medium">Result</th>
-                    <th className="text-right py-3 px-4 font-medium">PnL</th>
+                    <th className="text-left py-3 px-2 sm:px-4 font-medium">Date</th>
+                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Duration</th>
+                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Stake</th>
+                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Opponent</th>
+                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Result</th>
+                    <th className="text-right py-3 px-2 sm:px-4 font-medium">PnL</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -321,7 +320,7 @@ export default function ProfilePage() {
 
                     return (
                       <tr key={fight.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                        <td className="py-4 px-4 text-surface-400">
+                        <td className="py-3 px-2 sm:px-4 text-surface-400 whitespace-nowrap">
                           {fight.status === 'LIVE'
                             ? 'In Progress'
                             : new Date(fight.endedAt || fight.updatedAt).toLocaleString('en-US', {
@@ -329,13 +328,14 @@ export default function ProfilePage() {
                                 day: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit',
+                                hour12: false,
                               })}
                         </td>
-                        <td className="py-4 px-4 text-center text-white">{fight.durationMinutes}m</td>
-                        <td className="py-4 px-4 text-center text-primary-400">
+                        <td className="py-3 px-2 sm:px-4 text-center text-white">{fight.durationMinutes}m</td>
+                        <td className="py-3 px-2 sm:px-4 text-center text-primary-400">
                           ${fight.stakeUsdc}
                         </td>
-                        <td className="py-4 px-4 text-center">
+                        <td className="py-3 px-2 sm:px-4 text-center">
                           {opponent ? (
                             <Link
                               href={`/profile/${opponent.userId}`}
@@ -347,7 +347,7 @@ export default function ProfilePage() {
                             <span className="text-surface-500">-</span>
                           )}
                         </td>
-                        <td className="py-4 px-4 text-center">
+                        <td className="py-3 px-2 sm:px-4 text-center">
                           {fight.status === 'FINISHED' ? (
                             isDraw ? (
                               <span className="px-2 py-1 rounded text-xs bg-surface-700 text-surface-400">DRAW</span>
@@ -360,7 +360,7 @@ export default function ProfilePage() {
                             <span className="px-2 py-1 rounded text-xs bg-primary-500/20 text-primary-400">{fight.status}</span>
                           )}
                         </td>
-                        <td className="py-4 px-4 text-right">
+                        <td className="py-3 px-2 sm:px-4 text-right">
                           {fight.status === 'FINISHED' && (
                             <span
                               className={`${

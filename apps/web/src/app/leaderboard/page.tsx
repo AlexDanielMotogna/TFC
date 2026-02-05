@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { BetaGate } from '@/components/BetaGate';
 import { LeaderboardSkeleton, LeaderboardRowSkeleton } from '@/components/Skeletons';
+import { Spinner } from '@/components/Spinner';
 import { api } from '@/lib/api';
 import { usePrizePool } from '@/hooks/usePrizePool';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -192,7 +193,7 @@ export default function LeaderboardPage() {
           {/* Loading indicator for background refetch */}
           {isFetching && !isLoading && (
             <div className="ml-3 flex items-center">
-              <div className="w-4 h-4 rounded-full border-2 border-surface-600 border-t-primary-500 animate-spin" />
+              <Spinner size="xs" />
             </div>
           )}
         </div>

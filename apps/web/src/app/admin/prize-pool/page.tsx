@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminCard, AdminCardSkeleton, AdminBadge } from '@/components/admin';
+import { Spinner } from '@/components/Spinner';
 import { Gift, DollarSign, Calendar, CheckCircle } from 'lucide-react';
 
 interface PrizePool {
@@ -146,7 +147,7 @@ export default function AdminPrizePoolPage() {
         <h2 className="text-lg font-medium text-white">Prize Pool History</h2>
         {isLoading ? (
           <div className="bg-surface-850 border border-surface-700 rounded-lg p-8 text-center">
-            <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <Spinner size="sm" className="mx-auto" />
           </div>
         ) : pools.length > 0 ? (
           <div className="space-y-4">

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks';
 import { BetaGate } from '@/components/BetaGate';
+import { Spinner } from '@/components/Spinner';
 import { api, type Fight } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 
@@ -158,7 +159,7 @@ export default function FightResultsPage() {
     return (
       <BetaGate>
         <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+          <Spinner size="md" />
         </div>
       </BetaGate>
     );

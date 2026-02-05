@@ -140,6 +140,11 @@ export async function getFights(status?: string): Promise<Fight[]> {
   return fetchApi<Fight[]>(`/fights${params}`);
 }
 
+export async function getMyFights(token: string, status?: string): Promise<Fight[]> {
+  const params = status ? `?status=${status}` : '';
+  return fetchApi<Fight[]>(`/fights/user/me${params}`, { token });
+}
+
 export async function getFight(id: string): Promise<Fight> {
   return fetchApi<Fight>(`/fights/${id}`);
 }
@@ -636,6 +641,7 @@ export const api = {
   linkPacificaAccount,
   // Fights
   getFights,
+  getMyFights,
   getFight,
   createFight,
   joinFight,

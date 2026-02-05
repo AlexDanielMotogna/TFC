@@ -63,19 +63,6 @@ export class FightsController {
   }
 
   /**
-   * Get fight by ID
-   * GET /api/fights/:id
-   */
-  @Get(':id')
-  async getFight(@Param('id') fightId: string) {
-    const fight = await this.fightsService.getFight(fightId);
-    if (!fight) {
-      throw new HttpException('Fight not found', HttpStatus.NOT_FOUND);
-    }
-    return { success: true, data: fight };
-  }
-
-  /**
    * List fights
    * GET /api/fights
    */
@@ -96,6 +83,7 @@ export class FightsController {
   /**
    * Get user's fights
    * GET /api/fights/user/me
+   * NOTE: This must be defined BEFORE :id route to avoid conflicts
    */
   @Get('user/me')
   async getMyFights(
@@ -108,6 +96,19 @@ export class FightsController {
       status as FightStatus | undefined
     );
     return { success: true, data: fights };
+  }
+
+  /**
+   * Get fight by ID
+   * GET /api/fights/:id
+   */
+  @Get(':id')
+  async getFight(@Param('id') fightId: string) {
+    const fight = await this.fightsService.getFight(fightId);
+    if (!fight) {
+      throw new HttpException('Fight not found', HttpStatus.NOT_FOUND);
+    }
+    return { success: true, data: fight };
   }
 
   /**

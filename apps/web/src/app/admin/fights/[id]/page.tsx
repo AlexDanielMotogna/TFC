@@ -4,6 +4,7 @@ import { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminCard, AdminBadge, getFightStatusVariant } from '@/components/admin';
+import { Spinner } from '@/components/Spinner';
 import { ArrowLeft, Clock, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 
 interface FightDetail {
@@ -179,7 +180,7 @@ export default function AdminFightDetailPage({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+        <Spinner size="sm" />
       </div>
     );
   }

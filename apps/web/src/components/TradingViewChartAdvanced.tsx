@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, memo, useState } from 'react';
 import { PacificaDatafeed, intervalToResolution, resolutionToInterval } from '@/lib/tradingview/PacificaDatafeed';
+import { Spinner } from './Spinner';
 
 interface TradingViewChartAdvancedProps {
   symbol: string;
@@ -250,7 +251,7 @@ function TradingViewChartAdvancedComponent({
       {!isChartReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#111113]">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-surface-600 border-t-primary-500 rounded-full animate-spin" />
+            <Spinner size="md" />
             <span className="text-sm text-surface-400">
               {!isScriptLoaded ? 'Loading TradingView...' : 'Initializing chart...'}
             </span>

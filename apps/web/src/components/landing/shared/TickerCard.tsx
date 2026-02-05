@@ -3,6 +3,7 @@
 import { MiniChart } from './MiniChart';
 import { useKlineData } from '@/hooks/useKlineData';
 import { TokenIcon } from '@/components/TokenIcon';
+import { Spinner } from '@/components/Spinner';
 
 interface TickerCardProps {
   symbol: string;
@@ -69,7 +70,7 @@ export function TickerCard({ symbol, tokenInfo, priceData }: TickerCardProps) {
       <div className="h-32 w-full relative">
         {isLoading ? (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="w-6 h-6 border-2 border-surface-600 border-t-primary-500 rounded-full animate-spin" />
+            <Spinner size="sm" />
           </div>
         ) : (
           <MiniChart

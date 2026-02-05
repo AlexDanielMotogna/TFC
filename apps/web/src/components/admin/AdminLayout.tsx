@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminSidebar } from './AdminSidebar';
+import { Spinner } from '@/components/Spinner';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -23,7 +24,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   if (!_hasHydrated) {
     return (
       <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-        <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+        <Spinner size="sm" />
       </div>
     );
   }

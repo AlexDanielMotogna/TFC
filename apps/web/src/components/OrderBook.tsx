@@ -17,8 +17,8 @@ const getBaseToken = (symbol: string): string => {
   return symbol.replace('-USD', '');
 };
 
-// Valid agg_level values per docs: 1, 2, 5, 10, 100, 1000
-const AGG_LEVELS: AggLevel[] = [1, 2, 5, 10, 100, 1000];
+// Valid agg_level values - matches Pacifica's pattern (powers of 10)
+const AGG_LEVELS: AggLevel[] = [1, 10, 100, 1000, 10000];
 
 // Format tick value for display (remove trailing zeros)
 const formatTickValue = (value: number): string => {

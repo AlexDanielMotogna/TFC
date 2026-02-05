@@ -11,6 +11,7 @@ import { FightsModule } from './modules/fights/fights.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module.js';
 import { NotificationsModule } from './modules/notifications/notifications.module.js';
+import { ChartDataModule } from './modules/chart-data/chart-data.module.js';
 import { PacificaModule } from './pacifica/pacifica.module.js';
 
 @Module({
@@ -28,6 +29,7 @@ import { PacificaModule } from './pacifica/pacifica.module.js';
     UsersModule,
     LeaderboardModule,
     NotificationsModule,
+    ChartDataModule,
   ],
   controllers: [HealthController],
 })
