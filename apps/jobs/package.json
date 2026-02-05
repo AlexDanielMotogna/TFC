@@ -14,7 +14,10 @@
     "@tfc/shared": "*",
     "@tfc/logger": "*",
     "node-cron": "^3.0.3",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "@solana/web3.js": "^1.95.8",
+    "@solana/spl-token": "^0.4.9",
+    "@scure/base": "^1.2.1"
   },
   "devDependencies": {
     "@tfc/tsconfig": "*",
