@@ -109,6 +109,7 @@ async function fetchFromBinance(
 
     // Move to next batch
     const lastCandle = candles[candles.length - 1];
+    if (!lastCandle) break;
     currentStart = lastCandle.t + 1;
 
     if (data.length < MAX_LIMIT) break;
