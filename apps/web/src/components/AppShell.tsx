@@ -57,6 +57,7 @@ export function AppShell({ children }: AppShellProps) {
 
   // Get Pacifica balance
   const pacificaBalance = account?.accountEquity ? parseFloat(account.accountEquity) : null;
+  const withdrawableBalance = account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null;
 
   // Wallet dropdown state
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
@@ -330,7 +331,7 @@ export function AppShell({ children }: AppShellProps) {
       <WithdrawModal
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
-        availableBalance={pacificaBalance}
+        availableBalance={withdrawableBalance}
       />
 
       {/* Mobile Phantom Redirect - prompts mobile users to open in Phantom dApp browser */}

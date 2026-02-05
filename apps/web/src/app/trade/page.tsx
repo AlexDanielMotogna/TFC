@@ -2452,7 +2452,7 @@ export default function TradePage() {
       <WithdrawModal
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
-        availableBalance={account?.availableToSpend ? parseFloat(account.availableToSpend) : null}
+        availableBalance={account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null}
       />
 
       {/* Edit Order Modal */}

@@ -16,7 +16,6 @@ import {
   Connection,
   PublicKey,
   Transaction,
-  sendAndConfirmTransaction,
   Keypair,
 } from '@solana/web3.js';
 import {
@@ -249,13 +248,29 @@ export async function transferUsdc(
       )
     );
 
-    // Send transaction
-    const signature = await sendAndConfirmTransaction(
-      connection,
-      transaction,
-      [treasuryKeypair],
-      { commitment: 'confirmed' }
+    // Get recent blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = treasuryKeypair.publicKey;
+
+    // Sign and send transaction
+    transaction.sign(treasuryKeypair);
+    const signature = await connection.sendRawTransaction(transaction.serialize(), {
+      skipPreflight: false,
+      preflightCommitment: 'confirmed',
+    });
+
+    console.log(`Treasury: Transaction sent: ${signature}`);
+
+    // Confirm transaction using polling (not WebSocket to avoid serverless issues)
+    const confirmation = await connection.confirmTransaction(
+      { signature, blockhash, lastValidBlockHeight },
+      'confirmed'
     );
+
+    if (confirmation.value.err) {
+      throw new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+    }
 
     console.log(`Treasury: Transferred ${amount} USDC to ${recipientAddress}. Signature: ${signature}`);
 

@@ -21,6 +21,7 @@ export interface AccountSummary {
   availableBalance: string;
   totalMarginUsed: string;
   availableToSpend: string;
+  availableToWithdraw: string;
   feeLevel?: number;
   crossMmr?: string;
   // Dynamic fees from Pacifica API (these change monthly)
@@ -67,6 +68,7 @@ export function useAccount(): UseAccountReturn {
       availableBalance: accountInfo.available_to_spend || accountInfo.available_balance || '0',
       totalMarginUsed: accountInfo.total_margin_used || accountInfo.margin_used || '0',
       availableToSpend: accountInfo.available_to_spend || accountInfo.available_balance || '0',
+      availableToWithdraw: accountInfo.available_to_withdraw || '0',
       feeLevel: accountInfo.fee_level,
       crossMmr: accountInfo.cross_mmr,
       makerFee: accountInfo.maker_fee,
