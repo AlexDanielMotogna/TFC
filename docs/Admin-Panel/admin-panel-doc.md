@@ -837,3 +837,342 @@ When a user is banned:
 - Cannot log in (gets error: "Your account has been banned...")
 - Existing sessions are blocked (403 Forbidden on any API call)
 - `bannedReason` is displayed to the user if provided
+
+---
+
+## 17. Referral Payout Monitoring & Management ✅
+
+### Overview ✅
+
+The referral payout system uses a two-phase processing approach:
+1. **Claim Endpoint** - User claims earnings, creates payout record with `status = pending`
+2. **Automated Processor** - Cron job (every 15 min) processes payouts asynchronously
+
+This prevents timeout errors and allows retry logic for failed transfers.
+
+### Database Models ✅
+
+**ReferralPayout** (already exists):
+```prisma
+model ReferralPayout {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  amount        Decimal   @db.Decimal(10, 2)
+  walletAddress String    @map("wallet_address")
+  status        String    @default("pending")  // pending, processing, completed, failed
+  txSignature   String?   @map("tx_signature")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  processedAt   DateTime? @map("processed_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("referral_payouts")
+}
+```
+
+### Admin Page: `/admin/referrals/payouts` ⏳
+
+**Dashboard Stats:**
+- Total payouts (all-time, 24h, 7d)
+- Pending payouts count + total amount
+- Failed payouts needing attention
+- Completed payouts (24h) + total transferred
+- Average processing time
+
+**Payouts Table:**
+- Columns: Payout ID, User (handle + wallet), Amount, Status, Created, Processed, Tx Signature, Actions
+- Filter by: status, date range, amount range, user
+- Search by: payout ID, user ID, wallet address, tx signature
+- Pagination: server-side, 50/page
+- **Status badges:**
+  - `pending` (gray) - Waiting for cron job
+  - `processing` (blue) - Currently being processed
+  - `completed` (green) - Successfully transferred
+  - `failed` (red) - Transfer failed (needs attention)
+
+**Expandable Row Details:**
+- Related earnings (which earnings were claimed)
+- Retry attempts history
+- Error messages (if failed)
+- Treasury balance at time of processing
+- Processing logs
+
+**Actions:**
+- **Retry Failed Payout** - Manually trigger retry for failed payouts
+- **View Transaction** - Link to Solscan explorer
+- **View User** - Link to user detail page
+
+### Monitoring Queries ✅
+
+**Recent Payouts:**
+```sql
+SELECT
+  rp.id,
+  rp.user_id,
+  u.handle,
+  u.wallet_address,
+  rp.amount,
+  rp.status,
+  rp.tx_signature,
+  rp.created_at,
+  rp.processed_at,
+  EXTRACT(EPOCH FROM (rp.processed_at - rp.created_at)) / 60 AS processing_time_minutes
+FROM referral_payouts rp
+JOIN users u ON u.id = rp.user_id
+WHERE rp.created_at > NOW() - INTERVAL '7 days'
+ORDER BY rp.created_at DESC;
+```
+
+**Failed Payouts Needing Attention:**
+```sql
+SELECT
+  rp.id,
+  rp.user_id,
+  u.handle,
+  rp.amount,
+  rp.wallet_address,
+  rp.status,
+  rp.created_at,
+  rp.processed_at,
+  EXTRACT(EPOCH FROM (NOW() - rp.created_at)) / 60 AS age_minutes
+FROM referral_payouts rp
+JOIN users u ON u.id = rp.user_id
+WHERE rp.status = 'failed'
+  AND rp.created_at > NOW() - INTERVAL '24 hours'
+ORDER BY rp.created_at DESC;
+```
+
+**Payout Processing Stats (Last 24h):**
+```sql
+SELECT
+  status,
+  COUNT(*) as count,
+  SUM(amount) as total_amount,
+  AVG(EXTRACT(EPOCH FROM (processed_at - created_at)) / 60) as avg_processing_time_minutes
+FROM referral_payouts
+WHERE created_at > NOW() - INTERVAL '24 hours'
+GROUP BY status;
+```
+
+**Pending Payouts (Oldest First):**
+```sql
+SELECT
+  rp.id,
+  rp.user_id,
+  u.handle,
+  rp.amount,
+  rp.created_at,
+  EXTRACT(EPOCH FROM (NOW() - rp.created_at)) / 60 AS waiting_minutes
+FROM referral_payouts rp
+JOIN users u ON u.id = rp.user_id
+WHERE rp.status IN ('pending', 'processing')
+ORDER BY rp.created_at ASC;
+```
+
+### How to Resolve Failed Payouts ✅
+
+When a payout fails, the admin needs to:
+
+**1. Identify the Issue:**
+- Check error logs in the payout processor (`apps/jobs` console)
+- Common failures:
+  - **Insufficient treasury balance** - Need to fund treasury wallet
+  - **Invalid wallet address** - User's wallet address is invalid
+  - **Network issues** - Solana RPC timeout or downtime
+  - **Transaction failed** - On-chain error (insufficient SOL for fees)
+
+**2. Check Treasury Balance:**
+```sql
+-- View treasury balance (manual check via Solscan or API)
+-- Treasury Address: FQUc4RGM6MHxBXjWJRzFmVQYr1yBsgrMLBYXeY9uFd1k
+```
+- **If insufficient USDC:** Transfer USDC to treasury wallet
+- **If insufficient SOL:** Transfer SOL for transaction fees (min 0.01 SOL)
+
+**3. Retry the Payout:**
+
+The automated processor will retry failed payouts automatically with exponential backoff:
+- **Attempt 1:** Immediate (0 min delay)
+- **Attempt 2:** After 15 minutes
+- **Attempt 3:** After 60 minutes (final attempt)
+
+If all 3 attempts fail, the payout remains in `failed` status.
+
+**Manual Retry (if automated retry exhausted):**
+```sql
+-- Reset failed payout to pending for manual retry
+UPDATE referral_payouts
+SET status = 'pending', processed_at = NULL
+WHERE id = '<payout-id>';
+```
+
+After resetting to `pending`, the cron job will attempt to process it again on the next cycle.
+
+**4. Monitor Payout Processor Logs:**
+
+The cron job runs every 15 minutes and logs:
+```
+[LOG] Starting referral payout processor
+[Referral Payout] Processing payout: {
+  payoutId: '...',
+  amount: 25.50,
+  wallet: '...'
+}
+[Treasury] Transaction sent: <signature>
+[Treasury] Transferred 25.50 USDC to <wallet>
+[Referral Payout] Success: {
+  payoutId: '...',
+  signature: '...'
+}
+[LOG] Referral payout processor completed {
+  processed: 5,
+  succeeded: 4,
+  failed: 1,
+  skipped: 0
+}
+```
+
+**5. Common Error Messages:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `Insufficient USDC` | Treasury has less USDC than payout amount | Fund treasury wallet with USDC |
+| `Insufficient SOL for fees` | Treasury needs SOL for tx fees | Send 0.01+ SOL to treasury |
+| `Invalid wallet address` | User's wallet is malformed | Update user's wallet in database |
+| `Transaction failed` | On-chain error (network, gas, etc.) | Wait and retry, check Solana status |
+| `Another claim is being processed` | Concurrent claim attempt (409) | This is normal - idempotent response, no action needed |
+
+### Admin API Endpoints ⏳
+
+| Method | Route | Purpose | Status |
+|--------|-------|---------|--------|
+| GET | `/api/admin/referrals/payouts` | List all payouts with filters | ⏳ |
+| GET | `/api/admin/referrals/payouts/stats` | Payout statistics | ⏳ |
+| POST | `/api/admin/referrals/payouts/[id]/retry` | Manually retry failed payout | ⏳ |
+| GET | `/api/admin/referrals/earnings` | List all referral earnings | ⏳ |
+
+### Automated Payout Processor ✅
+
+**Location:** `apps/jobs/src/jobs/referral-payout-processor.ts`
+
+**Schedule:** Every 15 minutes (`:00`, `:15`, `:30`, `:45`)
+
+**Process:**
+1. Find all payouts with `status = pending` or `status = failed` (created within 24h)
+2. For each payout:
+   - Check retry attempt count (max 3)
+   - Calculate retry delay based on exponential backoff
+   - Skip if retry delay not elapsed yet
+   - Verify treasury has sufficient funds (SOL + USDC)
+   - Execute USDC transfer via Treasury service
+   - Update status to `completed` (with tx signature) or `failed`
+3. Log results: `{ processed, succeeded, failed, skipped }`
+
+**Retry Logic:**
+- **Attempt 1:** Immediate (0 min delay) - `createdAt`
+- **Attempt 2:** 15 min delay - `processedAt + 15min`
+- **Attempt 3:** 60 min delay - `processedAt + 60min`
+- **After 3 failures:** Payout stays `failed`, needs manual intervention
+
+**Skip Conditions:**
+- Payout older than 24 hours with `status = failed` (prevents infinite retries)
+- Retry delay not yet elapsed (based on exponential backoff)
+
+### Treasury Service Integration ✅
+
+**Location:** `apps/jobs/src/lib/treasury.ts` (duplicated from `apps/web`)
+
+**Key Functions:**
+- `canFulfillClaim(amount)` - Checks if treasury has sufficient balance
+- `processClaim(wallet, amount)` - Executes USDC transfer to recipient
+- `getBalances()` - Returns current treasury balances (SOL + USDC)
+
+**Security Features:**
+- Uses `TREASURY_PRIVATE_KEY` env var (server-side only)
+- Validates balances before transfer (min 0.01 SOL, min $0.10 USDC buffer)
+- Creates recipient ATA if doesn't exist (treasury pays)
+- Uses polling confirmation (not WebSocket) to avoid false negatives
+- Transaction signature stored for audit trail
+
+### What Paul (Admin) Needs to Do ✅
+
+**1. Monitor Pending Payouts (Every Day):**
+- Visit `/admin/referrals/payouts?status=pending`
+- Check if any payouts are waiting > 30 minutes
+- If yes, check treasury balance and cron job logs
+
+**2. Resolve Failed Payouts (Immediate Action):**
+- Visit `/admin/referrals/payouts?status=failed`
+- Check error message in expandable row
+- **If "Insufficient USDC":**
+  - Transfer USDC to treasury: `FQUc4RGM6MHxBXjWJRzFmVQYr1yBsgrMLBYXeY9uFd1k`
+  - Reset payout to `pending` in database
+- **If "Insufficient SOL":**
+  - Send 0.1 SOL to treasury (enough for ~10 transactions)
+  - Reset payout to `pending` in database
+- **If "Invalid wallet address":**
+  - Contact user to update wallet
+  - Update `user.walletAddress` in database
+  - Reset payout to `pending`
+
+**3. Monitor Treasury Balance (Weekly):**
+- Check USDC balance: Should be > $100 minimum
+- Check SOL balance: Should be > 0.1 SOL minimum
+- If low, fund treasury wallet proactively
+
+**4. Check Payout Processor Logs (Daily):**
+- SSH to server running `apps/jobs` or check deployment logs
+- Look for:
+  ```
+  [LOG] Referral payout processor completed {
+    processed: X,
+    succeeded: Y,
+    failed: Z,
+    skipped: W
+  }
+  ```
+- **If `failed > 0`:** Investigate immediately
+- **If `skipped > 5`:** Check if retry delays are too long
+
+**5. Database Queries to Run:**
+
+**Check pending payouts older than 1 hour:**
+```sql
+SELECT * FROM referral_payouts
+WHERE status = 'pending'
+  AND created_at < NOW() - INTERVAL '1 hour'
+ORDER BY created_at;
+```
+
+**Check failed payouts:**
+```sql
+SELECT * FROM referral_payouts
+WHERE status = 'failed'
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+**Reset a failed payout to retry:**
+```sql
+UPDATE referral_payouts
+SET status = 'pending', processed_at = NULL
+WHERE id = '<payout-id>';
+```
+
+### Alert Thresholds ⚠️
+
+Set up alerts for:
+- **Failed payouts > 0** (immediate email/Slack notification)
+- **Pending payouts > 10** (daily digest)
+- **Treasury USDC < $50** (weekly warning)
+- **Treasury SOL < 0.05** (immediate alert)
+- **Payout processor not running** (if no logs for > 30 minutes)
+
+### Documentation References ✅
+
+- **Claim System Docs:** `docs/Claim_system/Doc.md` - Full security architecture and testing procedures
+- **Payout Processor Code:** `apps/jobs/src/jobs/referral-payout-processor.ts`
+- **Treasury Service Code:** `apps/jobs/src/lib/treasury.ts`
+- **Claim API Endpoint:** `apps/web/src/app/api/referrals/claim/route.ts`
+
+---

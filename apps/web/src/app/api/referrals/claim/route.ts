@@ -1,161 +1,216 @@
 /**
  * POST /api/referrals/claim
  * Claim unclaimed referral earnings (minimum $10)
+ *
+ * SECURITY:
+ * - Uses atomic transaction with pessimistic lock (SELECT FOR UPDATE)
+ * - Prevents double-claims via database-level locking
+ * - All operations (validation + payout creation + mark paid) happen in single transaction
+ * - Creates payout record with "pending" status for async processing by cron job
  */
 
-import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/server/db'
-import { verifyToken } from '@/lib/server/auth'
-import { errorResponse, BadRequestError } from '@/lib/server/errors'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/server/db';
+import { verifyToken } from '@/lib/server/auth';
+import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { Prisma } from '@prisma/client';
 
-// Simple in-memory rate limiting
-const claimAttempts = new Map<string, number>()
-const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
-const MIN_PAYOUT_AMOUNT = 10 // $10 minimum
+const MIN_PAYOUT_AMOUNT = 0.05; // $0.05 minimum (TESTING - restore to 10 after)
 
-function checkRateLimit(userId: string): boolean {
-  const now = Date.now()
-  const lastAttempt = claimAttempts.get(userId)
-
-  if (lastAttempt && now - lastAttempt < RATE_LIMIT_WINDOW) {
-    return false
-  }
-
-  claimAttempts.set(userId, now)
-  // Cleanup old entries
-  setTimeout(() => claimAttempts.delete(userId), RATE_LIMIT_WINDOW)
-  return true
+/**
+ * GET /api/referrals/claim
+ * Get minimum payout amount configuration
+ */
+export async function GET() {
+  return NextResponse.json({
+    minPayoutAmount: MIN_PAYOUT_AMOUNT,
+  });
 }
 
 export async function POST(request: Request) {
   try {
     // Get user from auth token
-    const authHeader = request.headers.get('Authorization')
+    const authHeader = request.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.substring(7)
-    const payload = await verifyToken(token)
+    const token = authHeader.substring(7);
+    const payload = await verifyToken(token);
     if (!payload) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    const userId = payload.sub
+    const userId = payload.sub;
 
-    // Rate limiting: 1 request per minute per user
-    if (!checkRateLimit(userId)) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please wait before claiming again.' },
-        { status: 429 }
-      )
-    }
+    // Use atomic transaction with Serializable isolation level
+    // This prevents race conditions and double-claims
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // 1. Lock ALL unpaid earnings for this user with SELECT FOR UPDATE
+        // This prevents other transactions from reading/modifying these rows
+        const lockedEarnings = await tx.$queryRaw<
+          Array<{
+            id: string;
+            referrer_id: string;
+            trader_id: string;
+            trade_id: string;
+            tier: number;
+            symbol: string;
+            trade_fee: Prisma.Decimal;
+            trade_value: Prisma.Decimal;
+            commission_percent: Prisma.Decimal;
+            commission_amount: Prisma.Decimal;
+            is_paid: boolean;
+            paid_at: Date | null;
+            created_at: Date;
+          }>
+        >`
+          SELECT * FROM referral_earnings
+          WHERE referrer_id = ${userId} AND is_paid = false
+          FOR UPDATE
+        `;
 
-    // Get user with wallet address
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        handle: true,
-        walletAddress: true,
-      },
-    })
+        // 2. Check for existing pending/processing payout (while earnings are locked)
+        const pendingPayout = await tx.referralPayout.findFirst({
+          where: {
+            userId,
+            status: { in: ['pending', 'processing'] },
+          },
+        });
 
-    if (!user || !user.walletAddress) {
-      throw new BadRequestError('Wallet address not set. Please connect your wallet first.')
-    }
+        if (pendingPayout) {
+          console.log('[Referral Claim] Payout already exists:', {
+            userId,
+            payoutId: pendingPayout.id,
+            status: pendingPayout.status,
+          });
 
-    // Check if there's a pending payout
-    const pendingPayout = await prisma.referralPayout.findFirst({
-      where: {
-        userId,
-        status: { in: ['pending', 'processing'] },
-      },
-    })
+          // Idempotent response - return existing payout
+          return NextResponse.json(
+            {
+              success: true,
+              payout: {
+                id: pendingPayout.id,
+                amount: Number(pendingPayout.amount),
+                status: pendingPayout.status,
+                walletAddress: pendingPayout.walletAddress,
+                createdAt: pendingPayout.createdAt.toISOString(),
+              },
+              message: 'Payout was already initiated and is being processed.',
+            },
+            { status: 200 }
+          );
+        }
 
-    if (pendingPayout) {
-      return NextResponse.json(
-        {
-          error: 'You have a pending payout. Please wait for it to be processed.',
-          payoutId: pendingPayout.id,
-        },
-        { status: 400 }
-      )
-    }
+        // 3. Calculate total from locked earnings
+        const unclaimedAmount = lockedEarnings.reduce(
+          (sum, e) => sum + Number(e.commission_amount),
+          0
+        );
 
-    // Calculate unclaimed amount
-    const unclaimedResult = await prisma.referralEarning.aggregate({
-      where: {
-        referrerId: userId,
-        isPaid: false,
-      },
-      _sum: { commissionAmount: true },
-      _count: true,
-    })
+        const earningsCount = lockedEarnings.length;
 
-    const unclaimedAmount = Number(unclaimedResult._sum.commissionAmount || 0)
-    const earningsCount = unclaimedResult._count
-
-    // Check minimum payout amount
-    if (unclaimedAmount < MIN_PAYOUT_AMOUNT) {
-      return NextResponse.json(
-        {
-          error: `Minimum payout amount is $${MIN_PAYOUT_AMOUNT}. You have $${unclaimedAmount.toFixed(2)} available.`,
-          unclaimedAmount,
-          minimumRequired: MIN_PAYOUT_AMOUNT,
-        },
-        { status: 400 }
-      )
-    }
-
-    // Create payout record and mark earnings as paid (transaction)
-    const payout = await prisma.$transaction(async (tx) => {
-      // Create payout record
-      const payoutRecord = await tx.referralPayout.create({
-        data: {
+        console.log('[Referral Claim] Earnings locked:', {
           userId,
+          earningsCount,
+          unclaimedAmount,
+        });
+
+        // 4. Check minimum payout amount
+        if (unclaimedAmount < MIN_PAYOUT_AMOUNT) {
+          throw new BadRequestError(
+            `Minimum payout amount is $${MIN_PAYOUT_AMOUNT}. You have $${unclaimedAmount.toFixed(2)} available.`
+          );
+        }
+
+        // 5. Get user wallet address (within transaction)
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            handle: true,
+            walletAddress: true,
+          },
+        });
+
+        if (!user || !user.walletAddress) {
+          throw new BadRequestError('Wallet address not set. Please connect your wallet first.');
+        }
+
+        // 6. Create payout record with "pending" status (still within lock)
+        // The cron job will process this asynchronously
+        const payout = await tx.referralPayout.create({
+          data: {
+            userId,
+            amount: unclaimedAmount,
+            walletAddress: user.walletAddress,
+            status: 'pending',
+          },
+        });
+
+        // 7. Mark all unpaid earnings as paid (still within lock)
+        await tx.referralEarning.updateMany({
+          where: {
+            referrerId: userId,
+            isPaid: false,
+          },
+          data: {
+            isPaid: true,
+            paidAt: new Date(),
+          },
+        });
+
+        console.log('[Referral Claim] Payout created successfully:', {
+          userId,
+          payoutId: payout.id,
           amount: unclaimedAmount,
-          walletAddress: user.walletAddress!,
-          status: 'pending',
-        },
-      })
+          earningsCount,
+        });
 
-      // Mark all unpaid earnings as paid
-      await tx.referralEarning.updateMany({
-        where: {
-          referrerId: userId,
-          isPaid: false,
-        },
-        data: {
-          isPaid: true,
-          paidAt: new Date(),
-        },
-      })
-
-      return payoutRecord
-    })
-
-    console.log('[POST /api/referrals/claim] Payout claimed successfully', {
-      userId,
-      payoutId: payout.id,
-      amount: unclaimedAmount,
-      earningsCount,
-    })
-
-    return NextResponse.json({
-      success: true,
-      payout: {
-        id: payout.id,
-        amount: Number(payout.amount),
-        status: payout.status,
-        walletAddress: payout.walletAddress,
-        createdAt: payout.createdAt.toISOString(),
+        return NextResponse.json({
+          success: true,
+          payout: {
+            id: payout.id,
+            amount: Number(payout.amount),
+            status: payout.status,
+            walletAddress: payout.walletAddress,
+            createdAt: payout.createdAt.toISOString(),
+          },
+          earningsClaimed: earningsCount,
+          message: `Successfully claimed $${unclaimedAmount.toFixed(2)}. Payout is being processed.`,
+        });
       },
-      earningsClaimed: earningsCount,
-      message: `Successfully claimed $${unclaimedAmount.toFixed(2)}. Payout is being processed.`,
-    })
+      {
+        // Use Serializable isolation level for maximum safety
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        // 30 second timeout for transaction
+        maxWait: 30000,
+        timeout: 30000,
+      }
+    );
+
+    return result;
   } catch (error) {
-    console.error('[POST /api/referrals/claim] Error:', error)
-    return errorResponse(error)
+    // Handle specific transaction errors
+    if (error instanceof Error) {
+      if (error.message.includes('Serialization failure') || error.message.includes('could not serialize')) {
+        console.error('[Referral Claim] Transaction serialization error (concurrent claim attempt):', {
+          error: error.message,
+        });
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Another claim is being processed. Please wait a moment and try again.',
+            code: 'CONCURRENT_CLAIM',
+          },
+          { status: 409 }
+        );
+      }
+    }
+
+    console.error('[Referral Claim] Error:', error);
+    return errorResponse(error);
   }
 }

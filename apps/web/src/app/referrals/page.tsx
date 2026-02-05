@@ -68,6 +68,19 @@ export default function ReferralsPage() {
     staleTime: 30000, // 30 seconds
   });
 
+  // Fetch minimum payout amount configuration
+  const { data: config } = useQuery({
+    queryKey: ['referral-claim-config'],
+    queryFn: async () => {
+      const response = await fetch('/api/referrals/claim');
+      if (!response.ok) throw new Error('Failed to fetch config');
+      return response.json() as Promise<{ minPayoutAmount: number }>;
+    },
+    staleTime: 60000, // 1 minute (config doesn't change often)
+  });
+
+  const minPayoutAmount = config?.minPayoutAmount ?? 10; // Default to 10 if not loaded yet
+
   // Claim payout mutation
   const claimMutation = useMutation({
     mutationFn: () => api.claimReferralPayout(token!),
@@ -98,8 +111,8 @@ export default function ReferralsPage() {
   const handleClaimPayout = () => {
     if (!dashboard) return;
 
-    if (dashboard.unclaimedPayout < 10) {
-      toast.error('Minimum payout amount is $10');
+    if (dashboard.unclaimedPayout < minPayoutAmount) {
+      toast.error(`Minimum payout amount is $${minPayoutAmount.toFixed(2)}`);
       return;
     }
 
@@ -290,13 +303,13 @@ export default function ReferralsPage() {
                 <p className="text-4xl font-bold text-white mb-1">
                   ${dashboard.unclaimedPayout.toFixed(2)}
                 </p>
-                <p className="text-xs text-surface-500">Minimum $10 to claim</p>
+                <p className="text-xs text-surface-500">Minimum ${minPayoutAmount.toFixed(2)} to claim</p>
               </div>
               <button
                 onClick={handleClaimPayout}
-                disabled={dashboard.unclaimedPayout < 10 || claimMutation.isPending}
+                disabled={dashboard.unclaimedPayout < minPayoutAmount || claimMutation.isPending}
                 className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                  dashboard.unclaimedPayout >= 10 && !claimMutation.isPending
+                  dashboard.unclaimedPayout >= minPayoutAmount && !claimMutation.isPending
                     ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white hover:shadow-glow-sm'
                     : 'bg-surface-700 text-surface-500 cursor-not-allowed'
                 }`}
