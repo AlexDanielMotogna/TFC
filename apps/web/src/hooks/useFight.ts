@@ -172,9 +172,9 @@ export function useFight() {
       notify('FIGHT', 'Fight Started!', `${fight.durationMinutes}m fight is now LIVE - Go trade!`, { variant: 'success' });
     }
 
-    // If fight just ended (was LIVE, now is FINISHED or CANCELLED)
+    // If fight just ended (was LIVE, now is FINISHED, CANCELLED, or NO_CONTEST)
     // OR if user navigates to a fight that's already ended
-    if (currentStatus === 'FINISHED' || currentStatus === 'CANCELLED') {
+    if (currentStatus === 'FINISHED' || currentStatus === 'CANCELLED' || currentStatus === 'NO_CONTEST') {
       // Notify only if the fight just ended (was LIVE) AND we haven't already notified for this fight
       if (prevStatus === 'LIVE' && fightEndNotifiedRef.current !== fightId) {
         // Mark this fight as notified to prevent duplicates
@@ -190,8 +190,10 @@ export function useFight() {
           } else {
             notify('FIGHT', 'Fight Ended', 'Better luck next time!', { variant: 'info' });
           }
-        } else {
+        } else if (currentStatus === 'CANCELLED') {
           notify('FIGHT', 'Fight Cancelled', 'The fight was cancelled', { variant: 'warning' });
+        } else {
+          notify('FIGHT', 'No Contest', 'The fight was declared no contest', { variant: 'warning' });
         }
       }
 

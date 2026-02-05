@@ -268,9 +268,10 @@ function getGlobalSocket(token?: string): Promise<Socket> {
     });
 
     socket.on('arena:fight_ended', (fight: Fight) => {
-      console.log('[GlobalSocket] Fight ended:', fight.id);
-      useGlobalSocketStore.getState().updateFight({ ...fight, status: 'FINISHED' } as FightUpdate);
-      useStore.getState().updateFight({ ...fight, status: 'FINISHED' });
+      console.log('[GlobalSocket] Fight ended:', fight.id, 'status:', fight.status);
+      // Preserve actual fight status (FINISHED, CANCELLED, or NO_CONTEST)
+      useGlobalSocketStore.getState().updateFight({ ...fight } as FightUpdate);
+      useStore.getState().updateFight({ ...fight });
       // Refresh notifications (e.g. fight results)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
@@ -278,7 +279,9 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       const currentUserId = useAuthStore.getState().user?.id;
       const isParticipant = fight.participants?.some(p => p.userId === currentUserId);
       if (currentUserId && isParticipant) {
-        if (fight.isDraw) {
+        if (fight.status === 'NO_CONTEST') {
+          toast('Fight declared No Contest');
+        } else if (fight.isDraw) {
           toast('Fight ended in a draw!');
         } else if (fight.winnerId === currentUserId) {
           toast.success('You won the fight!');
