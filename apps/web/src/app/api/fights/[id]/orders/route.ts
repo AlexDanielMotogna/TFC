@@ -6,6 +6,7 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { getOpenOrders, getPositions } from '@/lib/server/pacifica';
 
 // Format order type to match "All" view display
@@ -44,7 +45,7 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight');
+        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
       }
 
       // Get Pacifica connection for this user

@@ -2,7 +2,8 @@
  * Edit Order endpoint
  * POST /api/orders/edit - Edit limit order price/amount (proxies to Pacifica)
  */
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
@@ -22,11 +23,11 @@ export async function POST(request: Request) {
     } = body;
 
     if (!account || !symbol || !price || !amount || !signature || !timestamp) {
-      throw new BadRequestError('account, symbol, price, amount, signature, and timestamp are required');
+      throw new BadRequestError('account, symbol, price, amount, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     if (!order_id && !client_order_id) {
-      throw new BadRequestError('Either order_id or client_order_id is required');
+      throw new BadRequestError('Either order_id or client_order_id is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Build request body for Pacifica
@@ -62,13 +63,13 @@ export async function POST(request: Request) {
     try {
       result = JSON.parse(responseText);
     } catch {
-      throw new Error(`Failed to parse Pacifica response: ${responseText}`);
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     if (!response.ok || !result.success) {
       const errorMessage = result.error || `Pacifica API error: ${response.status}`;
       console.error('Pacifica edit error:', errorMessage);
-      throw new BadRequestError(errorMessage);
+      throw new ServiceUnavailableError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Order edited successfully', {

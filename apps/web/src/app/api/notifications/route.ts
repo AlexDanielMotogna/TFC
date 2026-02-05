@@ -6,6 +6,7 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function GET(request: Request) {
   try {
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
       const { type, title, message } = body;
 
       if (!type || !title || !message) {
-        throw new BadRequestError('type, title, and message are required');
+        throw new BadRequestError('type, title, and message are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
       }
 
       // Deduplicate: Check if a similar notification was created in the last 30 seconds

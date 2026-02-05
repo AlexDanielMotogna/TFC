@@ -9,6 +9,8 @@
  * This ensures the treasury wallet always has funds available for prize claims.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { UnauthorizedError, errorResponse } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import * as Treasury from '@/lib/server/treasury';
 
 // Internal API secret for job authentication
@@ -27,10 +29,7 @@ export async function POST(request: NextRequest) {
     const token = authHeader?.replace('Bearer ', '');
 
     if (!INTERNAL_API_SECRET || token !== INTERNAL_API_SECRET) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      throw new UnauthorizedError('Unauthorized', ErrorCode.ERR_AUTH_UNAUTHORIZED);
     }
 
     // Get current balances
@@ -110,10 +109,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('[Treasury Auto-Withdraw] Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }
 
@@ -128,10 +124,7 @@ export async function GET(request: NextRequest) {
     const token = authHeader?.replace('Bearer ', '');
 
     if (!INTERNAL_API_SECRET || token !== INTERNAL_API_SECRET) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      throw new UnauthorizedError('Unauthorized', ErrorCode.ERR_AUTH_UNAUTHORIZED);
     }
 
     const balances = await Treasury.getBalances();
@@ -150,9 +143,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Treasury Status] Error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }

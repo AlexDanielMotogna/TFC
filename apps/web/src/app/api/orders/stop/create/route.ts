@@ -5,7 +5,8 @@
  * Unlike set_position_tpsl, this creates a separate stop order
  * without overwriting existing TP/SL orders
  */
-import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
@@ -16,11 +17,11 @@ export async function POST(request: Request) {
     const { account, symbol, side, reduce_only, stop_order, signature, timestamp, fight_id } = body;
 
     if (!account || !symbol || !side || reduce_only === undefined || !stop_order || !signature || !timestamp) {
-      throw new BadRequestError('account, symbol, side, reduce_only, stop_order, signature, and timestamp are required');
+      throw new BadRequestError('account, symbol, side, reduce_only, stop_order, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     if (!stop_order.stop_price || !stop_order.amount) {
-      throw new BadRequestError('stop_order must contain stop_price and amount');
+      throw new BadRequestError('stop_order must contain stop_price and amount', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     const requestBody = {
@@ -56,7 +57,7 @@ export async function POST(request: Request) {
     try {
       result = JSON.parse(responseText);
     } catch {
-      throw new Error(`Failed to parse Pacifica response: ${responseText}`);
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     if (!response.ok || !result.success) {
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
         fullResponse: result,
         request: requestBody,
       });
-      throw new Error(result.error || `Pacifica API error: ${response.status}`);
+      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Stop order created', {

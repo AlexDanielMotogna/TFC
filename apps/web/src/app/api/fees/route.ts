@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 const PACIFICA_API_KEY = process.env.PACIFICA_API_KEY;
@@ -51,13 +53,13 @@ export async function GET() {
     );
 
     if (!response.ok) {
-      throw new Error(`Pacifica API error: ${response.status}`);
+      throw new ServiceUnavailableError(`Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     const data = await response.json();
 
     if (!data.success || !data.data) {
-      throw new Error('Invalid Pacifica response');
+      throw new ServiceUnavailableError('Invalid Pacifica response', ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     // Parse fees from Pacifica (they return as strings like "0.00015")

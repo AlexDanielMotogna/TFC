@@ -5,7 +5,8 @@
  * Pacifica has data from June 2025+
  * Binance/Bybit provide historical data (2019+)
  */
-import { errorResponse, BadRequestError, ApiError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, ApiError, ServiceUnavailableError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import * as Pacifica from '@/lib/server/pacifica';
 
 const PACIFICA_START_DATE = new Date('2025-06-01').getTime();
@@ -89,7 +90,7 @@ async function fetchFromBinance(
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`Binance API error: ${response.status}`);
-      throw new Error(`Binance API error: ${response.status}`);
+      throw new ServiceUnavailableError(`Binance API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     const data = await response.json();
@@ -142,12 +143,12 @@ async function fetchFromBybit(
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`Bybit API error: ${response.status}`);
-      throw new Error(`Bybit API error: ${response.status}`);
+      throw new ServiceUnavailableError(`Bybit API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     const data = await response.json();
     if (data.retCode !== 0) {
-      throw new Error(`Bybit API error: ${data.retMsg}`);
+      throw new ServiceUnavailableError(`Bybit API error: ${data.retMsg}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     const rawCandles = data.result.list;
@@ -249,18 +250,18 @@ export async function GET(request: Request) {
     const endStr = searchParams.get('end');
 
     if (!symbol || !interval || !startStr || !endStr) {
-      throw new BadRequestError('symbol, interval, start, and end are required');
+      throw new BadRequestError('symbol, interval, start, and end are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     const startTime = parseInt(startStr, 10);
     const endTime = parseInt(endStr, 10);
 
     if (isNaN(startTime) || isNaN(endTime)) {
-      throw new BadRequestError('start and end must be valid timestamps');
+      throw new BadRequestError('start and end must be valid timestamps', ErrorCode.ERR_VALIDATION_INVALID_FORMAT);
     }
 
     if (startTime >= endTime) {
-      throw new BadRequestError('start must be before end');
+      throw new BadRequestError('start must be before end', ErrorCode.ERR_VALIDATION_INVALID_DATE);
     }
 
     let candles: Candle[];

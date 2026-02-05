@@ -9,6 +9,7 @@
  * @see MVP-SIMPLIFIED-RULES.md - Stake Limit section
  */
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 import { prisma, FightStatus } from '@tfc/db';
 import {
   calculateFightExposure,
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
     const fightId = searchParams.get('fightId');
 
     if (!account) {
-      throw new BadRequestError('account is required');
+      throw new BadRequestError('account is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Get user from account

@@ -4,6 +4,7 @@
  */
 import * as AuthService from '@/lib/server/services/auth';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
     const { walletAddress, signature, referralCode } = body;
 
     if (!walletAddress || !signature) {
-      throw new BadRequestError('walletAddress and signature are required');
+      throw new BadRequestError('walletAddress and signature are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     const result = await AuthService.authenticateWallet(walletAddress, signature, referralCode);
