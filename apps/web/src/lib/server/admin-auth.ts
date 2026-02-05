@@ -4,6 +4,7 @@
  */
 import { extractBearerToken, verifyToken } from './auth';
 import { ForbiddenError, UnauthorizedError } from './errors';
+import { ErrorCode } from './error-codes';
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET;
 
@@ -39,14 +40,14 @@ export async function withAdminAuth<T>(
     // Standard JWT auth
     const token = extractBearerToken(request);
     if (!token) {
-      throw new UnauthorizedError('Missing authorization token');
+      throw new UnauthorizedError('Missing authorization token', ErrorCode.ERR_AUTH_MISSING_TOKEN);
     }
 
     const payload = verifyToken(token);
 
     // Check admin role - treat missing role as USER (backwards compatibility)
     if (payload.role !== 'ADMIN') {
-      throw new ForbiddenError('Admin access required');
+      throw new ForbiddenError('Admin access required', ErrorCode.ERR_AUTH_ADMIN_REQUIRED);
     }
 
     const result = await handler({

@@ -4,9 +4,10 @@
  */
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
-import { errorResponse, BadRequestError, NotFoundError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, NotFoundError, ConflictError } from '@/lib/server/errors';
 import { getPositions } from '@/lib/server/pacifica';
 import { canUsersMatch, recordFightSession } from '@/lib/server/anti-cheat';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -49,22 +50,22 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Validate fight is in WAITING status
       if (fight.status !== 'WAITING') {
-        throw new BadRequestError('Fight has already started or finished');
+        throw new BadRequestError('Fight has already started or finished', ErrorCode.ERR_FIGHT_ALREADY_STARTED);
       }
 
       // Validate user is not already in fight
       if (fight.participants.some((p: any) => p.userId === user.userId)) {
-        throw new BadRequestError('You are already in this fight');
+        throw new ConflictError('You are already in this fight', ErrorCode.ERR_FIGHT_USER_ALREADY_JOINED);
       }
 
       // Validate slot B is available
       if (fight.participants.some((p: any) => p.slot === 'B')) {
-        throw new BadRequestError('Fight is already full');
+        throw new BadRequestError('Fight is already full', ErrorCode.ERR_FIGHT_FULL);
       }
 
       // MVP-1: Check if user already has an active fight (LIVE or WAITING)
@@ -88,8 +89,9 @@ export async function POST(
 
       if (existingFight) {
         const status = existingFight.fight.status === 'LIVE' ? 'active' : 'pending';
-        throw new BadRequestError(
-          `You already have a ${status} fight. Finish or cancel it before joining another.`
+        throw new ConflictError(
+          `You already have a ${status} fight. Finish or cancel it before joining another.`,
+          ErrorCode.ERR_FIGHT_USER_HAS_ACTIVE
         );
       }
 
@@ -106,7 +108,7 @@ export async function POST(
       });
 
       if (!connection?.isActive) {
-        throw new BadRequestError('Active Pacifica connection required');
+        throw new BadRequestError('Active Pacifica connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
       }
 
       // Get Pacifica connections for both participants to snapshot positions
