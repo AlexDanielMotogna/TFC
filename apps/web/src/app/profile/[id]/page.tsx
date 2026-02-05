@@ -4,16 +4,19 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks';
+import { useUserTrades } from '@/hooks/useUserTrades';
 import { api, type UserProfile, type Fight } from '@/lib/api';
 import { AppShell } from '@/components/AppShell';
 import { BetaGate } from '@/components/BetaGate';
 import { ProfileSkeleton } from '@/components/Skeletons';
 import { PerformanceChart } from '@/components/PerformanceChart';
+import TradesHistoryTable from '@/components/TradesHistoryTable';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ShowChartIcon from '@mui/icons-material/ShowChart';
 
 export default function ProfilePage() {
   const params = useParams();
@@ -31,6 +34,10 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [userRank, setUserRank] = useState<number | null>(null);
   const [visibleFights, setVisibleFights] = useState(20);
+  const [mode, setMode] = useState<'fights' | 'trades'>('fights');
+
+  // Fetch user trades
+  const { trades, loading: tradesLoading } = useUserTrades(userId);
 
   // Redirect to /profile when user disconnects
   useEffect(() => {
@@ -263,32 +270,64 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Mode Toggle */}
+        <div className="flex gap-2 mb-2">
+          <button
+            onClick={() => setMode('fights')}
+            className={`flex-1 px-4 py-2 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+              mode === 'fights'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+            }`}
+          >
+            <span className="text-lg leading-none">⚔</span>
+            <span>Fight Stats</span>
+          </button>
+          <button
+            onClick={() => setMode('trades')}
+            className={`flex-1 px-4 py-2 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+              mode === 'trades'
+                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+            }`}
+          >
+            <ShowChartIcon sx={{ fontSize: 20 }} />
+            <span>Individual Trades</span>
+          </button>
+        </div>
+
         {/* Performance Chart */}
         <div className="card p-4 mb-2">
           <h2 className="font-display text-sm font-semibold uppercase tracking-wide mb-4 text-surface-300">
             Performance History
           </h2>
-          <PerformanceChart fights={fights} userId={userId} />
+          {mode === 'fights' ? (
+            <PerformanceChart fights={fights} userId={userId} mode="fights" />
+          ) : (
+            <PerformanceChart trades={trades} userId={userId} mode="trades" />
+          )}
         </div>
 
-        {/* Fight History */}
-        <div className="card overflow-hidden">
-          <div className="p-4 border-b border-surface-800">
-            <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-surface-300">
-              Fight History
-            </h2>
-          </div>
-          {fights.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-surface-800 flex items-center justify-center">
-                <span className="text-3xl opacity-50">⚔</span>
-              </div>
-              <p className="text-surface-400 mb-4">No fight history yet</p>
-              <Link href="/trade" className="text-primary-400 hover:text-primary-300">
-                Enter the arena →
-              </Link>
+        {/* History Table - Conditional */}
+        {mode === 'fights' ? (
+          /* Fight History */
+          <div className="card overflow-hidden">
+            <div className="p-4 border-b border-surface-800">
+              <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-surface-300">
+                Fight History
+              </h2>
             </div>
-          ) : (
+            {fights.length === 0 ? (
+              <div className="p-12 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-surface-800 flex items-center justify-center">
+                  <span className="text-3xl opacity-50">⚔</span>
+                </div>
+                <p className="text-surface-400 mb-4">No fight history yet</p>
+                <Link href="/trade" className="text-primary-400 hover:text-primary-300">
+                  Enter the arena →
+                </Link>
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -389,7 +428,11 @@ export default function ProfilePage() {
               </button>
             </div>
           )}
-        </div>
+          </div>
+        ) : (
+          /* Trades History */
+          <TradesHistoryTable trades={trades} userId={userId} />
+        )}
 
         {/* Actions for own profile */}
         {isOwnProfile && (
