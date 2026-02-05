@@ -8,26 +8,89 @@ interface TradesHistoryTableProps {
   userId: string;
 }
 
+type SortField = 'executedAt' | 'symbol' | 'side' | 'amount' | 'price' | 'fee' | 'pnl';
+type SortDirection = 'asc' | 'desc';
+
 export default function TradesHistoryTable({ trades, userId }: TradesHistoryTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>('executedAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const TRADES_PER_PAGE = 20;
 
+  // Handle sorting
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  // Sort trades
+  const sortedTrades = [...trades].sort((a, b) => {
+    let aValue: any;
+    let bValue: any;
+
+    switch (sortField) {
+      case 'executedAt':
+        aValue = new Date(a.executedAt).getTime();
+        bValue = new Date(b.executedAt).getTime();
+        break;
+      case 'symbol':
+        aValue = a.symbol;
+        bValue = b.symbol;
+        break;
+      case 'side':
+        aValue = a.side;
+        bValue = b.side;
+        break;
+      case 'amount':
+        aValue = parseFloat(a.amount);
+        bValue = parseFloat(b.amount);
+        break;
+      case 'price':
+        aValue = parseFloat(a.price);
+        bValue = parseFloat(b.price);
+        break;
+      case 'fee':
+        aValue = parseFloat(a.fee);
+        bValue = parseFloat(b.fee);
+        break;
+      case 'pnl':
+        aValue = a.pnl ? parseFloat(a.pnl) : -Infinity;
+        bValue = b.pnl ? parseFloat(b.pnl) : -Infinity;
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   // Calculate pagination
-  const totalPages = Math.ceil(trades.length / TRADES_PER_PAGE);
-  const paginatedTrades = trades.slice(
+  const totalPages = Math.ceil(sortedTrades.length / TRADES_PER_PAGE);
+  const paginatedTrades = sortedTrades.slice(
     (currentPage - 1) * TRADES_PER_PAGE,
     currentPage * TRADES_PER_PAGE
   );
 
-  // Format date helper
+  // Format date helper - matches Pacifica format: "Feb 5, 16:39:31"
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const seconds = date.getSeconds().toString().padStart(2, '0');
+    return `${month} ${day}, ${hours}:${minutes}:${seconds}`;
+  };
+
+  // Calculate trade value (size * price)
+  const calculateTradeValue = (amount: string, price: string): number => {
+    return parseFloat(amount) * parseFloat(price);
   };
 
   // Empty state
@@ -51,53 +114,137 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="table-pro w-full">
+          <table className="w-full text-sm">
             <thead>
-              <tr>
-                <th>Date</th>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Amount</th>
-                <th>Price</th>
-                <th>Leverage</th>
-                <th>Fee</th>
-                <th>PnL</th>
+              <tr className="text-xs text-surface-400 capitalize tracking-wider bg-surface-850">
+                <th
+                  className="text-left py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('executedAt')}
+                >
+                  <div className="flex items-center gap-1">
+                    Date
+                    {sortField === 'executedAt' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('symbol')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Symbol
+                    {sortField === 'symbol' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('side')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Side
+                    {sortField === 'side' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('amount')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Size
+                    {sortField === 'amount' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('price')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Price
+                    {sortField === 'price' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th className="text-right py-3 px-2 sm:px-4 font-medium">Trade Value</th>
+                <th className="text-center py-3 px-2 sm:px-4 font-medium">Position</th>
+                <th
+                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('fee')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    Fees
+                    {sortField === 'fee' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th
+                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  onClick={() => handleSort('pnl')}
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    PnL
+                    {sortField === 'pnl' && (
+                      <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {paginatedTrades.map((trade) => (
-                <tr key={trade.id}>
-                  <td className="whitespace-nowrap">{formatDate(trade.executedAt)}</td>
-                  <td className="font-mono">{trade.symbol}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        trade.side === 'BUY' ? 'badge-success' : 'badge-danger'
-                      }`}
-                    >
-                      {trade.side}
-                    </span>
-                  </td>
-                  <td>{parseFloat(trade.amount).toFixed(4)}</td>
-                  <td>${parseFloat(trade.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                  <td>{trade.leverage ? `${trade.leverage}x` : '-'}</td>
-                  <td className="text-surface-400">
-                    ${parseFloat(trade.fee).toFixed(2)}
-                  </td>
-                  <td>
-                    {trade.pnl ? (
-                      <span
-                        className={parseFloat(trade.pnl) >= 0 ? 'pnl-positive' : 'pnl-negative'}
-                      >
-                        {parseFloat(trade.pnl) >= 0 ? '+' : ''}$
-                        {parseFloat(trade.pnl).toFixed(2)}
+              {paginatedTrades.map((trade, index) => {
+                const pnlValue = trade.pnl ? parseFloat(trade.pnl) : null;
+                const pnlIsPositive = pnlValue !== null && pnlValue >= 0;
+                const amount = parseFloat(trade.amount);
+                const price = parseFloat(trade.price);
+                const tradeValue = calculateTradeValue(trade.amount, trade.price);
+                const fee = parseFloat(trade.fee);
+
+                return (
+                  <tr key={trade.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
+                    <td className="py-3 px-2 sm:px-4 text-surface-400 whitespace-nowrap">{formatDate(trade.executedAt)}</td>
+                    <td className="py-3 px-2 sm:px-4 text-center font-mono text-white">{trade.symbol}</td>
+                    <td className="py-3 px-2 sm:px-4 text-center">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        trade.position.includes('close')
+                          ? 'text-[#2dd4bf]' // Teal color like Pacifica
+                          : 'text-surface-400'
+                      }`}>
+                        {trade.position.includes('close') ? 'Close' : 'Open'} {trade.position.includes('short') ? 'Short' : 'Long'}
                       </span>
-                    ) : (
-                      <span className="text-surface-500">-</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-3 px-2 sm:px-4 text-right text-white">{amount.toFixed(4)} {trade.symbol}</td>
+                    <td className="py-3 px-2 sm:px-4 text-right text-white">{price.toFixed(3)}</td>
+                    <td className="py-3 px-2 sm:px-4 text-right text-white">${tradeValue.toFixed(2)}</td>
+                    <td className="py-3 px-2 sm:px-4 text-center">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        trade.position.includes('long')
+                          ? 'bg-win-500/20 text-win-400'
+                          : 'bg-loss-500/20 text-loss-400'
+                      }`}>
+                        {trade.position.replace('_', ' ').toUpperCase()}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 sm:px-4 text-right text-surface-400">${fee.toFixed(2)}</td>
+                    <td className="py-3 px-2 sm:px-4 text-right">
+                      {pnlValue !== null ? (
+                        <span className={pnlIsPositive ? 'text-win-400' : 'text-loss-400'}>
+                          {pnlIsPositive ? '+' : ''}${pnlValue.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-surface-500">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

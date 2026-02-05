@@ -189,7 +189,31 @@ async function fetchFromPacifica(
   const pacificaSymbol = mapSymbol(tfcSymbol, 'pacifica');
   if (!pacificaSymbol) return [];
 
+  const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
+
   try {
+    if (USE_EXCHANGE_ADAPTER) {
+      // Use Exchange Adapter (with caching if Redis configured)
+      const { ExchangeProvider } = await import('@/lib/server/exchanges/provider');
+      const adapter = ExchangeProvider.getAdapter('pacifica');
+      const rawCandles = await adapter.getKlines({
+        symbol: tfcSymbol, // Adapter expects normalized symbol (BTC-USD)
+        interval,
+        startTime,
+        endTime,
+      });
+
+      return rawCandles.map(c => ({
+        t: c.timestamp,
+        o: parseFloat(c.open),
+        h: parseFloat(c.high),
+        l: parseFloat(c.low),
+        c: parseFloat(c.close),
+        v: parseFloat(c.volume),
+      }));
+    }
+
+    // Fallback to direct Pacifica calls
     const rawCandles = await Pacifica.getKlines({
       symbol: pacificaSymbol,
       interval,

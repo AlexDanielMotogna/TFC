@@ -270,29 +270,27 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Mode Toggle */}
-        <div className="flex gap-2 mb-2">
+        {/* Mode Toggle - Professional & Minimalist */}
+        <div className="flex gap-1 mb-4 bg-surface-800/50 p-1 rounded-lg w-fit">
           <button
             onClick={() => setMode('fights')}
-            className={`flex-1 px-4 py-2 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+            className={`px-3 py-1.5 text-sm rounded-md transition-all ${
               mode === 'fights'
                 ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+                : 'text-surface-400 hover:text-surface-300'
             }`}
           >
-            <span className="text-lg leading-none">⚔</span>
-            <span>Fight Stats</span>
+            Fights
           </button>
           <button
             onClick={() => setMode('trades')}
-            className={`flex-1 px-4 py-2 rounded-lg transition-colors font-medium flex items-center justify-center gap-2 ${
+            className={`px-3 py-1.5 text-sm rounded-md transition-all ${
               mode === 'trades'
                 ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
-                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
+                : 'text-surface-400 hover:text-surface-300'
             }`}
           >
-            <ShowChartIcon sx={{ fontSize: 20 }} />
-            <span>Individual Trades</span>
+            Trades
           </button>
         </div>
 

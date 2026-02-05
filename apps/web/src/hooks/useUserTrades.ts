@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 export interface Trade {
   id: string;
   symbol: string;
-  side: string;
+  side: string; // BUY or SELL
+  position: string; // open_long, open_short, close_long, close_short
   amount: string;
   price: string;
   fee: string;

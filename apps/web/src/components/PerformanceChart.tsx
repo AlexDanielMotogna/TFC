@@ -236,7 +236,9 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
     if (active && payload && payload.length) {
       return (
         <div className="bg-surface-900 border border-surface-800 p-3 rounded-lg shadow-lg">
-          <p className="text-surface-300 text-xs mb-1">Fight #{label}</p>
+          <p className="text-surface-300 text-xs mb-1">
+            {mode === 'fights' ? 'Fight' : 'Trade'} #{label}
+          </p>
           <p className="text-surface-400 text-xs mb-2">{payload[0].payload.date}</p>
           {chartType === 'cumulative' && (
             <p className={`font-semibold ${payload[0].value >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
