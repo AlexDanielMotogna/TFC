@@ -175,7 +175,11 @@ model User {
 
 **List page:** ✅
 - ✅ Filters: status, date range, stake, duration
-- ✅ Columns: ID, Status (badge), Creator, Opponent, Stake, Duration, Started, Time Remaining / Result, Winner
+- ✅ Columns: Fight ID, Status (badge), Participants, Stake, Duration, Time, Result, Flags, Created
+- ✅ **Fight ID column with:**
+  - ✅ Truncated ID display (first 8 chars)
+  - ✅ Copy to clipboard button
+  - ✅ Link to Anti-Cheat view filtered by fightId
 - ✅ Quick actions: force cancel, force finish
 - ✅ Violations count per fight
 
@@ -336,7 +340,7 @@ Monitor job health by checking data freshness (no direct job execution):
 | GET | `/api/admin/stats` | Dashboard aggregated stats | ✅ |
 | GET | `/api/admin/users` | List/search users | ✅ |
 | GET | `/api/admin/users/[id]` | User detail with relations | ✅ |
-| PATCH | `/api/admin/users/[id]` | Update user role | ✅ |
+| PATCH | `/api/admin/users/[id]` | Update user role/status | ✅ |
 | GET | `/api/admin/fights` | List/filter fights | ✅ |
 | GET | `/api/admin/fights/[id]` | Fight detail with trades + snapshots | ✅ |
 | POST | `/api/admin/fights/[id]/cancel` | Force cancel | ✅ |
@@ -574,7 +578,7 @@ apps/web/src/
 | POST | `/api/admin/beta` | Bulk approve/reject | Medium | ✅ |
 | GET | `/api/admin/users` | List/search users | Medium | ✅ |
 | GET | `/api/admin/users/[id]` | User detail with relations | Medium | ✅ |
-| PATCH | `/api/admin/users/[id]` | Update user role | Medium | ✅ |
+| PATCH | `/api/admin/users/[id]` | Update user role/status | Medium | ✅ |
 | POST | `/api/admin/users/[id]/ban` | Ban user | **High** | ✅ |
 | POST | `/api/admin/users/[id]/unban` | Unban user | **High** | ✅ |
 | DELETE | `/api/admin/users/[id]` | Delete user account | **High** | ✅ |
@@ -586,7 +590,7 @@ apps/web/src/
 | POST | `/api/admin/fights/[id]/no-contest` | Force NO_CONTEST | **High** | ✅ |
 | POST | `/api/admin/fights/[id]/restore` | Restore from NO_CONTEST | Medium | ✅ |
 | GET | `/api/admin/anti-cheat/stats` | Violation statistics | Medium | ✅ |
-| GET | `/api/admin/anti-cheat/violations` | List all violations | Medium | ✅ |
+| GET | `/api/admin/anti-cheat/violations` | List violations grouped by fight | Medium | ✅ |
 | GET | `/api/admin/anti-cheat/suspicious-users` | Users with violations | Medium | ✅ |
 | GET | `/api/admin/trades` | Trade list + analytics | Low | ✅ |
 | POST | `/api/admin/leaderboard/refresh` | Manual refresh | Low | ✅ |
@@ -672,12 +676,39 @@ model AntiCheatViolation {
 | GET | `/api/admin/fights` | Returns `violationsCount` per fight | ✅ |
 | GET | `/api/admin/fights/[id]` | Returns full `violations[]` and `sessions[]` | ✅ |
 | GET | `/api/admin/anti-cheat/stats` | Violation statistics | ✅ |
-| GET | `/api/admin/anti-cheat/violations` | List all violations | ✅ |
+| GET | `/api/admin/anti-cheat/violations` | List violations grouped by fight | ✅ |
 | GET | `/api/admin/anti-cheat/suspicious-users` | Users with violations | ✅ |
+
+### GET `/api/admin/anti-cheat/violations` Response ✅
+
+Returns violations grouped by fightId with expandable details:
+
+```typescript
+{
+  fights: [
+    {
+      fightId: string,
+      fight: { status, stakeUsdc, durationMinutes, startedAt, endedAt },
+      participants: [{ userId, handle, slot, finalPnlPercent }],
+      violations: [
+        { id, ruleCode, ruleName, ruleMessage, actionTaken, metadata, createdAt }
+      ],
+      violationCount: number,
+      latestViolation: string,      // ISO timestamp
+      overallAction: string,        // Highest priority: NO_CONTEST > FLAGGED > RESTORED
+      rulesSummary: Record<string, number>  // e.g., { "ZERO_ZERO": 2, "MIN_VOLUME": 1 }
+    }
+  ],
+  pagination: { page, limit, total, totalPages }
+}
+```
 | POST | `/api/admin/fights/[id]/no-contest` | Force NO_CONTEST | ✅ |
 | POST | `/api/admin/fights/[id]/restore` | Restore to FINISHED | ✅ |
 
 ### Admin Page: `/admin/anti-cheat` ✅
+
+**URL Parameters:** ✅
+- ✅ `?search=<fightId>` - Pre-fills search field (used by Fights table link)
 
 **Dashboard Stats:** ✅
 - ✅ Total violations (all-time, 24h, 7d)
@@ -685,17 +716,31 @@ model AntiCheatViolation {
 - ✅ NO_CONTEST rate (% of fights)
 - ✅ Suspicious users count
 
-**Violations Table:** ✅
-- ✅ List all violations with pagination
-- ✅ Columns: Fight ID, Rule, Action, User(s), Date
+**Fights with Violations Table (Grouped by Fight):** ✅
+- ✅ One row per fight (no duplicate fightIds)
+- ✅ Columns: Fight ID, Rules Summary, Overall Status, Participants, Violation Count, Latest Date
+- ✅ Expandable rows to show all violations for that fight
 - ✅ Filter by: rule code, action taken
-- ✅ Link to fight detail
+- ✅ Search by fight ID (supports URL param `?search=`)
+- ✅ Pagination on grouped fights
+- ✅ Overall status computed by priority: NO_CONTEST > FLAGGED > others
+- ✅ Rules summary shows count per rule type (e.g., "ZERO_ZERO (2), MIN_VOLUME (1)")
+
+**Expanded Row Details:** ✅
+- ✅ Shows nested table with all violations for the fight
+- ✅ Columns: Rule, Action, Message, Time
+- ✅ Color-coded rule badges
+- ✅ Action status badges (NO_CONTEST=red, FLAGGED=yellow, RESTORED=green)
 
 **Suspicious Users Tab:** ✅
-- ✅ Users with multiple violations
-- ✅ Columns: User, Violation Count, Most Common Rule, Last Violation
+- ✅ Users with multiple violations (min 2)
+- ✅ Columns: User, Violation Count, Most Common Rule, Breakdown, Last Violation, **Action**
 - ✅ Violation breakdown per user
 - ✅ Click to view user detail
+- ✅ **Action column with status dropdown (ACTIVE/BANNED)**
+- ✅ Status change updates `user.status` and `banned_at` timestamp
+- ✅ Color-coded dropdown (green=ACTIVE, red=BANNED, gray=DELETED)
+- ✅ Disabled for DELETED users
 
 **IP Analysis Tab:** ⏳
 - Same-IP matchups grouped
@@ -746,6 +791,7 @@ Integrated admin real-time updates into the existing GlobalSocket infrastructure
 - ✅ Test each admin page loads and shows correct data
 - ✅ Test beta approve/reject functionality
 - ✅ Test user ban/unban/delete functionality
+- ✅ Test suspicious users action dropdown (ban/activate from table)
 - ✅ Test fight manual resolution
 - ✅ Test force cancel/finish on a fight
 - ✅ Test anti-cheat dashboard shows violation stats
@@ -755,7 +801,7 @@ Integrated admin real-time updates into the existing GlobalSocket infrastructure
 - ✅ Test prize pool finalize/distribute
 - ✅ Verify job health checks display correctly
 - ⏳ Verify existing user-facing functionality is unaffected
-- ⏳ Verify banned users cannot access the platform
+- ✅ Verify banned users cannot access the platform
 - ⏳ Verify NO_CONTEST fights are excluded from leaderboard
 
 ---
@@ -773,5 +819,21 @@ cd packages/db && npx prisma migrate dev --name add_user_status
 2. ⏳ Referral management page and APIs
 3. ⏳ Add referral stats to dashboard
 4. ⏳ Performance optimization
-5. ⏳ Verify banned users are blocked from login
+5. ✅ Verify banned users are blocked from login
 6. ⏳ Verify NO_CONTEST exclusion from leaderboard calculations
+
+### Banned User Protection ✅
+
+Implemented status validation at two levels:
+
+1. **Login (`authenticateWallet`)**: Blocks BANNED/DELETED users from authenticating
+2. **All Protected Endpoints (`withAuth`)**: Checks user status on every authenticated request
+
+Files modified:
+- `apps/web/src/lib/server/services/auth.ts` - Added status check before creating JWT
+- `apps/web/src/lib/server/auth.ts` - Added status check in `withAuth` middleware
+
+When a user is banned:
+- Cannot log in (gets error: "Your account has been banned...")
+- Existing sessions are blocked (403 Forbidden on any API call)
+- `bannedReason` is displayed to the user if provided

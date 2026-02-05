@@ -153,11 +153,16 @@ export async function PATCH(
   try {
     return withAdminAuth(request, async (adminUser) => {
       const body = await request.json();
-      const { role } = body;
+      const { role, status, bannedReason } = body;
 
-      // Validate role
+      // Validate role if provided
       if (role && !['USER', 'ADMIN'].includes(role)) {
         throw new BadRequestError('Invalid role. Must be USER or ADMIN');
+      }
+
+      // Validate status if provided
+      if (status && !['ACTIVE', 'BANNED'].includes(status)) {
+        throw new BadRequestError('Invalid status. Must be ACTIVE or BANNED');
       }
 
       // Prevent self-demotion
@@ -165,30 +170,68 @@ export async function PATCH(
         throw new BadRequestError('Cannot demote yourself');
       }
 
+      // Prevent self-ban
+      if (adminUser.userId === id && status === 'BANNED') {
+        throw new BadRequestError('Cannot ban yourself');
+      }
+
       const user = await prisma.user.findUnique({
         where: { id },
-        select: { id: true, role: true },
+        select: { id: true, role: true, status: true },
       });
 
       if (!user) {
         throw new NotFoundError('User not found');
       }
 
+      // Prevent banning admins (unless they're being demoted first)
+      if (status === 'BANNED' && user.role === 'ADMIN' && !role) {
+        throw new BadRequestError('Cannot ban an admin user. Demote them first.');
+      }
+
+      // Build update data
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateData: any = {};
+
+      if (role) {
+        updateData.role = role;
+      }
+
+      if (status) {
+        updateData.status = status;
+        if (status === 'BANNED') {
+          updateData.bannedAt = new Date();
+          updateData.bannedReason = bannedReason || 'Banned by admin';
+        } else if (status === 'ACTIVE') {
+          // Clear ban fields when activating
+          updateData.bannedAt = null;
+          updateData.bannedReason = null;
+        }
+      }
+
       // Update user
       const updatedUser = await prisma.user.update({
         where: { id },
-        data: { role },
+        data: updateData,
         select: {
           id: true,
           handle: true,
           walletAddress: true,
           role: true,
+          status: true,
+          bannedAt: true,
+          bannedReason: true,
           createdAt: true,
           updatedAt: true,
         },
       });
 
-      console.log(`[Admin] User ${id} role changed to ${role} by ${adminUser.userId}`);
+      if (role) {
+        console.log(`[Admin] User ${id} role changed to ${role} by ${adminUser.userId}`);
+      }
+      if (status) {
+        console.log(`[Admin] User ${id} status changed to ${status} by ${adminUser.userId}`);
+      }
 
       // Broadcast real-time update to admin panel
       broadcastUserUpdated(updatedUser);

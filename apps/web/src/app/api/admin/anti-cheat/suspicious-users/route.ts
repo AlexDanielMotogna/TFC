@@ -10,6 +10,7 @@ interface SuspiciousUserRow {
   user_id: string;
   handle: string;
   wallet_address: string | null;
+  status: string;
   violation_count: bigint;
   most_common_rule: string;
   last_violation: Date;
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
           u.id as user_id,
           u.handle,
           u.wallet_address,
+          u.status,
           COUNT(DISTINCT acv.id) as violation_count,
           (
             SELECT acv2.rule_code
@@ -44,7 +46,7 @@ export async function GET(request: Request) {
         FROM users u
         JOIN fight_participants fp ON fp.user_id = u.id
         JOIN anti_cheat_violations acv ON acv.fight_id = fp.fight_id
-        GROUP BY u.id, u.handle, u.wallet_address
+        GROUP BY u.id, u.handle, u.wallet_address, u.status
         HAVING COUNT(DISTINCT acv.id) >= ${minViolations}
         ORDER BY COUNT(DISTINCT acv.id) DESC
         LIMIT ${limit}
@@ -98,6 +100,7 @@ export async function GET(request: Request) {
           userId: u.user_id,
           handle: u.handle,
           walletAddress: u.wallet_address,
+          status: u.status,
           violationCount: Number(u.violation_count),
           mostCommonRule: u.most_common_rule,
           lastViolation: u.last_violation,

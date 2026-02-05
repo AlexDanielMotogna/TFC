@@ -208,6 +208,26 @@ export async function authenticateWallet(
       include: { pacificaConnection: true },
     });
 
+    // Check if user is banned or deleted
+    if (user && user.status === 'BANNED') {
+      console.warn('Banned user attempted login', {
+        userId: user.id,
+        walletAddress: walletAddress.slice(0, 8) + '...',
+        bannedAt: user.bannedAt,
+        bannedReason: user.bannedReason,
+      });
+      throw new Error('Your account has been banned. Please contact support if you believe this is an error.');
+    }
+
+    if (user && user.status === 'DELETED') {
+      console.warn('Deleted user attempted login', {
+        userId: user.id,
+        walletAddress: walletAddress.slice(0, 8) + '...',
+        deletedAt: user.deletedAt,
+      });
+      throw new Error('This account has been deleted.');
+    }
+
     if (!user) {
       // Create new user with wallet address as handle (shortened)
       const shortAddress = walletAddress.slice(0, 4) + '...' + walletAddress.slice(-4);
