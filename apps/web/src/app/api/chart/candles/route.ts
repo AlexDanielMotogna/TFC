@@ -155,18 +155,19 @@ async function fetchFromBybit(
 
     // Bybit format: [startTime, open, high, low, close, volume, turnover] - newest first
     const candles: Candle[] = rawCandles.map((k: string[]) => ({
-      t: parseInt(k[0]),
-      o: parseFloat(k[1]),
-      h: parseFloat(k[2]),
-      l: parseFloat(k[3]),
-      c: parseFloat(k[4]),
-      v: parseFloat(k[5]),
+      t: parseInt(k[0] ?? '0'),
+      o: parseFloat(k[1] ?? '0'),
+      h: parseFloat(k[2] ?? '0'),
+      l: parseFloat(k[3] ?? '0'),
+      c: parseFloat(k[4] ?? '0'),
+      v: parseFloat(k[5] ?? '0'),
     })).reverse(); // Reverse to get oldest first
 
     allCandles.unshift(...candles);
 
     // Move end time to before oldest candle
     const oldestCandle = candles[0];
+    if (!oldestCandle) break;
     currentEnd = oldestCandle.t - 1;
 
     if (rawCandles.length < MAX_LIMIT) break;

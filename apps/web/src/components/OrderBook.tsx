@@ -230,7 +230,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-[width] duration-300 ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-loss-400 tabular-nums tracking-tight">
@@ -262,7 +262,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10 transition-[width] duration-300 ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-win-400 tabular-nums tracking-tight">
