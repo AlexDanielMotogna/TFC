@@ -29,3 +29,5 @@ export type { UserPrize } from './useMyPrizes';
 export { useBetaAccess } from './useBetaAccess';
 export { useUrlState, useMultipleUrlState } from './useUrlState';
 export type { UseUrlStateOptions } from './useUrlState';
+export { useSettings } from './useSettings';
+export type { Settings } from './useSettings';
