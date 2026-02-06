@@ -263,7 +263,7 @@ export default function LobbyPage() {
     return (
       <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-6">
+        <div className="container mx-auto px-2 md:px-6 py-6">
           {/* Header matches actual layout - title left, stats center, button right */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
             {/* Title - Left */}
@@ -300,7 +300,7 @@ export default function LobbyPage() {
   return (
     <BetaGate>
     <AppShell>
-      <div className="container mx-auto px-4 md:px-6 py-6">
+      <div className="container mx-auto px-2 md:px-6 py-6">
         {/* Compact Header with Stats */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
           <div>
@@ -456,8 +456,10 @@ export default function LobbyPage() {
         {/* Tab Content */}
         {isLoading ? (
           <div className="card text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
-            <Spinner size="sm" />
-            <p className="mt-4 text-surface-400">Loading fights...</p>
+            <div className="flex flex-col items-center gap-3">
+              <Spinner size="md" />
+              <span className="text-sm text-surface-400">Loading fights...</span>
+            </div>
           </div>
         ) : displayFights.length === 0 ? (
           <div className="card text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
@@ -674,10 +676,10 @@ export default function LobbyPage() {
                 disabled={isCreating}
               >
                 {isCreating ? (
-                  <>
-                    <div className="spinner w-4 h-4 mr-2" />
-                    Creating...
-                  </>
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner size="xs" />
+                    <span>Creating...</span>
+                  </div>
                 ) : (
                   'Create'
                 )}

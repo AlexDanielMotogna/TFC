@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks';
 import { useGlobalSocketStore } from '@/hooks/useGlobalSocket';
 import type { Fight } from '@/lib/api';
+import { Spinner } from './Spinner';
 
 interface FightCardProps {
   fight: Fight;
@@ -234,10 +235,10 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                 className="btn-primary w-full text-sm py-2"
               >
                 {isJoining ? (
-                  <>
-                    <div className="spinner w-4 h-4 mr-2" />
-                    Joining...
-                  </>
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner size="xs" />
+                    <span>Joining...</span>
+                  </div>
                 ) : (
                   'Accept Challenge'
                 )}
@@ -272,7 +273,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                     </span>
                   </div>
                   <span
-                    className={`font-mono font-bold text-sm ${pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'
+                    className={`font-mono font-medium text-sm ${pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'
                       }`}
                   >
                     {pnlPercent >= 0 ? '+' : ''}
@@ -330,7 +331,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
               return (
                 <div
                   key={i}
-                  className={`flex items-center justify-between p-2 rounded-lg ${isWinner && !fight.isDraw ? 'bg-win-500/10 border border-win-500/30' : 'bg-surface-800/50'
+                  className={`flex items-center justify-between p-2 rounded-lg ${isWinner && !fight.isDraw ? 'bg-win-500/10' : 'bg-surface-800/50'
                     }`}
                 >
                   <div className="flex items-center gap-2">
@@ -343,7 +344,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                     </span>
                   </div>
                   <span
-                    className={`font-mono font-bold text-sm ${Number(p.finalPnlPercent ?? 0) >= 0 ? 'text-win-400' : 'text-loss-400'
+                    className={`font-mono font-medium text-sm ${Number(p.finalPnlPercent ?? 0) >= 0 ? 'text-win-400' : 'text-loss-400'
                       }`}
                   >
                     {Number(p.finalPnlPercent ?? 0) >= 0 ? '+' : ''}

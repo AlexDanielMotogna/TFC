@@ -105,7 +105,7 @@ export default function LeaderboardPage() {
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-8 animate-fadeIn">
+        <div className="container mx-auto px-2 md:px-6 py-8 animate-fadeIn">
         {/* Page Header */}
         <div className="mb-6">
           {/* Title */}
@@ -172,7 +172,7 @@ export default function LeaderboardPage() {
               onClick={() => setRange('weekly')}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                 range === 'weekly'
-                  ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                  ? 'bg-surface-700 text-white'
                   : 'text-surface-400 hover:text-white'
               }`}
             >
@@ -182,7 +182,7 @@ export default function LeaderboardPage() {
               onClick={() => setRange('all_time')}
               className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                 range === 'all_time'
-                  ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                  ? 'bg-surface-700 text-white'
                   : 'text-surface-400 hover:text-white'
               }`}
             >

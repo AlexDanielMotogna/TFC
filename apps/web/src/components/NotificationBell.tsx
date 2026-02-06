@@ -155,7 +155,8 @@ function NotificationItem({
       }`}
       onClick={() => !notification.isRead && onMarkAsRead(notification.id)}
     >
-      {getNotificationIcon(notification.type)}
+      {/* Temporarily commented out notification icons */}
+      {/* {getNotificationIcon(notification.type)} */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className={`text-sm font-medium truncate ${notification.isRead ? 'text-surface-400' : 'text-white'}`}>

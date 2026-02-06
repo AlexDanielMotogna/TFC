@@ -310,7 +310,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
             onClick={() => setChartType('cumulative')}
             className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
               chartType === 'cumulative'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                ? 'bg-surface-700 text-white font-medium'
                 : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
             }`}
           >
@@ -321,7 +321,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
             onClick={() => setChartType('individual')}
             className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
               chartType === 'individual'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                ? 'bg-surface-700 text-white font-medium'
                 : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
             }`}
           >
@@ -332,7 +332,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
             onClick={() => setChartType('winrate')}
             className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors flex-1 sm:flex-none justify-center ${
               chartType === 'winrate'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                ? 'bg-surface-700 text-white font-medium'
                 : 'bg-surface-800 text-surface-400 hover:bg-surface-700 border border-surface-800'
             }`}
           >
@@ -363,7 +363,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
       <div className="h-64 bg-surface-800/50 rounded-lg p-2 sm:p-4 border border-surface-800">
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'cumulative' && (
-            <LineChart data={cumulativeData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+            <LineChart data={cumulativeData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
               <XAxis
                 dataKey="index"
@@ -377,7 +377,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `$${value}`}
-                width={45}
+                width={50}
                 axisLine={false}
               />
               <Tooltip content={<CustomTooltip />} />
@@ -393,7 +393,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
             </LineChart>
           )}
           {chartType === 'individual' && (
-            <BarChart data={individualData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+            <BarChart data={individualData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
               <XAxis
                 dataKey="index"
@@ -407,7 +407,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
                 stroke="#71717a"
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 tickFormatter={(value: number) => `$${value}`}
-                width={45}
+                width={50}
                 axisLine={false}
               />
               <Tooltip content={<CustomTooltip />} />
@@ -423,7 +423,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
             </BarChart>
           )}
           {chartType === 'winrate' && (
-            <LineChart data={winRateData} margin={{ top: 5, right: 10, left: -15, bottom: 5 }}>
+            <LineChart data={winRateData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
               <XAxis
                 dataKey="index"
@@ -438,7 +438,7 @@ export function PerformanceChart({ fights, trades, userId, mode }: PerformanceCh
                 tick={{ fill: '#a1a1aa', fontSize: 10 }}
                 domain={[0, 100]}
                 tickFormatter={(value: number) => `${value}%`}
-                width={40}
+                width={45}
                 axisLine={false}
               />
               <Tooltip content={<CustomTooltip />} />

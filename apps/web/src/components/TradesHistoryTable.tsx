@@ -96,7 +96,10 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
   // Empty state
   if (trades.length === 0) {
     return (
-      <div className="card">
+      <div className="card overflow-hidden">
+        <div className="p-4 sm:p-6 border-b border-surface-800">
+          <h2 className="text-lg sm:text-xl font-bold">Trade History</h2>
+        </div>
         <div className="p-8 text-center">
           <p className="text-surface-400 text-lg">No individual trades yet.</p>
           <p className="text-surface-500 text-sm mt-2">
@@ -108,17 +111,19 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
   }
 
   return (
-    <div className="card">
-      <div className="p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-bold mb-4">Trade History</h2>
+    <div className="card overflow-hidden">
+      <div className="p-4 sm:p-6 border-b border-surface-800">
+        <h2 className="text-lg sm:text-xl font-bold">Trade History</h2>
+      </div>
 
+      <div className="p-4 sm:p-6">
         {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto -mx-4 sm:mx-0">
+          <table className="w-full text-sm min-w-[800px]">
             <thead>
               <tr className="text-xs text-surface-400 capitalize tracking-wider bg-surface-850">
                 <th
-                  className="text-left py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-left py-3 px-3 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('executedAt')}
                 >
                   <div className="flex items-center gap-1">
@@ -129,7 +134,7 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                   </div>
                 </th>
                 <th
-                  className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-center py-3 px-2 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('symbol')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -140,18 +145,18 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                   </div>
                 </th>
                 <th
-                  className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-center py-3 px-2 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('side')}
                 >
                   <div className="flex items-center justify-center gap-1">
-                    Side
+                    Position
                     {sortField === 'side' && (
                       <span className="text-primary-400">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                     )}
                   </div>
                 </th>
                 <th
-                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-right py-3 px-2 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('amount')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -162,7 +167,7 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                   </div>
                 </th>
                 <th
-                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-right py-3 px-2 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('price')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -172,10 +177,9 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                     )}
                   </div>
                 </th>
-                <th className="text-right py-3 px-2 sm:px-4 font-medium">Trade Value</th>
-                <th className="text-center py-3 px-2 sm:px-4 font-medium">Position</th>
+                <th className="text-right py-3 px-2 font-medium whitespace-nowrap">Value</th>
                 <th
-                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-right py-3 px-2 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('fee')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -186,7 +190,7 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                   </div>
                 </th>
                 <th
-                  className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors"
+                  className="text-right py-3 px-3 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
                   onClick={() => handleSort('pnl')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -209,22 +213,10 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
 
                 return (
                   <tr key={trade.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                    <td className="py-3 px-2 sm:px-4 text-surface-400 whitespace-nowrap">{formatDate(trade.executedAt)}</td>
-                    <td className="py-3 px-2 sm:px-4 text-center font-mono text-white">{trade.symbol}</td>
-                    <td className="py-3 px-2 sm:px-4 text-center">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        trade.position.includes('close')
-                          ? 'text-[#2dd4bf]' // Teal color like Pacifica
-                          : 'text-surface-400'
-                      }`}>
-                        {trade.position.includes('close') ? 'Close' : 'Open'} {trade.position.includes('short') ? 'Short' : 'Long'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2 sm:px-4 text-right text-white">{amount.toFixed(4)} {trade.symbol}</td>
-                    <td className="py-3 px-2 sm:px-4 text-right text-white">{price.toFixed(3)}</td>
-                    <td className="py-3 px-2 sm:px-4 text-right text-white">${tradeValue.toFixed(2)}</td>
-                    <td className="py-3 px-2 sm:px-4 text-center">
-                      <span className={`px-2 py-1 rounded text-xs ${
+                    <td className="py-2.5 px-3 text-surface-400 text-xs whitespace-nowrap">{formatDate(trade.executedAt)}</td>
+                    <td className="py-2.5 px-2 text-center font-mono text-white text-xs">{trade.symbol.replace('-USD', '')}</td>
+                    <td className="py-2.5 px-2 text-center">
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                         trade.position.includes('long')
                           ? 'bg-win-500/20 text-win-400'
                           : 'bg-loss-500/20 text-loss-400'
@@ -232,14 +224,17 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                         {trade.position.replace('_', ' ').toUpperCase()}
                       </span>
                     </td>
-                    <td className="py-3 px-2 sm:px-4 text-right text-surface-400">${fee.toFixed(2)}</td>
-                    <td className="py-3 px-2 sm:px-4 text-right">
+                    <td className="py-2.5 px-2 text-right text-white text-xs whitespace-nowrap">{amount.toFixed(4)}</td>
+                    <td className="py-2.5 px-2 text-right text-white text-xs">${price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-2.5 px-2 text-right text-white text-xs">${tradeValue.toFixed(0)}</td>
+                    <td className="py-2.5 px-2 text-right text-surface-400 text-xs">${fee.toFixed(2)}</td>
+                    <td className="py-2.5 px-3 text-right">
                       {pnlValue !== null ? (
-                        <span className={pnlIsPositive ? 'text-win-400' : 'text-loss-400'}>
+                        <span className={`text-xs font-medium ${pnlIsPositive ? 'text-win-400' : 'text-loss-400'}`}>
                           {pnlIsPositive ? '+' : ''}${pnlValue.toFixed(2)}
                         </span>
                       ) : (
-                        <span className="text-surface-500">-</span>
+                        <span className="text-surface-500 text-xs">-</span>
                       )}
                     </td>
                   </tr>

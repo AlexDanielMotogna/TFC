@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useBetaAccess } from '@/hooks';
 import { BetaAccessDenied } from './BetaAccessDenied';
+import { Spinner } from './Spinner';
 
 interface BetaGateProps {
   children: ReactNode;
@@ -32,9 +33,9 @@ export function BetaGate({ children, showLoading = true }: BetaGateProps) {
   if (walletReady && isLoading && showLoading) {
     return (
       <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mx-auto mb-4" />
-          <p className="text-surface-400">Checking beta access...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Spinner size="md" />
+          <span className="text-sm text-surface-400">Checking beta access...</span>
         </div>
       </div>
     );

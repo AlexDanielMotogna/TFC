@@ -175,7 +175,7 @@ export default function RewardsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-12 text-center">
               <EmojiEventsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
@@ -190,7 +190,7 @@ export default function RewardsPage() {
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-8">
+        <div className="container mx-auto px-2 md:px-6 py-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 sm:gap-3">

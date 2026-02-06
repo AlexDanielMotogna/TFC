@@ -28,7 +28,7 @@ export default function ProfilePage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-12 text-center">
               <PersonIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
@@ -44,7 +44,7 @@ export default function ProfilePage() {
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-8">
+        <div className="container mx-auto px-2 md:px-6 py-8">
           <div className="animate-pulse space-y-2">
             <div className="flex items-center gap-2">
               <div className="w-24 h-24 bg-surface-700 rounded-full" />
