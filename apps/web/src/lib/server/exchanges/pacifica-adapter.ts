@@ -56,18 +56,19 @@ export class PacificaAdapter implements ExchangeAdapter {
       baseAsset: m.symbol,
       quoteAsset: 'USD',
       tickSize: m.tick_size,
-      stepSize: m.step_size,
+      stepSize: m.lot_size, // Pacifica uses lot_size for step size
       minOrderSize: m.min_order_size,
       maxOrderSize: m.max_order_size,
-      minNotional: m.min_order_notional,
+      minNotional: '0', // Not available in MarketInfo
       maxLeverage: m.max_leverage,
-      fundingRate: m.funding,
+      fundingRate: m.funding_rate,
       fundingInterval: 8, // Pacifica: 8 hours
       metadata: {
-        makerFee: m.maker_fee,
-        takerFee: m.taker_fee,
-        openInterest: m.open_interest,
-        impactNotional: m.impact_notional,
+        minTick: m.min_tick,
+        maxTick: m.max_tick,
+        isolatedOnly: m.isolated_only,
+        nextFundingRate: m.next_funding_rate,
+        createdAt: m.created_at,
       },
     }));
   }
@@ -84,8 +85,8 @@ export class PacificaAdapter implements ExchangeAdapter {
       ask: '0',
       funding: p.funding,
       volume24h: p.volume_24h,
-      change24h: p.change_24h || '0',
-      timestamp: Date.now(),
+      change24h: '0', // Can be calculated from yesterday_price if needed
+      timestamp: p.timestamp,
     }));
   }
 
@@ -93,11 +94,16 @@ export class PacificaAdapter implements ExchangeAdapter {
     const pacificaSymbol = this.denormalizeSymbol(symbol); // BTC-USD → BTC
     const orderbook = await Pacifica.getOrderbook(pacificaSymbol, aggLevel);
 
+    // Pacifica orderbook format: { s: symbol, l: [[{p, a, n}], [{p, a, n}]], t: timestamp }
+    // l[0] = bids, l[1] = asks
+    const bids = orderbook.l[0]?.map((level) => [level.p, level.a]) || [];
+    const asks = orderbook.l[1]?.map((level) => [level.p, level.a]) || [];
+
     return {
       symbol,
-      bids: orderbook.bids.map((b) => [b.price, b.size]),
-      asks: orderbook.asks.map((a) => [a.price, a.size]),
-      timestamp: Date.now(),
+      bids: bids as [string, string][],
+      asks: asks as [string, string][],
+      timestamp: orderbook.t,
     };
   }
 
@@ -125,13 +131,13 @@ export class PacificaAdapter implements ExchangeAdapter {
     const pacificaSymbol = this.denormalizeSymbol(symbol);
     const trades = await Pacifica.getRecentTrades(pacificaSymbol);
 
-    return trades.map((t) => ({
-      id: t.trade_id.toString(),
+    return trades.map((t, index) => ({
+      id: `${t.created_at}-${index}`, // Use timestamp + index as unique ID
       symbol,
       side: t.side === 'bid' ? 'BUY' : 'SELL',
       price: t.price,
       amount: t.amount,
-      timestamp: t.timestamp,
+      timestamp: t.created_at,
     }));
   }
 
@@ -142,27 +148,31 @@ export class PacificaAdapter implements ExchangeAdapter {
   async getAccount(accountId: string): Promise<Account> {
     const account = await Pacifica.getAccount(accountId);
 
+    // Calculate unrealized PnL by fetching positions
+    const positions = await Pacifica.getPositions(accountId);
+    const unrealizedPnl = positions
+      .reduce((sum, pos: any) => sum + parseFloat(pos.unrealized_pnl || '0'), 0)
+      .toString();
+
     return {
       accountId,
       balance: account.balance,
       accountEquity: account.account_equity,
       availableToSpend: account.available_to_spend,
       marginUsed: account.total_margin_used,
-      unrealizedPnl: account.unrealized_pnl,
+      unrealizedPnl,
       makerFee: account.maker_fee,
       takerFee: account.taker_fee,
       metadata: {
-        vaultBalance: account.vault_balance,
-        totalDeposits: account.total_deposits,
-        totalWithdrawals: account.total_withdrawals,
-        totalVolume: account.total_volume,
-        totalPnl: account.total_pnl,
         availableToWithdraw: account.available_to_withdraw,
         pendingBalance: account.pending_balance,
         crossMmr: account.cross_mmr,
         positionsCount: account.positions_count,
         ordersCount: account.orders_count,
+        stopOrdersCount: account.stop_orders_count,
         feeLevel: account.fee_level,
+        useLtpForStopOrders: account.use_ltp_for_stop_orders,
+        updatedAt: account.updated_at,
       },
     };
   }
@@ -175,15 +185,16 @@ export class PacificaAdapter implements ExchangeAdapter {
       side: p.side === 'bid' ? 'LONG' : 'SHORT',
       amount: p.amount,
       entryPrice: p.entry_price,
-      markPrice: p.mark,
+      markPrice: '0', // Not available in Position, would need to fetch from getPrices()
       margin: p.margin,
-      leverage: p.leverage.toString(),
-      unrealizedPnl: p.unrealized_pnl,
-      liquidationPrice: p.liquidation_price,
+      leverage: p.leverage,
+      unrealizedPnl: '0', // Not available in Position response
+      liquidationPrice: p.liq_price,
       funding: p.funding,
       metadata: {
-        openedAt: p.opened_at,
-        maxLeverage: p.max_leverage,
+        isolated: p.isolated,
+        createdAt: p.created_at,
+        updatedAt: p.updated_at,
       },
     }));
   }
@@ -193,21 +204,23 @@ export class PacificaAdapter implements ExchangeAdapter {
 
     return orders.map((o) => ({
       orderId: o.order_id,
-      clientOrderId: o.client_order_id,
+      clientOrderId: o.client_order_id || undefined,
       symbol: this.normalizeSymbol(o.symbol),
       side: o.side === 'bid' ? 'BUY' : 'SELL',
       type: this.normalizeOrderType(o.order_type),
       price: o.price,
-      amount: o.amount,
-      filled: o.filled,
-      remaining: o.remaining,
-      status: this.normalizeOrderStatus(o.status),
-      timeInForce: this.normalizeTimeInForce(o.tif),
+      amount: o.initial_amount,
+      filled: o.filled_amount,
+      remaining: (parseFloat(o.initial_amount) - parseFloat(o.filled_amount) - parseFloat(o.cancelled_amount || '0')).toString(),
+      status: this.inferOrderStatus(o),
+      timeInForce: 'GTC', // Not available in OpenOrder, default to GTC
       reduceOnly: o.reduce_only,
-      createdAt: new Date(o.created_at).getTime(),
-      updatedAt: new Date(o.updated_at || o.created_at).getTime(),
+      createdAt: o.created_at,
+      updatedAt: o.updated_at,
       metadata: {
-        triggerPrice: o.trigger_price,
+        stopPrice: o.stop_price,
+        stopParentOrderId: o.stop_parent_order_id,
+        cancelledAmount: o.cancelled_amount,
       },
     }));
   }
@@ -223,17 +236,20 @@ export class PacificaAdapter implements ExchangeAdapter {
 
     return trades.map((t) => ({
       historyId: t.history_id.toString(),
-      orderId: t.order_id,
+      orderId: t.order_id.toString(),
       symbol: this.normalizeSymbol(t.symbol),
       side: this.normalizeTradeSide(t.side),
       amount: t.amount,
       price: t.price,
       fee: t.fee,
       pnl: t.pnl,
-      executedAt: new Date(t.created_at).getTime(),
+      executedAt: t.created_at,
       metadata: {
         position: t.side, // open_long, close_short, etc.
-        leverage: t.leverage,
+        eventType: t.event_type,
+        entryPrice: t.entry_price,
+        cause: t.cause,
+        clientOrderId: t.client_order_id,
       },
     }));
   }
@@ -316,7 +332,7 @@ export class PacificaAdapter implements ExchangeAdapter {
     const result = await Pacifica.cancelAllOrders(keypair, {
       allSymbols: !params.symbol,
       symbol: params.symbol ? this.denormalizeSymbol(params.symbol) : undefined,
-      excludeReduceOnly: params.excludeReduceOnly,
+      excludeReduceOnly: params.excludeReduceOnly || false,
     });
 
     return { cancelledCount: result.cancelled_count };
@@ -346,10 +362,9 @@ export class PacificaAdapter implements ExchangeAdapter {
   ): Promise<{ success: boolean }> {
     const keypair = this.extractKeypair(auth);
 
-    const result = await Pacifica.approveBuilderCode(keypair, {
-      builderCode,
-      maxFeeRate,
-    });
+    // Pacifica.approveBuilderCode takes (keypair, maxFeeRate as string)
+    // It uses the BUILDER_CODE constant, so we ignore the builderCode param
+    const result = await Pacifica.approveBuilderCode(keypair, maxFeeRate.toString());
 
     return { success: result.success };
   }
@@ -358,7 +373,8 @@ export class PacificaAdapter implements ExchangeAdapter {
   async withdraw(auth: AuthContext, amount: string): Promise<{ success: boolean }> {
     const keypair = this.extractKeypair(auth);
 
-    const result = await Pacifica.withdraw(keypair, { amount });
+    // Pacifica.withdraw takes (keypair, amount as string)
+    const result = await Pacifica.withdraw(keypair, amount);
 
     return { success: result.success };
   }
@@ -387,13 +403,19 @@ export class PacificaAdapter implements ExchangeAdapter {
     return 'MARKET'; // Fallback
   }
 
-  private normalizeOrderStatus(pacificaStatus: string): Order['status'] {
-    if (pacificaStatus === 'open') return 'OPEN';
-    if (pacificaStatus === 'partially_filled') return 'PARTIALLY_FILLED';
-    if (pacificaStatus === 'filled') return 'FILLED';
-    if (pacificaStatus === 'cancelled') return 'CANCELLED';
-    if (pacificaStatus === 'rejected') return 'REJECTED';
-    return 'OPEN'; // Fallback
+  private inferOrderStatus(order: any): Order['status'] {
+    const initialAmount = parseFloat(order.initial_amount);
+    const filledAmount = parseFloat(order.filled_amount);
+    const cancelledAmount = parseFloat(order.cancelled_amount || '0');
+
+    if (filledAmount === initialAmount) {
+      return 'FILLED';
+    } else if (filledAmount > 0) {
+      return 'PARTIALLY_FILLED';
+    } else if (cancelledAmount > 0) {
+      return 'CANCELLED';
+    }
+    return 'OPEN';
   }
 
   private normalizeTimeInForce(pacificaTif: string): TimeInForce {
