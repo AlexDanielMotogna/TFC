@@ -35,11 +35,11 @@ export async function POST(request: Request) {
     }
 
     if (!prizePool.isFinalized) {
-      throw new BadRequestError('Prize pool is not finalized yet', ErrorCode.ERR_VALIDATION_INVALID_STATE);
+      throw new BadRequestError('Prize pool is not finalized yet', ErrorCode.ERR_PRIZE_NOT_FINALIZED);
     }
 
     if (prizePool.isDistributed) {
-      throw new ConflictError('Prize pool already distributed', ErrorCode.ERR_PRIZE_ALREADY_CLAIMED);
+      throw new ConflictError('Prize pool already distributed', ErrorCode.ERR_PRIZE_ALREADY_DISTRIBUTED);
     }
 
     // Mark pool as distributed
