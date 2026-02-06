@@ -120,6 +120,16 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
         {/* Table */}
         <div className="overflow-x-auto -mx-4 sm:mx-0">
           <table className="w-full text-sm min-w-[800px]">
+            <colgroup>
+              <col className="min-w-[144px]" />
+              <col className="min-w-[80px]" />
+              <col className="min-w-[112px]" />
+              <col className="min-w-[96px]" />
+              <col className="min-w-[96px]" />
+              <col className="min-w-[96px]" />
+              <col className="min-w-[80px]" />
+              <col className="min-w-[96px]" />
+            </colgroup>
             <thead>
               <tr className="text-xs text-surface-400 capitalize tracking-wider bg-surface-850">
                 <th

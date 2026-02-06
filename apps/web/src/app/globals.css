@@ -26,6 +26,10 @@ html {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
+html {
+  overflow-y: scroll; /* Always show scrollbar to prevent layout shift */
+}
+
 body {
   color: var(--foreground);
   background: var(--background);

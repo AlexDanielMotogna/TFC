@@ -455,14 +455,14 @@ export default function LobbyPage() {
 
         {/* Tab Content */}
         {isLoading ? (
-          <div className="card text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
+          <div className="text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
             <div className="flex flex-col items-center gap-3">
               <Spinner size="md" />
               <span className="text-sm text-surface-400">Loading fights...</span>
             </div>
           </div>
         ) : displayFights.length === 0 ? (
-          <div className="card text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
+          <div className="text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
             <p className="text-surface-400 text-lg mb-4">
               {hasActiveFilters ? (
                 'No fights match your filters'
@@ -484,20 +484,12 @@ export default function LobbyPage() {
               </button>
             ) : (
               <>
-                {activeTab === 'pending' && connected && isAuthenticated && (
+                {(activeTab === 'live' || activeTab === 'pending' || activeTab === 'finished' || activeTab === 'my-fights') && connected && isAuthenticated && (
                   <button
                     onClick={handleCreateClick}
                     className="text-primary-400 hover:text-primary-300 font-medium"
                   >
                     Create the first challenge →
-                  </button>
-                )}
-                {activeTab === 'my-fights' && connected && isAuthenticated && (
-                  <button
-                    onClick={handleCreateClick}
-                    className="text-primary-400 hover:text-primary-300 font-medium"
-                  >
-                    Start your first fight →
                   </button>
                 )}
               </>
