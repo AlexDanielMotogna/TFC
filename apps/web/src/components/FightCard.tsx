@@ -8,6 +8,7 @@ import { useGlobalSocketStore } from '@/hooks/useGlobalSocket';
 import type { Fight } from '@/lib/api';
 import { Spinner } from './Spinner';
 import { CancelFightModal } from './CancelFightModal';
+import { useVideoStore } from '@/lib/stores/videoStore';
 
 interface FightCardProps {
   fight: Fight;
@@ -20,6 +21,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
   const router = useRouter();
   const { user } = useAuth();
   const livePnl = useGlobalSocketStore((state) => state.livePnl.get(fight.id));
+  const { startVideo } = useVideoStore();
   const [isJoining, setIsJoining] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -33,13 +35,18 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
 
     setIsJoining(true);
     try {
+      console.log('[FightCard] Calling joinFight API...');
       const updatedFight = await onJoinFight(fight.id);
 
-      // After successfully joining, redirect to trading terminal
-      // The fight list will update automatically via the hook
+      console.log('[FightCard] API success! Starting video overlay...');
+      // API verified matchup limits - NOW start the video
+      startVideo();
+
+      // Redirect happens independently (video plays over the transition)
+      console.log('[FightCard] Redirecting to terminal...');
       router.push(`/trade?fight=${updatedFight.id}`);
     } catch (err) {
-      console.error('Failed to join fight:', err);
+      console.error('[FightCard] Failed to join fight:', err);
       // Error is shown as a toast by useFights hook
       setIsJoining(false);
     }
