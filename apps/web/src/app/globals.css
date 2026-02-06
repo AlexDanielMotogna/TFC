@@ -980,3 +980,17 @@ input[type="range"]::-moz-range-thumb {
 [data-sonner-toast][data-styled=true] [data-description] {
   color: #c7c7c7 !important;
 }
+
+/* ===========================================================
+   Scrollbar Hide Utility
+   =========================================================== */
+
+/* Completely hide scrollbar while maintaining scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}

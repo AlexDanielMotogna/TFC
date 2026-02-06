@@ -5,13 +5,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import { useAuth, useAccount, useArenaSocket } from '@/hooks';
+import { useAuth, useAccount, useArenaSocket, useSettings } from '@/hooks';
 import { useMyPrizes } from '@/hooks/useMyPrizes';
 import { WalletButton } from '@/components/WalletButton';
 import { NotificationBell } from '@/components/NotificationBell';
 import { PrizesBanner } from '@/components/PrizesBanner';
 import { WithdrawModal } from '@/components/WithdrawModal';
 import { MobilePhantomRedirect } from '@/components/MobilePhantomRedirect';
+import { QuickPositionsBar, QuickPositionsDropdown } from '@/components/QuickPositionsBar';
+import { SettingsModal } from '@/components/SettingsModal';
 import { api } from '@/lib/api';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import LeaderboardIcon from '@mui/icons-material/Leaderboard';
@@ -22,6 +24,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import SettingsIcon from '@mui/icons-material/Settings';
 
 const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
 
@@ -52,6 +55,7 @@ export function AppShell({ children }: AppShellProps) {
   const { isAuthenticated, user } = useAuth();
   const { account } = useAccount();
   const { claimablePrizes } = useMyPrizes();
+  const settings = useSettings();
 
   // Global arena socket for real-time fight notifications
   useArenaSocket();
@@ -67,6 +71,7 @@ export function AppShell({ children }: AppShellProps) {
   // Wallet dropdown state
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
   const mobileDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -224,6 +229,20 @@ export function AppShell({ children }: AppShellProps) {
           ))}
         </nav>
 
+        {/* Settings Button */}
+        <div className="border-t border-surface-800 p-2">
+          <button
+            onClick={() => setShowSettings(true)}
+            className={`w-full flex items-center gap-3 px-2 py-2 text-surface-400 hover:text-zinc-200 hover:bg-surface-800 rounded-lg transition-colors ${
+              sidebarState === 'icons' ? 'justify-center' : ''
+            }`}
+            title="Settings"
+          >
+            <SettingsIcon sx={{ fontSize: 20 }} />
+            {sidebarState === 'full' && <span className="text-sm">Settings</span>}
+          </button>
+        </div>
+
         {/* Toggle Buttons */}
         <div className={`border-t border-surface-800 p-2 ${sidebarState === 'icons' ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
           <button
@@ -256,7 +275,7 @@ export function AppShell({ children }: AppShellProps) {
       {sidebarState === 'hidden' && (
         <button
           onClick={() => setSidebarState('icons')}
-          className="hidden min-[1200px]:flex fixed left-0 top-20 z-50 bg-win-500 hover:bg-win-600 border border-win-400 rounded-r-md px-0.5 py-2 text-white transition-colors shadow-lg"
+          className="hidden min-[1200px]:flex fixed left-0 top-20 z-50 bg-white hover:bg-gray-100 border border-gray-300 rounded-r-md px-0.5 py-2 text-black transition-colors shadow-lg"
           title="Open sidebar"
         >
           <ChevronRightIcon sx={{ fontSize: 16 }} />
@@ -286,46 +305,54 @@ export function AppShell({ children }: AppShellProps) {
                 </Link>
               </div>
 
-              {/* Right side: Balance, Notifications, Wallet */}
-              <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-                {/* Balance Display with Dropdown */}
-                <div className="relative" ref={desktopDropdownRef}>
-                  <button
-                    onClick={() => setShowWalletDropdown(!showWalletDropdown)}
-                    className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 hover:bg-surface-700 rounded text-sm transition-colors cursor-pointer"
-                  >
-                    <WalletIcon className="w-4 h-4 text-surface-400" />
-                    <span className="text-surface-200 font-mono">
-                      {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
-                    </span>
-                  </button>
+              {/* Quick Positions Bar carousel - shows active positions */}
+              {isAuthenticated && settings.showQuickBar && <QuickPositionsBar />}
 
-                  {/* Dropdown Menu */}
-                  {showWalletDropdown && (
-                    <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-800 rounded-lg shadow-lg overflow-hidden z-50">
-                      <button
-                        onClick={handleDepositClick}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
-                      >
-                        <FileDownloadIcon sx={{ fontSize: 18 }} className="text-win-400" />
-                        Deposit
-                      </button>
-                      <button
-                        onClick={handleWithdrawClick}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-800"
-                      >
-                        <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
-                        Withdraw
-                      </button>
-                    </div>
-                  )}
-                </div>
+              {/* Right side: Position Icon, Balance, Notifications, Wallet */}
+              <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+                {/* Position Dropdown Icon */}
+                {isAuthenticated && settings.showQuickBar && <QuickPositionsDropdown />}
+
+                {/* Balance Display with Dropdown */}
+                {settings.showWallet && (
+                  <div className="relative" ref={desktopDropdownRef}>
+                    <button
+                      onClick={() => setShowWalletDropdown(!showWalletDropdown)}
+                      className="flex items-center gap-1.5 px-2 py-1.5 bg-surface-800 hover:bg-surface-700 rounded text-sm transition-colors cursor-pointer"
+                    >
+                      <WalletIcon className="w-4 h-4 text-surface-400" />
+                      <span className="text-surface-200 font-mono">
+                        {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
+                      </span>
+                    </button>
+
+                    {/* Dropdown Menu */}
+                    {showWalletDropdown && (
+                      <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-800 rounded-lg shadow-lg overflow-hidden z-50">
+                        <button
+                          onClick={handleDepositClick}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
+                        >
+                          <FileDownloadIcon sx={{ fontSize: 18 }} className="text-win-400" />
+                          Deposit
+                        </button>
+                        <button
+                          onClick={handleWithdrawClick}
+                          className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-800"
+                        >
+                          <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
+                          Withdraw
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Notifications Bell */}
-                <NotificationBell />
+                {settings.showNotifications && <NotificationBell />}
 
-                {/* Wallet Connect Button */}
-                <div className="wallet-compact">
+                {/* Wallet Connect Button - hidden on mobile (shows in footer) */}
+                <div className="wallet-compact hidden sm:block">
                   <WalletButton />
                 </div>
               </div>
@@ -415,6 +442,12 @@ export function AppShell({ children }: AppShellProps) {
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
         availableBalance={withdrawableBalance}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
       />
 
       {/* Mobile Phantom Redirect - prompts mobile users to open in Phantom dApp browser */}
