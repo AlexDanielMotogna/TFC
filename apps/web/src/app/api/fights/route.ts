@@ -6,10 +6,12 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, BadRequestError, ConflictError } from '@/lib/server/errors';
-import { getPositions } from '@/lib/server/pacifica';
+import { ExchangeProvider } from '@/lib/server/exchanges/provider';
 import { FeatureFlags, StakeLimits } from '@/lib/server/feature-flags';
 import { recordFightSession } from '@/lib/server/anti-cheat';
 import { ErrorCode } from '@/lib/server/error-codes';
+
+const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -149,13 +151,27 @@ export async function POST(request: Request) {
       let creatorPositions: Array<{ symbol: string; amount: string; entry_price: string; side: string }> = [];
       if (connection.accountAddress) {
         try {
-          const positions = await getPositions(connection.accountAddress);
-          creatorPositions = positions.map((p: any) => ({
-            symbol: p.symbol,
-            amount: p.amount,
-            entry_price: p.entry_price,
-            side: p.side, // 'bid' = LONG, 'ask' = SHORT
-          }));
+          if (USE_EXCHANGE_ADAPTER) {
+            // Use Exchange Adapter (with caching if Redis configured)
+            const adapter = await ExchangeProvider.getUserAdapter(user.userId);
+            const positions = await adapter.getPositions(connection.accountAddress);
+            creatorPositions = positions.map((p: any) => ({
+              symbol: p.symbol,
+              amount: p.amount || p.size,
+              entry_price: p.entryPrice || p.entry_price,
+              side: p.side === 'LONG' ? 'bid' : p.side === 'SHORT' ? 'ask' : p.side, // Normalize
+            }));
+          } else {
+            // Fallback to direct Pacifica calls
+            const Pacifica = await import('@/lib/server/pacifica');
+            const positions = await Pacifica.getPositions(connection.accountAddress);
+            creatorPositions = positions.map((p: any) => ({
+              symbol: p.symbol,
+              amount: p.amount,
+              entry_price: p.entry_price,
+              side: p.side, // 'bid' = LONG, 'ask' = SHORT
+            }));
+          }
           console.log(`[CreateFight] Creator ${user.userId} has ${creatorPositions.length} open positions:`,
             creatorPositions.map((p: any) => `${p.symbol}: ${p.amount}`).join(', ') || 'none');
         } catch (err) {
