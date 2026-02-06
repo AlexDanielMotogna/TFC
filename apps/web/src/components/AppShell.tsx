@@ -20,6 +20,8 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import PersonIcon from '@mui/icons-material/Person';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
 const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
 
@@ -58,6 +60,9 @@ export function AppShell({ children }: AppShellProps) {
   // Get Pacifica balance
   const pacificaBalance = account?.accountEquity ? parseFloat(account.accountEquity) : null;
   const withdrawableBalance = account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null;
+
+  // Sidebar state: 'hidden' | 'icons' | 'full' (desktop only)
+  const [sidebarState, setSidebarState] = useState<'hidden' | 'icons' | 'full'>('icons');
 
   // Wallet dropdown state
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
@@ -162,113 +167,191 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-surface-900 text-zinc-100 flex flex-col">
-      {/* Header */}
-      <header className="border-surface-800 bg-surface-850 sticky top-0 z-50">
-        <div className="w-full px-4">
-          <div className="flex items-center h-12 relative">
-            {/* Logo - Left */}
-            <div className="flex-shrink-0">
-              <Link href="/trade">
-                <Image
-                  src="/images/logos/favicon-white-192.png"
-                  alt="Trade Fight Club"
-                  width={52}
-                  height={52}
-                  className="rounded-lg"
-                />
-              </Link>
-            </div>
+      {/* Desktop Sidebar - visible from 1200px */}
+      <aside
+        className={`hidden min-[1200px]:flex fixed left-0 top-0 bottom-0 bg-surface-850 border-r border-surface-800 flex-col transition-all duration-300 z-[60] ${
+          sidebarState === 'hidden' ? '-translate-x-full' : sidebarState === 'icons' ? 'w-16' : 'w-56'
+        }`}
+      >
+        {/* Logo - only show when sidebar is visible (not hidden) */}
+        {sidebarState !== 'hidden' && (
+          <div className="flex items-center justify-center h-16 border-b border-surface-800 flex-shrink-0">
+            <Link href="/trade">
+              <Image
+                src="/images/logos/favicon-white-192.png"
+                alt="Trade Fight Club"
+                width={sidebarState === 'icons' ? 40 : 52}
+                height={sidebarState === 'icons' ? 40 : 52}
+                className="rounded-lg transition-all duration-300"
+              />
+            </Link>
+          </div>
+        )}
 
-            {/* Navigation - Centered (hidden until 1200px) */}
-            <nav className="absolute left-1/2 -translate-x-1/2 hidden min-[1200px]:flex items-center gap-1">
-              {allNavItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`relative px-3 py-1.5 text-sm transition-colors rounded flex items-center gap-1.5 ${
-                    isActive(item.href)
-                      ? 'text-zinc-100 bg-surface-800'
-                      : 'text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50'
-                  }`}
-                  onMouseEnter={item.prefetch}
-                  onFocus={item.prefetch}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
+        {/* Navigation Items */}
+        <nav className="flex-1 py-4 overflow-y-auto">
+          {allNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`relative flex items-center gap-3 px-4 py-3 mx-2 rounded-lg transition-colors ${
+                isActive(item.href)
+                  ? 'text-zinc-100 bg-surface-800'
+                  : 'text-surface-400 hover:text-zinc-200 hover:bg-surface-800/50'
+              }`}
+              onMouseEnter={item.prefetch}
+              onFocus={item.prefetch}
+            >
+              <div className="flex-shrink-0">
+                {item.icon}
+              </div>
+              {sidebarState === 'full' && (
+                <>
+                  <span className="text-sm font-medium">{item.label}</span>
                   {item.badge && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-primary-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 bg-primary-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                       {item.badge}
                     </span>
                   )}
+                </>
+              )}
+              {sidebarState === 'icons' && item.badge && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-primary-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Toggle Buttons */}
+        <div className={`border-t border-surface-800 p-2 ${sidebarState === 'icons' ? 'flex flex-col gap-2' : 'flex gap-2'}`}>
+          <button
+            onClick={() => setSidebarState(sidebarState === 'full' ? 'icons' : 'full')}
+            className="flex-1 flex items-center justify-center gap-2 px-2 py-2 text-surface-400 hover:text-zinc-200 bg-surface-800/30 hover:bg-surface-800/70 rounded-lg transition-colors"
+            title={sidebarState === 'full' ? 'Collapse to icons' : 'Expand sidebar'}
+          >
+            {sidebarState === 'full' ? (
+              <>
+                <ChevronLeftIcon sx={{ fontSize: 20 }} />
+                <span className="text-xs">Collapse</span>
+              </>
+            ) : (
+              <ChevronRightIcon sx={{ fontSize: 20 }} />
+            )}
+          </button>
+          {sidebarState !== 'hidden' && (
+            <button
+              onClick={() => setSidebarState('hidden')}
+              className="flex items-center justify-center px-2 py-2 text-surface-400 hover:text-zinc-200 bg-surface-800/30 hover:bg-surface-800/70 rounded-lg transition-colors"
+              title="Close sidebar"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </aside>
+
+      {/* Sidebar Toggle Button (when hidden) */}
+      {sidebarState === 'hidden' && (
+        <button
+          onClick={() => setSidebarState('icons')}
+          className="hidden min-[1200px]:flex fixed left-0 top-20 z-50 bg-win-500 hover:bg-win-600 border border-win-400 rounded-r-md px-0.5 py-2 text-white transition-colors shadow-lg"
+          title="Open sidebar"
+        >
+          <ChevronRightIcon sx={{ fontSize: 16 }} />
+        </button>
+      )}
+
+      {/* Main Content Area */}
+      <div
+        className={`flex flex-col min-h-screen transition-all duration-300 ${
+          sidebarState === 'hidden' ? 'min-[1200px]:ml-0' : 'min-[1200px]:ml-16'
+        }`}
+      >
+        {/* Header */}
+        <header className="border-surface-800 bg-surface-850 sticky top-0 z-50">
+          <div className="w-full px-4">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo - always visible, hidden on desktop when sidebar is showing */}
+              <div className={`flex-shrink-0 ${sidebarState !== 'hidden' ? 'max-[1199px]:block hidden' : ''}`}>
+                <Link href="/trade">
+                  <Image
+                    src="/images/logos/favicon-white-192.png"
+                    alt="Trade Fight Club"
+                    width={52}
+                    height={52}
+                    className="rounded-lg"
+                  />
                 </Link>
-              ))}
-            </nav>
-
-            {/* Right side: Balance (desktop), Notifications, Wallet */}
-            <div className="flex items-center gap-2 sm:gap-3 ml-auto">
-              {/* Balance Display with Dropdown - hidden until 1200px, shown in bottom nav */}
-              <div className="hidden min-[1200px]:block relative" ref={desktopDropdownRef}>
-                <button
-                  onClick={() => setShowWalletDropdown(!showWalletDropdown)}
-                  className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 hover:bg-surface-700 rounded text-sm transition-colors cursor-pointer"
-                >
-                  <WalletIcon className="w-4 h-4 text-surface-400" />
-                  <span className="text-surface-200 font-mono">
-                    {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
-                  </span>
-                </button>
-
-                {/* Dropdown Menu */}
-                {showWalletDropdown && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-800 rounded-lg shadow-lg overflow-hidden z-50">
-                    <button
-                      onClick={handleDepositClick}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
-                    >
-                      <FileDownloadIcon sx={{ fontSize: 18 }} className="text-win-400" />
-                      Deposit
-                    </button>
-                    <button
-                      onClick={handleWithdrawClick}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-800"
-                    >
-                      <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
-                      Withdraw
-                    </button>
-                  </div>
-                )}
               </div>
 
-              {/* Notifications Bell */}
-              <NotificationBell />
+              {/* Right side: Balance, Notifications, Wallet */}
+              <div className="flex items-center gap-2 sm:gap-3 ml-auto">
+                {/* Balance Display with Dropdown */}
+                <div className="relative" ref={desktopDropdownRef}>
+                  <button
+                    onClick={() => setShowWalletDropdown(!showWalletDropdown)}
+                    className="flex items-center gap-1.5 px-2 py-1 bg-surface-800 hover:bg-surface-700 rounded text-sm transition-colors cursor-pointer"
+                  >
+                    <WalletIcon className="w-4 h-4 text-surface-400" />
+                    <span className="text-surface-200 font-mono">
+                      {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
+                    </span>
+                  </button>
 
-              {/* Wallet Connect Button - compact on mobile/tablet */}
-              <div className="wallet-compact">
-                <WalletButton />
+                  {/* Dropdown Menu */}
+                  {showWalletDropdown && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-surface-800 border border-surface-800 rounded-lg shadow-lg overflow-hidden z-50">
+                      <button
+                        onClick={handleDepositClick}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors"
+                      >
+                        <FileDownloadIcon sx={{ fontSize: 18 }} className="text-win-400" />
+                        Deposit
+                      </button>
+                      <button
+                        onClick={handleWithdrawClick}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:bg-surface-700 transition-colors border-t border-surface-800"
+                      >
+                        <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
+                        Withdraw
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notifications Bell */}
+                <NotificationBell />
+
+                {/* Wallet Connect Button */}
+                <div className="wallet-compact">
+                  <WalletButton />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* Prizes Banner - shows when there are claimable prizes */}
-      {isAuthenticated && <PrizesBanner />}
+        {/* Prizes Banner - shows when there are claimable prizes */}
+        {isAuthenticated && <PrizesBanner />}
 
-      {/* Main Content - add bottom padding for bottom nav until 1200px */}
-      <main className="flex-1 pb-16 min-[1200px]:pb-0">
-        {children}
-      </main>
+        {/* Main Content - add bottom padding for bottom nav on mobile */}
+        <main className="flex-1 pb-16 min-[1200px]:pb-0">
+          {children}
+        </main>
 
-      {/* Footer - hidden until 1200px */}
-      <footer className="hidden min-[1200px]:block border-t border-surface-800 py-1">
-        <div className="w-full px-4">
-          <div className="flex items-center justify-center text-[10px] text-surface-500">
-            <span>Trading Fight Club</span>
+        {/* Footer - visible only on desktop */}
+        <footer className="hidden min-[1200px]:block border-t border-surface-800 py-1">
+          <div className="w-full px-4">
+            <div className="flex items-center justify-center text-[10px] text-surface-500">
+              <span>Trading Fight Club</span>
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </div>
 
-      {/* Bottom Navigation - visible until 1200px */}
+      {/* Bottom Navigation - visible only on mobile/tablet (< 1200px) */}
       <nav className="max-[1199px]:flex hidden fixed bottom-0 left-0 right-0 bg-surface-850 border-t border-surface-800 z-50">
         <div className="flex items-center h-14 w-full">
           {/* Balance Display on mobile with dropdown */}
