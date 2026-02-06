@@ -252,18 +252,40 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       console.log('[GlobalSocket] Fight created:', fight.id);
       useGlobalSocketStore.getState().updateFight(fight as FightUpdate);
       useStore.getState().addFight(fight);
+
+      // Invalidate React Query cache to trigger UI update
+      queryClient.invalidateQueries({ queryKey: ['fights', 'WAITING'] });
+      queryClient.invalidateQueries({ queryKey: ['fights'] });
     });
 
     socket.on('arena:fight_updated', (fight: Fight) => {
       console.log('[GlobalSocket] Fight updated:', fight.id);
       useGlobalSocketStore.getState().updateFight(fight as FightUpdate);
       useStore.getState().updateFight(fight);
+
+      // Invalidate React Query cache for the updated fight's status
+      if (fight.status === 'WAITING') {
+        queryClient.invalidateQueries({ queryKey: ['fights', 'WAITING'] });
+      } else if (fight.status === 'LIVE') {
+        queryClient.invalidateQueries({ queryKey: ['fights', 'LIVE'] });
+      } else if (fight.status === 'FINISHED') {
+        queryClient.invalidateQueries({ queryKey: ['fights', 'FINISHED'] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
+      queryClient.invalidateQueries({ queryKey: ['fights'] });
     });
 
     socket.on('arena:fight_started', (fight: Fight) => {
       console.log('[GlobalSocket] Fight started:', fight.id);
       useGlobalSocketStore.getState().updateFight({ ...fight, status: 'LIVE' } as FightUpdate);
       useStore.getState().updateFight({ ...fight, status: 'LIVE' });
+
+      // Invalidate React Query cache to move fight from WAITING to LIVE
+      queryClient.invalidateQueries({ queryKey: ['fights', 'WAITING'] });
+      queryClient.invalidateQueries({ queryKey: ['fights', 'LIVE'] });
+      queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
+      queryClient.invalidateQueries({ queryKey: ['fights'] });
+
       // Refresh notifications (e.g. "Opponent Joined!" for the creator)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
@@ -281,6 +303,13 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       // Preserve actual fight status (FINISHED, CANCELLED, or NO_CONTEST)
       useGlobalSocketStore.getState().updateFight({ ...fight } as FightUpdate);
       useStore.getState().updateFight({ ...fight });
+
+      // Invalidate React Query cache to move fight from LIVE to FINISHED
+      queryClient.invalidateQueries({ queryKey: ['fights', 'LIVE'] });
+      queryClient.invalidateQueries({ queryKey: ['fights', 'FINISHED'] });
+      queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
+      queryClient.invalidateQueries({ queryKey: ['fights'] });
+
       // Refresh notifications (e.g. fight results)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
@@ -304,6 +333,10 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       console.log('[GlobalSocket] Fight deleted:', data.fightId);
       useGlobalSocketStore.getState().removeFight(data.fightId);
       useStore.getState().removeFight(data.fightId);
+
+      // Invalidate React Query cache to remove deleted fight from UI
+      queryClient.invalidateQueries({ queryKey: ['fights'] });
+      queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
     });
 
     // Live PnL updates for arena cards
