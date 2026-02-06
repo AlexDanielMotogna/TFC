@@ -39,13 +39,27 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
 
   constructor(adapter: ExchangeAdapter, redisUrl: string) {
     this.adapter = adapter;
-    this.redis = new Redis(redisUrl);
+
+    // Configure Redis with connection timeout and TLS support
+    this.redis = new Redis(redisUrl, {
+      connectTimeout: 5000, // 5 second timeout
+      maxRetriesPerRequest: 2,
+      enableReadyCheck: false,
+      lazyConnect: true, // Don't block on connection
+      tls: redisUrl.startsWith('rediss://') ? {} : undefined, // Enable TLS for rediss://
+    });
+
     this.name = adapter.name;
     this.version = adapter.version;
 
     // Handle Redis errors gracefully
     this.redis.on('error', (err) => {
       console.warn('[CachedAdapter] Redis error (will fallback to direct calls):', err.message);
+    });
+
+    // Attempt to connect without blocking
+    this.redis.connect().catch((err) => {
+      console.warn('[CachedAdapter] Redis connection failed (will fallback to direct calls):', err.message);
     });
   }
 
@@ -201,7 +215,7 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
   // ─────────────────────────────────────────────────────────────
 
   /**
-   * Cache with Redis
+   * Cache with Redis (with timeout to prevent hanging)
    */
   private async withCache<T>(
     cacheKey: string,
@@ -211,29 +225,38 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
     const prefixedKey = `${this.adapter.name}:${cacheKey}`;
 
     try {
-      // Try cache first
-      const cached = await this.redis.get(prefixedKey);
+      // Try cache first with 1 second timeout
+      const cached = await Promise.race([
+        this.redis.get(prefixedKey),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 1000))
+      ]);
+
       if (cached) {
         return JSON.parse(cached);
       }
-    } catch (error) {
-      console.warn('[CachedAdapter] Redis cache read failed:', error);
+    } catch (error: any) {
+      if (error.message !== 'Redis timeout') {
+        console.warn('[CachedAdapter] Redis cache read failed:', error.message);
+      }
       // Fall through to fetcher
     }
 
     // Cache miss - fetch from exchange
     const result = await fetcher();
 
-    // Store in cache (fire and forget)
-    this.redis.setex(prefixedKey, ttlSeconds, JSON.stringify(result)).catch((error) => {
-      console.warn('[CachedAdapter] Redis cache write failed:', error);
+    // Store in cache (fire and forget, with timeout)
+    Promise.race([
+      this.redis.setex(prefixedKey, ttlSeconds, JSON.stringify(result)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 1000))
+    ]).catch((error: any) => {
+      console.warn('[CachedAdapter] Redis cache write failed:', error.message);
     });
 
     return result;
   }
 
   /**
-   * Cache with deduplication (share promise across concurrent requests)
+   * Cache with deduplication (share promise across concurrent requests, with timeout)
    */
   private async withCacheAndDedup<T>(
     cacheKey: string,
@@ -243,13 +266,19 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
     const prefixedKey = `${this.adapter.name}:${cacheKey}`;
 
     try {
-      // Try cache first
-      const cached = await this.redis.get(prefixedKey);
+      // Try cache first with 1 second timeout
+      const cached = await Promise.race([
+        this.redis.get(prefixedKey),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 1000))
+      ]);
+
       if (cached) {
         return JSON.parse(cached);
       }
-    } catch (error) {
-      console.warn('[CachedAdapter] Redis cache read failed:', error);
+    } catch (error: any) {
+      if (error.message !== 'Redis timeout') {
+        console.warn('[CachedAdapter] Redis cache read failed:', error.message);
+      }
       // Fall through to fetcher
     }
 
@@ -261,9 +290,12 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
     // Create new request
     const promise = fetcher()
       .then((result) => {
-        // Store in cache
-        this.redis.setex(prefixedKey, ttlSeconds, JSON.stringify(result)).catch((error) => {
-          console.warn('[CachedAdapter] Redis cache write failed:', error);
+        // Store in cache with timeout
+        Promise.race([
+          this.redis.setex(prefixedKey, ttlSeconds, JSON.stringify(result)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Redis timeout')), 1000))
+        ]).catch((error: any) => {
+          console.warn('[CachedAdapter] Redis cache write failed:', error.message);
         });
         return result;
       })
