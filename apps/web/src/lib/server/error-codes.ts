@@ -55,6 +55,8 @@ export enum ErrorCode {
   ERR_PRIZE_NOT_FOUND = 'ERR_PRIZE_NOT_FOUND', // 404
   ERR_PRIZE_NOT_OWNED = 'ERR_PRIZE_NOT_OWNED', // 403
   ERR_PRIZE_ALREADY_CLAIMED = 'ERR_PRIZE_ALREADY_CLAIMED', // 409 (Conflict)
+  ERR_PRIZE_ALREADY_DISTRIBUTED = 'ERR_PRIZE_ALREADY_DISTRIBUTED', // 409
+  ERR_PRIZE_NOT_FINALIZED = 'ERR_PRIZE_NOT_FINALIZED', // 400
   ERR_PRIZE_NOT_AVAILABLE = 'ERR_PRIZE_NOT_AVAILABLE', // 400
   ERR_PRIZE_NO_WALLET = 'ERR_PRIZE_NO_WALLET', // 400
   ERR_PRIZE_TREASURY_INSUFFICIENT = 'ERR_PRIZE_TREASURY_INSUFFICIENT', // 503
@@ -154,6 +156,8 @@ export const ErrorCodeMetadata: Record<
   [ErrorCode.ERR_PRIZE_NOT_FOUND]: { statusCode: 404, category: 'PRIZE', severity: 'LOW', userFacing: true },
   [ErrorCode.ERR_PRIZE_NOT_OWNED]: { statusCode: 403, category: 'PRIZE', severity: 'MEDIUM', userFacing: true },
   [ErrorCode.ERR_PRIZE_ALREADY_CLAIMED]: { statusCode: 409, category: 'PRIZE', severity: 'LOW', userFacing: true },
+  [ErrorCode.ERR_PRIZE_ALREADY_DISTRIBUTED]: { statusCode: 409, category: 'PRIZE', severity: 'LOW', userFacing: true },
+  [ErrorCode.ERR_PRIZE_NOT_FINALIZED]: { statusCode: 400, category: 'PRIZE', severity: 'LOW', userFacing: true },
   [ErrorCode.ERR_PRIZE_NOT_AVAILABLE]: { statusCode: 400, category: 'PRIZE', severity: 'LOW', userFacing: true },
   [ErrorCode.ERR_PRIZE_NO_WALLET]: { statusCode: 400, category: 'PRIZE', severity: 'MEDIUM', userFacing: true },
   [ErrorCode.ERR_PRIZE_TREASURY_INSUFFICIENT]: { statusCode: 503, category: 'PRIZE', severity: 'CRITICAL', userFacing: false },
