@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks';
 import { useGlobalSocketStore } from '@/hooks/useGlobalSocket';
 import type { Fight } from '@/lib/api';
 import { Spinner } from './Spinner';
+import { CancelFightModal } from './CancelFightModal';
 
 interface FightCardProps {
   fight: Fight;
@@ -21,6 +22,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
   const livePnl = useGlobalSocketStore((state) => state.livePnl.get(fight.id));
   const [isJoining, setIsJoining] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const isLive = fight.status === 'LIVE';
   const isWaiting = fight.status === 'WAITING';
   const isCreator = user?.id === fight.creator?.id;
@@ -43,20 +45,31 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
     }
   };
 
-  // Handle cancel fight
-  const handleCancelFight = async () => {
-    if (!onCancelFight) return;
+  // Handle cancel fight - show modal
+  const handleCancelClick = () => {
+    setShowCancelModal(true);
+  };
 
-    if (!confirm('Are you sure you want to cancel this fight?')) return;
+  // Confirm cancel fight
+  const handleConfirmCancel = async () => {
+    if (!onCancelFight) return;
 
     setIsCancelling(true);
     try {
       await onCancelFight(fight.id);
+      setShowCancelModal(false);
     } catch (err) {
       console.error('Failed to cancel fight:', err);
       // Error is shown as a toast by useFights hook
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  // Close cancel modal
+  const handleCloseCancelModal = () => {
+    if (!isCancelling) {
+      setShowCancelModal(false);
     }
   };
 
@@ -221,7 +234,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                   Terminal
                 </Link>
                 <button
-                  onClick={handleCancelFight}
+                  onClick={handleCancelClick}
                   disabled={isCancelling || !onCancelFight}
                   className="btn-ghost text-loss-400 hover:text-loss-300 hover:bg-loss-500/10 text-sm py-2 px-3"
                 >
@@ -431,6 +444,14 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
           </Link>
         </div>
       )}
+
+      {/* Cancel Fight Modal */}
+      <CancelFightModal
+        isOpen={showCancelModal}
+        onConfirm={handleConfirmCancel}
+        onCancel={handleCloseCancelModal}
+        isLoading={isCancelling}
+      />
     </div>
   );
 }
