@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks';
@@ -11,12 +11,9 @@ import { BetaGate } from '@/components/BetaGate';
 import { ProfileSkeleton } from '@/components/Skeletons';
 import { PerformanceChart } from '@/components/PerformanceChart';
 import TradesHistoryTable from '@/components/TradesHistoryTable';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CancelIcon from '@mui/icons-material/Cancel';
-import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import { toastOnly } from '@/lib/notify';
+import { Sparkline, generateMockTrendData } from '@/components/Sparkline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import ShowChartIcon from '@mui/icons-material/ShowChart';
 
 export default function ProfilePage() {
   const params = useParams();
@@ -35,6 +32,8 @@ export default function ProfilePage() {
   const [userRank, setUserRank] = useState<number | null>(null);
   const [visibleFights, setVisibleFights] = useState(20);
   const [mode, setMode] = useState<'fights' | 'trades'>('fights');
+  const [fightSortField, setFightSortField] = useState<'date' | 'duration' | 'stake' | 'result' | 'pnl'>('date');
+  const [fightSortDirection, setFightSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Fetch user trades
   const { trades, loading: tradesLoading } = useUserTrades(userId);
@@ -113,11 +112,94 @@ export default function ProfilePage() {
     }
   }, [profile]);
 
+  // Calculate total PnL from trades
+  const tradesPnl = trades.reduce((sum, trade) => sum + parseFloat(trade.pnl || '0'), 0);
+
+  // Calculate stats-based values (safe to call hooks here)
+  const stats = profile?.stats;
+  const winRate = stats && stats.totalFights > 0
+    ? ((stats.wins / stats.totalFights) * 100).toFixed(1)
+    : '0';
+  const isOwnProfile = currentUser?.id === profile?.id;
+
+  // Handle fight sorting
+  const handleFightSort = (field: 'date' | 'duration' | 'stake' | 'result' | 'pnl') => {
+    if (fightSortField === field) {
+      setFightSortDirection(fightSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setFightSortField(field);
+      setFightSortDirection('desc');
+    }
+  };
+
+  // Sort fights
+  const sortedFights = useMemo(() => {
+    return [...fights].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (fightSortField) {
+        case 'date':
+          aValue = new Date(a.endedAt || a.updatedAt).getTime();
+          bValue = new Date(b.endedAt || b.updatedAt).getTime();
+          break;
+        case 'duration':
+          aValue = a.durationMinutes || 0;
+          bValue = b.durationMinutes || 0;
+          break;
+        case 'stake':
+          aValue = a.stakeUsdc || 0;
+          bValue = b.stakeUsdc || 0;
+          break;
+        case 'result':
+          // Sort by win/draw/loss
+          aValue = a.winnerId === userId ? 2 : (a.isDraw ? 1 : 0);
+          bValue = b.winnerId === userId ? 2 : (b.isDraw ? 1 : 0);
+          break;
+        case 'pnl':
+          const myParticipantA = a.participants?.find((p) => p.userId === userId);
+          const myParticipantB = b.participants?.find((p) => p.userId === userId);
+          aValue = myParticipantA?.finalScoreUsdc ? parseFloat(String(myParticipantA.finalScoreUsdc)) : 0;
+          bValue = myParticipantB?.finalScoreUsdc ? parseFloat(String(myParticipantB.finalScoreUsdc)) : 0;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return fightSortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return fightSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [fights, fightSortField, fightSortDirection, userId]);
+
+  // Memoize sparkline data to prevent regeneration on re-renders
+  const totalFightsData = useMemo(() =>
+    stats ? generateMockTrendData(stats.totalFights, 20, 0.2) : [],
+    [stats?.totalFights]
+  );
+  const winsData = useMemo(() =>
+    stats ? generateMockTrendData(stats.wins, 20, 0.25) : [],
+    [stats?.wins]
+  );
+  const lossesData = useMemo(() =>
+    stats ? generateMockTrendData(stats.losses, 20, 0.25) : [],
+    [stats?.losses]
+  );
+  const drawsValue = stats ? (stats.draws ?? (stats.totalFights - stats.wins - stats.losses)) : 0;
+  const drawsData = useMemo(() =>
+    stats ? generateMockTrendData(drawsValue, 20, 0.3) : [],
+    [drawsValue]
+  );
+  const winRateData = useMemo(() =>
+    generateMockTrendData(parseFloat(winRate), 20, 0.15),
+    [winRate]
+  );
+
   if (isLoading) {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <ProfileSkeleton />
           </div>
         </AppShell>
@@ -145,20 +227,18 @@ export default function ProfilePage() {
     );
   }
 
-  const { stats } = profile;
-  const winRate =
-    stats.totalFights > 0 ? ((stats.wins / stats.totalFights) * 100).toFixed(1) : '0';
-  const isOwnProfile = currentUser?.id === profile.id;
+  // TypeScript now knows profile and stats are defined
+  const profileStats = profile.stats;
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(profile.id);
-    // You could add a toast notification here
+    toastOnly('User ID copied to clipboard', 'success');
   };
 
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-8">
+        <div className="container mx-auto px-2 md:px-6 py-8">
         {/* Profile Header */}
         <div className="card p-6 mb-2">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-2">
@@ -204,14 +284,6 @@ export default function ProfilePage() {
                     Top Trader
                   </span>
                 )}
-                <span className="bg-surface-700 px-3 py-1 rounded-full text-xs text-surface-400">
-                  {stats.totalFights} Fights
-                </span>
-                {isOwnProfile && (
-                  <span className="bg-primary-500/20 text-primary-400 px-3 py-1 rounded-full text-xs">
-                    Your Profile
-                  </span>
-                )}
               </div>
             </div>
 
@@ -220,10 +292,10 @@ export default function ProfilePage() {
               <div>
                 <p
                   className={`text-2xl font-bold ${
-                    stats.totalPnlUsdc >= 0 ? 'pnl-positive' : 'pnl-negative'
+                    (mode === 'fights' ? profileStats.totalPnlUsdc : tradesPnl) >= 0 ? 'pnl-positive' : 'pnl-negative'
                   }`}
                 >
-                  {stats.totalPnlUsdc >= 0 ? '+' : '-'}${Math.abs(stats.totalPnlUsdc).toLocaleString()}
+                  {(mode === 'fights' ? profileStats.totalPnlUsdc : tradesPnl) >= 0 ? '+' : '-'}${Math.abs(mode === 'fights' ? profileStats.totalPnlUsdc : tradesPnl).toLocaleString()}
                 </p>
                 <p className="text-xs text-surface-400">Total PnL</p>
               </div>
@@ -233,40 +305,94 @@ export default function ProfilePage() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-2">
-          <div className="card p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <span className="text-lg leading-none">⚔</span>
-              <p className="text-2xl font-bold text-white">{stats.totalFights}</p>
+          {/* Total Fights */}
+          <div className="card p-4 relative overflow-hidden min-h-[100px]">
+            <div className="relative z-10 mb-2">
+              <p className="text-2xl sm:text-3xl font-bold text-white">{profileStats.totalFights}</p>
+              <p className="text-xs text-surface-400 mt-1">Total Fights</p>
             </div>
-            <p className="text-xs text-surface-400">Total Fights</p>
+            <div className="absolute inset-0 flex items-end opacity-60">
+              <div className="w-full h-[60px]">
+                <Sparkline
+                  data={totalFightsData}
+                  color="#6366f1"
+                  width={200}
+                  height={60}
+                />
+              </div>
+            </div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <CheckCircleIcon sx={{ fontSize: 20, color: '#26A69A' }} />
-              <p className="text-2xl font-bold text-win-400">{stats.wins}</p>
+
+          {/* Wins */}
+          <div className="card p-4 relative overflow-hidden min-h-[100px]">
+            <div className="relative z-10 mb-2">
+              <p className="text-2xl sm:text-3xl font-bold text-white">{profileStats.wins}</p>
+              <p className="text-xs text-surface-400 mt-1">Wins</p>
             </div>
-            <p className="text-xs text-surface-400">Wins</p>
+            <div className="absolute inset-0 flex items-end opacity-60">
+              <div className="w-full h-[60px]">
+                <Sparkline
+                  data={winsData}
+                  color="#26A69A"
+                  width={200}
+                  height={60}
+                />
+              </div>
+            </div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <CancelIcon sx={{ fontSize: 20, color: '#EF5350' }} />
-              <p className="text-2xl font-bold text-loss-400">{stats.losses}</p>
+
+          {/* Losses */}
+          <div className="card p-4 relative overflow-hidden min-h-[100px]">
+            <div className="relative z-10 mb-2">
+              <p className="text-2xl sm:text-3xl font-bold text-white">{profileStats.losses}</p>
+              <p className="text-xs text-surface-400 mt-1">Losses</p>
             </div>
-            <p className="text-xs text-surface-400">Losses</p>
+            <div className="absolute inset-0 flex items-end opacity-60">
+              <div className="w-full h-[60px]">
+                <Sparkline
+                  data={lossesData}
+                  color="#EF5350"
+                  width={200}
+                  height={60}
+                />
+              </div>
+            </div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <RemoveCircleOutlineIcon sx={{ fontSize: 20, color: '#71717a' }} />
-              <p className="text-2xl font-bold text-surface-400">{stats.draws ?? (stats.totalFights - stats.wins - stats.losses)}</p>
+
+          {/* Draws */}
+          <div className="card p-4 relative overflow-hidden min-h-[100px]">
+            <div className="relative z-10 mb-2">
+              <p className="text-2xl sm:text-3xl font-bold text-white">{drawsValue}</p>
+              <p className="text-xs text-surface-400 mt-1">Draws</p>
             </div>
-            <p className="text-xs text-surface-400">Draws</p>
+            <div className="absolute inset-0 flex items-end opacity-60">
+              <div className="w-full h-[60px]">
+                <Sparkline
+                  data={drawsData}
+                  color="#71717a"
+                  width={200}
+                  height={60}
+                />
+              </div>
+            </div>
           </div>
-          <div className="card p-4 text-center">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <TrendingUpIcon sx={{ fontSize: 20, color: '#f97316' }} />
-              <p className="text-2xl font-bold text-primary-400">{winRate}%</p>
+
+          {/* Win Rate */}
+          <div className="card p-4 relative overflow-hidden min-h-[100px]">
+            <div className="relative z-10 mb-2">
+              <p className="text-2xl sm:text-3xl font-bold text-white">{winRate}%</p>
+              <p className="text-xs text-surface-400 mt-1">Win Rate</p>
             </div>
-            <p className="text-xs text-surface-400">Win Rate</p>
+            <div className="absolute inset-0 flex items-end opacity-60">
+              <div className="w-full h-[60px]">
+                <Sparkline
+                  data={winRateData}
+                  color="#f97316"
+                  width={200}
+                  height={60}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -276,7 +402,7 @@ export default function ProfilePage() {
             onClick={() => setMode('fights')}
             className={`px-3 py-1.5 text-sm rounded-md transition-all ${
               mode === 'fights'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                ? 'bg-surface-700 text-white font-medium'
                 : 'text-surface-400 hover:text-surface-300'
             }`}
           >
@@ -286,7 +412,7 @@ export default function ProfilePage() {
             onClick={() => setMode('trades')}
             className={`px-3 py-1.5 text-sm rounded-md transition-all ${
               mode === 'trades'
-                ? 'bg-primary-500/20 text-primary-400 border border-primary-500/50'
+                ? 'bg-surface-700 text-white font-medium'
                 : 'text-surface-400 hover:text-surface-300'
             }`}
           >
@@ -295,25 +421,25 @@ export default function ProfilePage() {
         </div>
 
         {/* Performance Chart */}
-        <div className="card p-4 mb-2">
-          <h2 className="font-display text-sm font-semibold uppercase tracking-wide mb-4 text-surface-300">
-            Performance History
-          </h2>
-          {mode === 'fights' ? (
-            <PerformanceChart fights={fights} userId={userId} mode="fights" />
-          ) : (
-            <PerformanceChart trades={trades} userId={userId} mode="trades" />
-          )}
+        <div className="card overflow-hidden mb-2">
+          <div className="p-4 sm:p-6 border-b border-surface-800">
+            <h2 className="text-lg sm:text-xl font-bold">Performance History</h2>
+          </div>
+          <div className="p-4">
+            {mode === 'fights' ? (
+              <PerformanceChart fights={fights} userId={userId} mode="fights" />
+            ) : (
+              <PerformanceChart trades={trades} userId={userId} mode="trades" />
+            )}
+          </div>
         </div>
 
         {/* History Table - Conditional */}
         {mode === 'fights' ? (
           /* Fight History */
           <div className="card overflow-hidden">
-            <div className="p-4 border-b border-surface-800">
-              <h2 className="font-display text-sm font-semibold uppercase tracking-wide text-surface-300">
-                Fight History
-              </h2>
+            <div className="p-4 sm:p-6 border-b border-surface-800">
+              <h2 className="text-lg sm:text-xl font-bold">Fight History</h2>
             </div>
             {fights.length === 0 ? (
               <div className="p-12 text-center">
@@ -326,20 +452,71 @@ export default function ProfilePage() {
                 </Link>
               </div>
             ) : (
-            <div className="overflow-x-auto">
+            <div className="p-4 sm:p-6">
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs text-surface-400 capitalize tracking-wider bg-surface-850">
-                    <th className="text-left py-3 px-2 sm:px-4 font-medium">Date</th>
-                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Duration</th>
-                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Stake</th>
-                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Opponent</th>
-                    <th className="text-center py-3 px-2 sm:px-4 font-medium">Result</th>
-                    <th className="text-right py-3 px-2 sm:px-4 font-medium">PnL</th>
+                    <th
+                      className="text-left py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
+                      onClick={() => handleFightSort('date')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Date
+                        {fightSortField === 'date' && (
+                          <span className="text-primary-400">{fightSortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
+                      onClick={() => handleFightSort('duration')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Duration
+                        {fightSortField === 'duration' && (
+                          <span className="text-primary-400">{fightSortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
+                      onClick={() => handleFightSort('stake')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Stake
+                        {fightSortField === 'stake' && (
+                          <span className="text-primary-400">{fightSortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th className="text-center py-3 px-2 sm:px-4 font-medium whitespace-nowrap">Opponent</th>
+                    <th
+                      className="text-center py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
+                      onClick={() => handleFightSort('result')}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        Result
+                        {fightSortField === 'result' && (
+                          <span className="text-primary-400">{fightSortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-right py-3 px-2 sm:px-4 font-medium cursor-pointer hover:text-surface-300 transition-colors whitespace-nowrap"
+                      onClick={() => handleFightSort('pnl')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        PnL
+                        {fightSortField === 'pnl' && (
+                          <span className="text-primary-400">{fightSortDirection === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {fights.slice(0, visibleFights).map((fight, index) => {
+                  {sortedFights.slice(0, visibleFights).map((fight, index) => {
                     const isWin = fight.winnerId === profile.id;
                     const isDraw = fight.isDraw;
                     const myParticipant = fight.participants?.find(
@@ -413,17 +590,19 @@ export default function ProfilePage() {
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-          {/* Load More Button */}
-          {fights.length > visibleFights && (
-            <div className="p-4 border-t border-surface-800 text-center">
-              <button
-                onClick={() => setVisibleFights((prev) => prev + 20)}
-                className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
-              >
-                Load More ({visibleFights} of {fights.length} fights)
-              </button>
+              </div>
+
+              {/* Load More Button */}
+              {sortedFights.length > visibleFights && (
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={() => setVisibleFights((prev) => prev + 20)}
+                    className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                  >
+                    Load More ({visibleFights} of {sortedFights.length} fights)
+                  </button>
+                </div>
+              )}
             </div>
           )}
           </div>
@@ -435,7 +614,7 @@ export default function ProfilePage() {
         {/* Actions for own profile */}
         {isOwnProfile && (
           <div className="mt-8 flex justify-center gap-2">
-            <Link href="/trade" className="btn-primary">
+            <Link href="/lobby" className="btn-primary">
               Find a Fight
             </Link>
             <Link href="/trade" className="btn-secondary">

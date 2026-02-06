@@ -124,7 +124,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-12 text-center">
               <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
@@ -141,7 +141,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="animate-pulse space-y-2">
               {/* Header Skeleton */}
               <div className="flex items-center gap-3">
@@ -218,7 +218,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-8 text-center">
               <p className="text-loss-400 mb-4">{(error as Error).message}</p>
               <button
@@ -239,7 +239,7 @@ export default function ReferralsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-4 md:px-6 py-8">
+          <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-12 text-center">
               <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Referral system unavailable</h3>
@@ -254,7 +254,7 @@ export default function ReferralsPage() {
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-4 md:px-6 py-8">
+        <div className="container mx-auto px-2 md:px-6 py-8">
           {/* Header */}
           <div className="flex items-center gap-3 mb-2">
             <GroupsIcon sx={{ color: '#f97316', fontSize: 28 }} />
@@ -377,7 +377,7 @@ export default function ReferralsPage() {
                 onClick={() => setActiveTab('overview')}
                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                   activeTab === 'overview'
-                    ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                    ? 'bg-surface-700 text-white'
                     : 'text-surface-400 hover:text-white'
                 }`}
               >
@@ -387,7 +387,7 @@ export default function ReferralsPage() {
                 onClick={() => setActiveTab('referrals')}
                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                   activeTab === 'referrals'
-                    ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                    ? 'bg-surface-700 text-white'
                     : 'text-surface-400 hover:text-white'
                 }`}
               >
@@ -397,7 +397,7 @@ export default function ReferralsPage() {
                 onClick={() => setActiveTab('payouts')}
                 className={`px-6 py-2.5 rounded-lg font-semibold transition-all ${
                   activeTab === 'payouts'
-                    ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                    ? 'bg-surface-700 text-white'
                     : 'text-surface-400 hover:text-white'
                 }`}
               >
@@ -604,6 +604,7 @@ export default function ReferralsPage() {
                         <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Date</th>
                         <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
                         <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
+                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Tx Signature</th>
                         <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Wallet</th>
                       </tr>
                     </thead>
@@ -630,6 +631,20 @@ export default function ReferralsPage() {
                             >
                               {payout.status}
                             </span>
+                          </td>
+                          <td className="py-3 px-4 text-surface-400 text-sm font-mono">
+                            {payout.txSignature ? (
+                              <a
+                                href={`https://solscan.io/tx/${payout.txSignature}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="hover:text-primary-400 transition-colors"
+                              >
+                                {payout.txSignature.slice(0, 4)}...{payout.txSignature.slice(-4)}
+                              </a>
+                            ) : (
+                              <span className="text-surface-500">-</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-surface-400 text-sm font-mono">
                             {payout.walletAddress.slice(0, 8)}...{payout.walletAddress.slice(-6)}

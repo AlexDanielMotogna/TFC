@@ -8,6 +8,7 @@ import { BetaGate } from '@/components/BetaGate';
 import { Spinner } from '@/components/Spinner';
 import { api, type Fight } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 
 // Tooltip component with styled popup
 function Tooltip({ children, text }: { children: React.ReactNode; text: string }) {
@@ -300,7 +301,7 @@ export default function FightResultsPage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 md:px-6 py-8">
+      <main className="container mx-auto px-2 md:px-6 py-8">
         {/* Result Banner */}
         <div className="text-center mb-8">
           {fight.status === 'NO_CONTEST' ? (
@@ -385,7 +386,9 @@ export default function FightResultsPage() {
                   {participantA?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 {fight.winnerId && winner?.userId === participantA?.userId && (
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-lg sm:text-2xl">👑</div>
+                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2">
+                    <EmojiEventsIcon sx={{ fontSize: { xs: 20, sm: 28 }, color: '#fbbf24' }} />
+                  </div>
                 )}
               </div>
               <h3 className="font-display font-bold text-sm sm:text-lg text-white mb-1 truncate max-w-[80px] sm:max-w-none mx-auto">
@@ -438,7 +441,9 @@ export default function FightResultsPage() {
                   {participantB?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 {fight.winnerId && winner?.userId === participantB?.userId && (
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-lg sm:text-2xl">👑</div>
+                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2">
+                    <EmojiEventsIcon sx={{ fontSize: { xs: 20, sm: 28 }, color: '#fbbf24' }} />
+                  </div>
                 )}
               </div>
               <h3 className="font-display font-bold text-sm sm:text-lg text-white mb-1 truncate max-w-[80px] sm:max-w-none mx-auto">
@@ -517,7 +522,7 @@ export default function FightResultsPage() {
                   {participantA?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 <h4 className="font-semibold text-white">{participantA?.user?.handle || 'Unknown'}</h4>
-                {winner?.userId === participantA?.userId && <span className="text-xs">👑</span>}
+                {winner?.userId === participantA?.userId && <EmojiEventsIcon sx={{ fontSize: 16, color: '#fbbf24' }} />}
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -569,7 +574,7 @@ export default function FightResultsPage() {
                     {participantB?.user?.handle?.[0]?.toUpperCase() || '?'}
                   </div>
                   <h4 className="font-semibold text-white">{participantB?.user?.handle || 'Unknown'}</h4>
-                  {winner?.userId === participantB?.userId && <span className="text-xs">👑</span>}
+                  {winner?.userId === participantB?.userId && <EmojiEventsIcon sx={{ fontSize: 16, color: '#fbbf24' }} />}
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">

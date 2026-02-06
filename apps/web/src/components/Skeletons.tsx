@@ -413,7 +413,7 @@ export function TradePanelSkeleton() {
 // Generic page loading skeleton
 export function PageLoadingSkeleton({ title }: { title?: string }) {
   return (
-    <div className="container mx-auto px-4 md:px-6 py-8">
+    <div className="container mx-auto px-2 md:px-6 py-8">
       {title && (
         <div className="text-center mb-8">
           <h1 className="font-display text-3xl font-bold text-surface-600">{title}</h1>
