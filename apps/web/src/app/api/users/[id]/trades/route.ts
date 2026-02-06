@@ -22,9 +22,9 @@ export async function GET(
       select: { walletAddress: true },
     });
 
-    if (!user) {
+    if (!user || !user.walletAddress) {
       return Response.json(
-        { success: false, error: 'User not found' },
+        { success: false, error: 'User not found or wallet not connected' },
         { status: 404 }
       );
     }
