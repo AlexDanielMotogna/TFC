@@ -16,7 +16,7 @@ const PRIZE_PERCENTAGES = {
   3: 2.0,  // 3rd place: 2%
 };
 
-// Get week boundaries (Sunday 00:00:00 UTC to Saturday 23:59:59 UTC)
+// Get week boundaries (Sunday 00:00:00 UTC to next Sunday 00:00:00 UTC)
 function getWeekBoundaries(date: Date = new Date()): { start: Date; end: Date } {
   const d = new Date(date);
   // Set to UTC
@@ -25,14 +25,14 @@ function getWeekBoundaries(date: Date = new Date()): { start: Date; end: Date } 
   // Get current day of week (0 = Sunday)
   const dayOfWeek = d.getUTCDay();
 
-  // Calculate start of week (Sunday)
+  // Calculate start of week (Sunday 00:00:00)
   const start = new Date(d);
   start.setUTCDate(d.getUTCDate() - dayOfWeek);
 
-  // Calculate end of week (Saturday 23:59:59.999)
+  // Calculate end of week (next Sunday 00:00:00 - exactly 7 days after start)
   const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 6);
-  end.setUTCHours(23, 59, 59, 999);
+  end.setUTCDate(start.getUTCDate() + 7);
+  end.setUTCHours(0, 0, 0, 0);
 
   return { start, end };
 }
@@ -102,7 +102,7 @@ export async function GET() {
       };
     });
 
-    // Calculate time remaining in week
+    // Calculate time remaining until next Sunday 00:00 UTC
     const now = new Date();
     const timeRemainingMs = weekEnd.getTime() - now.getTime();
     const daysRemaining = Math.floor(timeRemainingMs / (1000 * 60 * 60 * 24));
