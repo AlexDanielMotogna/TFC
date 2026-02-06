@@ -7,7 +7,9 @@ import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
-import { getOpenOrders, getPositions } from '@/lib/server/pacifica';
+import { ExchangeProvider } from '@/lib/server/exchanges/provider';
+
+const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
 
 // Format order type to match "All" view display
 function formatOrderType(orderType: string): string {
@@ -78,10 +80,23 @@ export async function GET(
       }
 
       // Get current open orders and positions from Pacifica
-      const [pacificaOrders, pacificaPositions] = await Promise.all([
-        getOpenOrders(pacificaConnection.accountAddress),
-        getPositions(pacificaConnection.accountAddress),
-      ]);
+      let pacificaOrders, pacificaPositions;
+
+      if (USE_EXCHANGE_ADAPTER) {
+        // Use Exchange Adapter (with caching if Redis configured)
+        const adapter = await ExchangeProvider.getUserAdapter(user.userId);
+        [pacificaOrders, pacificaPositions] = await Promise.all([
+          adapter.getOpenOrders(pacificaConnection.accountAddress),
+          adapter.getPositions(pacificaConnection.accountAddress),
+        ]);
+      } else {
+        // Fallback to direct Pacifica calls
+        const Pacifica = await import('@/lib/server/pacifica');
+        [pacificaOrders, pacificaPositions] = await Promise.all([
+          Pacifica.getOpenOrders(pacificaConnection.accountAddress),
+          Pacifica.getPositions(pacificaConnection.accountAddress),
+        ]);
+      }
 
       // Build position map for TP/SL order size lookup
       const positionMap = new Map<string, string>();

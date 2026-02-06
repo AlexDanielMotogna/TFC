@@ -4,7 +4,7 @@
  * Usage: tsx src/scripts/create-test-referral-earnings.ts
  */
 
-import { prisma } from '@tfc/db';
+import { prisma } from '@/lib/server/db';
 import { randomUUID } from 'crypto';
 
 const TEST_USER_ID = 'b4470db3-586c-4507-a947-9a41c9618ecb'; // Your user ID
