@@ -345,7 +345,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-white">{getTokenSymbol(pos.symbol)}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
+                    className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs max-[1199px]:text-[10px] font-semibold ${
                       pos.side === 'LONG'
                         ? 'bg-win-500/20 text-win-400'
                         : 'bg-loss-500/20 text-loss-400'
