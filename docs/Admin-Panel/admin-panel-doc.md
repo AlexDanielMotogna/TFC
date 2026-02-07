@@ -86,7 +86,8 @@ apps/web/src/
 │   ├── AdminTable.tsx          # ✅ Sortable, paginated table
 │   ├── AdminCard.tsx           # ✅ Stat card
 │   ├── AdminBadge.tsx          # ✅ Status badges
-│   └── AdminPagination.tsx     # ✅ Pagination component
+│   ├── AdminPagination.tsx     # ✅ Pagination component
+│   └── TreasuryStatus.tsx      # ✅ Treasury balance monitor
 └── lib/
     └── server/
         ├── admin-auth.ts       # ✅ withAdminAuth middleware
@@ -225,6 +226,7 @@ model User {
 - ✅ History: all weeks with finalization + distribution status
 - ✅ Expandable rows showing WeeklyPrize entries per week
 - ✅ Actions: "Distribute" and "Force Finalize" buttons
+- ✅ Treasury Status component in top right corner
 
 ---
 
@@ -559,10 +561,15 @@ apps/web/src/
 │   │   └── finalize/route.ts     # ✅
 │   ├── jobs/status/route.ts      # ✅
 │   ├── system/health/route.ts    # ✅
-│   ├── referrals/                # ⏳
-│   │   ├── route.ts
-│   │   ├── stats/route.ts
-│   │   └── payout/route.ts
+│   ├── treasury/
+│   │   └── status/route.ts       # ✅ Treasury balance status
+│   ├── referrals/                # 🔄 Partially implemented
+│   │   └── payouts/
+│   │       ├── route.ts          # ✅ List payouts
+│   │       ├── stats/route.ts    # ✅ Payout statistics
+│   │       └── [id]/
+│   │           ├── route.ts      # ✅ Payout details
+│   │           └── retry/route.ts # ✅ Retry failed payout
 │   └── ...
 ```
 
@@ -599,9 +606,12 @@ apps/web/src/
 | POST | `/api/admin/prize-pool/finalize` | Force finalize | Low | ✅ |
 | GET | `/api/admin/jobs/status` | Job health checks | Low | ✅ |
 | GET | `/api/admin/system/health` | Service health status | Low | ✅ |
-| GET | `/api/admin/referrals` | List referrers | Low | ⏳ |
-| GET | `/api/admin/referrals/stats` | Referral stats | Low | ⏳ |
-| POST | `/api/admin/referrals/payout` | Process payout | Low | ⏳ |
+| GET | `/api/admin/treasury/status` | Treasury balance status | Medium | ✅ |
+| GET | `/api/admin/referrals/payouts` | List payouts with filters | Medium | ✅ |
+| GET | `/api/admin/referrals/payouts/stats` | Payout statistics | Medium | ✅ |
+| GET | `/api/admin/referrals/payouts/[id]` | Payout details | Medium | ✅ |
+| POST | `/api/admin/referrals/payouts/[id]/retry` | Retry failed payout | Medium | ✅ |
+| GET | `/api/admin/referrals/earnings` | List referral earnings | Low | ⏳ |
 
 All protected with `withAdminAuth`.
 
@@ -870,37 +880,50 @@ model ReferralPayout {
 }
 ```
 
-### Admin Page: `/admin/referrals/payouts` ⏳
+### Admin Page: `/admin/referrals/payouts` ✅
 
-**Dashboard Stats:**
-- Total payouts (all-time, 24h, 7d)
-- Pending payouts count + total amount
-- Failed payouts needing attention
-- Completed payouts (24h) + total transferred
-- Average processing time
+**Dashboard Stats:** ✅
+- ✅ Total payouts (all-time, 24h, 7d)
+- ✅ Pending payouts count + total amount
+- ✅ Failed payouts needing attention
+- ✅ Completed payouts (24h) + total transferred
+- ✅ Average processing time
 
-**Payouts Table:**
-- Columns: Payout ID, User (handle + wallet), Amount, Status, Created, Processed, Tx Signature, Actions
-- Filter by: status, date range, amount range, user
-- Search by: payout ID, user ID, wallet address, tx signature
-- Pagination: server-side, 50/page
-- **Status badges:**
+**Treasury Status Component:** ✅
+- ✅ Displays in top right corner of page
+- ✅ USDC Balance with color-coded alerts
+- ✅ SOL Balance with critical alert indicator
+- ✅ Available for Claims calculation
+- ✅ Pacifica Balance (informational)
+- ✅ Last Updated timestamp
+- ✅ Refresh button with loading state
+- ✅ Alert banner for low balances:
+  - Yellow warning if USDC < $100
+  - Red critical if USDC < $50
+  - Red critical if SOL < 0.05
+
+**Payouts Table:** ✅
+- ✅ Columns: Payout ID, User (handle + wallet), Amount, Status, Created, Processed, Tx Signature, Actions
+- ✅ Filter by: status, date range, amount range, user
+- ✅ Search by: payout ID, user ID, wallet address, tx signature
+- ✅ Pagination: server-side, 50/page
+- **Status badges:** ✅
   - `pending` (gray) - Waiting for cron job
   - `processing` (blue) - Currently being processed
   - `completed` (green) - Successfully transferred
   - `failed` (red) - Transfer failed (needs attention)
 
-**Expandable Row Details:**
-- Related earnings (which earnings were claimed)
-- Retry attempts history
-- Error messages (if failed)
-- Treasury balance at time of processing
-- Processing logs
+**Expandable Row Details:** ✅
+- ✅ Related earnings (which earnings were claimed)
+- ✅ Retry attempts history
+- ✅ Error messages (if failed)
+- ✅ Processing time and metadata
+- ✅ Retry information for failed payouts
 
-**Actions:**
-- **Retry Failed Payout** - Manually trigger retry for failed payouts
-- **View Transaction** - Link to Solscan explorer
-- **View User** - Link to user detail page
+**Actions:** ✅
+- ✅ **Retry Failed Payout** - Manually trigger retry for failed payouts
+- ✅ **View Transaction** - Link to Solscan explorer
+- ✅ **View User** - Link to user detail page
 
 ### Monitoring Queries ✅
 
@@ -1042,13 +1065,15 @@ The cron job runs every 15 minutes and logs:
 | `Transaction failed` | On-chain error (network, gas, etc.) | Wait and retry, check Solana status |
 | `Another claim is being processed` | Concurrent claim attempt (409) | This is normal - idempotent response, no action needed |
 
-### Admin API Endpoints ⏳
+### Admin API Endpoints ✅
 
 | Method | Route | Purpose | Status |
 |--------|-------|---------|--------|
-| GET | `/api/admin/referrals/payouts` | List all payouts with filters | ⏳ |
-| GET | `/api/admin/referrals/payouts/stats` | Payout statistics | ⏳ |
-| POST | `/api/admin/referrals/payouts/[id]/retry` | Manually retry failed payout | ⏳ |
+| GET | `/api/admin/referrals/payouts` | List all payouts with filters | ✅ |
+| GET | `/api/admin/referrals/payouts/stats` | Payout statistics | ✅ |
+| GET | `/api/admin/referrals/payouts/[id]` | Get payout details with related earnings | ✅ |
+| POST | `/api/admin/referrals/payouts/[id]/retry` | Manually retry failed payout | ✅ |
+| GET | `/api/admin/treasury/status` | Get treasury balances and alerts | ✅ |
 | GET | `/api/admin/referrals/earnings` | List all referral earnings | ⏳ |
 
 ### Automated Payout Processor ✅
