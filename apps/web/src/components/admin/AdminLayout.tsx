@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminSidebar } from './AdminSidebar';
+import { AdminAlerts } from './AdminAlerts';
 import { Spinner } from '@/components/Spinner';
 
 interface AdminLayoutProps {
@@ -53,6 +54,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               {process.env.NODE_ENV === 'production' ? 'PROD' : 'DEV'}
             </span>
           </div>
+
+          {/* Alert Badges */}
+          <AdminAlerts />
+
           <div className="text-sm text-surface-400">
             Trading Fight Club
           </div>

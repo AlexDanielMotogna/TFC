@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/store';
-import { AdminCard, AdminCardSkeleton, AdminBadge } from '@/components/admin';
+import { AdminCard, AdminCardSkeleton, AdminBadge, TreasuryStatus } from '@/components/admin';
 import { Spinner } from '@/components/Spinner';
 import { Gift, DollarSign, Calendar, CheckCircle } from 'lucide-react';
 
@@ -89,11 +89,14 @@ export default function AdminPrizePoolPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Prize Pool</h1>
-        <p className="text-surface-400 mt-1">
-          Manage weekly prize pool distribution
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Prize Pool</h1>
+          <p className="text-surface-400 mt-1">
+            Manage weekly prize pool distribution
+          </p>
+        </div>
+        <TreasuryStatus />
       </div>
 
       {/* Current Week Stats */}
