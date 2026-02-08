@@ -265,7 +265,7 @@ export function QuickPositionsDropdown() {
 
         {/* Dropdown menu */}
         {showDropdown && (
-          <div className="absolute top-full right-0 mt-2 w-80 bg-surface-850 rounded-lg shadow-xl border border-surface-800 overflow-hidden z-50">
+          <div className="fixed sm:absolute left-4 sm:right-0 sm:left-auto top-14 sm:top-full sm:mt-2 w-[calc(100vw-32px)] sm:w-80 bg-surface-850 rounded-lg shadow-xl border border-surface-800 overflow-hidden z-50">
             {positions.map((position: Position) => {
               const symbol = position.symbol;
               const symbolBase = symbol.replace('-USD', '');
