@@ -17,7 +17,7 @@ import { getDeviceContext, type DeviceContext } from '@/lib/mobile';
 // Import wallet adapter styles
 import '@solana/wallet-adapter-react-ui/styles.css';
 
-// Detectar contexto del dispositivo (desktop, mobile-browser, phantom-browser)
+// Detectar contexto del dispositivo (desktop, ios-mobile-browser, android-mobile-browser, phantom-browser)
 function useDeviceContext() {
   const [context, setContext] = useState<DeviceContext>('desktop');
 
@@ -63,7 +63,7 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
   // AutoConnect logic:
   // - Desktop: always autoConnect
   // - Phantom browser: always autoConnect (provider is injected)
-  // - Mobile browser: only autoConnect if user was previously authenticated
+  // - Mobile browser (iOS/Android): only autoConnect if user was previously authenticated
   const shouldAutoConnect = deviceContext === 'desktop' || deviceContext === 'phantom-browser' || hasPreviousAuth;
 
   // Use devnet by default, can be changed via environment variable
@@ -92,8 +92,14 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
       return [new PhantomWalletAdapter()];
     }
 
-    if (deviceContext === 'mobile-browser') {
-      // Regular mobile browser: use Mobile Wallet Adapter for deep linking
+    if (deviceContext === 'ios-mobile-browser') {
+      // iOS Safari/Chrome: PhantomWalletAdapter handles redirect to Phantom's in-app browser
+      // SolanaMobileWalletAdapter does NOT work on iOS (requires Android MWA protocol)
+      return [new PhantomWalletAdapter()];
+    }
+
+    if (deviceContext === 'android-mobile-browser') {
+      // Android mobile browser: use Mobile Wallet Adapter for deep linking
       const cluster = (process.env.NEXT_PUBLIC_SOLANA_NETWORK as 'devnet' | 'mainnet-beta') || 'devnet';
       return [
         new SolanaMobileWalletAdapter({
