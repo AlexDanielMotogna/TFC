@@ -6,7 +6,7 @@ import { TokenIcon, extractBaseSymbol } from '@/components/TokenIcon';
 
 // Wallets supported - using local icons
 const wallets = [
-  { name: 'Phantom', logo: '/images/landing/walletConnection/Phantom.png' },
+  { name: 'Phantom', logo: '/wallets/Phantom-Icon_App.svg' },
   { name: 'MetaMask', logo: '/images/landing/walletConnection/Metamaks.png' },
   { name: 'Solflare', logo: '/images/landing/walletConnection/Solflare.png' },
 ];
