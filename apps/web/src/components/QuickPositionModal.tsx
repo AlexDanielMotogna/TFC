@@ -170,15 +170,15 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
-        className="bg-surface-850 border border-surface-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-surface-850 border border-surface-800 rounded-t-xl sm:rounded-xl shadow-2xl w-full sm:max-w-md sm:mx-4 overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-white font-mono text-lg font-bold">
@@ -201,54 +201,48 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </button>
         </div>
 
-        {/* Position Info */}
-        <div className="px-6 py-4 bg-surface-900/50 border-b border-surface-800">
-          <div className="grid grid-cols-3 gap-3">
+        {/* Position Info - Compact layout for mobile */}
+        <div className="px-4 py-3 bg-surface-900/50 border-b border-surface-800">
+          <div className="grid grid-cols-3 gap-x-3 gap-y-2">
             <div className="text-center">
-              <div className="text-xs text-surface-500 mb-1">Size</div>
-              <div className="text-sm text-white font-mono">
-                {positionSize.toFixed(6)} {symbol}
+              <div className="text-[10px] text-surface-500">Entry</div>
+              <div className="text-xs text-white font-mono">
+                ${entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-xs text-surface-500 mb-1">Pos Value</div>
-              <div className="text-sm text-white font-mono">
+              <div className="text-[10px] text-surface-500">Mark</div>
+              <div className="text-xs text-white font-mono">
+                ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] text-surface-500 flex items-center justify-center gap-0.5">
+                <TrendingDownIcon sx={{ fontSize: 10 }} className="text-loss-400" />
+                Liq
+              </div>
+              <div className="text-xs text-loss-400 font-mono">
+                ${position.liq_price ? parseFloat(position.liq_price).toLocaleString() : 'N/A'}
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] text-surface-500">Size</div>
+              <div className="text-xs text-white font-mono">
                 ${(positionSize * currentPrice).toFixed(2)}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-xs text-surface-500 mb-1">Margin</div>
-              <div className="text-sm text-white font-mono">
+              <div className="text-[10px] text-surface-500">Margin</div>
+              <div className="text-xs text-white font-mono">
                 ${margin.toFixed(2)}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-xs text-surface-500 mb-1">Entry</div>
-              <div className="text-sm text-white font-mono">
-                ${entryPrice.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-surface-500 mb-1">Mark</div>
-              <div className="text-sm text-white font-mono">
-                ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-surface-500 mb-1 flex items-center justify-center gap-1">
-                <TrendingDownIcon sx={{ fontSize: 12 }} className="text-loss-400" />
-                Liq
-              </div>
-              <div className="text-sm text-loss-400 font-mono">
-                ${position.liq_price ? parseFloat(position.liq_price).toLocaleString() : 'N/A'}
-              </div>
-            </div>
-            <div className="col-span-3 text-center">
-              <div className="text-xs text-surface-500 mb-1">Unrealized PnL</div>
-              <div className={`text-sm font-mono ${
+              <div className="text-[10px] text-surface-500">PnL</div>
+              <div className={`text-xs font-mono ${
                 isProfitable ? 'text-win-400' : 'text-loss-400'
               }`}>
-                {isProfitable ? '+' : ''}${pnl.toFixed(2)} ({isProfitable ? '+' : ''}{pnlPercent.toFixed(2)}%)
+                {isProfitable ? '+' : ''}{pnlPercent.toFixed(2)}% (${pnl.toFixed(2)})
               </div>
             </div>
           </div>
@@ -258,25 +252,25 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         <div className="flex border-b border-surface-800">
           <button
             onClick={() => setActiveTab('close')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'close'
                 ? 'bg-surface-800 text-white border-b-2 border-primary-500'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
-            <CloseIcon sx={{ fontSize: 18 }} />
+            <CloseIcon sx={{ fontSize: 16 }} />
             Close
           </button>
           <button
             onClick={() => setActiveTab('tpsl')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'tpsl'
                 ? 'bg-surface-800 text-white border-b-2 border-primary-500'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
             <svg
-              className="w-[18px] h-[18px]"
+              className="w-4 h-4"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -287,19 +281,19 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </button>
           <button
             onClick={() => setActiveTab('flip')}
-            className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'flip'
                 ? 'bg-surface-800 text-white border-b-2 border-primary-500'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
-            <SwapVertIcon sx={{ fontSize: 18 }} />
+            <SwapVertIcon sx={{ fontSize: 16 }} />
             Flip
           </button>
         </div>
 
-        {/* Tab Content - Fixed height to prevent layout shift */}
-        <div className="px-6 py-4 overflow-y-auto" style={{ minHeight: '280px', maxHeight: '280px' }}>
+        {/* Tab Content - Scrollable, adapts to available space */}
+        <div className="px-4 py-3 overflow-y-auto flex-1 min-h-0">
           {activeTab === 'close' && (
             <div className="space-y-4">
               <div>
@@ -479,13 +473,13 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         </div>
 
         {/* Modal Footer - Action Buttons */}
-        <div className="px-6 py-4 border-t border-surface-800 bg-surface-900/30 space-y-3">
+        <div className="px-4 py-3 border-t border-surface-800 bg-surface-900/30 space-y-2">
           {activeTab === 'close' && (
             <>
               <button
                 onClick={handleClose}
                 disabled={isSubmitting || closeAmountTokens === 0}
-                className="w-full bg-loss-500 hover:bg-loss-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                className="w-full bg-loss-500 hover:bg-loss-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Closing Position...' : `Close ${closePercentage.toFixed(0)}% at Market`}
               </button>
@@ -493,7 +487,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
@@ -505,7 +499,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <button
                 onClick={handleSetTpSl}
                 disabled={isSubmitting || (!takeProfitPrice && !stopLossPrice)}
-                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Setting TP/SL...' : 'Set TP/SL'}
               </button>
@@ -513,7 +507,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
@@ -525,7 +519,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <button
                 onClick={handleFlip}
                 disabled={isSubmitting}
-                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-3 px-4 rounded-lg transition-colors"
+                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Flipping Position...' : `Flip to ${!isLong ? 'LONG' : 'SHORT'}`}
               </button>
@@ -533,7 +527,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2.5 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
