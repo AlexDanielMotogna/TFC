@@ -526,13 +526,18 @@ export default function AdminReferralPayoutsPage() {
                               Loading details...
                             </div>
                           ) : payoutDetails[payout.id] ? (
-                            <div className="space-y-4">
-                              {/* Related Earnings */}
-                              <div>
-                                <h4 className="text-sm font-semibold text-white mb-2">
-                                  Related Earnings ({payoutDetails[payout.id].relatedEarnings.length})
-                                </h4>
-                                {payoutDetails[payout.id].relatedEarnings.length > 0 ? (
+                            (() => {
+                              const details = payoutDetails[payout.id];
+                              if (!details) return null;
+
+                              return (
+                                <div className="space-y-4">
+                                  {/* Related Earnings */}
+                                  <div>
+                                    <h4 className="text-sm font-semibold text-white mb-2">
+                                      Related Earnings ({details.relatedEarnings.length})
+                                    </h4>
+                                    {details.relatedEarnings.length > 0 ? (
                                   <div className="bg-surface-800 rounded-lg overflow-hidden">
                                     <table className="w-full">
                                       <thead>
@@ -555,7 +560,7 @@ export default function AdminReferralPayoutsPage() {
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-surface-700">
-                                        {payoutDetails[payout.id].relatedEarnings.map((earning) => (
+                                        {details.relatedEarnings.map((earning) => (
                                           <tr key={earning.id}>
                                             <td className="px-3 py-2 text-sm text-white">
                                               {earning.traderHandle}
@@ -582,49 +587,49 @@ export default function AdminReferralPayoutsPage() {
                                 )}
                               </div>
 
-                              {/* Retry Information */}
-                              {payout.status === 'failed' && (
-                                <div>
-                                  <h4 className="text-sm font-semibold text-white mb-2">
-                                    Retry Information
-                                  </h4>
-                                  <div className="bg-surface-800 rounded-lg p-3 space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-surface-400">Retry Attempts:</span>
-                                      <span className="text-white">
-                                        {payoutDetails[payout.id].retryInfo.estimatedRetryCount} / 3
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-surface-400">Payout Age:</span>
-                                      <span className="text-white">
-                                        {payoutDetails[payout.id].retryInfo.ageMinutes} minutes
-                                      </span>
-                                    </div>
-                                    {payoutDetails[payout.id].retryInfo.nextRetryTime && (
-                                      <div className="flex justify-between text-sm">
-                                        <span className="text-surface-400">Next Retry:</span>
-                                        <span className="text-white">
-                                          {formatRelativeTime(
-                                            payoutDetails[payout.id].retryInfo.nextRetryTime
-                                          )}
-                                        </span>
+                                  {/* Retry Information */}
+                                  {payout.status === 'failed' && (
+                                    <div>
+                                      <h4 className="text-sm font-semibold text-white mb-2">
+                                        Retry Information
+                                      </h4>
+                                      <div className="bg-surface-800 rounded-lg p-3 space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                          <span className="text-surface-400">Retry Attempts:</span>
+                                          <span className="text-white">
+                                            {details.retryInfo.estimatedRetryCount} / 3
+                                          </span>
+                                        </div>
+                                        <div className="flex justify-between text-sm">
+                                          <span className="text-surface-400">Payout Age:</span>
+                                          <span className="text-white">
+                                            {details.retryInfo.ageMinutes} minutes
+                                          </span>
+                                        </div>
+                                        {details.retryInfo.nextRetryTime && (
+                                          <div className="flex justify-between text-sm">
+                                            <span className="text-surface-400">Next Retry:</span>
+                                            <span className="text-white">
+                                              {formatRelativeTime(details.retryInfo.nextRetryTime)}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {details.retryInfo.maxRetriesReached && (
+                                          <p className="text-sm text-loss-400">
+                                            ⚠️ Maximum retry attempts reached. Manual intervention required.
+                                          </p>
+                                        )}
+                                        {details.retryInfo.tooOldForRetry && (
+                                          <p className="text-sm text-loss-400">
+                                            ⚠️ Payout is older than 24 hours. Automatic retries disabled.
+                                          </p>
+                                        )}
                                       </div>
-                                    )}
-                                    {payoutDetails[payout.id].retryInfo.maxRetriesReached && (
-                                      <p className="text-sm text-loss-400">
-                                        ⚠️ Maximum retry attempts reached. Manual intervention required.
-                                      </p>
-                                    )}
-                                    {payoutDetails[payout.id].retryInfo.tooOldForRetry && (
-                                      <p className="text-sm text-loss-400">
-                                        ⚠️ Payout is older than 24 hours. Automatic retries disabled.
-                                      </p>
-                                    )}
-                                  </div>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
+                              );
+                            })()
                           ) : (
                             <div className="text-center text-surface-400 py-4">
                               Failed to load details
