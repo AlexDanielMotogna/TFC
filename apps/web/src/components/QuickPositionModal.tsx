@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useCreateMarketOrder, useSetPositionTpSl } from '@/hooks/useOrders';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useCreateMarketOrder, useCreateLimitOrder, useSetPositionTpSl } from '@/hooks/useOrders';
 import { usePrices } from '@/hooks/usePrices';
 import type { Position } from '@/hooks/usePacificaWebSocket';
 import CloseIcon from '@mui/icons-material/Close';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 import {
@@ -13,8 +12,9 @@ import {
   calculateSlPrice,
   calculatePositionMetrics,
   roundToLotSize,
+  roundToTickSize,
+  formatPrice,
   type PositionInfo,
-  type RawPosition
 } from '@/lib/trading/utils';
 
 interface QuickPositionModalProps {
@@ -33,13 +33,19 @@ interface QuickPositionModalProps {
 export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionModalProps) {
   const { getPrice } = usePrices();
   const createMarketOrder = useCreateMarketOrder();
+  const createLimitOrder = useCreateLimitOrder();
   const setTpSl = useSetPositionTpSl();
 
-  const [activeTab, setActiveTab] = useState<'close' | 'tpsl' | 'flip'>('close');
+  const [activeTab, setActiveTab] = useState<'close' | 'limit' | 'tpsl' | 'flip'>('close');
   const [closeAmount, setCloseAmount] = useState('100'); // Percentage
   const [stopLossPrice, setStopLossPrice] = useState('');
   const [takeProfitPrice, setTakeProfitPrice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Limit close state
+  const [limitPrice, setLimitPrice] = useState('');
+  const [limitCloseAmount, setLimitCloseAmount] = useState('');
+  const [limitClosePercentage, setLimitClosePercentage] = useState(0);
 
   const symbol = position.symbol;
   const symbolBase = symbol.replace('-USD', '');
@@ -60,9 +66,22 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   const isLong = side === 'LONG';
   const isProfitable = pnl >= 0;
 
-  // Get lot size and tick size from price data
+  // Get lot size and tick size from price data (same source as TpSlModal)
   const lotSize = priceData?.lotSize || 0.00001;
   const tickSize = priceData?.tickSize || 0.01;
+
+  // Memoized formatting helpers (same as TpSlModal and MarketCloseModal)
+  const { formatAmount } = useMemo(() => {
+    const decimals = Math.max(0, -Math.floor(Math.log10(lotSize)));
+    return {
+      formatAmount: (value: number): string => value.toFixed(decimals),
+    };
+  }, [lotSize]);
+
+  // Helper: round to lot size locally (floor, same as MarketCloseModal)
+  const floorToLotSize = useCallback((value: number): number => {
+    return Math.floor(value / lotSize) * lotSize;
+  }, [lotSize]);
 
   // Position info for TP/SL calculations (margin-based)
   const positionInfo: PositionInfo = {
@@ -77,15 +96,64 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   const rawCloseAmount = (positionSize * closePercentage) / 100;
   const closeAmountTokens = parseFloat(roundToLotSize(rawCloseAmount, lotSize));
 
-  // Reset form when modal opens
+  // Limit close: calculate amount tokens
+  const limitCloseAmountTokens = parseFloat(limitCloseAmount) || 0;
+
+  // Limit close: estimated PnL
+  const limitEstimatedPnl = useMemo(() => {
+    const closePrice = parseFloat(limitPrice) || 0;
+    if (!closePrice || !limitCloseAmountTokens) return 0;
+    const priceDiff = isLong
+      ? closePrice - entryPrice
+      : entryPrice - closePrice;
+    return priceDiff * limitCloseAmountTokens;
+  }, [limitPrice, limitCloseAmountTokens, isLong, entryPrice]);
+
+  // Limit close: USD value
+  const limitCloseUsdValue = useMemo(() => {
+    return limitCloseAmountTokens * (parseFloat(limitPrice) || currentPrice);
+  }, [limitCloseAmountTokens, limitPrice, currentPrice]);
+
+  // Limit close handlers (same logic as LimitCloseModal)
+  const handleLimitPercentageChange = useCallback((pct: number) => {
+    setLimitClosePercentage(pct);
+    const rawAmount = positionSize * pct / 100;
+    const roundedAmount = floorToLotSize(rawAmount);
+    setLimitCloseAmount(formatAmount(roundedAmount));
+  }, [positionSize, floorToLotSize, formatAmount]);
+
+  const handleLimitAmountChange = (value: string) => {
+    setLimitCloseAmount(value);
+    const numAmount = parseFloat(value) || 0;
+    const pct = positionSize > 0 ? Math.min(100, (numAmount / positionSize) * 100) : 0;
+    setLimitClosePercentage(pct);
+  };
+
+  const handleLimitAmountBlur = () => {
+    const numAmount = parseFloat(limitCloseAmount) || 0;
+    if (numAmount > 0) {
+      const roundedAmount = Math.min(floorToLotSize(numAmount), positionSize);
+      setLimitCloseAmount(formatAmount(roundedAmount));
+      const pct = positionSize > 0 ? Math.min(100, (roundedAmount / positionSize) * 100) : 0;
+      setLimitClosePercentage(pct);
+    }
+  };
+
+  // Reset form when modal opens (only on open transition, not on price updates)
+  const [wasOpen, setWasOpen] = useState(false);
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpen) {
+      // Modal just opened - reset everything
       setCloseAmount('100');
       setStopLossPrice('');
       setTakeProfitPrice('');
+      setLimitPrice(formatPrice(markPrice));
+      setLimitCloseAmount('');
+      setLimitClosePercentage(0);
       setActiveTab('close');
     }
-  }, [isOpen]);
+    setWasOpen(isOpen);
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
 
@@ -98,7 +166,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
       await createMarketOrder.mutateAsync({
         symbol: symbol,
         side: isLong ? 'ask' : 'bid', // Opposite side to close
-        amount: closeAmountTokens.toFixed(8),
+        amount: formatAmount(closeAmountTokens),
         reduceOnly: true,
         slippage_percent: '1',
       });
@@ -111,18 +179,42 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
     }
   };
 
+  const handleLimitClose = async () => {
+    if (isSubmitting || !limitPrice || !limitCloseAmount || limitCloseAmountTokens <= 0) return;
+
+    try {
+      setIsSubmitting(true);
+
+      const tokenSymbol = symbol.replace('-USD', '');
+      await createLimitOrder.mutateAsync({
+        symbol: tokenSymbol,
+        side: isLong ? 'ask' : 'bid', // Opposite side to close
+        amount: limitCloseAmount,
+        price: limitPrice,
+        reduceOnly: true,
+      });
+
+      onClose();
+    } catch (error) {
+      console.error('Failed to limit close position:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleSetTpSl = async () => {
     if (isSubmitting) return;
 
     try {
       setIsSubmitting(true);
 
-      const takeProfit = takeProfitPrice
-        ? { stop_price: takeProfitPrice }
+      // Round prices to tick size before submitting (same as TpSlModal)
+      const takeProfit = takeProfitPrice && parseFloat(takeProfitPrice) > 0
+        ? { stop_price: roundToTickSize(parseFloat(takeProfitPrice), tickSize) }
         : null;
 
-      const stopLoss = stopLossPrice
-        ? { stop_price: stopLossPrice }
+      const stopLoss = stopLossPrice && parseFloat(stopLossPrice) > 0
+        ? { stop_price: roundToTickSize(parseFloat(stopLossPrice), tickSize) }
         : null;
 
       await setTpSl.mutateAsync({
@@ -148,14 +240,13 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
       setIsSubmitting(true);
 
       // Flip = close current position + open opposite with same size
-      // Round to lot size to avoid errors
-      const rawDoubleAmount = positionSize * 2;
-      const doubleAmount = Math.floor(rawDoubleAmount / lotSize) * lotSize;
+      // Use 2x position size (same as terminal's trade/page.tsx)
+      const doubleAmount = (positionSize * 2).toString();
 
       await createMarketOrder.mutateAsync({
         symbol: symbol,
         side: isLong ? 'ask' : 'bid', // Opposite side to flip
-        amount: doubleAmount.toFixed(8),
+        amount: doubleAmount,
         reduceOnly: false,
         slippage_percent: '1',
       });
@@ -252,18 +343,31 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         <div className="flex border-b border-surface-800">
           <button
             onClick={() => setActiveTab('close')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'close'
                 ? 'bg-surface-800 text-white border-b-2 border-primary-500'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
             <CloseIcon sx={{ fontSize: 16 }} />
-            Close
+            Market
+          </button>
+          <button
+            onClick={() => setActiveTab('limit')}
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+              activeTab === 'limit'
+                ? 'bg-surface-800 text-white border-b-2 border-primary-500'
+                : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+            Limit
           </button>
           <button
             onClick={() => setActiveTab('tpsl')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'tpsl'
                 ? 'bg-surface-800 text-white border-b-2 border-primary-500'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
@@ -281,7 +385,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </button>
           <button
             onClick={() => setActiveTab('flip')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
               activeTab === 'flip'
                 ? 'bg-surface-800 text-white border-b-2 border-primary-500'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
@@ -335,8 +439,103 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                   }}
                 />
                 <div className="text-xs text-surface-500 mt-2">
-                  {closeAmountTokens.toFixed(8)} {symbol} (${(closeAmountTokens * currentPrice).toFixed(2)})
+                  {formatAmount(closeAmountTokens)} {symbolBase} (${(closeAmountTokens * currentPrice).toFixed(2)})
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'limit' && (
+            <div className="space-y-4">
+              {/* Live Price Display */}
+              <div className="flex items-center justify-between bg-surface-900/50 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-mono text-lg tabular-nums">{formatPrice(currentPrice)}</span>
+                  <span className="text-surface-500 text-sm">USD</span>
+                </div>
+                <span className="text-[10px] text-win-400 bg-win-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
+                  LIVE
+                </span>
+              </div>
+
+              {/* Price Input */}
+              <div>
+                <label className="block text-xs text-surface-400 mb-2">Price</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={limitPrice}
+                    onChange={(e) => setLimitPrice(e.target.value)}
+                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    placeholder="0.00"
+                  />
+                  <button
+                    onClick={() => setLimitPrice(formatPrice(currentPrice))}
+                    className="px-3 py-2 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                  >
+                    Mid
+                  </button>
+                  <span className="text-surface-400 text-sm">USD</span>
+                </div>
+              </div>
+
+              {/* Amount Input */}
+              <div>
+                <label className="block text-xs text-surface-400 mb-2">Amount</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={limitCloseAmount}
+                    onChange={(e) => handleLimitAmountChange(e.target.value)}
+                    onBlur={handleLimitAmountBlur}
+                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    placeholder="0.00"
+                  />
+                  <span className="text-surface-400 text-sm">{symbolBase}</span>
+                </div>
+                <div className="text-xs text-surface-500 mt-1">
+                  ${limitCloseUsdValue.toFixed(2)} USD
+                </div>
+              </div>
+
+              {/* Quick Percentage Buttons */}
+              <div className="flex gap-2">
+                {[25, 50, 75, 100].map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => handleLimitPercentageChange(pct)}
+                    className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${
+                      Math.abs(limitClosePercentage - pct) < 1
+                        ? 'bg-primary-500 text-white'
+                        : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white'
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+
+              {/* Percentage Slider */}
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={limitClosePercentage}
+                onChange={(e) => handleLimitPercentageChange(parseInt(e.target.value))}
+                className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
+                style={{
+                  background: `linear-gradient(to right, #22d3ee 0%, #22d3ee ${limitClosePercentage}%, #27272a ${limitClosePercentage}%, #27272a 100%)`
+                }}
+              />
+
+              {/* Estimated PnL */}
+              <div className="flex justify-end items-center gap-2 text-xs">
+                <span className="text-surface-400">Estimated PnL:</span>
+                <span className={`font-mono font-semibold ${
+                  limitEstimatedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
+                }`}>
+                  {limitEstimatedPnl >= 0 ? '+' : '-'}${Math.abs(limitEstimatedPnl).toFixed(2)}
+                </span>
               </div>
             </div>
           )}
@@ -384,7 +583,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     return (
                       <button
                         key={pct}
-                        onClick={() => setTakeProfitPrice(tpPrice.toFixed(2))}
+                        onClick={() => setTakeProfitPrice(roundToTickSize(tpPrice, tickSize))}
                         className="flex-1 py-1.5 rounded text-xs font-medium bg-surface-700 text-surface-300 hover:bg-surface-600 hover:text-white transition-colors"
                       >
                         {pct}%
@@ -435,7 +634,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     return (
                       <button
                         key={pct}
-                        onClick={() => setStopLossPrice(slPrice.toFixed(2))}
+                        onClick={() => setStopLossPrice(roundToTickSize(slPrice, tickSize))}
                         className="flex-1 py-1.5 rounded text-xs font-medium bg-surface-700 text-surface-300 hover:bg-surface-600 hover:text-white transition-colors"
                       >
                         {pct}%
@@ -457,13 +656,13 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-surface-400">Current:</span>
                   <span className={`font-medium ${isLong ? 'text-win-400' : 'text-loss-400'}`}>
-                    {positionSize.toFixed(6)} {symbol} {isLong ? 'LONG' : 'SHORT'}
+                    {formatAmount(positionSize)} {symbolBase} {isLong ? 'LONG' : 'SHORT'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-sm mt-2">
                   <span className="text-surface-400">After flip:</span>
                   <span className={`font-medium ${!isLong ? 'text-win-400' : 'text-loss-400'}`}>
-                    {positionSize.toFixed(6)} {symbol} {!isLong ? 'LONG' : 'SHORT'}
+                    {formatAmount(positionSize)} {symbolBase} {!isLong ? 'LONG' : 'SHORT'}
                   </span>
                 </div>
               </div>
@@ -482,6 +681,26 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 className="w-full bg-loss-500 hover:bg-loss-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Closing Position...' : `Close ${closePercentage.toFixed(0)}% at Market`}
+              </button>
+              <button
+                onClick={() => {
+                  window.location.href = `/trade?symbol=${symbolBase}`;
+                }}
+                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+              >
+                Go to Terminal
+              </button>
+            </>
+          )}
+
+          {activeTab === 'limit' && (
+            <>
+              <button
+                onClick={handleLimitClose}
+                disabled={isSubmitting || !limitPrice || limitCloseAmountTokens <= 0}
+                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+              >
+                {isSubmitting ? 'Submitting...' : 'Limit Close'}
               </button>
               <button
                 onClick={() => {
