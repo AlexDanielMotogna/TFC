@@ -6,6 +6,7 @@
  */
 
 import { ReactNode } from 'react';
+import { Spinner } from './Spinner';
 
 // Base skeleton with shimmer animation
 function Skeleton({ className = '' }: { className?: string }) {
@@ -332,10 +333,10 @@ export function ArenaSkeleton() {
       </div>
 
       {/* Content - Loading state */}
-      <div className="card text-center py-16">
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-10 h-10 rounded-full border-4 border-surface-800 border-t-primary-500 animate-spin" />
-          <p className="text-surface-500">Loading fights...</p>
+      <div className="text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Spinner size="md" />
+          <span className="text-sm text-surface-400">Loading fights...</span>
         </div>
       </div>
     </div>
@@ -420,11 +421,9 @@ export function PageLoadingSkeleton({ title }: { title?: string }) {
         </div>
       )}
       <div className="flex justify-center py-20">
-        <div className="flex flex-col items-center gap-2">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full border-4 border-surface-800 border-t-primary-500 animate-spin" />
-          </div>
-          <p className="text-surface-400 animate-pulse">Loading...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Spinner size="lg" />
+          <span className="text-sm text-surface-400">Loading...</span>
         </div>
       </div>
     </div>
