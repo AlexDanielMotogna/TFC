@@ -216,7 +216,7 @@ export default function ProfilePage() {
               <div className="w-20 h-20 mx-auto mb-2 rounded-full bg-surface-800 flex items-center justify-center">
                 <span className="text-4xl opacity-50">?</span>
               </div>
-              <p className="text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
+              <p className="text-sm sm:text-xl mb-4 text-surface-400">{error || 'Fighter not found'}</p>
               <Link href="/lobby" className="btn-primary">
                 Back to Arena
               </Link>
@@ -245,7 +245,7 @@ export default function ProfilePage() {
             {/* Avatar */}
             <div className="relative">
               <div className="p-1 rounded-full bg-gradient-to-r from-primary-500 to-accent-500">
-                <div className="avatar w-20 h-20 text-2xl bg-surface-850">
+                <div className="avatar w-20 h-20 text-sm sm:text-2xl bg-surface-850">
                   {profile.handle[0]?.toUpperCase() || '?'}
                 </div>
               </div>
@@ -423,7 +423,7 @@ export default function ProfilePage() {
         {/* Performance Chart */}
         <div className="card overflow-hidden mb-2">
           <div className="p-4 sm:p-6 border-b border-surface-800">
-            <h2 className="text-lg sm:text-xl font-bold">Performance History</h2>
+            <h2 className="text-sm sm:text-xl font-bold">Performance History</h2>
           </div>
           <div className="p-4">
             {mode === 'fights' ? (
@@ -439,7 +439,7 @@ export default function ProfilePage() {
           /* Fight History */
           <div className="card overflow-hidden">
             <div className="p-4 sm:p-6 border-b border-surface-800">
-              <h2 className="text-lg sm:text-xl font-bold">Fight History</h2>
+              <h2 className="text-sm sm:text-xl font-bold">Fight History</h2>
             </div>
             {fights.length === 0 ? (
               <div className="p-12 text-center">
