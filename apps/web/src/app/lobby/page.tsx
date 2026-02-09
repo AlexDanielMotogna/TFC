@@ -268,7 +268,7 @@ export default function LobbyPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
             {/* Title - Left */}
             <div>
-              <h2 className="font-display text-base sm:text-2xl font-bold text-white">Arena</h2>
+              <h2 className="font-display text-sm sm:text-2xl font-bold text-white">Arena</h2>
               <p className="text-surface-400 text-sm">Challenge traders to 1v1 battles. Win weekly prizes.</p>
             </div>
 
@@ -304,7 +304,7 @@ export default function LobbyPage() {
         {/* Compact Header with Stats */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
           <div>
-            <h2 className="font-display text-base sm:text-2xl font-bold text-white">Arena</h2>
+            <h2 className="font-display text-sm sm:text-2xl font-bold text-white">Arena</h2>
             <p className="text-surface-400 text-sm">
               Challenge traders to 1v1 battles. Win weekly prizes.
             </p>
@@ -463,7 +463,7 @@ export default function LobbyPage() {
           </div>
         ) : displayFights.length === 0 ? (
           <div className="text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
-            <p className="text-surface-400 text-lg mb-4">
+            <p className="text-surface-400 text-sm sm:text-lg mb-4">
               {hasActiveFilters ? (
                 'No fights match your filters'
               ) : (
@@ -586,7 +586,7 @@ export default function LobbyPage() {
           <div className="modal-content p-6 max-w-md" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-display text-xl font-bold uppercase tracking-wide">
+              <h3 className="font-display text-sm sm:text-xl font-bold uppercase tracking-wide">
                 Create Fight
               </h3>
               <button

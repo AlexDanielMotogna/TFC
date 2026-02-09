@@ -131,7 +131,7 @@ export default function ReferralsPage() {
           <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-12 text-center">
               <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
-              <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
               <p className="text-surface-500">Please connect your wallet to access the referral system.</p>
             </div>
           </div>
@@ -246,7 +246,7 @@ export default function ReferralsPage() {
           <div className="container mx-auto px-2 md:px-6 py-8">
             <div className="card p-12 text-center">
               <GroupsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
-              <h3 className="text-lg font-semibold text-surface-300 mb-2">Referral system unavailable</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-surface-300 mb-2">Referral system unavailable</h3>
               <p className="text-surface-500">Please try again later.</p>
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function ReferralsPage() {
           <div className="flex items-center gap-3 mb-2">
             <GroupsIcon sx={{ color: '#f97316', fontSize: 28 }} />
             <div>
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-white">Referral Program</h1>
+              <h1 className="font-display text-sm sm:text-2xl font-bold text-white">Referral Program</h1>
               <p className="text-surface-400 text-xs sm:text-sm">Earn {dashboard.commissionRates.t1}% commission on referrals</p>
             </div>
           </div>
@@ -306,7 +306,7 @@ export default function ReferralsPage() {
                 Unclaimed Earnings
               </h2>
               <div className="mb-4">
-                <p className="text-lg sm:text-4xl font-bold text-white mb-1">
+                <p className="text-sm sm:text-4xl font-bold text-white mb-1">
                   ${dashboard.unclaimedPayout.toFixed(2)}
                 </p>
                 <p className="text-xs text-surface-500">Minimum ${minPayoutAmount.toFixed(2)} to claim</p>
@@ -335,7 +335,7 @@ export default function ReferralsPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-surface-300">Total Referrals</h3>
               </div>
-              <p className="text-base sm:text-3xl font-bold text-white mb-2">{dashboard.totalReferrals.total}</p>
+              <p className="text-sm sm:text-3xl font-bold text-white mb-2">{dashboard.totalReferrals.total}</p>
               <div className="flex gap-3 text-xs text-surface-400">
                 <span>T1: {dashboard.totalReferrals.t1}</span>
                 <span>T2: {dashboard.totalReferrals.t2}</span>
@@ -351,7 +351,7 @@ export default function ReferralsPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-surface-300">Total Earnings</h3>
               </div>
-              <p className="text-base sm:text-3xl font-bold text-white mb-2">${dashboard.totalEarnings.total.toFixed(2)}</p>
+              <p className="text-sm sm:text-3xl font-bold text-white mb-2">${dashboard.totalEarnings.total.toFixed(2)}</p>
               <div className="flex gap-3 text-xs text-surface-400">
                 <span>T1: ${dashboard.totalEarnings.t1.toFixed(2)}</span>
                 <span>T2: ${dashboard.totalEarnings.t2.toFixed(2)}</span>
@@ -367,7 +367,7 @@ export default function ReferralsPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-surface-300">Referral Volume</h3>
               </div>
-              <p className="text-base sm:text-3xl font-bold text-white mb-2">${dashboard.referralVolume.total.toFixed(2)}</p>
+              <p className="text-sm sm:text-3xl font-bold text-white mb-2">${dashboard.referralVolume.total.toFixed(2)}</p>
               <div className="flex gap-3 text-xs text-surface-400">
                 <span>T1: ${dashboard.referralVolume.t1.toFixed(2)}</span>
                 <span>T2: ${dashboard.referralVolume.t2.toFixed(2)}</span>

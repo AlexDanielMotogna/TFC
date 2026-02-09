@@ -171,7 +171,7 @@ export default function FightResultsPage() {
       <BetaGate>
         <div className="min-h-screen bg-surface-900 flex items-center justify-center text-white">
           <div className="text-center">
-            <p className="text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
+            <p className="text-sm sm:text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
             <Link href="/trade" className="btn-primary">
               Back to Lobby
             </Link>
@@ -306,7 +306,7 @@ export default function FightResultsPage() {
         <div className="text-center mb-8">
           {fight.status === 'NO_CONTEST' ? (
             <>
-              <h1 className="text-lg sm:text-4xl font-display font-bold text-amber-400 mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-amber-400 mb-2">
                 NO CONTEST
               </h1>
               <p className="text-surface-400">
@@ -330,14 +330,14 @@ export default function FightResultsPage() {
             </>
           ) : fight.isDraw ? (
             <>
-              <h1 className="text-lg sm:text-4xl font-display font-bold text-surface-300 mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-surface-300 mb-2">
                 DRAW
               </h1>
               <p className="text-surface-400">Both traders finished with equal performance</p>
             </>
           ) : fight.status === 'CANCELLED' ? (
             <>
-              <h1 className="text-lg sm:text-4xl font-display font-bold text-loss-400 mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-loss-400 mb-2">
                 CANCELLED
               </h1>
               <p className="text-surface-400">This fight was cancelled</p>
@@ -345,14 +345,14 @@ export default function FightResultsPage() {
           ) : isCurrentUserParticipant ? (
             isCurrentUserWinner ? (
               <>
-                <h1 className="text-lg sm:text-4xl font-display font-bold text-win-400 mb-2">
+                <h1 className="text-sm sm:text-4xl font-display font-bold text-win-400 mb-2">
                   VICTORY!
                 </h1>
                 <p className="text-surface-400">Congratulations, you won this fight!</p>
               </>
             ) : (
               <>
-                <h1 className="text-lg sm:text-4xl font-display font-bold text-loss-400 mb-2">
+                <h1 className="text-sm sm:text-4xl font-display font-bold text-loss-400 mb-2">
                   DEFEAT
                 </h1>
                 <p className="text-surface-400">Better luck next time!</p>
@@ -360,7 +360,7 @@ export default function FightResultsPage() {
             )
           ) : (
             <>
-              <h1 className="text-lg sm:text-4xl font-display font-bold text-white mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-white mb-2">
                 FIGHT RESULTS
               </h1>
               <p className="text-surface-400">
@@ -377,7 +377,7 @@ export default function FightResultsPage() {
             <div className={`flex-1 text-center ${winner?.userId === participantA?.userId ? 'opacity-100' : fight.winnerId ? 'opacity-60' : 'opacity-100'}`}>
               <div className="relative inline-block mb-2 sm:mb-3">
                 <div
-                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold ${
+                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-sm sm:text-2xl font-bold ${
                     winner?.userId === participantA?.userId
                       ? 'bg-gradient-to-br from-win-500 to-win-600 ring-4 ring-win-500/30'
                       : 'bg-surface-700'
@@ -395,7 +395,7 @@ export default function FightResultsPage() {
                 {participantA?.user?.handle || 'Unknown'}
               </h3>
               <p
-                className={`text-lg sm:text-2xl font-mono font-bold ${
+                className={`text-sm sm:text-2xl font-mono font-bold ${
                   parseDecimal(participantA?.finalPnlPercent) >= 0 ? 'text-win-400' : 'text-loss-400'
                 }`}
               >
@@ -425,14 +425,14 @@ export default function FightResultsPage() {
 
             {/* VS */}
             <div className="px-2 sm:px-6 flex-shrink-0">
-              <div className="text-xl sm:text-3xl font-display font-bold text-surface-600">VS</div>
+              <div className="text-sm sm:text-3xl font-display font-bold text-surface-600">VS</div>
             </div>
 
             {/* Participant B */}
             <div className={`flex-1 text-center ${winner?.userId === participantB?.userId ? 'opacity-100' : fight.winnerId ? 'opacity-60' : 'opacity-100'}`}>
               <div className="relative inline-block mb-2 sm:mb-3">
                 <div
-                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold ${
+                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-sm sm:text-2xl font-bold ${
                     winner?.userId === participantB?.userId
                       ? 'bg-gradient-to-br from-win-500 to-win-600 ring-4 ring-win-500/30'
                       : 'bg-surface-700'
@@ -452,7 +452,7 @@ export default function FightResultsPage() {
               {participantB && (
                 <>
                   <p
-                    className={`text-lg sm:text-2xl font-mono font-bold ${
+                    className={`text-sm sm:text-2xl font-mono font-bold ${
                       parseDecimal(participantB?.finalPnlPercent) >= 0 ? 'text-win-400' : 'text-loss-400'
                     }`}
                   >
@@ -488,25 +488,25 @@ export default function FightResultsPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Duration</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               {formatDuration(fight.durationMinutes)}
             </p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Stake</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               ${fight.stakeUsdc}
             </p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Started</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               {fight.startedAt ? formatTime(fight.startedAt) : '-'}
             </p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Ended</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               {fight.endedAt ? formatTime(fight.endedAt) : '-'}
             </p>
           </div>

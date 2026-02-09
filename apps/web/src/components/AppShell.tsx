@@ -290,8 +290,8 @@ export function AppShell({ children }: AppShellProps) {
       >
         {/* Header */}
         <header className="border-surface-800 bg-surface-850 sticky top-0 z-50">
-          <div className="w-full px-4">
-            <div className="flex items-center justify-between h-16">
+          <div className="w-full px-4 overflow-hidden">
+            <div className="flex items-center justify-between h-16 min-w-0">
               {/* Logo - always visible, hidden on desktop when sidebar is showing */}
               <div className={`flex-shrink-0 ${sidebarState !== 'hidden' ? 'max-[1199px]:block hidden' : ''}`}>
                 <Link href="/trade">
@@ -313,9 +313,9 @@ export function AppShell({ children }: AppShellProps) {
                 {/* Position Dropdown Icon */}
                 {isAuthenticated && settings.showQuickBar && <QuickPositionsDropdown />}
 
-                {/* Balance Display with Dropdown */}
+                {/* Balance Display with Dropdown - hidden on mobile (balance shows in bottom bar) */}
                 {settings.showWallet && (
-                  <div className="relative" ref={desktopDropdownRef}>
+                  <div className="relative hidden min-[1200px]:block" ref={desktopDropdownRef}>
                     <button
                       onClick={() => setShowWalletDropdown(!showWalletDropdown)}
                       className="flex items-center gap-1.5 px-2 py-1.5 bg-surface-800 hover:bg-surface-700 rounded text-sm transition-colors cursor-pointer"
@@ -351,8 +351,8 @@ export function AppShell({ children }: AppShellProps) {
                 {/* Notifications Bell */}
                 {settings.showNotifications && <NotificationBell />}
 
-                {/* Wallet Connect Button - hidden on mobile (shows in footer) */}
-                <div className="wallet-compact hidden sm:block">
+                {/* Wallet Connect Button - visible on all screen sizes */}
+                <div className="wallet-compact min-w-0 overflow-hidden">
                   <WalletButton />
                 </div>
               </div>

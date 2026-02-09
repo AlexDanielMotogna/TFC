@@ -81,13 +81,13 @@ function PrizeRow({
       </td>
 
       {/* Period */}
-      <td className="py-4 px-4 text-surface-400 text-sm">
+      <td className="py-4 px-4 text-surface-400 text-xs whitespace-nowrap">
         {weekLabel}
       </td>
 
       {/* Amount */}
       <td className="py-4 px-4 text-right">
-        <span className="text-lg font-bold text-white">${prize.amount.toFixed(2)}</span>
+        <span className="text-sm font-bold text-white">${prize.amount.toFixed(2)}</span>
       </td>
 
       {/* Status */}
@@ -249,7 +249,7 @@ export default function RewardsPage() {
           <div className="container mx-auto px-2 2xl:px-6 py-8">
             <div className="card p-12 border-x-0 22xl:border-x border-y 2xl:border border-surface-800 text-center mx-0 2xl:mx-0">
               <EmojiEventsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
-              <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
               <p className="text-surface-500">Please connect your wallet to view your rewards.</p>
             </div>
           </div>
@@ -266,7 +266,7 @@ export default function RewardsPage() {
           <div className="flex items-center gap-2 sm:gap-3 mb-2 px-2 2xl:px-0">
             <EmojiEventsIcon sx={{ color: '#f97316', fontSize: 28 }} />
             <div>
-              <h1 className="font-display text-xl sm:text-2xl font-bold text-white">Rewards</h1>
+              <h1 className="font-display text-sm sm:text-2xl font-bold text-white">Rewards</h1>
               <p className="text-surface-400 text-xs sm:text-sm">Claim your weekly prizes</p>
             </div>
           </div>
@@ -310,7 +310,7 @@ export default function RewardsPage() {
                     </div>
 
                     {/* Prize amount (large, centered where "2nd" was) */}
-                    <div className="text-3xl font-bold text-primary-400">
+                    <div className="text-sm sm:text-3xl font-bold text-primary-400">
                       ${currentStanding.estimatedPrize.toFixed(2)}
                     </div>
                     <p className="text-xs text-surface-500 mt-1">Estimated Prize</p>
@@ -331,7 +331,7 @@ export default function RewardsPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-surface-300">Total Prizes</h3>
                 </div>
-                <p className="text-base sm:text-3xl font-bold text-white">{prizes.length}</p>
+                <p className="text-sm sm:text-3xl font-bold text-white">{prizes.length}</p>
               </div>
 
               {/* Total Earned */}
@@ -342,7 +342,7 @@ export default function RewardsPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-surface-300">Total Earned</h3>
                 </div>
-                <p className="text-base sm:text-3xl font-bold text-white">
+                <p className="text-sm sm:text-3xl font-bold text-white">
                   ${prizes.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
                 </p>
               </div>
@@ -355,7 +355,7 @@ export default function RewardsPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-surface-300">Total Claimed</h3>
                 </div>
-                <p className="text-base sm:text-3xl font-bold text-white">${totalClaimed.toFixed(2)}</p>
+                <p className="text-sm sm:text-3xl font-bold text-white">${totalClaimed.toFixed(2)}</p>
               </div>
             </div>
           )}
@@ -416,7 +416,7 @@ export default function RewardsPage() {
           {!isLoading && !error && prizes.length === 0 && (
             <div className="card p-12 border-x-0 22xl:border-x border-y 2xl:border border-surface-800 text-center mx-0 2xl:mx-0">
               <EmojiEventsIcon sx={{ color: '#52525b', fontSize: 64, marginBottom: 16 }} />
-              <h3 className="text-lg font-semibold text-surface-300 mb-2">No prizes yet</h3>
+              <h3 className="text-sm sm:text-lg font-semibold text-surface-300 mb-2">No prizes yet</h3>
               <p className="text-surface-500 mb-2">
                 Win fights to earn weekly prizes! Top 3 traders each week share the prize pool.
               </p>
