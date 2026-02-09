@@ -260,7 +260,7 @@ export default function ProfilePage() {
             {/* Info */}
             <div className="flex-1 text-center md:text-left">
               <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
-                <h1 className="font-display text-2xl font-bold tracking-wide">
+                <h1 className="font-display text-sm sm:text-2xl font-bold tracking-wide">
                   {profile.handle}
                 </h1>
                 <button
@@ -291,7 +291,7 @@ export default function ProfilePage() {
             <div className="flex gap-6 text-center">
               <div>
                 <p
-                  className={`text-2xl font-bold ${
+                  className={`text-sm sm:text-2xl font-bold ${
                     (mode === 'fights' ? profileStats.totalPnlUsdc : tradesPnl) >= 0 ? 'pnl-positive' : 'pnl-negative'
                   }`}
                 >

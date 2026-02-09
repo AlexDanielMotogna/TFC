@@ -268,7 +268,7 @@ export default function LobbyPage() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
             {/* Title - Left */}
             <div>
-              <h2 className="font-display text-2xl font-bold text-white">Arena</h2>
+              <h2 className="font-display text-base sm:text-2xl font-bold text-white">Arena</h2>
               <p className="text-surface-400 text-sm">Challenge traders to 1v1 battles. Win weekly prizes.</p>
             </div>
 
@@ -304,7 +304,7 @@ export default function LobbyPage() {
         {/* Compact Header with Stats */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
           <div>
-            <h2 className="font-display text-2xl font-bold text-white">Arena</h2>
+            <h2 className="font-display text-base sm:text-2xl font-bold text-white">Arena</h2>
             <p className="text-surface-400 text-sm">
               Challenge traders to 1v1 battles. Win weekly prizes.
             </p>

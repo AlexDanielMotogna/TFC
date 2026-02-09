@@ -276,7 +276,7 @@ export default function ReferralsPage() {
                 Your Referral Code
               </h2>
               <div className="bg-surface-900 rounded-lg p-4 mb-4 border border-surface-800">
-                <p className="text-lg sm:text-2xl font-mono font-bold text-primary-400 text-center tracking-wider break-all">
+                <p className="text-sm sm:text-2xl font-mono font-bold text-primary-400 text-center tracking-wider break-all">
                   {dashboard.referralCode}
                 </p>
               </div>
@@ -306,7 +306,7 @@ export default function ReferralsPage() {
                 Unclaimed Earnings
               </h2>
               <div className="mb-4">
-                <p className="text-4xl font-bold text-white mb-1">
+                <p className="text-lg sm:text-4xl font-bold text-white mb-1">
                   ${dashboard.unclaimedPayout.toFixed(2)}
                 </p>
                 <p className="text-xs text-surface-500">Minimum ${minPayoutAmount.toFixed(2)} to claim</p>
@@ -335,7 +335,7 @@ export default function ReferralsPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-surface-300">Total Referrals</h3>
               </div>
-              <p className="text-3xl font-bold text-white mb-2">{dashboard.totalReferrals.total}</p>
+              <p className="text-base sm:text-3xl font-bold text-white mb-2">{dashboard.totalReferrals.total}</p>
               <div className="flex gap-3 text-xs text-surface-400">
                 <span>T1: {dashboard.totalReferrals.t1}</span>
                 <span>T2: {dashboard.totalReferrals.t2}</span>
@@ -351,7 +351,7 @@ export default function ReferralsPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-surface-300">Total Earnings</h3>
               </div>
-              <p className="text-3xl font-bold text-white mb-2">${dashboard.totalEarnings.total.toFixed(2)}</p>
+              <p className="text-base sm:text-3xl font-bold text-white mb-2">${dashboard.totalEarnings.total.toFixed(2)}</p>
               <div className="flex gap-3 text-xs text-surface-400">
                 <span>T1: ${dashboard.totalEarnings.t1.toFixed(2)}</span>
                 <span>T2: ${dashboard.totalEarnings.t2.toFixed(2)}</span>
@@ -367,7 +367,7 @@ export default function ReferralsPage() {
                 </div>
                 <h3 className="text-sm font-semibold text-surface-300">Referral Volume</h3>
               </div>
-              <p className="text-3xl font-bold text-white mb-2">${dashboard.referralVolume.total.toFixed(2)}</p>
+              <p className="text-base sm:text-3xl font-bold text-white mb-2">${dashboard.referralVolume.total.toFixed(2)}</p>
               <div className="flex gap-3 text-xs text-surface-400">
                 <span>T1: ${dashboard.referralVolume.t1.toFixed(2)}</span>
                 <span>T2: ${dashboard.referralVolume.t2.toFixed(2)}</span>

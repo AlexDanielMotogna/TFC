@@ -331,7 +331,7 @@ export default function RewardsPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-surface-300">Total Prizes</h3>
                 </div>
-                <p className="text-3xl font-bold text-white">{prizes.length}</p>
+                <p className="text-base sm:text-3xl font-bold text-white">{prizes.length}</p>
               </div>
 
               {/* Total Earned */}
@@ -342,7 +342,7 @@ export default function RewardsPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-surface-300">Total Earned</h3>
                 </div>
-                <p className="text-3xl font-bold text-white">
+                <p className="text-base sm:text-3xl font-bold text-white">
                   ${prizes.reduce((sum, p) => sum + p.amount, 0).toFixed(2)}
                 </p>
               </div>
@@ -355,7 +355,7 @@ export default function RewardsPage() {
                   </div>
                   <h3 className="text-sm font-semibold text-surface-300">Total Claimed</h3>
                 </div>
-                <p className="text-3xl font-bold text-white">${totalClaimed.toFixed(2)}</p>
+                <p className="text-base sm:text-3xl font-bold text-white">${totalClaimed.toFixed(2)}</p>
               </div>
             </div>
           )}
