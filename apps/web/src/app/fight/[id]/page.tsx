@@ -306,7 +306,7 @@ export default function FightResultsPage() {
         <div className="text-center mb-8">
           {fight.status === 'NO_CONTEST' ? (
             <>
-              <h1 className="text-4xl font-display font-bold text-amber-400 mb-2">
+              <h1 className="text-lg sm:text-4xl font-display font-bold text-amber-400 mb-2">
                 NO CONTEST
               </h1>
               <p className="text-surface-400">
@@ -330,14 +330,14 @@ export default function FightResultsPage() {
             </>
           ) : fight.isDraw ? (
             <>
-              <h1 className="text-4xl font-display font-bold text-surface-300 mb-2">
+              <h1 className="text-lg sm:text-4xl font-display font-bold text-surface-300 mb-2">
                 DRAW
               </h1>
               <p className="text-surface-400">Both traders finished with equal performance</p>
             </>
           ) : fight.status === 'CANCELLED' ? (
             <>
-              <h1 className="text-4xl font-display font-bold text-loss-400 mb-2">
+              <h1 className="text-lg sm:text-4xl font-display font-bold text-loss-400 mb-2">
                 CANCELLED
               </h1>
               <p className="text-surface-400">This fight was cancelled</p>
@@ -345,14 +345,14 @@ export default function FightResultsPage() {
           ) : isCurrentUserParticipant ? (
             isCurrentUserWinner ? (
               <>
-                <h1 className="text-4xl font-display font-bold text-win-400 mb-2">
+                <h1 className="text-lg sm:text-4xl font-display font-bold text-win-400 mb-2">
                   VICTORY!
                 </h1>
                 <p className="text-surface-400">Congratulations, you won this fight!</p>
               </>
             ) : (
               <>
-                <h1 className="text-4xl font-display font-bold text-loss-400 mb-2">
+                <h1 className="text-lg sm:text-4xl font-display font-bold text-loss-400 mb-2">
                   DEFEAT
                 </h1>
                 <p className="text-surface-400">Better luck next time!</p>
@@ -360,7 +360,7 @@ export default function FightResultsPage() {
             )
           ) : (
             <>
-              <h1 className="text-4xl font-display font-bold text-white mb-2">
+              <h1 className="text-lg sm:text-4xl font-display font-bold text-white mb-2">
                 FIGHT RESULTS
               </h1>
               <p className="text-surface-400">
