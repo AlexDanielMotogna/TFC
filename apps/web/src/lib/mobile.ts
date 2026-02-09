@@ -12,6 +12,17 @@ export function isMobileDevice(): boolean {
 }
 
 /**
+ * Check if the current device is iOS (iPhone/iPad/iPod)
+ * SolanaMobileWalletAdapter does NOT work on iOS - only Android.
+ * On iOS, PhantomWalletAdapter handles the redirect to Phantom's in-app browser.
+ */
+export function isIOSDevice(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+/**
  * Check if we're running inside Phantom's dApp browser
  * Phantom injects window.phantom.solana when running inside their browser
  */
@@ -31,8 +42,12 @@ export function isPhantomBrowser(): boolean {
 
 /**
  * Get the device context for wallet configuration
+ * - desktop: browser extensions (Phantom, Solflare)
+ * - phantom-browser: inside Phantom's dApp browser (provider injected)
+ * - ios-mobile-browser: iOS Safari/Chrome - needs PhantomWalletAdapter (redirects to Phantom app)
+ * - android-mobile-browser: Android browser - can use SolanaMobileWalletAdapter
  */
-export type DeviceContext = 'desktop' | 'mobile-browser' | 'phantom-browser';
+export type DeviceContext = 'desktop' | 'ios-mobile-browser' | 'android-mobile-browser' | 'phantom-browser';
 
 export function getDeviceContext(): DeviceContext {
   if (typeof window === 'undefined') return 'desktop';
@@ -45,7 +60,11 @@ export function getDeviceContext(): DeviceContext {
     return 'phantom-browser';
   }
 
-  return 'mobile-browser';
+  if (isIOSDevice()) {
+    return 'ios-mobile-browser';
+  }
+
+  return 'android-mobile-browser';
 }
 
 /**

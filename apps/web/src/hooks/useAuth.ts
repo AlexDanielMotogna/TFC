@@ -216,6 +216,49 @@ export function useAuth() {
     }
   }, [connected, isAuthenticated, clearAuth]);
 
+  // Detect wallet changes when app regains focus (handles mobile wallet switching)
+  // On mobile (Phantom dApp browser, Android), users can switch wallets while the app is in background.
+  // The accountChanged event doesn't always fire, so we check on visibility/focus.
+  useEffect(() => {
+    if (!_hasHydrated || !isAuthenticated || !storedWalletAddress) return;
+
+    const checkWalletChanged = () => {
+      // Check if the injected provider's publicKey differs from our stored address
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const phantom = (window as any).phantom?.solana;
+      const currentKey = phantom?.publicKey?.toBase58?.() || publicKey?.toBase58() || null;
+
+      if (currentKey && storedWalletAddress && currentKey !== storedWalletAddress) {
+        console.log('Wallet changed detected on focus/visibility:', { stored: storedWalletAddress, current: currentKey });
+        clearAuth();
+        queryClient.clear();
+        hasAttemptedAuth.current = false;
+        globalHasAttempted = false;
+        globalAuthInProgress = false;
+        disconnect();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Small delay to let wallet adapter update its state
+        setTimeout(checkWalletChanged, 300);
+      }
+    };
+
+    const handleFocus = () => {
+      setTimeout(checkWalletChanged, 300);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [_hasHydrated, isAuthenticated, storedWalletAddress, publicKey, clearAuth, disconnect]);
+
   const logout = useCallback(() => {
     clearAuth();
     // Clear React Query cache to remove stale user data

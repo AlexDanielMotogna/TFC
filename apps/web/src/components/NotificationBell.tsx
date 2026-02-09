@@ -228,7 +228,7 @@ export function NotificationBell() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="fixed sm:absolute right-4 sm:right-0 top-14 sm:top-full sm:mt-2 w-[calc(100vw-32px)] sm:w-80 bg-surface-900 border border-surface-800 rounded-lg shadow-2xl z-50 overflow-hidden">
+        <div className="fixed sm:absolute left-4 sm:right-0 sm:left-auto top-14 sm:top-full sm:mt-2 w-[calc(100vw-32px)] sm:w-80 bg-surface-900 border border-surface-800 rounded-lg shadow-2xl z-50 overflow-hidden">
           {/* Header */}
           <div className="p-3 border-b border-surface-800 flex justify-between items-center bg-surface-900">
             <span className="font-semibold text-white text-sm">Notifications</span>

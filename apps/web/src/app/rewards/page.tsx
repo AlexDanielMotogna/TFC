@@ -154,7 +154,7 @@ function PrizeRow({
 }
 
 export default function RewardsPage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const {
     prizes,
     isLoading,
@@ -164,6 +164,77 @@ export default function RewardsPage() {
     totalClaimable,
     totalClaimed,
   } = useMyPrizes();
+
+  const [prizesToShow, setPrizesToShow] = useState(10);
+  const [currentStanding, setCurrentStanding] = useState<{
+    rank: number | null;
+    estimatedPrize: number;
+  }>({ rank: null, estimatedPrize: 0 });
+  const [isLoadingStanding, setIsLoadingStanding] = useState(false);
+
+  // Fetch current weekly standing
+  useEffect(() => {
+    if (!isAuthenticated || !user) {
+      console.log('[Rewards] Not fetching standing - not authenticated or no user');
+      return;
+    }
+
+    const fetchCurrentStanding = async () => {
+      console.log('[Rewards] Fetching current standing for user:', user.id);
+      console.log('[Rewards] Full user object:', user);
+      setIsLoadingStanding(true);
+      try {
+        // Get leaderboard to find user's rank
+        const leaderboardRes = await fetch('/api/leaderboard?range=weekly&limit=100');
+        const leaderboardData = await leaderboardRes.json();
+        console.log('[Rewards] Leaderboard data:', leaderboardData);
+
+        if (leaderboardData.success) {
+          const entries = leaderboardData.data.entries || [];
+          console.log('[Rewards] All entries:', entries);
+          console.log('[Rewards] Looking for userId:', user.id);
+          console.log('[Rewards] First 3 entry userIds:', entries.slice(0, 3).map((e: any) => ({ userId: e.userId, handle: e.handle })));
+
+          const userEntry = entries.find((e: any) => {
+            const match = e.userId === user.id;
+            if (match) console.log('[Rewards] MATCH FOUND:', e);
+            return match;
+          });
+          console.log('[Rewards] User entry in leaderboard:', userEntry);
+
+          if (userEntry) {
+            // Get prize pool to calculate estimated prize
+            const prizePoolRes = await fetch('/api/prize-pool');
+            const prizePoolData = await prizePoolRes.json();
+            console.log('[Rewards] Prize pool data:', prizePoolData);
+
+            let estimatedPrize = 0;
+            if (prizePoolData.success && prizePoolData.data) {
+              const totalFees = prizePoolData.data.totalFeesCollected;
+              const rank = userEntry.rank;
+
+              // Calculate based on rank (5% for 1st, 3% for 2nd, 2% for 3rd)
+              if (rank === 1) estimatedPrize = totalFees * 0.05;
+              else if (rank === 2) estimatedPrize = totalFees * 0.03;
+              else if (rank === 3) estimatedPrize = totalFees * 0.02;
+            }
+
+            console.log('[Rewards] Setting current standing:', { rank: userEntry.rank, estimatedPrize });
+            setCurrentStanding({ rank: userEntry.rank, estimatedPrize });
+          } else {
+            console.log('[Rewards] User not found in leaderboard');
+            setCurrentStanding({ rank: null, estimatedPrize: 0 });
+          }
+        }
+      } catch (err) {
+        console.error('[Rewards] Failed to fetch current standing:', err);
+      } finally {
+        setIsLoadingStanding(false);
+      }
+    };
+
+    fetchCurrentStanding();
+  }, [isAuthenticated, user]);
 
   // Set page title
   useEffect(() => {
@@ -175,8 +246,8 @@ export default function RewardsPage() {
     return (
       <BetaGate>
         <AppShell>
-          <div className="container mx-auto px-2 md:px-6 py-8">
-            <div className="card p-12 text-center">
+          <div className="container mx-auto px-2 2xl:px-6 py-8">
+            <div className="card p-12 border-x-0 22xl:border-x border-y 2xl:border border-surface-800 text-center mx-0 2xl:mx-0">
               <EmojiEventsIcon sx={{ fontSize: 64, color: '#52525b', marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">Connect your wallet</h3>
               <p className="text-surface-500">Please connect your wallet to view your rewards.</p>
@@ -190,31 +261,70 @@ export default function RewardsPage() {
   return (
     <BetaGate>
       <AppShell>
-        <div className="container mx-auto px-2 md:px-6 py-8">
+        <div className="max-w-full 2xl:container mx-auto px-0 2xl:px-6 py-8">
           {/* Header */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <EmojiEventsIcon sx={{ color: '#f97316', fontSize: 28 }} />
-              <div>
-                <h1 className="font-display text-xl sm:text-2xl font-bold text-white">Rewards</h1>
-                <p className="text-surface-400 text-xs sm:text-sm">Claim your weekly prizes</p>
-              </div>
+          <div className="flex items-center gap-2 sm:gap-3 mb-2 px-2 2xl:px-0">
+            <EmojiEventsIcon sx={{ color: '#f97316', fontSize: 28 }} />
+            <div>
+              <h1 className="font-display text-xl sm:text-2xl font-bold text-white">Rewards</h1>
+              <p className="text-surface-400 text-xs sm:text-sm">Claim your weekly prizes</p>
             </div>
-
-            {/* Claimable badge */}
-            {totalClaimable > 0 && (
-              <div className="flex items-center gap-2.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-primary-500/10 border border-primary-500/30 rounded-lg">
-                <span className="text-[10px] sm:text-xs text-primary-400 uppercase tracking-wider">Claimable</span>
-                <span className="text-sm sm:text-base font-bold text-primary-400">${totalClaimable.toFixed(2)}</span>
-              </div>
-            )}
           </div>
 
           {/* Stats Cards */}
           {!isLoading && !error && prizes.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+            <div className="grid grid-cols-1 2xl:grid-cols-4 gap-0 2xl:gap-2 mb-2">
+              {/* Current Standing - Always show */}
+              <div className="card p-6 border-x-0 22xl:border-x border-y 2xl:border border-primary-500/30 bg-gradient-to-br from-primary-500/5 to-transparent relative">
+                {/* Header with icon */}
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-primary-500/20 flex items-center justify-center">
+                    {isLoadingStanding ? (
+                      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    ) : currentStanding.rank && currentStanding.rank <= 3 ? (
+                      <WorkspacePremiumIcon sx={{
+                        color: currentStanding.rank === 1 ? '#facc15' : currentStanding.rank === 2 ? '#cbd5e1' : '#d97706',
+                        fontSize: 24
+                      }} />
+                    ) : (
+                      <EmojiEventsIcon sx={{ color: '#52525b', fontSize: 24 }} />
+                    )}
+                  </div>
+                  <h3 className="text-sm font-semibold text-surface-300">Current Standing</h3>
+                </div>
+
+                {/* Content */}
+                {isLoadingStanding ? (
+                  <div className="h-8 w-24 bg-surface-700 rounded animate-pulse" />
+                ) : currentStanding.rank && currentStanding.rank <= 3 ? (
+                  <>
+                    {/* Rank badge in top right corner */}
+                    <div className="absolute top-4 right-4">
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${
+                        currentStanding.rank === 1 ? 'bg-amber-400/20 text-amber-400' :
+                        currentStanding.rank === 2 ? 'bg-slate-300/20 text-slate-300' :
+                        'bg-orange-400/20 text-orange-400'
+                      }`}>
+                        {formatRank(currentStanding.rank)} Place
+                      </span>
+                    </div>
+
+                    {/* Prize amount (large, centered where "2nd" was) */}
+                    <div className="text-3xl font-bold text-primary-400">
+                      ${currentStanding.estimatedPrize.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-surface-500 mt-1">Estimated Prize</p>
+                  </>
+                ) : (
+                  <div>
+                    <p className="text-surface-400 text-sm">No active prize</p>
+                    <p className="text-surface-500 text-xs mt-1">Finish in top 3 to win prizes</p>
+                  </div>
+                )}
+              </div>
+
               {/* Total Prizes */}
-              <div className="card p-6">
+              <div className="card p-6 border-x-0 22xl:border-x border-y 2xl:border border-surface-800">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-primary-500/10 flex items-center justify-center">
                     <EmojiEventsIcon sx={{ color: '#f97316', fontSize: 24 }} />
@@ -225,7 +335,7 @@ export default function RewardsPage() {
               </div>
 
               {/* Total Earned */}
-              <div className="card p-6">
+              <div className="card p-6 border-x-0 22xl:border-x border-y 2xl:border border-surface-800">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-accent-500/10 flex items-center justify-center">
                     <WorkspacePremiumIcon sx={{ color: '#facc15', fontSize: 24 }} />
@@ -238,7 +348,7 @@ export default function RewardsPage() {
               </div>
 
               {/* Total Claimed */}
-              <div className="card p-6">
+              <div className="card p-6 border-x-0 22xl:border-x border-y 2xl:border border-surface-800">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-lg bg-win-500/10 flex items-center justify-center">
                     <CheckCircleIcon sx={{ color: '#10b981', fontSize: 24 }} />
@@ -254,21 +364,21 @@ export default function RewardsPage() {
           {isLoading && (
             <div className="animate-pulse space-y-2">
               {/* Stats Cards Skeleton */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="card p-6">
+              <div className="grid grid-cols-1 2xl:grid-cols-4 gap-0 2xl:gap-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="card p-6 border-x-0 22xl:border-x border-y 2xl:border border-surface-800">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 bg-surface-700" />
-                      <div className="h-4 w-24 bg-surface-700" />
+                      <div className="w-10 h-10 bg-surface-700 rounded-lg" />
+                      <div className="h-4 w-24 bg-surface-700 rounded" />
                     </div>
-                    <div className="h-8 w-20 bg-surface-700" />
+                    <div className="h-8 w-20 bg-surface-700 rounded" />
                   </div>
                 ))}
               </div>
 
               {/* Table Skeleton */}
-              <div className="card">
-                <div className="p-6 border-b border-surface-800">
+              <div className="card border-x-0 22xl:border-x border-y 2xl:border border-surface-800">
+                <div className="p-6 px-2 2xl:px-6 border-b border-surface-800">
                   <div className="h-4 w-32 bg-surface-700" />
                 </div>
                 <div className="p-4 space-y-2">
@@ -291,7 +401,7 @@ export default function RewardsPage() {
 
           {/* Error state */}
           {error && (
-            <div className="card p-8 text-center">
+            <div className="card p-8 border-x-0 22xl:border-x border-y 2xl:border border-surface-800 text-center">
               <p className="text-loss-400 mb-4">{error}</p>
               <button
                 onClick={() => window.location.reload()}
@@ -304,7 +414,7 @@ export default function RewardsPage() {
 
           {/* No prizes */}
           {!isLoading && !error && prizes.length === 0 && (
-            <div className="card p-12 text-center">
+            <div className="card p-12 border-x-0 22xl:border-x border-y 2xl:border border-surface-800 text-center mx-0 2xl:mx-0">
               <EmojiEventsIcon sx={{ color: '#52525b', fontSize: 64, marginBottom: 16 }} />
               <h3 className="text-lg font-semibold text-surface-300 mb-2">No prizes yet</h3>
               <p className="text-surface-500 mb-2">
@@ -318,8 +428,8 @@ export default function RewardsPage() {
 
           {/* Prize table */}
           {!isLoading && !error && prizes.length > 0 && (
-            <div className="card">
-              <div className="p-6 border-b border-surface-800">
+            <div className="card border-x-0 22xl:border-x border-y 2xl:border border-surface-800">
+              <div className="p-6 px-2 2xl:px-6 border-b border-surface-800">
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-surface-300">
                   Prize History
                 </h3>
@@ -336,7 +446,7 @@ export default function RewardsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {prizes.map((prize, index) => (
+                    {prizes.slice(0, prizesToShow).map((prize, index) => (
                       <PrizeRow
                         key={prize.id}
                         prize={prize}
@@ -348,6 +458,17 @@ export default function RewardsPage() {
                   </tbody>
                 </table>
               </div>
+              {/* Load More Button */}
+              {prizes.length > prizesToShow && (
+                <div className="py-4 text-center border-t border-surface-800/50">
+                  <button
+                    onClick={() => setPrizesToShow(prev => prev + 10)}
+                    className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                  >
+                    Load More ({prizesToShow} of {prizes.length} prizes)
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

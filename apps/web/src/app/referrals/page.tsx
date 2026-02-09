@@ -33,6 +33,10 @@ export default function ReferralsPage() {
   }, [searchParams]);
 
   const [activeTab, setActiveTabState] = useState<ReferralTab>(getTabFromUrl);
+  const [earningsToShow, setEarningsToShow] = useState(10);
+  const [recentReferralsToShow, setRecentReferralsToShow] = useState(10);
+  const [allReferralsToShow, setAllReferralsToShow] = useState(10);
+  const [payoutsToShow, setPayoutsToShow] = useState(10);
 
   // Update URL when tab changes
   const setActiveTab = useCallback((tab: ReferralTab) => {
@@ -272,24 +276,26 @@ export default function ReferralsPage() {
                 Your Referral Code
               </h2>
               <div className="bg-surface-900 rounded-lg p-4 mb-4 border border-surface-800">
-                <p className="text-sm sm:text-2xl font-mono font-bold text-primary-400 text-center tracking-wider">
+                <p className="text-sm sm:text-2xl font-mono font-bold text-primary-400 text-center tracking-wider break-all">
                   {dashboard.referralCode}
                 </p>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleCopyCode}
-                  className="flex-1 btn-secondary text-sm py-2 flex items-center justify-center gap-2"
+                  className="flex-1 btn-secondary text-xs sm:text-sm py-2 flex items-center justify-center gap-1 sm:gap-2"
                 >
                   <ContentCopyIcon sx={{ fontSize: 18 }} />
-                  Copy Code
+                  <span className="hidden xs:inline">Copy Code</span>
+                  <span className="xs:hidden">Code</span>
                 </button>
                 <button
                   onClick={handleCopyLink}
-                  className="flex-1 btn-primary text-sm py-2 flex items-center justify-center gap-2"
+                  className="flex-1 btn-primary text-xs sm:text-sm py-2 flex items-center justify-center gap-1 sm:gap-2"
                 >
                   <ShareIcon sx={{ fontSize: 18 }} />
-                  Copy Link
+                  <span className="hidden xs:inline">Copy Link</span>
+                  <span className="xs:hidden">Link</span>
                 </button>
               </div>
             </div>
@@ -422,39 +428,52 @@ export default function ReferralsPage() {
                     <p className="text-surface-500 text-sm">No referrals yet</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="table-premium w-full">
-                      <thead>
-                        <tr className="bg-surface-850">
-                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">User</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
-                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Joined</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboard.recentReferrals.map((ref, index) => (
-                          <tr key={ref.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="avatar w-8 h-8 text-xs">
-                                  {ref.user.handle[0]?.toUpperCase() || '?'}
-                                </div>
-                                <span className="text-white text-sm">{ref.user.handle}</span>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="px-2 py-1 rounded bg-primary-500/10 text-primary-400 text-xs font-medium">
-                                T{ref.tier}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right text-surface-400 text-sm">
-                              {new Date(ref.joinedAt).toLocaleDateString()}
-                            </td>
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="table-premium w-full">
+                        <thead>
+                          <tr className="bg-surface-850">
+                            <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">User</th>
+                            <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Joined</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {dashboard.recentReferrals.slice(0, recentReferralsToShow).map((ref, index) => (
+                            <tr key={ref.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="avatar w-8 h-8 text-xs">
+                                    {ref.user.handle[0]?.toUpperCase() || '?'}
+                                  </div>
+                                  <span className="text-white text-sm">{ref.user.handle}</span>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="px-2 py-1 rounded bg-primary-500/10 text-primary-400 text-xs font-medium">
+                                  T{ref.tier}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right text-surface-400 text-sm">
+                                {new Date(ref.joinedAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Load More Button */}
+                    {dashboard.recentReferrals.length > recentReferralsToShow && (
+                      <div className="py-4 text-center border-t border-surface-800/50">
+                        <button
+                          onClick={() => setRecentReferralsToShow(prev => prev + 10)}
+                          className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                        >
+                          Load More ({recentReferralsToShow} of {dashboard.recentReferrals.length} referrals)
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -471,48 +490,61 @@ export default function ReferralsPage() {
                     <p className="text-surface-500 text-sm">No earnings yet</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="table-premium w-full">
-                      <thead>
-                        <tr className="bg-surface-850">
-                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Symbol</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
-                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
-                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
-                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboard.recentEarnings.map((earning, index) => (
-                          <tr key={earning.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                            <td className="py-3 px-4 text-white font-medium">{earning.symbol}</td>
-                            <td className="py-3 px-4 text-center">
-                              <span className="px-2 py-1 rounded bg-primary-500/10 text-primary-400 text-xs font-medium">
-                                T{earning.tier}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right text-win-400 font-medium">
-                              ${Number(earning.commissionAmount).toFixed(2)}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <span
-                                className={`px-2 py-1 rounded text-xs font-medium ${
-                                  earning.isPaid
-                                    ? 'bg-win-500/10 text-win-400'
-                                    : 'bg-surface-700 text-surface-400'
-                                }`}
-                              >
-                                {earning.isPaid ? 'Paid' : 'Pending'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4 text-right text-surface-400 text-sm">
-                              {new Date(earning.earnedAt).toLocaleDateString()}
-                            </td>
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="table-premium w-full">
+                        <thead>
+                          <tr className="bg-surface-850">
+                            <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Symbol</th>
+                            <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
+                            <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
+                            <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Date</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {dashboard.recentEarnings.slice(0, earningsToShow).map((earning, index) => (
+                            <tr key={earning.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
+                              <td className="py-3 px-4 text-white font-medium">{earning.symbol}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="px-2 py-1 rounded bg-primary-500/10 text-primary-400 text-xs font-medium">
+                                  T{earning.tier}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right text-win-400 font-medium">
+                                ${Number(earning.commissionAmount).toFixed(2)}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span
+                                  className={`px-2 py-1 rounded text-xs font-medium ${
+                                    earning.isPaid
+                                      ? 'bg-win-500/10 text-win-400'
+                                      : 'bg-surface-700 text-surface-400'
+                                  }`}
+                                >
+                                  {earning.isPaid ? 'Paid' : 'Pending'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right text-surface-400 text-sm">
+                                {new Date(earning.earnedAt).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {/* Load More Button */}
+                    {dashboard.recentEarnings.length > earningsToShow && (
+                      <div className="py-4 text-center border-t border-surface-800/50">
+                        <button
+                          onClick={() => setEarningsToShow(prev => prev + 10)}
+                          className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                        >
+                          Load More ({earningsToShow} of {dashboard.recentEarnings.length} earnings)
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -532,54 +564,62 @@ export default function ReferralsPage() {
                   <p className="text-surface-600 text-xs mt-2">Share your referral link to start earning commissions</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="table-premium w-full">
-                    <thead>
-                      <tr className="bg-surface-850">
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">User</th>
-                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
-                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Commission</th>
-                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Joined</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.recentReferrals.map((ref, index) => (
-                        <tr key={ref.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center gap-2">
-                              <div className="avatar w-8 h-8 text-xs">
-                                {ref.user.handle[0]?.toUpperCase() || '?'}
-                              </div>
-                              <div>
-                                <span className="text-white text-sm block">{ref.user.handle}</span>
-                                <span className="text-surface-500 text-xs font-mono">
-                                  {ref.user.walletAddress ? `${ref.user.walletAddress.slice(0, 4)}...${ref.user.walletAddress.slice(-4)}` : '-'}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              ref.tier === 1 ? 'bg-primary-500/10 text-primary-400' :
-                              ref.tier === 2 ? 'bg-violet-500/10 text-violet-400' :
-                              'bg-surface-700 text-surface-400'
-                            }`}>
-                              T{ref.tier}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-center text-surface-300 text-sm">
-                            {ref.tier === 1 ? dashboard.commissionRates.t1 :
-                             ref.tier === 2 ? dashboard.commissionRates.t2 :
-                             dashboard.commissionRates.t3}%
-                          </td>
-                          <td className="py-3 px-4 text-right text-surface-400 text-sm">
-                            {new Date(ref.joinedAt).toLocaleDateString()}
-                          </td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="table-premium w-full">
+                      <thead>
+                        <tr className="bg-surface-850">
+                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">User</th>
+                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Tier</th>
+                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Commission</th>
+                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Joined</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {dashboard.recentReferrals.slice(0, allReferralsToShow).map((ref, index) => (
+                          <tr key={ref.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <div className="avatar w-8 h-8 text-xs">
+                                  {ref.user.handle[0]?.toUpperCase() || '?'}
+                                </div>
+                                <span className="text-white text-sm">{ref.user.handle}</span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                ref.tier === 1 ? 'bg-primary-500/10 text-primary-400' :
+                                ref.tier === 2 ? 'bg-violet-500/10 text-violet-400' :
+                                'bg-surface-700 text-surface-400'
+                              }`}>
+                                T{ref.tier}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center text-surface-300 text-sm">
+                              {ref.tier === 1 ? dashboard.commissionRates.t1 :
+                               ref.tier === 2 ? dashboard.commissionRates.t2 :
+                               dashboard.commissionRates.t3}%
+                            </td>
+                            <td className="py-3 px-4 text-right text-surface-400 text-sm">
+                              {new Date(ref.joinedAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Load More Button */}
+                  {dashboard.recentReferrals.length > allReferralsToShow && (
+                    <div className="py-4 text-center border-t border-surface-800/50">
+                      <button
+                        onClick={() => setAllReferralsToShow(prev => prev + 10)}
+                        className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                      >
+                        Load More ({allReferralsToShow} of {dashboard.recentReferrals.length} referrals)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -597,63 +637,76 @@ export default function ReferralsPage() {
                   <p className="text-surface-500 text-sm">No payouts yet</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="table-premium w-full">
-                    <thead>
-                      <tr className="bg-surface-850">
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Date</th>
-                        <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
-                        <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Tx Signature</th>
-                        <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Wallet</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.payoutHistory.map((payout, index) => (
-                        <tr key={payout.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                          <td className="py-3 px-4 text-surface-400 text-sm">
-                            {new Date(payout.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="py-3 px-4 text-right text-white font-medium">
-                            ${Number(payout.amount).toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                payout.status === 'completed'
-                                  ? 'bg-win-500/10 text-win-400'
-                                  : payout.status === 'processing'
-                                  ? 'bg-accent-500/10 text-accent-400'
-                                  : payout.status === 'failed'
-                                  ? 'bg-loss-500/10 text-loss-400'
-                                  : 'bg-surface-700 text-surface-400'
-                              }`}
-                            >
-                              {payout.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-surface-400 text-sm font-mono">
-                            {payout.txSignature ? (
-                              <a
-                                href={`https://solscan.io/tx/${payout.txSignature}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-primary-400 transition-colors"
-                              >
-                                {payout.txSignature.slice(0, 4)}...{payout.txSignature.slice(-4)}
-                              </a>
-                            ) : (
-                              <span className="text-surface-500">-</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-surface-400 text-sm font-mono">
-                            {payout.walletAddress.slice(0, 8)}...{payout.walletAddress.slice(-6)}
-                          </td>
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="table-premium w-full">
+                      <thead>
+                        <tr className="bg-surface-850">
+                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Date</th>
+                          <th className="py-3 px-4 text-right text-xs font-medium text-surface-400">Amount</th>
+                          <th className="py-3 px-4 text-center text-xs font-medium text-surface-400">Status</th>
+                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Tx Signature</th>
+                          <th className="py-3 px-4 text-left text-xs font-medium text-surface-400">Wallet</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {dashboard.payoutHistory.slice(0, payoutsToShow).map((payout, index) => (
+                          <tr key={payout.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
+                            <td className="py-3 px-4 text-surface-400 text-sm">
+                              {new Date(payout.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="py-3 px-4 text-right text-white font-medium">
+                              ${Number(payout.amount).toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium ${
+                                  payout.status === 'completed'
+                                    ? 'bg-win-500/10 text-win-400'
+                                    : payout.status === 'processing'
+                                    ? 'bg-accent-500/10 text-accent-400'
+                                    : payout.status === 'failed'
+                                    ? 'bg-loss-500/10 text-loss-400'
+                                    : 'bg-surface-700 text-surface-400'
+                                }`}
+                              >
+                                {payout.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-surface-400 text-sm font-mono">
+                              {payout.txSignature ? (
+                                <a
+                                  href={`https://solscan.io/tx/${payout.txSignature}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:text-primary-400 transition-colors"
+                                >
+                                  {payout.txSignature.slice(0, 4)}...{payout.txSignature.slice(-4)}
+                                </a>
+                              ) : (
+                                <span className="text-surface-500">-</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-surface-400 text-sm font-mono">
+                              {payout.walletAddress.slice(0, 8)}...{payout.walletAddress.slice(-6)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Load More Button */}
+                  {dashboard.payoutHistory.length > payoutsToShow && (
+                    <div className="py-4 text-center border-t border-surface-800/50">
+                      <button
+                        onClick={() => setPayoutsToShow(prev => prev + 10)}
+                        className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                      >
+                        Load More ({payoutsToShow} of {dashboard.payoutHistory.length} payouts)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

@@ -93,10 +93,16 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
 
   async getKlines(params: KlineParams): Promise<Candle[]> {
     const cacheKey = `klines:${params.symbol}:${params.interval}:${params.startTime}:${params.endTime}`;
+
+    // Use longer TTL for historical data (older than 1 day ago)
+    const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
+    const isHistorical = params.endTime && params.endTime < oneDayAgo;
+    const ttl = isHistorical ? 3600 : 60; // 1 hour for historical, 1 minute for recent
+
     return this.withCache(
       cacheKey,
       () => this.adapter.getKlines(params),
-      60 // Cache for 1 minute
+      ttl
     );
   }
 
