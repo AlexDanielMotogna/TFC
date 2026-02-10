@@ -7,6 +7,7 @@ import {
   PrizePoolSection,
   MobileAppSection,
   Web3Experience,
+  ReferralSection,
   FAQSection,
   LandingFooter,
 } from '@/components/landing';
@@ -20,6 +21,7 @@ export default function LandingPage() {
       <PrizePoolSection />
       <MobileAppSection />
       <Web3Experience />
+      <ReferralSection />
       <FAQSection />
       <LandingFooter />
     </div>
