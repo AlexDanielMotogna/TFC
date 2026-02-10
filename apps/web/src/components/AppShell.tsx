@@ -12,6 +12,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 import { PrizesBanner } from '@/components/PrizesBanner';
 import { WithdrawModal } from '@/components/WithdrawModal';
 import { MobilePhantomRedirect } from '@/components/MobilePhantomRedirect';
+import { NoPacificaModal } from '@/components/NoPacificaModal';
 import { QuickPositionsBar, QuickPositionsDropdown } from '@/components/QuickPositionsBar';
 import { SettingsModal } from '@/components/SettingsModal';
 import { api } from '@/lib/api';
@@ -449,6 +450,9 @@ export function AppShell({ children }: AppShellProps) {
         isOpen={showSettings}
         onClose={() => setShowSettings(false)}
       />
+
+      {/* No Pacifica Account Modal - shown when authenticated but no Pacifica account */}
+      <NoPacificaModal />
 
       {/* Mobile Phantom Redirect - prompts mobile users to open in Phantom dApp browser */}
       <MobilePhantomRedirect />
