@@ -1,147 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { isMobileDevice, isPhantomBrowser, getPhantomDeepLink } from '@/lib/mobile';
-import Image from 'next/image';
-
-const STORAGE_KEY = 'tfc-phantom-redirect-dismissed';
 
 /**
- * Modal component that prompts mobile users to open TFC inside Phantom's dApp browser
- * for a better trading experience (instant signatures, no app switching)
+ * Auto-redirects mobile users to Phantom's dApp browser.
+ * On mobile (outside Phantom), wallet connection doesn't work properly,
+ * so we force-redirect to open TFC inside Phantom's in-app browser.
  */
 export function MobilePhantomRedirect() {
-  const [showModal, setShowModal] = useState(false);
-
   useEffect(() => {
-    // Only run on client
     if (typeof window === 'undefined') return;
 
-    // Check if user previously dismissed the modal
-    const dismissed = sessionStorage.getItem(STORAGE_KEY);
-    if (dismissed) return;
-
-    // Only show on mobile devices that are NOT in Phantom's browser
-    const shouldShow = isMobileDevice() && !isPhantomBrowser();
-
-    if (shouldShow) {
-      // Small delay to avoid flash during initial load
-      const timer = setTimeout(() => setShowModal(true), 500);
-      return () => clearTimeout(timer);
+    // Only redirect on mobile devices NOT already in Phantom's browser
+    if (isMobileDevice() && !isPhantomBrowser()) {
+      const currentUrl = window.location.href;
+      window.location.href = getPhantomDeepLink(currentUrl);
     }
   }, []);
 
-  const handleDismiss = () => {
-    sessionStorage.setItem(STORAGE_KEY, 'true');
-    setShowModal(false);
-  };
-
-  const handleOpenInPhantom = () => {
-    const currentUrl = window.location.href;
-    const phantomLink = getPhantomDeepLink(currentUrl);
-    window.location.href = phantomLink;
-  };
-
-  if (!showModal) return null;
-
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-        onClick={handleDismiss}
-      />
-
-      {/* Modal */}
-      <div className="relative bg-surface-900 border border-surface-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-        {/* Close button */}
-        <button
-          onClick={handleDismiss}
-          className="absolute top-4 right-4 text-surface-400 hover:text-white transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-
-        {/* Phantom Logo */}
-        <div className="flex justify-center mb-4">
-          <Image
-            src="/wallets/Phantom-Icon_App.svg"
-            alt="Phantom"
-            width={64}
-            height={64}
-            className="rounded-2xl"
-          />
-        </div>
-
-        {/* Title */}
-        <h2 className="text-xl font-display font-bold text-white text-center mb-2">
-          Better on Phantom
-        </h2>
-
-        {/* Description */}
-        <p className="text-surface-300 text-sm text-center mb-6">
-          Open Trading Fight Club inside Phantom Wallet for instant transactions and the best mobile trading experience.
-        </p>
-
-        {/* Benefits */}
-        <div className="space-y-2 mb-6">
-          <div className="flex items-center gap-3 text-sm">
-            <div className="w-5 h-5 rounded-full bg-win-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-3 h-3 text-win-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <span className="text-surface-200">Instant transaction signing</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <div className="w-5 h-5 rounded-full bg-win-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-3 h-3 text-win-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <span className="text-surface-200">No app switching needed</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <div className="w-5 h-5 rounded-full bg-win-500/20 flex items-center justify-center flex-shrink-0">
-              <svg className="w-3 h-3 text-win-400" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <span className="text-surface-200">Seamless wallet connection</span>
-          </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="space-y-3">
-          <button
-            onClick={handleOpenInPhantom}
-            className="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2"
-          >
-            <Image
-              src="/wallets/Phantom-Icon_App.svg"
-              alt="Phantom"
-              width={20}
-              height={20}
-              className="rounded"
-            />
-            Open in Phantom
-          </button>
-
-          <button
-            onClick={handleDismiss}
-            className="w-full py-2.5 px-4 text-surface-400 hover:text-surface-200 text-sm transition-colors"
-          >
-            Continue in browser
-          </button>
-        </div>
-
-        {/* Footer note */}
-        <p className="text-[10px] text-surface-500 text-center mt-4">
-          Don't have Phantom? <a href="https://phantom.app/download" target="_blank" rel="noopener noreferrer" className="text-primary-400 hover:text-primary-300">Download it here</a>
-        </p>
-      </div>
-    </div>
-  );
+  return null;
 }
