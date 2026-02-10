@@ -17,9 +17,9 @@ export default function LandingPage() {
     <div className="min-h-screen bg-surface-900 text-white">
       <LandingNavbar />
       <HeroSection />
+      <MobileAppSection />
       <FeaturesGrid />
       <PrizePoolSection />
-      <MobileAppSection />
       <Web3Experience />
       <ReferralSection />
       <FAQSection />

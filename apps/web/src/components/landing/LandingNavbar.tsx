@@ -47,6 +47,9 @@ export function LandingNavbar() {
             <a href="#markets" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
               Markets
             </a>
+            <a href="#referrals" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Referrals
+            </a>
             <a href="#faq" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
               FAQ
             </a>
@@ -125,6 +128,9 @@ export function LandingNavbar() {
               </a>
               <a href="#markets" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 Markets
+              </a>
+              <a href="#referrals" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                Referrals
               </a>
               <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 FAQ
