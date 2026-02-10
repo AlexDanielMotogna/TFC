@@ -107,6 +107,25 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
                   Your application for <span className="text-primary-400 font-mono">{shortenedAddress}</span> is being reviewed. We'll notify you when you're approved.
                 </p>
               </div>
+
+              {/* Fast-track CTA */}
+              <div className="bg-surface-800/50 rounded-lg p-3 text-center">
+                <p className="text-surface-300 text-xs mb-2">
+                  Want to speed up your access? Comment with your Solana wallet, like & retweet our post:
+                </p>
+                <a
+                  href="https://x.com/T_F_C_official/status/2020309380374085942"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-xs font-semibold transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  Go to post on X
+                </a>
+              </div>
+
               <button
                 onClick={() => refetch()}
                 className="w-full py-3 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -144,7 +163,25 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
               <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-400 space-y-1">
                 <p>• Your wallet address will be added to our waitlist</p>
                 <p>• We'll approve access in batches during the beta period</p>
-                <p>• Check back later to see if you've been approved</p>
+                <p>• Speed up your access by engaging with our X post below</p>
+              </div>
+
+              {/* Fast-track CTA */}
+              <div className="bg-surface-800/50 rounded-lg p-3 text-center">
+                <p className="text-surface-300 text-xs mb-2">
+                  Comment with your Solana wallet, like & retweet to fast-track your access:
+                </p>
+                <a
+                  href="https://x.com/T_F_C_official/status/2020309380374085942"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-xs font-semibold transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  Go to post on X
+                </a>
               </div>
 
               {/* Apply Button */}
