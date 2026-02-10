@@ -4,12 +4,6 @@ import { ReactNode, useMemo, useEffect, useState } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
-import {
-  SolanaMobileWalletAdapter,
-  createDefaultAddressSelector,
-  createDefaultAuthorizationResultCache,
-  createDefaultWalletNotFoundHandler,
-} from '@solana-mobile/wallet-adapter-mobile';
 import { PacificaConnectionSync } from './PacificaConnectionSync';
 import { PacificaWebSocketInit } from './PacificaWebSocketInit';
 import { getDeviceContext, type DeviceContext } from '@/lib/mobile';
@@ -86,37 +80,9 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
 
   // Configure wallets based on device context
   const wallets = useMemo(() => {
-    if (deviceContext === 'phantom-browser') {
-      // Inside Phantom's dApp browser: provider is pre-injected
-      // Only use PhantomWalletAdapter for seamless connection
-      return [new PhantomWalletAdapter()];
-    }
-
-    if (deviceContext === 'ios-mobile-browser') {
-      // iOS Safari/Chrome: PhantomWalletAdapter handles redirect to Phantom's in-app browser
-      // SolanaMobileWalletAdapter does NOT work on iOS (requires Android MWA protocol)
-      return [new PhantomWalletAdapter()];
-    }
-
-    if (deviceContext === 'android-mobile-browser') {
-      // Android mobile browser: use Mobile Wallet Adapter for deep linking
-      const cluster = (process.env.NEXT_PUBLIC_SOLANA_NETWORK as 'devnet' | 'mainnet-beta') || 'devnet';
-      return [
-        new SolanaMobileWalletAdapter({
-          addressSelector: createDefaultAddressSelector(),
-          appIdentity: {
-            name: 'Trading Fight Club',
-            uri: typeof window !== 'undefined' ? window.location.origin : 'https://tradefight.club',
-            icon: '/images/logos/favicon-white-192.png',
-          },
-          authorizationResultCache: createDefaultAuthorizationResultCache(),
-          cluster,
-          onWalletNotFound: createDefaultWalletNotFoundHandler(),
-        }),
-      ];
-    }
-
-    // Desktop: use browser extensions
+    // Inside any wallet dApp browser OR on mobile: offer both adapters
+    // so the wallet modal shows the available provider(s).
+    // On desktop: browser extensions handle detection automatically.
     return [
       new PhantomWalletAdapter(),
       new SolflareWalletAdapter(),
