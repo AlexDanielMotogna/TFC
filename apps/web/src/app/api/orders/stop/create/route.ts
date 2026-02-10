@@ -86,7 +86,9 @@ export async function POST(request: Request) {
       walletAddress: account,
       actionType: 'CREATE_STOP',
       symbol,
-      side: side === 'ask' ? 'LONG' : 'SHORT', // Position side being closed
+      side: reduce_only
+        ? (side === 'ask' ? 'LONG' : 'SHORT')   // closing: ask closes LONG, bid closes SHORT
+        : (side === 'bid' ? 'LONG' : 'SHORT'),  // opening: bid=LONG, ask=SHORT
       price: stop_order.stop_price,
       size: stop_order.amount,
       reduceOnly: reduce_only,

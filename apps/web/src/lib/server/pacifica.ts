@@ -234,6 +234,27 @@ export async function createLimitOrder(
 }
 
 /**
+ * Create a stop order
+ * POST /api/v1/orders/stop/create
+ */
+export async function createStopOrder(
+  keypair: nacl.SignKeyPair,
+  params: {
+    symbol: string;
+    side: 'bid' | 'ask';
+    amount: string;
+    stopPrice: string;
+    limitPrice?: string;
+    reduceOnly: boolean;
+    clientOrderId?: string;
+  }
+): Promise<{ order_id: number }> {
+  const signedPayload = PacificaSigning.signStopOrder(keypair, params);
+
+  return request<{ order_id: number }>('POST', '/api/v1/orders/stop/create', signedPayload);
+}
+
+/**
  * Cancel an order
  * POST /api/v1/orders/cancel
  */

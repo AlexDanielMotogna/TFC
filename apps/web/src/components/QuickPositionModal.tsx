@@ -447,17 +447,6 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
 
           {activeTab === 'limit' && (
             <div className="space-y-4">
-              {/* Live Price Display */}
-              <div className="flex items-center justify-between bg-surface-900/50 rounded-lg px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-white font-mono text-lg tabular-nums">{formatPrice(currentPrice)}</span>
-                  <span className="text-surface-500 text-sm">USD</span>
-                </div>
-                <span className="text-[10px] text-win-400 bg-win-500/20 px-1.5 py-0.5 rounded font-medium animate-pulse">
-                  LIVE
-                </span>
-              </div>
-
               {/* Price Input */}
               <div>
                 <label className="block text-xs text-surface-400 mb-2">Price</label>
