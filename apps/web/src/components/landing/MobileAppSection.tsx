@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { FullTerminalDemo } from './FullTerminalDemo';
 import {
   LeverageIcon,
   LongShortIcon,
-  MarketOrdersIcon,
   StopLossIcon,
   TakeProfitIcon,
   FlipPositionIcon,
@@ -13,6 +11,8 @@ import {
   DepositWithdrawIcon,
   FightBannerIcon,
   FightOnlyFilterIcon,
+  OrderTypesIcon,
+  BatchOrdersIcon,
 } from '@/components/icons/FeatureIcons';
 
 // Trading features data - using centralized icons
@@ -32,11 +32,18 @@ const tradingFeatures = [
     color: 'green',
   },
   {
-    id: 'market-orders',
-    title: 'Market Orders',
-    description: 'Execute instantly at current market price. No waiting.',
-    icon: <MarketOrdersIcon className="w-5 h-5" />,
+    id: 'order-types',
+    title: 'Order Types',
+    description: 'Market, Limit, Stop Market and Stop Limit orders for full control.',
+    icon: <OrderTypesIcon className="w-5 h-5" />,
     color: 'primary',
+  },
+  {
+    id: 'batch-orders',
+    title: 'Batch Orders',
+    description: 'Place multiple orders at once. Scale in and out efficiently.',
+    icon: <BatchOrdersIcon className="w-5 h-5" />,
+    color: 'violet',
   },
   {
     id: 'stop-loss',
@@ -106,7 +113,7 @@ const getFeatureColor = (color: string) => {
   }
 };
 
-type FeatureId = 'leverage' | 'long-short' | 'market-orders' | 'limit-orders' | 'stop-loss' | 'take-profit' | 'flip-position' | 'trailing-stop' | 'fight-capital-limit' | 'deposit-withdraw' | 'fight-banner' | 'fight-only' | null;
+type FeatureId = 'leverage' | 'long-short' | 'order-types' | 'batch-orders' | 'stop-loss' | 'take-profit' | 'flip-position' | 'fight-capital-limit' | 'deposit-withdraw' | 'fight-banner' | 'fight-only' | null;
 
 export function MobileAppSection() {
   const [activeFeature, setActiveFeature] = useState<FeatureId>(null);
@@ -123,13 +130,21 @@ export function MobileAppSection() {
             Everything you need to execute your strategy. Real perpetual trading with real execution.
           </p>
           <p className="text-surface-500 text-sm">
-            Try the interactive demo below to learn the platform before trading.
+            See the platform in action.
           </p>
         </div>
 
-        {/* Full Width Terminal Demo */}
-        <div className="mb-12 rounded-xl border border-surface-800 shadow-2xl overflow-x-auto">
-          <FullTerminalDemo highlightFeature={activeFeature} />
+        {/* Terminal Video */}
+        <div className="mb-12 rounded-xl border border-surface-800 shadow-2xl overflow-hidden">
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-auto"
+          >
+            <source src="/Video/Terminal.webm" type="video/webm" />
+          </video>
         </div>
 
         {/* Features Grid - Single grid for proper mobile layout */}
