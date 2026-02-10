@@ -98,7 +98,7 @@ export const MOBILE_WALLETS: MobileWallet[] = [
   {
     id: 'phantom',
     name: 'Phantom',
-    icon: '/wallets/phantom.svg',
+    icon: '/images/landing/walletConnection/Phantom.png',
     getDeepLink: (appUrl: string) => {
       const encodedUrl = encodeURIComponent(appUrl);
       return `phantom://browse/${encodedUrl}`;
@@ -108,7 +108,7 @@ export const MOBILE_WALLETS: MobileWallet[] = [
   {
     id: 'solflare',
     name: 'Solflare',
-    icon: '/wallets/solflare.svg',
+    icon: '/images/landing/walletConnection/Solflare.png',
     getDeepLink: (appUrl: string) => {
       const encodedUrl = encodeURIComponent(appUrl);
       const ref = encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://tradefight.club');
