@@ -98,6 +98,10 @@ export function FAQSection() {
       answer: 'Connect your Solana wallet, deposit USDC on Pacifica DEX, and head to the lobby to create a fight or join an existing one. Start fighting and climb the leaderboard!',
     },
     {
+      question: 'How does the referral program work?',
+      answer: 'Share your unique referral link and earn commissions on every trade your referrals make. Tier 1 (direct referrals) earns 34%, Tier 2 (their referrals) earns 12%, and Tier 3 (deep network) earns 4% — up to 50% combined. Track earnings and claim payouts from your referral dashboard.',
+    },
+    {
       question: 'Anti-Cheat System?',
       answer: 'Fights with zero trading, very low volume, repeated self-matches, or shared IPs are marked NO CONTEST and don’t affect rankings or PnL.',
     },
