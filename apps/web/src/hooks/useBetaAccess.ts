@@ -197,15 +197,35 @@ export function useBetaAccess() {
     }
   }, [walletAddress, isApplying]);
 
-  // Check access on wallet connect
+  // Detect wallet change while still connected (common on mobile dApp browsers)
+  // When wallet changes without disconnecting, clear stale cache and force re-check
+  const prevWalletRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (connected && walletAddress) {
-      checkAccess();
+      if (prevWalletRef.current && prevWalletRef.current !== walletAddress) {
+        // Wallet changed while connected — clear everything and force fresh check
+        clearCachedState();
+        lastCheckedWallet.current = null;
+        hasVerifiedOnce.current = false;
+        setState({
+          hasAccess: false,
+          status: null,
+          applied: false,
+          appliedAt: null,
+          isLoading: true,
+        });
+        checkAccess(true);
+      } else {
+        checkAccess();
+      }
+      prevWalletRef.current = walletAddress;
     } else {
       // Clear cache and reset state when disconnected
       clearCachedState();
       lastCheckedWallet.current = null;
       hasVerifiedOnce.current = false;
+      prevWalletRef.current = null;
       setState({
         hasAccess: false,
         status: null,
