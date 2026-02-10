@@ -173,7 +173,7 @@ export function useAccount(): UseAccountReturn {
         side: order.side === 'bid' ? 'LONG' : 'SHORT',
         type: typeDisplay,
         size: resolvedSize,
-        price: order.stop_price || order.price || '0', // Use stop_price for TP/SL orders
+        price: isTpSlOrder ? (order.stop_price || order.price || '0') : (order.price || '0'), // TP/SL: use stop_price as display price; stop-limit: keep limit price
         filled: order.filled_amount || '0',
         status: order.reduce_only ? 'REDUCE_ONLY' : 'OPEN',
         reduceOnly: order.reduce_only || false,

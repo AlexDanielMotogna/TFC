@@ -19,6 +19,7 @@ import {
   AccountSetting,
   MarketOrderParams,
   LimitOrderParams,
+  StopOrderParams,
   CancelOrderParams,
   CancelAllOrdersParams,
   KlineParams,
@@ -172,6 +173,12 @@ export class CachedExchangeAdapter implements ExchangeAdapter {
 
   async createLimitOrder(auth: AuthContext, params: LimitOrderParams): Promise<{ orderId: string | number }> {
     const result = await this.adapter.createLimitOrder(auth, params);
+    await this.invalidateAccountCache(auth.accountId);
+    return result;
+  }
+
+  async createStopOrder(auth: AuthContext, params: StopOrderParams): Promise<{ orderId: string | number }> {
+    const result = await this.adapter.createStopOrder(auth, params);
     await this.invalidateAccountCache(auth.accountId);
     return result;
   }

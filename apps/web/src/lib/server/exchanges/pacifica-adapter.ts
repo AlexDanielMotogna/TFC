@@ -24,6 +24,7 @@ import {
   AccountSetting,
   MarketOrderParams,
   LimitOrderParams,
+  StopOrderParams,
   CancelOrderParams,
   CancelAllOrdersParams,
   KlineParams,
@@ -300,6 +301,26 @@ export class PacificaAdapter implements ExchangeAdapter {
       amount: params.amount,
       side: params.side === 'BUY' ? 'bid' : 'ask',
       tif: this.denormalizeTimeInForce(params.timeInForce || 'GTC'),
+      reduceOnly: params.reduceOnly || false,
+      clientOrderId: params.clientOrderId,
+    });
+
+    return { orderId: result.order_id };
+  }
+
+  async createStopOrder(
+    auth: AuthContext,
+    params: StopOrderParams
+  ): Promise<{ orderId: string | number }> {
+    const keypair = this.extractKeypair(auth);
+    const pacificaSymbol = this.denormalizeSymbol(params.symbol);
+
+    const result = await Pacifica.createStopOrder(keypair, {
+      symbol: pacificaSymbol,
+      side: params.side === 'BUY' ? 'bid' : 'ask',
+      amount: params.amount,
+      stopPrice: params.stopPrice,
+      limitPrice: params.limitPrice,
       reduceOnly: params.reduceOnly || false,
       clientOrderId: params.clientOrderId,
     });

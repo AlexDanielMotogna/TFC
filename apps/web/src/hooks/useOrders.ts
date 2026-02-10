@@ -384,7 +384,7 @@ export function useCancelStopOrder() {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
       }, 1500);
 
-      notify('ORDER', 'TP/SL Cancelled', `TP/SL order cancelled`, { variant: 'success' });
+      notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel stop order:', error);
@@ -730,6 +730,95 @@ export function useCreateStopOrder() {
     onError: (error: Error) => {
       console.error('Failed to create partial TP/SL:', error);
       notify('ORDER', 'Order Failed', `Failed to create order: ${error.message}`, { variant: 'error' });
+    },
+  });
+}
+
+/**
+ * Hook to create standalone stop orders from the order form
+ * Unlike useCreateStopOrder (which is for TP/SL on existing positions),
+ * this creates stop-market or stop-limit orders as new entries.
+ */
+interface CreateStandaloneStopOrderParams {
+  symbol: string;          // 'BTC-USD'
+  side: 'bid' | 'ask';    // bid=LONG, ask=SHORT
+  stopPrice: string;       // trigger price
+  amount: string;          // token amount (string)
+  limitPrice?: string;     // for stop-limit only
+  reduceOnly?: boolean;    // default false
+  fightId?: string;
+  leverage?: number;
+}
+
+export function useCreateStandaloneStopOrder() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: CreateStandaloneStopOrderParams) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      const stopOrderParams = {
+        symbol,
+        side: params.side,
+        reduce_only: params.reduceOnly || false,
+        stop_order: {
+          stop_price: params.stopPrice,
+          amount: params.amount,
+          ...(params.limitPrice && { limit_price: params.limitPrice }),
+        },
+      };
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedStopOrder(wallet, stopOrderParams);
+
+      // Send to backend proxy
+      const response = await fetch('/api/orders/stop/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          account,
+          ...stopOrderParams,
+          signature,
+          timestamp,
+          fight_id: params.fightId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['positions'] });
+      queryClient.invalidateQueries({ queryKey: ['account'] });
+
+      if (variables.fightId) {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['fight-orders', variables.fightId] });
+          queryClient.invalidateQueries({ queryKey: ['stake-info'] });
+        }, 1000);
+      }
+
+      const typeLabel = variables.limitPrice ? 'Stop Limit' : 'Stop Market';
+      const sideLabel = variables.side === 'bid' ? 'Long' : 'Short';
+      notify('ORDER', `${typeLabel} Order`, `${sideLabel} ${typeLabel}: trigger $${variables.stopPrice}${variables.limitPrice ? ` limit $${variables.limitPrice}` : ''} (${variables.amount} ${variables.symbol.replace('-USD', '')})`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to create stop order:', error);
+      notify('ORDER', 'Stop Order Failed', `Stop order failed: ${error.message}`, { variant: 'error' });
     },
   });
 }

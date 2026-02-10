@@ -176,6 +176,16 @@ export interface LimitOrderParams {
   clientOrderId?: string;
 }
 
+export interface StopOrderParams {
+  symbol: string;
+  side: OrderSide;
+  amount: string;
+  stopPrice: string;         // Trigger price
+  limitPrice?: string;       // Makes it stop-limit if provided
+  reduceOnly?: boolean;
+  clientOrderId?: string;
+}
+
 export interface CancelOrderParams {
   symbol: string;
   orderId?: string | number;
@@ -238,6 +248,7 @@ export interface ExchangeAdapter {
 
   createMarketOrder(auth: AuthContext, params: MarketOrderParams): Promise<{ orderId: string | number }>;
   createLimitOrder(auth: AuthContext, params: LimitOrderParams): Promise<{ orderId: string | number }>;
+  createStopOrder(auth: AuthContext, params: StopOrderParams): Promise<{ orderId: string | number }>;
   cancelOrder(auth: AuthContext, params: CancelOrderParams): Promise<{ success: boolean }>;
   cancelAllOrders(auth: AuthContext, params: CancelAllOrdersParams): Promise<{ cancelledCount: number }>;
   updateLeverage(auth: AuthContext, symbol: string, leverage: number): Promise<{ success: boolean }>;
