@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -71,16 +70,9 @@ export function HeroSection() {
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
-              {connected ? (
-                <Link href="/trade" className="btn-glow-orange w-full sm:w-auto text-center">
-                  Start Fighting
-                </Link>
-              ) : (
-                <WalletMultiButton />
-              )}
               <button
                 onClick={() => setShowBetaModal(true)}
-                className="btn-outline-glow w-full sm:w-auto text-center"
+                className="btn-glow-orange w-full sm:w-auto text-center"
               >
                 Join Beta
               </button>

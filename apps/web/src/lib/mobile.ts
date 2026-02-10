@@ -74,7 +74,10 @@ export function getDeviceContext(): DeviceContext {
  */
 export function getPhantomDeepLink(appUrl: string): string {
   const encodedUrl = encodeURIComponent(appUrl);
-  return `https://phantom.app/ul/browse/${encodedUrl}`;
+  // Use phantom:// scheme to directly open the app (not the website)
+  // The universal link (https://phantom.app/ul/browse/) often redirects to
+  // the download page even when Phantom is installed
+  return `phantom://browse/${encodedUrl}`;
 }
 
 /**
