@@ -290,7 +290,7 @@ export function AppShell({ children }: AppShellProps) {
       >
         {/* Header */}
         <header className="border-surface-800 bg-surface-850 sticky top-0 z-50">
-          <div className="w-full px-4 overflow-hidden">
+          <div className="w-full px-4">
             <div className="flex items-center justify-between h-16 min-w-0">
               {/* Logo - always visible, hidden on desktop when sidebar is showing */}
               <div className={`flex-shrink-0 ${sidebarState !== 'hidden' ? 'max-[1199px]:block hidden' : ''}`}>
@@ -352,7 +352,7 @@ export function AppShell({ children }: AppShellProps) {
                 {settings.showNotifications && <NotificationBell />}
 
                 {/* Wallet Connect Button - visible on all screen sizes */}
-                <div className="wallet-compact min-w-0 overflow-hidden">
+                <div className="wallet-compact min-w-0 relative z-50">
                   <WalletButton />
                 </div>
               </div>

@@ -274,6 +274,19 @@ body {
   line-height: 1.5 !important;
 }
 
+/* Truncate wallet address only in the navbar, not in modals */
+.wallet-compact .wallet-adapter-button {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 160px !important;
+}
+
+/* Wallet dropdown menu needs high z-index to appear above header */
+.wallet-adapter-dropdown-list {
+  z-index: 9999 !important;
+}
+
 .wallet-adapter-button:hover {
   background-color: #1c1c1f !important;
   border-color: #212124 !important;

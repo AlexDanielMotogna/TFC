@@ -10,6 +10,10 @@ import { useAuth } from '@/hooks';
  * - "Signing..." while signature is being requested
  * - "Authenticating..." while backend auth is in progress
  * - Wallet address when fully connected and authenticated
+ *
+ * Mobile users outside a wallet dApp browser are handled by
+ * MobilePhantomRedirect (mandatory modal), so no mobile-specific
+ * logic is needed here.
  */
 export function WalletButton() {
   const { connected, connecting } = useWallet();

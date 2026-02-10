@@ -1,5 +1,5 @@
 /**
- * Mobile detection utilities for Phantom dApp browser integration
+ * Mobile detection utilities and wallet deep link support
  */
 
 /**
@@ -41,6 +41,22 @@ export function isPhantomBrowser(): boolean {
 }
 
 /**
+ * Check if we're running inside any supported wallet's dApp browser
+ */
+export function isInWalletBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  // Phantom
+  if (isPhantomBrowser()) return true;
+
+  // Solflare injects window.solflare
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((window as any).solflare?.isSolflare) return true;
+
+  return false;
+}
+
+/**
  * Get the device context for wallet configuration
  * - desktop: browser extensions (Phantom, Solflare)
  * - phantom-browser: inside Phantom's dApp browser (provider injected)
@@ -66,6 +82,41 @@ export function getDeviceContext(): DeviceContext {
 
   return 'android-mobile-browser';
 }
+
+/**
+ * Supported mobile wallets with their deep link schemes
+ */
+export interface MobileWallet {
+  id: string;
+  name: string;
+  icon: string;         // Path to icon in /public/wallets/
+  getDeepLink: (appUrl: string) => string;
+  downloadUrl: string;
+}
+
+export const MOBILE_WALLETS: MobileWallet[] = [
+  {
+    id: 'phantom',
+    name: 'Phantom',
+    icon: '/wallets/phantom.svg',
+    getDeepLink: (appUrl: string) => {
+      const encodedUrl = encodeURIComponent(appUrl);
+      return `phantom://browse/${encodedUrl}`;
+    },
+    downloadUrl: 'https://phantom.app/download',
+  },
+  {
+    id: 'solflare',
+    name: 'Solflare',
+    icon: '/wallets/solflare.svg',
+    getDeepLink: (appUrl: string) => {
+      const encodedUrl = encodeURIComponent(appUrl);
+      const ref = encodeURIComponent(typeof window !== 'undefined' ? window.location.origin : 'https://tradefight.club');
+      return `https://solflare.com/ul/v1/browse/${encodedUrl}?ref=${ref}`;
+    },
+    downloadUrl: 'https://solflare.com/download',
+  },
+];
 
 /**
  * Generate a Phantom universal link to open a URL in Phantom's dApp browser
