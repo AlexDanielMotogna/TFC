@@ -107,28 +107,34 @@ export function useBetaAccess() {
       return;
     }
 
-    // Skip if we already checked this wallet (unless forced)
-    if (!force && lastCheckedWallet.current === walletAddress) {
-      return;
-    }
-
     // Check cache first (unless forced)
     if (!force) {
       const cached = getCachedState(walletAddress);
       if (cached) {
-        // Use cached state immediately
-        setState({ ...cached.state, isLoading: false });
-        lastCheckedWallet.current = walletAddress;
+        // For pending status, always do a fresh check on page navigation
+        // This ensures users see their approval immediately
+        if (cached.state.status === 'pending') {
+          // But skip if we just checked this wallet (prevent spam on same session)
+          if (lastCheckedWallet.current === walletAddress) {
+            setState({ ...cached.state, isLoading: false });
+            return;
+          }
+          // Continue to fetch fresh data for pending users (silently)
+          silent = true;
+        } else {
+          // For approved/rejected, use cached state immediately
+          setState({ ...cached.state, isLoading: false });
+          lastCheckedWallet.current = walletAddress;
 
-        // If cache is fresh, we're done
-        if (cached.isFresh) {
-          hasVerifiedOnce.current = true;
-          return;
+          // If cache is fresh, we're done
+          if (cached.isFresh) {
+            hasVerifiedOnce.current = true;
+            return;
+          }
+
+          // Cache expired - re-fetch silently in background
+          silent = true;
         }
-
-        // Cache expired - re-fetch silently in background
-        // Don't return, continue to fetch below with silent=true
-        silent = true;
       }
     }
 
@@ -152,8 +158,13 @@ export function useBetaAccess() {
         };
         setState({ ...newState, isLoading: false });
         setCachedState(walletAddress, newState);
-        lastCheckedWallet.current = walletAddress;
-        hasVerifiedOnce.current = true;
+
+        // Don't set lastCheckedWallet for pending status
+        // This allows fresh check on next page navigation
+        if (data.status !== 'pending') {
+          lastCheckedWallet.current = walletAddress;
+          hasVerifiedOnce.current = true;
+        }
       } else {
         setState(prev => ({ ...prev, isLoading: false }));
       }
