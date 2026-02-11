@@ -182,6 +182,7 @@ export async function authenticateWallet(
   token: string;
   user: { id: string; handle: string; avatarUrl: string | null; role: 'USER' | 'ADMIN' };
   pacificaConnected: boolean;
+  pacificaFailReason: 'not_found' | 'beta_required' | null;
 }> {
   console.log('Wallet authentication attempt', {
     walletAddress: walletAddress.slice(0, 8) + '...',
