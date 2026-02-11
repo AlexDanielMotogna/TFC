@@ -70,7 +70,7 @@ function removeProviderListener(
 
 export function useAuth() {
   const { publicKey, signMessage, connected, connecting, disconnect, wallet } = useWallet();
-  const { token, user, walletAddress: storedWalletAddress, isAuthenticated, pacificaConnected, setAuth, setPacificaConnected, clearAuth, _hasHydrated } = useAuthStore();
+  const { token, user, walletAddress: storedWalletAddress, isAuthenticated, pacificaConnected, pacificaFailReason, setAuth, setPacificaConnected, clearAuth, _hasHydrated } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const hasAttemptedAuth = useRef(false);
   const currentWalletAddress = publicKey?.toBase58() || null;
@@ -108,8 +108,8 @@ export function useAuth() {
         clearStoredReferralCode();
       }
 
-      // Store auth state including Pacifica connection status AND wallet address
-      setAuth(response.token, response.user, response.pacificaConnected, publicKey.toBase58());
+      // Store auth state including Pacifica connection status, wallet address, and fail reason
+      setAuth(response.token, response.user, response.pacificaConnected, publicKey.toBase58(), response.pacificaFailReason);
 
       return response;
     } catch (error) {
@@ -274,6 +274,7 @@ export function useAuth() {
     user,
     isAuthenticated,
     pacificaConnected,
+    pacificaFailReason,
     isAuthenticating,
     isConnecting: connecting,
     isWalletConnected: connected,

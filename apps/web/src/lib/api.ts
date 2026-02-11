@@ -50,11 +50,13 @@ async function fetchApi<T>(endpoint: string, options: ApiOptions = {}): Promise<
 // Auth
 // ─────────────────────────────────────────────────────────────
 
+export type PacificaFailReason = 'not_found' | 'beta_required' | null;
+
 export async function connectWallet(
   walletAddress: string,
   signature: string,
   referralCode?: string
-): Promise<{ token: string; user: User; pacificaConnected: boolean }> {
+): Promise<{ token: string; user: User; pacificaConnected: boolean; pacificaFailReason: PacificaFailReason }> {
   return fetchApi('/auth/connect', {
     method: 'POST',
     body: JSON.stringify({ walletAddress, signature, referralCode }),

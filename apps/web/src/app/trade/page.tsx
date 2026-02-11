@@ -36,7 +36,7 @@ const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
 
 export default function TradePage() {
   const { connected } = useWallet();
-  const { isAuthenticated, pacificaConnected } = useAuth();
+  const { isAuthenticated, pacificaConnected, pacificaFailReason } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -1711,8 +1711,25 @@ export default function TradePage() {
             </div>
             <div className="p-1 flex-1 overflow-y-auto overscroll-y-auto">
 
+              {/* Pacifica Beta Access Required Warning */}
+              {isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-orange-500/10 rounded border border-orange-500/30">
+                  <div className="text-[10px] xl:text-xs text-orange-400 font-semibold mb-1.5 xl:mb-2 uppercase">Beta Access Required</div>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                    Your wallet needs Pacifica beta access. Request a code from Pacifica.
+                  </p>
+                  <a
+                    href="https://pacifica.fi"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
+                  >
+                    Visit Pacifica
+                  </a>
+                </div>
+              )}
               {/* No Pacifica Account Warning */}
-              {isAuthenticated && !pacificaConnected && (
+              {isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
                   <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No Pacifica Account</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
