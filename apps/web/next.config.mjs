@@ -3,9 +3,6 @@ const nextConfig = {
   transpilePackages: ['@tfc/shared'],
   reactStrictMode: true,
   output: 'standalone',
-  // Skip type-checking and linting during Docker build (run in CI instead)
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   // Exclude Prisma from bundling - let it use native Node.js require at runtime
   experimental: {
     serverComponentsExternalPackages: ['@prisma/client', 'prisma'],
