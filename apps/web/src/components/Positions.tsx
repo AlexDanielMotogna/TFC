@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LimitCloseModal } from './LimitCloseModal';
 import { FlipPositionModal } from './FlipPositionModal';
 import { MarketCloseModal, type MarketCloseParams } from './MarketCloseModal';
@@ -54,13 +54,24 @@ interface PositionsProps {
   onClosePosition?: (positionId: string, closeType?: 'market' | 'limit' | 'flip', params?: LimitCloseParams | MarketCloseParams) => void;
   onSetTpSl?: (params: TpSlParams) => Promise<void>;
   onCancelOrder?: (orderId: string, symbol: string, orderType: string) => Promise<void>;
+  /** Close all positions at once */
+  onCloseAll?: () => Promise<void>;
+  /** Whether close all is in progress */
+  isClosingAll?: boolean;
   /** When true, hides close buttons and shows info banner (for fight-only view) */
   readOnly?: boolean;
   /** Optional message to show when in read-only mode */
   readOnlyMessage?: string;
 }
 
-export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder, readOnly = false, readOnlyMessage }: PositionsProps) {
+// Sort state type
+type SortColumn = 'token' | 'size' | 'value' | 'entry' | 'mark' | 'pnl' | 'liq' | 'margin' | 'funding';
+interface SortState {
+  col: SortColumn;
+  desc: boolean;
+}
+
+export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder, onCloseAll, isClosingAll, readOnly = false, readOnlyMessage }: PositionsProps) {
   const [closingId, setClosingId] = useState<string | null>(null);
   const [closingType, setClosingType] = useState<'market' | 'limit' | 'flip' | null>(null);
   const [marketClosePosition, setMarketClosePosition] = useState<Position | null>(null);
@@ -71,6 +82,33 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
   const [isSubmittingLimit, setIsSubmittingLimit] = useState(false);
   const [isSubmittingFlip, setIsSubmittingFlip] = useState(false);
   const [isSubmittingTpSl, setIsSubmittingTpSl] = useState(false);
+
+  // Sorting state
+  const [sort, setSort] = useState<SortState>({ col: 'pnl', desc: true });
+
+  // Sync tpSlPosition with updated position from props when orders change
+  // This ensures the modal shows current orders after cancellation
+  useEffect(() => {
+    if (tpSlPosition) {
+      const updatedPosition = positions.find(p => p.id === tpSlPosition.id);
+      if (updatedPosition) {
+        // Only update if orders have changed
+        const ordersChanged =
+          JSON.stringify(updatedPosition.tpOrders) !== JSON.stringify(tpSlPosition.tpOrders) ||
+          JSON.stringify(updatedPosition.slOrders) !== JSON.stringify(tpSlPosition.slOrders);
+        if (ordersChanged) {
+          setTpSlPosition(updatedPosition);
+        }
+      }
+    }
+  }, [positions, tpSlPosition]);
+
+  const toggleSort = (col: SortColumn) => {
+    setSort(prev => ({
+      col,
+      desc: prev.col === col ? !prev.desc : true
+    }));
+  };
 
   const handleClose = async (positionId: string, closeType: 'market' | 'limit' | 'flip' = 'market') => {
     // For market close, show modal with percentage slider
@@ -189,11 +227,14 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
 
   if (positions.length === 0) {
     return (
-      <div className="text-center py-8 text-surface-500">
-        <p>No open positions</p>
-        {readOnly && readOnlyMessage && (
-          <p className="text-xs mt-2 text-surface-400">{readOnlyMessage}</p>
-        )}
+      // Use min-h-full to fill container and prevent layout shift when positions load
+      <div className="flex items-center justify-center min-h-full text-surface-500">
+        <div className="text-center">
+          <p>No open positions</p>
+          {readOnly && readOnlyMessage && (
+            <p className="text-xs mt-2 text-surface-400">{readOnlyMessage}</p>
+          )}
+        </div>
       </div>
     );
   }
@@ -209,36 +250,102 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      {/* Table with horizontal scroll - grows to fill space */}
-      <div className="overflow-x-auto overflow-y-auto flex-1">
+      {/* Table with horizontal scroll only */}
+      <div className="overflow-x-auto flex-1">
       <table className="w-full text-xs min-w-[900px]">
         <thead>
-          <tr className="text-xs text-surface-400">
-            <th className="text-left py-2 px-2 font-medium whitespace-nowrap">Token</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Size</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Pos Value</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Entry</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Mark</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">PnL (ROI%)</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Liq Price</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Margin</th>
-            <th className="text-right py-2 px-2 font-medium whitespace-nowrap">Funding</th>
+          <tr className="text-xs text-surface-400 tracking-wider">
+            <th
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('token')}
+            >
+              Token {sort.col === 'token' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('size')}
+            >
+              Size {sort.col === 'size' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('value')}
+            >
+              Pos Value {sort.col === 'value' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('entry')}
+            >
+              Entry {sort.col === 'entry' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('mark')}
+            >
+              Mark {sort.col === 'mark' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('pnl')}
+            >
+              PnL (ROI%) {sort.col === 'pnl' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('liq')}
+            >
+              Liq Price {sort.col === 'liq' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('margin')}
+            >
+              Margin {sort.col === 'margin' && (sort.desc ? '↓' : '↑')}
+            </th>
+            <th
+              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              onClick={() => toggleSort('funding')}
+            >
+              Funding {sort.col === 'funding' && (sort.desc ? '↓' : '↑')}
+            </th>
             <th className="text-center py-2 px-2 font-medium whitespace-nowrap">TP/SL</th>
             {!readOnly && <th className="text-center py-2 px-2 font-medium whitespace-nowrap">Close</th>}
           </tr>
         </thead>
         <tbody>
-          {positions.map((pos) => (
+          {[...positions].sort((a, b) => {
+            const getValue = (pos: Position) => {
+              switch (sort.col) {
+                case 'token': return pos.symbol;
+                case 'size': return pos.sizeInToken;
+                case 'value': return pos.size;
+                case 'entry': return pos.entryPrice;
+                case 'mark': return pos.markPrice;
+                case 'pnl': return pos.unrealizedPnl;
+                case 'liq': return pos.liquidationPrice;
+                case 'margin': return pos.margin;
+                case 'funding': return pos.funding;
+                default: return 0;
+              }
+            };
+            const valA = getValue(a);
+            const valB = getValue(b);
+            if (typeof valA === 'string') {
+              return sort.desc ? valB.toString().localeCompare(valA) : valA.localeCompare(valB.toString());
+            }
+            return sort.desc ? (valB as number) - (valA as number) : (valA as number) - (valB as number);
+          }).map((pos) => (
             <tr
               key={pos.id}
-              className="border-t border-surface-700/50 hover:bg-surface-800/30"
+              className="border-t border-surface-800/50 hover:bg-surface-800/30"
             >
               {/* Token - Symbol with leverage badge */}
               <td className="py-3 px-2">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-white">{getTokenSymbol(pos.symbol)}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
+                    className={`px-1.5 py-0.5 rounded text-[10px] sm:text-xs max-[1199px]:text-[10px] font-semibold ${
                       pos.side === 'LONG'
                         ? 'bg-win-500/20 text-win-400'
                         : 'bg-loss-500/20 text-loss-400'
@@ -260,17 +367,17 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Entry Price */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300">
+              <td className="py-3 px-2 text-right font-mono text-surface-300 min-w-[85px]">
                 {formatPrice(pos.entryPrice)}
               </td>
 
               {/* Mark Price */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300">
+              <td className="py-3 px-2 text-right font-mono text-surface-300 min-w-[85px]">
                 {formatPrice(pos.markPrice)}
               </td>
 
               {/* PnL with ROI% */}
-              <td className="py-3 px-2 text-right">
+              <td className="py-3 px-2 text-right min-w-[140px]">
                 <div
                   className={`font-mono font-medium ${
                     pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
@@ -287,7 +394,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Liquidation Price */}
-              <td className="py-3 px-2 text-right font-mono text-loss-400">
+              <td className="py-3 px-2 text-right font-mono text-loss-400 min-w-[85px]">
                 {formatPrice(pos.liquidationPrice)}
               </td>
 
@@ -402,7 +509,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
       </div>
 
       {/* Summary - fixed at bottom */}
-      <div className="mt-auto pt-3 border-t border-surface-700 flex items-center gap-4 px-2 flex-shrink-0">
+      <div className="mt-auto pt-3 border-t border-surface-800 flex items-center gap-4 px-2 flex-shrink-0">
         <div className="text-xs text-surface-400">
           Positions: <span className="text-white">{positions.length}</span>
         </div>

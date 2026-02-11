@@ -10,7 +10,7 @@ interface FAQItem {
 
 function FAQItem({ item, isOpen, onToggle }: { item: FAQItem; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div className="border-b border-surface-700/50 last:border-b-0">
+    <div className="border-b border-surface-800/50 last:border-b-0">
       <button
         onClick={onToggle}
         className="w-full flex items-center justify-between py-5 text-left group"
@@ -96,6 +96,10 @@ export function FAQSection() {
     {
       question: 'How do I get started?',
       answer: 'Connect your Solana wallet, deposit USDC on Pacifica DEX, and head to the lobby to create a fight or join an existing one. Start fighting and climb the leaderboard!',
+    },
+    {
+      question: 'How does the referral program work?',
+      answer: 'Share your unique referral link and earn commissions on every trade your referrals make. Tier 1 (direct referrals) earns 34%, Tier 2 (their referrals) earns 12%, and Tier 3 (deep network) earns 4% — up to 50% combined. Track earnings and claim payouts from your referral dashboard.',
     },
     {
       question: 'Anti-Cheat System?',

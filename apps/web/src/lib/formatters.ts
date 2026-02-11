@@ -146,6 +146,28 @@ export function getPriceDecimals(price: number): number {
 }
 
 /**
+ * Format date/time for tables (e.g., "Feb 5, 01:23:50")
+ * Standard format used across all tables in the app.
+ */
+export function formatDateTime(date: Date | string | number): string {
+  const d = date instanceof Date ? date : new Date(date);
+  const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  return `${datePart}, ${timePart}`;
+}
+
+/**
+ * Format date/time without seconds (e.g., "Feb 5, 01:23")
+ * Used in FightCard and profile tables.
+ */
+export function formatDateTimeShort(date: Date | string | number): string {
+  const d = date instanceof Date ? date : new Date(date);
+  const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${datePart}, ${timePart}`;
+}
+
+/**
  * Extract base token from symbol (BTC-USD -> BTC)
  */
 export function getBaseToken(symbol: string): string {

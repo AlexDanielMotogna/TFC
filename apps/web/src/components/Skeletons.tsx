@@ -6,6 +6,7 @@
  */
 
 import { ReactNode } from 'react';
+import { Spinner } from './Spinner';
 
 // Base skeleton with shimmer animation
 function Skeleton({ className = '' }: { className?: string }) {
@@ -34,7 +35,7 @@ export function SkeletonButton({ width = 'w-24', height = 'h-10' }: { width?: st
 // Card skeleton
 export function SkeletonCard({ children, className = '' }: { children?: ReactNode; className?: string }) {
   return (
-    <div className={`bg-surface-800 border border-surface-700 p-4 ${className}`}>
+    <div className={`bg-surface-800 border border-surface-800 p-4 ${className}`}>
       {children}
     </div>
   );
@@ -79,7 +80,7 @@ export function FightCardSkeleton() {
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center pt-2 border-t border-surface-700">
+      <div className="flex justify-between items-center pt-2 border-t border-surface-800">
         <SkeletonText width="w-24" height="h-5" />
         <SkeletonButton width="w-20" height="h-8" />
       </div>
@@ -90,7 +91,7 @@ export function FightCardSkeleton() {
 // Leaderboard Row Skeleton
 export function LeaderboardRowSkeleton() {
   return (
-    <tr className="border-b border-surface-700/50">
+    <tr className="border-b border-surface-800/50">
       <td className="py-4 px-4">
         <Skeleton className="w-10 h-10 rounded-lg" />
       </td>
@@ -122,7 +123,7 @@ export function LeaderboardRowSkeleton() {
 // Leaderboard Page Skeleton - Matches actual page layout
 export function LeaderboardSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Title */}
       <div className="text-center mb-4">
         <SkeletonText width="w-48" height="h-10" className="mx-auto mb-2" />
@@ -154,7 +155,7 @@ export function LeaderboardSkeleton() {
               <SkeletonText width="w-10" height="h-3" className="mb-1" />
               <SkeletonText width="w-16" height="h-6" />
             </div>
-            <div className="border-t border-surface-700/50 pt-3">
+            <div className="border-t border-surface-800/50 pt-3">
               <SkeletonText width="w-20" height="h-3" className="mb-2" />
               <div className="flex items-center gap-2">
                 <SkeletonAvatar size="w-8 h-8" />
@@ -172,7 +173,7 @@ export function LeaderboardSkeleton() {
       <SkeletonCard className="overflow-hidden p-0">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-surface-700 bg-surface-850">
+            <tr className="border-b border-surface-800 bg-surface-850">
               {['Rank', 'Fighter', 'Fights', 'Record', 'Win Rate', 'Avg PnL', 'Total PnL'].map((h) => (
                 <th key={h} className="py-3 px-4 text-left text-xs text-surface-400 font-medium">
                   {h}
@@ -194,9 +195,9 @@ export function LeaderboardSkeleton() {
 // Profile Page Skeleton
 export function ProfileSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Profile Header */}
-      <SkeletonCard className="flex flex-col md:flex-row items-center md:items-start gap-4 p-6">
+      <SkeletonCard className="flex flex-col md:flex-row items-center md:items-start gap-2 p-6">
         {/* Avatar with rank badge */}
         <div className="relative">
           <SkeletonAvatar size="w-20 h-20" />
@@ -224,7 +225,7 @@ export function ProfileSkeleton() {
       </SkeletonCard>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
           <SkeletonCard key={i} className="text-center p-4">
             <div className="flex items-center justify-center gap-2 mb-1">
@@ -253,14 +254,14 @@ export function ProfileSkeleton() {
 
       {/* Fight History */}
       <SkeletonCard className="p-0 overflow-hidden">
-        <div className="p-4 border-b border-surface-700">
+        <div className="p-4 border-b border-surface-800">
           <SkeletonText width="w-24" height="h-4" />
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-surface-700">
+              <tr className="border-b border-surface-800">
                 {['Date', 'Duration', 'Stake', 'Opponent', 'Result', 'PnL'].map(
                   (h) => (
                     <th
@@ -276,7 +277,7 @@ export function ProfileSkeleton() {
 
             <tbody>
               {Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} className="border-b border-surface-700/50">
+                <tr key={i} className="border-b border-surface-800/50">
                   <td className="py-4 px-4">
                     <SkeletonText width="w-24" />
                   </td>
@@ -310,10 +311,10 @@ export function ProfileSkeleton() {
 // Note: Header (title + stats) is rendered by the page wrapper
 export function ArenaSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Tabs and Filters */}
-      <div className="border-b border-surface-700 pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="border-b border-surface-800 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           {/* Tabs */}
           <div className="flex gap-1">
             {['Live', 'Pending', 'Finished', 'My Fights'].map((tab, i) => (
@@ -332,10 +333,10 @@ export function ArenaSkeleton() {
       </div>
 
       {/* Content - Loading state */}
-      <div className="card text-center py-16">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full border-4 border-surface-700 border-t-primary-500 animate-spin" />
-          <p className="text-surface-500">Loading fights...</p>
+      <div className="text-center py-16 min-h-[200px] flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Spinner size="md" />
+          <span className="text-sm text-surface-400">Loading fights...</span>
         </div>
       </div>
     </div>
@@ -345,7 +346,7 @@ export function ArenaSkeleton() {
 // Position Row Skeleton (for Trade page)
 export function PositionRowSkeleton() {
   return (
-    <tr className="border-b border-surface-700/50">
+    <tr className="border-b border-surface-800/50">
       <td className="py-3 px-4">
         <div className="flex items-center gap-2">
           <Skeleton className="w-6 h-6 rounded-full" />
@@ -413,18 +414,16 @@ export function TradePanelSkeleton() {
 // Generic page loading skeleton
 export function PageLoadingSkeleton({ title }: { title?: string }) {
   return (
-    <div className="container mx-auto px-4 md:px-6 py-8">
+    <div className="container mx-auto px-2 md:px-6 py-8">
       {title && (
         <div className="text-center mb-8">
           <h1 className="font-display text-3xl font-bold text-surface-600">{title}</h1>
         </div>
       )}
       <div className="flex justify-center py-20">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full border-4 border-surface-700 border-t-primary-500 animate-spin" />
-          </div>
-          <p className="text-surface-400 animate-pulse">Loading...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Spinner size="lg" />
+          <span className="text-sm text-surface-400">Loading...</span>
         </div>
       </div>
     </div>

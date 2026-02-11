@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks';
 import { useGlobalSocketStore } from '@/hooks/useGlobalSocket';
 import type { Fight } from '@/lib/api';
+import { Spinner } from './Spinner';
+import { CancelFightModal } from './CancelFightModal';
+import { useVideoStore } from '@/lib/stores/videoStore';
 
 interface FightCardProps {
   fight: Fight;
@@ -18,8 +21,10 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
   const router = useRouter();
   const { user } = useAuth();
   const livePnl = useGlobalSocketStore((state) => state.livePnl.get(fight.id));
+  const { startVideo } = useVideoStore();
   const [isJoining, setIsJoining] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const isLive = fight.status === 'LIVE';
   const isWaiting = fight.status === 'WAITING';
   const isCreator = user?.id === fight.creator?.id;
@@ -30,32 +35,48 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
 
     setIsJoining(true);
     try {
+      console.log('[FightCard] Calling joinFight API...');
       const updatedFight = await onJoinFight(fight.id);
 
-      // After successfully joining, redirect to trading terminal
-      // The fight list will update automatically via the hook
+      console.log('[FightCard] API success! Starting video overlay...');
+      // API verified matchup limits - NOW start the video
+      startVideo();
+
+      // Redirect happens independently (video plays over the transition)
+      console.log('[FightCard] Redirecting to terminal...');
       router.push(`/trade?fight=${updatedFight.id}`);
     } catch (err) {
-      console.error('Failed to join fight:', err);
+      console.error('[FightCard] Failed to join fight:', err);
       // Error is shown as a toast by useFights hook
       setIsJoining(false);
     }
   };
 
-  // Handle cancel fight
-  const handleCancelFight = async () => {
-    if (!onCancelFight) return;
+  // Handle cancel fight - show modal
+  const handleCancelClick = () => {
+    setShowCancelModal(true);
+  };
 
-    if (!confirm('Are you sure you want to cancel this fight?')) return;
+  // Confirm cancel fight
+  const handleConfirmCancel = async () => {
+    if (!onCancelFight) return;
 
     setIsCancelling(true);
     try {
       await onCancelFight(fight.id);
+      setShowCancelModal(false);
     } catch (err) {
       console.error('Failed to cancel fight:', err);
       // Error is shown as a toast by useFights hook
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  // Close cancel modal
+  const handleCloseCancelModal = () => {
+    if (!isCancelling) {
+      setShowCancelModal(false);
     }
   };
 
@@ -65,6 +86,19 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
     const minutes = Math.floor(remaining / 60000);
     const seconds = Math.floor((remaining % 60000) / 1000);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Format date for display (e.g., "Jan 5, 14:30")
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return null;
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
   };
 
   // Calculate time remaining for live fights (fallback when no WebSocket data)
@@ -207,7 +241,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                   Terminal
                 </Link>
                 <button
-                  onClick={handleCancelFight}
+                  onClick={handleCancelClick}
                   disabled={isCancelling || !onCancelFight}
                   className="btn-ghost text-loss-400 hover:text-loss-300 hover:bg-loss-500/10 text-sm py-2 px-3"
                 >
@@ -221,10 +255,10 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                 className="btn-primary w-full text-sm py-2"
               >
                 {isJoining ? (
-                  <>
-                    <div className="spinner w-4 h-4 mr-2" />
-                    Joining...
-                  </>
+                  <div className="flex items-center justify-center gap-2">
+                    <Spinner size="xs" />
+                    <span>Joining...</span>
+                  </div>
                 ) : (
                   'Accept Challenge'
                 )}
@@ -259,7 +293,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                     </span>
                   </div>
                   <span
-                    className={`font-mono font-bold text-sm ${pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'
+                    className={`font-mono font-medium text-sm ${pnlPercent >= 0 ? 'pnl-positive' : 'pnl-negative'
                       }`}
                   >
                     {pnlPercent >= 0 ? '+' : ''}
@@ -271,16 +305,22 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
           </div>
 
           {/* Time + Action */}
-          <div className="mt-auto pt-1.5 space-y-1.5">
+          <div className="mt-auto pt-1.5 space-y-1">
             {fight.startedAt && (
-              <div className="flex items-center justify-center gap-2 text-xs">
-                <span className="text-surface-400">Time:</span>
-                <span className="font-mono font-bold text-white">
-                  {livePnl?.timeRemainingMs !== undefined
-                    ? formatTimeRemaining(livePnl.timeRemainingMs)
-                    : getTimeRemaining()}
-                </span>
-              </div>
+              <>
+                <div className="flex items-center justify-center gap-2 text-xs">
+                  <span className="text-surface-500">Started:</span>
+                  <span className="text-surface-400">{formatDate(fight.startedAt)}</span>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-xs">
+                  <span className="text-surface-400">Remaining:</span>
+                  <span className="font-mono font-bold text-white">
+                    {livePnl?.timeRemainingMs !== undefined
+                      ? formatTimeRemaining(livePnl.timeRemainingMs)
+                      : getTimeRemaining()}
+                  </span>
+                </div>
+              </>
             )}
             {user && fight.participants.some(p => p.userId === user.id) ? (
               <Link
@@ -311,7 +351,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
               return (
                 <div
                   key={i}
-                  className={`flex items-center justify-between p-2 rounded-lg ${isWinner && !fight.isDraw ? 'bg-win-500/10 border border-win-500/30' : 'bg-surface-800/50'
+                  className={`flex items-center justify-between p-2 rounded-lg ${isWinner && !fight.isDraw ? 'bg-win-500/10' : 'bg-surface-800/50'
                     }`}
                 >
                   <div className="flex items-center gap-2">
@@ -324,7 +364,7 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
                     </span>
                   </div>
                   <span
-                    className={`font-mono font-bold text-sm ${Number(p.finalPnlPercent ?? 0) >= 0 ? 'text-win-400' : 'text-loss-400'
+                    className={`font-mono font-medium text-sm ${Number(p.finalPnlPercent ?? 0) >= 0 ? 'text-win-400' : 'text-loss-400'
                       }`}
                   >
                     {Number(p.finalPnlPercent ?? 0) >= 0 ? '+' : ''}
@@ -334,11 +374,13 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
               );
             })}
           </div>
-          {fight.isDraw && (
-            <div className="text-center py-1">
-              <span className="badge-finished text-xs">DRAW</span>
-            </div>
-          )}
+          {/* Draw badge + Timestamps on same row */}
+          <div className="flex items-center justify-center gap-2 text-xs text-surface-500 py-1">
+            {fight.isDraw && <span className="badge-finished text-xs">DRAW</span>}
+            {fight.startedAt && <span>{formatDate(fight.startedAt)}</span>}
+            {fight.startedAt && fight.endedAt && <span>→</span>}
+            {fight.endedAt && <span>{formatDate(fight.endedAt)}</span>}
+          </div>
           <Link
             href={`/fight/${fight.id}`}
             className="btn-ghost w-full text-center text-sm py-2 mt-auto"
@@ -364,6 +406,59 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
           </div>
         </div>
       )}
+
+      {/* NO_CONTEST State */}
+      {fight.status === 'NO_CONTEST' && (
+        <div className="flex-1 flex flex-col justify-between overflow-hidden">
+          {/* Participants */}
+          <div className="space-y-2">
+            {fight.participants?.map((p, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between p-2 rounded-lg bg-surface-800/30 opacity-60"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="avatar w-7 h-7 text-xs">
+                    {p.user?.handle?.[0]?.toUpperCase() || '?'}
+                  </div>
+                  <span className="font-medium text-sm truncate max-w-[100px] text-surface-300">
+                    {p.user?.handle || 'Unknown'}
+                  </span>
+                </div>
+                <span className="font-mono text-sm text-surface-500">
+                  {Number(p.finalPnlPercent ?? 0) >= 0 ? '+' : ''}
+                  {Number(p.finalPnlPercent ?? 0).toFixed(4)}%
+                </span>
+              </div>
+            ))}
+          </div>
+          {/* Reason + Timestamps */}
+          <div className="text-center py-1 space-y-1">
+            <span className="text-xs text-surface-500">
+              Fight invalidated - no valid activity
+            </span>
+            <div className="flex items-center justify-center gap-3 text-xs text-surface-500">
+              {fight.startedAt && <span>{formatDate(fight.startedAt)}</span>}
+              {fight.startedAt && fight.endedAt && <span>→</span>}
+              {fight.endedAt && <span>{formatDate(fight.endedAt)}</span>}
+            </div>
+          </div>
+          <Link
+            href={`/fight/${fight.id}`}
+            className="btn-ghost w-full text-center text-sm py-2 mt-auto text-surface-400"
+          >
+            View Details →
+          </Link>
+        </div>
+      )}
+
+      {/* Cancel Fight Modal */}
+      <CancelFightModal
+        isOpen={showCancelModal}
+        onConfirm={handleConfirmCancel}
+        onCancel={handleCloseCancelModal}
+        isLoading={isCancelling}
+      />
     </div>
   );
 }

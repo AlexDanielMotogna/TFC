@@ -7,7 +7,10 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
-import { getPrices, getPositions } from '@/lib/server/pacifica';
+import { ErrorCode } from '@/lib/server/error-codes';
+import { ExchangeProvider } from '@/lib/server/exchanges/provider';
+
+const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
 
 // Default max leverage per symbol (from Pacifica settings)
 // Pacifica REST API doesn't return leverage, so we use these defaults
@@ -43,7 +46,7 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight');
+        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
       }
 
       // Get FightTrade records for THIS specific fight
@@ -148,12 +151,27 @@ export async function GET(
 
       // Get current prices and real positions from Pacifica
       // Note: Pacifica REST API doesn't return leverage, so we use MAX_LEVERAGE defaults
-      const [prices, realPositions] = await Promise.all([
-        getPrices(),
-        pacificaConnection?.accountAddress
-          ? getPositions(pacificaConnection.accountAddress)
-          : Promise.resolve([]),
-      ]);
+      let prices, realPositions;
+
+      if (USE_EXCHANGE_ADAPTER) {
+        // Use Exchange Adapter (with caching if Redis configured)
+        const adapter = await ExchangeProvider.getUserAdapter(user.userId);
+        [prices, realPositions] = await Promise.all([
+          adapter.getPrices(),
+          pacificaConnection?.accountAddress
+            ? adapter.getPositions(pacificaConnection.accountAddress)
+            : Promise.resolve([]),
+        ]);
+      } else {
+        // Fallback to direct Pacifica calls
+        const Pacifica = await import('@/lib/server/pacifica');
+        [prices, realPositions] = await Promise.all([
+          Pacifica.getPrices(),
+          pacificaConnection?.accountAddress
+            ? Pacifica.getPositions(pacificaConnection.accountAddress)
+            : Promise.resolve([]),
+        ]);
+      }
 
       // Helper to normalize symbol (ensure consistent format)
       const normalizeSymbol = (s: string) => s.includes('-USD') ? s : `${s}-USD`;

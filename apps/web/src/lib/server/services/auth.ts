@@ -180,7 +180,7 @@ export async function authenticateWallet(
   referralCode?: string
 ): Promise<{
   token: string;
-  user: { id: string; handle: string; avatarUrl: string | null };
+  user: { id: string; handle: string; avatarUrl: string | null; role: 'USER' | 'ADMIN' };
   pacificaConnected: boolean;
 }> {
   console.log('Wallet authentication attempt', {
@@ -207,6 +207,26 @@ export async function authenticateWallet(
       where: { walletAddress },
       include: { pacificaConnection: true },
     });
+
+    // Check if user is banned or deleted
+    if (user && user.status === 'BANNED') {
+      console.warn('Banned user attempted login', {
+        userId: user.id,
+        walletAddress: walletAddress.slice(0, 8) + '...',
+        bannedAt: user.bannedAt,
+        bannedReason: user.bannedReason,
+      });
+      throw new Error('Your account has been banned. Please contact support if you believe this is an error.');
+    }
+
+    if (user && user.status === 'DELETED') {
+      console.warn('Deleted user attempted login', {
+        userId: user.id,
+        walletAddress: walletAddress.slice(0, 8) + '...',
+        deletedAt: user.deletedAt,
+      });
+      throw new Error('This account has been deleted.');
+    }
 
     if (!user) {
       // Create new user with wallet address as handle (shortened)
@@ -320,13 +340,35 @@ export async function authenticateWallet(
       }
     }
 
-    // Generate JWT token
-    const token = generateToken(user.id, user.walletAddress!);
+    // Check if wallet is an admin wallet
+    const ADMIN_WALLET_ADDRESSES = (process.env.ADMIN_WALLET_ADDRESSES || '')
+      .split(',')
+      .map((addr) => addr.trim().toLowerCase())
+      .filter(Boolean);
+
+    const isAdmin = ADMIN_WALLET_ADDRESSES.includes(walletAddress.toLowerCase());
+
+    // If admin status changed, update user role
+    if (isAdmin && user.role !== 'ADMIN') {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { role: 'ADMIN' },
+        include: { pacificaConnection: true },
+      });
+      console.log('User promoted to admin', {
+        userId: user.id,
+        walletAddress: walletAddress.slice(0, 8) + '...',
+      });
+    }
+
+    // Generate JWT token with role
+    const token = generateToken(user.id, user.walletAddress!, user.role || 'USER');
 
     console.log('Wallet authentication successful', {
       userId: user.id,
       walletAddress: walletAddress.slice(0, 8) + '...',
       pacificaConnected,
+      role: user.role || 'USER',
     });
 
     return {
@@ -335,6 +377,7 @@ export async function authenticateWallet(
         id: user.id,
         handle: user.handle,
         avatarUrl: user.avatarUrl,
+        role: user.role || 'USER',
       },
       pacificaConnected,
     };

@@ -10,6 +10,7 @@
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function GET(
   request: Request,
@@ -36,12 +37,12 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight');
+        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
       }
 
       // For completed fights, show ALL trades from both participants
       // For live fights, only show the current user's trades
-      const isCompleted = participant.fight.status === 'FINISHED' || participant.fight.status === 'CANCELLED';
+      const isCompleted = participant.fight.status === 'FINISHED' || participant.fight.status === 'CANCELLED' || participant.fight.status === 'NO_CONTEST';
 
       // Get fight trades directly from fight_trades table
       // This contains the CORRECT fight-relevant amounts (Rule 35 compliant)
@@ -86,6 +87,7 @@ export async function GET(
           id: trade.pacificaHistoryId.toString(),
           participantUserId: trade.participantUserId,
           executedAt: trade.executedAt.toISOString(),
+          created_at: trade.executedAt.getTime(), // Unix timestamp (ms) for UI compatibility
           notional,
           side: trade.side, // Already BUY/SELL in fight_trades
           // Trade details

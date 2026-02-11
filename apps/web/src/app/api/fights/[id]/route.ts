@@ -6,6 +6,7 @@
 import { prisma, FightStatus } from '@tfc/db';
 import { withAuth } from '@/lib/server/auth';
 import { errorResponse, NotFoundError, ForbiddenError, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -54,11 +55,19 @@ export async function GET(
             },
           },
         },
+        // Include violations for NO_CONTEST fights to show reason in UI
+        violations: {
+          select: {
+            ruleCode: true,
+            ruleName: true,
+            ruleMessage: true,
+          },
+        },
       },
     });
 
     if (!fight) {
-      throw new NotFoundError('Fight not found');
+      throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
     }
 
     return Response.json({ success: true, data: fight });
@@ -89,19 +98,19 @@ export async function DELETE(
       // Validation: fight exists
       if (!fight) {
         console.warn(`[CancelFight] Fight not found: ${fightId}`);
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Validation: user is the creator
       if (fight.creatorId !== user.userId) {
         console.warn(`[CancelFight] Non-creator ${user.userId} attempted to cancel fight ${fightId} (creator: ${fight.creatorId})`);
-        throw new ForbiddenError('Only the creator can cancel a fight');
+        throw new ForbiddenError('Only the creator can cancel a fight', ErrorCode.ERR_FIGHT_NOT_CREATOR);
       }
 
       // Validation: fight is in WAITING status
       if (fight.status !== FightStatus.WAITING) {
         console.warn(`[CancelFight] Cannot cancel fight ${fightId} with status ${fight.status}`);
-        throw new BadRequestError('Only waiting fights can be cancelled');
+        throw new BadRequestError('Only waiting fights can be cancelled', ErrorCode.ERR_FIGHT_CANNOT_CANCEL);
       }
 
       // Cancel the fight (delete it)

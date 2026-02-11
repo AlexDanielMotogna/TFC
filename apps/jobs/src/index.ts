@@ -7,6 +7,7 @@ import { cleanupStaleFights } from './jobs/cleanup-stale-fights.js';
 import { reconcileFights } from './jobs/reconcile-fights.js';
 import { finalizePrizePool, updateCurrentPrizePool } from './jobs/prize-pool-finalize.js';
 import { autoWithdrawTreasury } from './jobs/treasury-auto-withdraw.js';
+import { processReferralPayouts } from './jobs/referral-payout-processor.js';
 
 const logger = createLogger({ service: 'job' });
 
@@ -116,6 +117,30 @@ async function main() {
       logger.error(
         LOG_EVENTS.TREASURY_WITHDRAW_FAILURE,
         'Treasury auto-withdraw failed',
+        error as Error
+      );
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // Referral payout processor - every 15 minutes
+  // Processes pending referral payouts with retry logic
+  // ─────────────────────────────────────────────────────────────
+  cron.schedule('*/15 * * * *', async () => {
+    logger.info(LOG_EVENTS.API_START, 'Starting referral payout processor');
+
+    try {
+      const result = await processReferralPayouts();
+      logger.info(LOG_EVENTS.API_START, 'Referral payout processor completed', {
+        processed: result.processed,
+        succeeded: result.succeeded,
+        failed: result.failed,
+        skipped: result.skipped,
+      });
+    } catch (error) {
+      logger.error(
+        LOG_EVENTS.API_ERROR,
+        'Referral payout processor failed',
         error as Error
       );
     }

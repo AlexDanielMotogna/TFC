@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useStore, useAuthStore } from '@/lib/store';
 import { api, type Fight } from '@/lib/api';
 import { notify } from '@/lib/notify';
@@ -40,6 +40,22 @@ function getJoinErrorMessage(errorMessage: string): { title: string; message: st
 export function useFights() {
   const { fights, isLoading, error, setFights, setLoading, setError } = useStore();
   const { token } = useAuthStore();
+  const [myFights, setMyFights] = useState<Fight[]>([]);
+  const [isLoadingMyFights, setIsLoadingMyFights] = useState(false);
+
+  const fetchMyFights = useCallback(async (status?: string) => {
+    if (!token) return;
+
+    setIsLoadingMyFights(true);
+    try {
+      const data = await api.getMyFights(token, status);
+      setMyFights(data || []);
+    } catch (err) {
+      console.error('Failed to fetch my fights:', err);
+    } finally {
+      setIsLoadingMyFights(false);
+    }
+  }, [token]);
 
   const fetchFights = useCallback(async (status?: string) => {
     setLoading(true);
@@ -66,8 +82,9 @@ export function useFights() {
 
       try {
         const newFight = await api.createFight(token, params);
-        // Add new fight to the list
+        // Add new fight to the lists
         setFights([newFight, ...fights]);
+        setMyFights([newFight, ...myFights]);
         notify('FIGHT', 'Fight Created', `Created ${params.durationMinutes}m fight with $${params.stakeUsdc} stake`, { variant: 'success' });
         return newFight;
       } catch (err) {
@@ -79,7 +96,7 @@ export function useFights() {
         setLoading(false);
       }
     },
-    [token, fights, setFights, setLoading]
+    [token, fights, myFights, setFights, setLoading]
   );
 
   const joinFight = useCallback(
@@ -93,10 +110,12 @@ export function useFights() {
 
       try {
         const updatedFight = await api.joinFight(token, fightId);
-        // Update fight in the list
+        // Update fight in the lists
         setFights(
           fights.map((f) => (f.id === fightId ? updatedFight : f))
         );
+        // Add to myFights when joining
+        setMyFights([updatedFight, ...myFights]);
         notify('FIGHT', 'Fight Joined', `Joined ${updatedFight.durationMinutes}m fight - Good luck!`, { variant: 'success' });
         return updatedFight;
       } catch (err) {
@@ -109,7 +128,7 @@ export function useFights() {
         setLoading(false);
       }
     },
-    [token, fights, setFights, setLoading]
+    [token, fights, myFights, setFights, setLoading]
   );
 
   const cancelFight = useCallback(
@@ -123,8 +142,9 @@ export function useFights() {
 
       try {
         await api.cancelFight(token, fightId);
-        // Remove fight from the list
+        // Remove fight from the lists
         setFights(fights.filter((f) => f.id !== fightId));
+        setMyFights(myFights.filter((f) => f.id !== fightId));
         notify('FIGHT', 'Fight Cancelled', 'Your fight has been cancelled', { variant: 'success' });
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to cancel fight';
@@ -135,13 +155,20 @@ export function useFights() {
         setLoading(false);
       }
     },
-    [token, fights, setFights, setLoading]
+    [token, fights, myFights, setFights, setLoading]
   );
 
   // Fetch fights on mount
   useEffect(() => {
     fetchFights();
   }, [fetchFights]);
+
+  // Fetch my fights when authenticated
+  useEffect(() => {
+    if (token) {
+      fetchMyFights();
+    }
+  }, [token, fetchMyFights]);
 
   // Filter helpers (with safeguard for undefined)
   const safeFights = fights || [];
@@ -151,12 +178,15 @@ export function useFights() {
 
   return {
     fights,
+    myFights,
     waitingFights,
     liveFights,
     finishedFights,
     isLoading,
+    isLoadingMyFights,
     error,
     fetchFights,
+    fetchMyFights,
     createFight,
     joinFight,
     cancelFight,

@@ -302,6 +302,59 @@ export async function createSignedSetPositionTpsl(
 }
 
 /**
+ * Sign an order edit (modify price and/or size)
+ * NOTE: account is NOT included in signed data
+ * NOTE: editing cancels the original order and creates a new one with TIF=ALO
+ */
+export async function createSignedEditOrder(
+  wallet: WalletContextState,
+  params: {
+    symbol: string;
+    price: string;
+    amount: string;
+    order_id?: number;
+    client_order_id?: string;
+  }
+): Promise<SignedOperation> {
+  // Build params - must have either order_id or client_order_id
+  const cleanParams: Record<string, any> = {
+    symbol: params.symbol,
+    price: params.price,
+    amount: params.amount,
+  };
+
+  if (params.order_id !== undefined) {
+    cleanParams.order_id = params.order_id;
+  }
+  if (params.client_order_id) {
+    cleanParams.client_order_id = params.client_order_id;
+  }
+
+  return signPacificaOperation(wallet, 'edit_order', cleanParams);
+}
+
+/**
+ * Sign a stop order creation (for partial TP/SL)
+ * NOTE: account is NOT included in signed data (same as other operations)
+ * NOTE: Uses 'bid'/'ask' for side (same as other order types)
+ */
+export async function createSignedStopOrder(
+  wallet: WalletContextState,
+  params: {
+    symbol: string;
+    side: 'bid' | 'ask'; // bid = buy, ask = sell
+    reduce_only: boolean;
+    stop_order: {
+      stop_price: string;
+      limit_price?: string;
+      amount: string;
+    };
+  }
+): Promise<SignedOperation> {
+  return signPacificaOperation(wallet, 'create_stop_order', params);
+}
+
+/**
  * Sign builder code approval
  * Required before placing orders through the TradeFightClub builder program
  *

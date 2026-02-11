@@ -17,8 +17,8 @@ const getBaseToken = (symbol: string): string => {
   return symbol.replace('-USD', '');
 };
 
-// Valid agg_level values per docs: 1, 2, 5, 10, 100, 1000
-const AGG_LEVELS: AggLevel[] = [1, 2, 5, 10, 100, 1000];
+// Valid agg_level values - matches Pacifica's pattern (powers of 10)
+const AGG_LEVELS: AggLevel[] = [1, 10, 100, 1000, 10000];
 
 // Format tick value for display (remove trailing zeros)
 const formatTickValue = (value: number): string => {
@@ -179,15 +179,15 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
   }
 
   return (
-    <div className="h-full flex flex-col text-xs overflow-hidden">
+    <div className="h-full flex flex-col text-xs overflow-hidden" style={{ contain: 'layout' }}>
       {/* Header with agg level and size mode selector */}
-      <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-surface-700">
+      <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-surface-800">
         {/* Aggregation level selector (server-side) - shows actual tick values */}
         <div className="relative">
           <select
             value={aggLevel}
             onChange={(e) => setAggLevel(Number(e.target.value) as AggLevel)}
-            className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500"
+            className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer"
           >
             {aggOptions.map((opt) => (
               <option key={opt.level} value={opt.level}>
@@ -202,7 +202,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
           <select
             value={sizeMode}
             onChange={(e) => setSizeMode(e.target.value as 'USD' | 'TOKEN')}
-            className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500"
+            className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer"
           >
             <option value="USD">USD</option>
             <option value="TOKEN">{baseToken}</option>
@@ -211,22 +211,26 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       </div>
 
       {/* Column headers - responsive: hide Size on narrow screens */}
-      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-700 uppercase">
+      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-800 uppercase">
         <span>Price</span>
         <span className="hidden sm:block text-right">Size({sizeMode === 'USD' ? 'USD' : baseToken})</span>
         <span className="text-right">Total</span>
       </div>
 
-      {/* Asks (sells) - expand to fill space, rows grow when few items */}
-      <div className="flex-1 flex flex-col justify-end min-h-0 overflow-hidden">
+      {/* Asks (sells) - fixed container height (9 rows × 28px) to prevent layout shifts */}
+      <div className="h-[252px] flex flex-col overflow-hidden">
+        {/* Empty placeholder rows to maintain stable layout */}
+        {Array(Math.max(0, 9 - processedAsks.length)).fill(null).map((_, i) => (
+          <div key={`ask-empty-${i}`} className="h-7" />
+        ))}
         {processedAsks.map((level) => (
           <div
             key={`ask-${level.price}`}
-            className="relative flex-1 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-1 cursor-pointer hover:bg-surface-700/30 items-center"
+            className="relative h-7 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-[width] duration-[50ms] ease-out"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-[width] duration-300 ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-loss-400 tabular-nums tracking-tight">
@@ -243,22 +247,22 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       </div>
 
       {/* Spread */}
-      <div className="flex-shrink-0 px-2 py-1 border-y border-surface-700 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
+      <div className="flex-shrink-0 px-2 py-1 border-y border-surface-800 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
         <span>Spread</span>
         <span className="tabular-nums tracking-tight">{spread > 0 ? formatPrice(spread) : '-'}</span>
         <span className="tabular-nums tracking-tight">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
       </div>
 
-      {/* Bids (buys) - expand to fill space, rows grow when few items */}
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Bids (buys) - fixed container height (9 rows × 28px) to prevent layout shifts */}
+      <div className="h-[252px] flex flex-col overflow-hidden">
         {processedBids.map((level) => (
           <div
             key={`bid-${level.price}`}
-            className="relative flex-1 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 py-1 cursor-pointer hover:bg-surface-700/30 items-center"
+            className="relative h-7 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
-              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10 transition-[width] duration-[50ms] ease-out"
+              className="absolute inset-y-0 right-0 bg-gradient-to-l from-win-500/30 to-win-600/10 transition-[width] duration-300 ease-out"
               style={{ width: `${(level.total / maxTotal) * 100}%` }}
             />
             <span className="relative text-win-400 tabular-nums tracking-tight">
@@ -272,10 +276,14 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
             </span>
           </div>
         ))}
+        {/* Empty placeholder rows to maintain stable layout */}
+        {Array(Math.max(0, 9 - processedBids.length)).fill(null).map((_, i) => (
+          <div key={`bid-empty-${i}`} className="h-7" />
+        ))}
       </div>
 
       {/* Buy/Sell percentage bar */}
-      <div className="flex-shrink-0 px-2 py-1.5 border-t border-surface-700">
+      <div className="flex-shrink-0 px-2 py-1.5 border-t border-surface-800">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-win-400 font-medium tabular-nums">
             {buyPercent.toFixed(1)}%

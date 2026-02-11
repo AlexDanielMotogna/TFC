@@ -243,6 +243,42 @@ export function signCancelAllOrders(
 }
 
 /**
+ * Sign a stop order request
+ */
+export function signStopOrder(
+  keypair: nacl.SignKeyPair,
+  params: {
+    symbol: string;
+    side: 'bid' | 'ask';
+    reduceOnly: boolean;
+    stopPrice: string;
+    amount: string;
+    limitPrice?: string;
+    clientOrderId?: string;
+  }
+): Record<string, unknown> {
+  const stopOrder: Record<string, unknown> = {
+    stop_price: params.stopPrice,
+    amount: params.amount,
+  };
+
+  if (params.limitPrice) {
+    stopOrder.limit_price = params.limitPrice;
+  }
+
+  if (params.clientOrderId) {
+    stopOrder.client_order_id = params.clientOrderId;
+  }
+
+  return signRequest(keypair, 'create_stop_order', {
+    symbol: params.symbol,
+    side: params.side,
+    reduce_only: params.reduceOnly,
+    stop_order: stopOrder,
+  });
+}
+
+/**
  * Sign an update leverage request
  */
 export function signUpdateLeverage(

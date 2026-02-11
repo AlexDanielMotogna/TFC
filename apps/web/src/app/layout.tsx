@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { Toaster } from 'sonner';
+import { GlobalFightVideo } from '@/components';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const jetbrainsMono = JetBrains_Mono({
@@ -36,6 +37,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}>
         <Providers>{children}</Providers>
+        <GlobalFightVideo />
         <Toaster
           position="bottom-right"
           toastOptions={{
@@ -47,6 +49,7 @@ export default function RootLayout({
             classNames: {
               success: 'bg-surface-800 border-win-500/50',
               error: 'bg-surface-800 border-loss-500/50',
+              description: 'text-[#c7c7c7]',
             },
           }}
         />

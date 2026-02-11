@@ -1,0 +1,27 @@
+/* TradingView Custom Styles */
+
+/* Force background color */
+.chart-container,
+.chart-controls-bar,
+.chart-markup-table,
+.pane,
+.chart-page,
+.layout__area--center {
+  background-color: #111113 !important;
+}
+
+/* Price scale background */
+.price-axis-container,
+.pane-legend {
+  background-color: #111113 !important;
+}
+
+/* Time axis background */
+.time-axis-container {
+  background-color: #111113 !important;
+}
+
+/* Toolbar background */
+.group-wWM3zP_M- {
+  background-color: #111113 !important;
+}

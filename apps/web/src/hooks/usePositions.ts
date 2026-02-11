@@ -27,21 +27,17 @@ export function usePositions() {
       const account = publicKey.toBase58();
       const response = await PacificaAPI.getPositions(account);
 
-      console.log('usePositions: Raw Pacifica response:', response);
-
       // Pacifica returns { success, data: [...positions], error, code }
       // data is directly an array of positions, NOT data.positions
-      const positions = Array.isArray(response.data) ? response.data : [];
-      console.log('usePositions: Extracted positions:', positions);
-
-      return positions;
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // Use longer polling interval when WebSocket is connected
-    refetchInterval: wsConnected ? 30000 : 10000,
-    staleTime: wsConnected ? 25000 : 8000,
+    // When WS is connected, reduce polling significantly since WS provides real-time updates
+    // Only poll as fallback for missed updates (increased intervals to avoid 429 rate limits)
+    refetchInterval: wsConnected ? 30000 : 15000,
+    staleTime: wsConnected ? 20000 : 10000,
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 3000,
   });
 
   // If WebSocket is connected and has data, prefer it
@@ -136,65 +132,93 @@ export function useOpenOrders(symbol?: string) {
       const account = publicKey.toBase58();
       const response = await PacificaAPI.getOpenOrders(account, symbol);
 
-      console.log('useOpenOrders: Raw Pacifica response:', response);
-
       // Pacifica returns { success, data: [...orders] } - data is directly an array
-      const orders = Array.isArray(response.data) ? response.data : [];
-      console.log('useOpenOrders: Extracted orders:', orders);
-
-      return orders;
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    // Use longer polling interval when WebSocket is connected
-    refetchInterval: wsConnected ? 30000 : 10000,
-    staleTime: wsConnected ? 25000 : 8000,
+    // When WS is connected, reduce polling significantly since WS provides real-time updates
+    // Only poll as fallback for missed updates (increased intervals to avoid 429 rate limits)
+    refetchInterval: wsConnected ? 30000 : 15000,
+    staleTime: wsConnected ? 20000 : 10000,
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 3000,
   });
 
-  // If WebSocket is connected and has data, merge with HTTP data
+  // If WebSocket is connected, merge with HTTP data bidirectionally
   // WebSocket provides real-time updates but may be missing some fields (like stop_price)
-  // HTTP provides complete data, so we merge to preserve fields WebSocket might not have
-  if (wsConnected && wsOrders.length > 0) {
-    // Filter by symbol if provided
-    const filteredOrders = symbol
+  // HTTP provides complete data and may have orders that WebSocket hasn't received yet
+  if (wsConnected) {
+    // Filter WS orders by symbol if provided
+    const filteredWsOrders = symbol
       ? wsOrders.filter(o => o.symbol === symbol)
       : wsOrders;
 
-    // Create a map of HTTP orders by order_id for quick lookup
-    const httpOrdersMap = new Map<number, any>();
-    if (query.data && Array.isArray(query.data)) {
-      query.data.forEach((order: any) => {
-        if (order.order_id) {
-          httpOrdersMap.set(order.order_id, order);
-        }
+    // Create a map of WS orders by order_id
+    const wsOrdersMap = new Map<number, any>();
+    filteredWsOrders.forEach(o => {
+      if (o.order_id) {
+        wsOrdersMap.set(o.order_id, o);
+      }
+    });
+
+    // Get HTTP orders (filtered by symbol if provided)
+    const httpOrders = query.data && Array.isArray(query.data)
+      ? (symbol ? query.data.filter((o: any) => o.symbol === symbol) : query.data)
+      : [];
+
+    // Build merged list: start with WS orders, add HTTP-only orders
+    const mergedOrders: any[] = [];
+    const seenOrderIds = new Set<number>();
+
+    // First, add all WS orders (with HTTP data merged in)
+    filteredWsOrders.forEach(o => {
+      const httpOrder = httpOrders.find((h: any) => h.order_id === o.order_id);
+      seenOrderIds.add(o.order_id);
+
+      mergedOrders.push({
+        order_id: o.order_id,
+        client_order_id: o.client_order_id,
+        symbol: o.symbol,
+        side: o.side,
+        price: o.price,
+        initial_amount: o.initial_amount,
+        amount: o.initial_amount,
+        filled_amount: o.filled_amount,
+        cancelled_amount: o.cancelled_amount,
+        order_type: o.order_type,
+        // Prefer WebSocket stop_price, fall back to HTTP if WebSocket has null
+        stop_price: o.stop_price || httpOrder?.stop_price || null,
+        reduce_only: o.reduce_only,
+        created_at: o.created_at,
+        updated_at: o.created_at,
       });
-    }
+    });
+
+    // Then, add any HTTP orders that aren't in WebSocket yet (newly created orders)
+    httpOrders.forEach((httpOrder: any) => {
+      if (!seenOrderIds.has(httpOrder.order_id)) {
+        mergedOrders.push({
+          order_id: httpOrder.order_id,
+          client_order_id: httpOrder.client_order_id,
+          symbol: httpOrder.symbol,
+          side: httpOrder.side,
+          price: httpOrder.price || httpOrder.stop_price,
+          initial_amount: httpOrder.initial_amount || httpOrder.amount,
+          amount: httpOrder.initial_amount || httpOrder.amount,
+          filled_amount: httpOrder.filled_amount || '0',
+          cancelled_amount: httpOrder.cancelled_amount || '0',
+          order_type: httpOrder.order_type,
+          stop_price: httpOrder.stop_price,
+          reduce_only: httpOrder.reduce_only,
+          created_at: httpOrder.created_at,
+          updated_at: httpOrder.updated_at || httpOrder.created_at,
+        });
+      }
+    });
 
     return {
       ...query,
-      data: filteredOrders.map(o => {
-        // Get corresponding HTTP order data if available
-        const httpOrder = httpOrdersMap.get(o.order_id);
-
-        return {
-          order_id: o.order_id,
-          client_order_id: o.client_order_id,
-          symbol: o.symbol,
-          side: o.side,
-          price: o.price,
-          initial_amount: o.initial_amount,
-          amount: o.initial_amount, // Also provide as 'amount' for compatibility
-          filled_amount: o.filled_amount,
-          cancelled_amount: o.cancelled_amount,
-          order_type: o.order_type,
-          // Prefer WebSocket stop_price, fall back to HTTP if WebSocket has null
-          stop_price: o.stop_price || httpOrder?.stop_price || null,
-          reduce_only: o.reduce_only,
-          created_at: o.created_at,
-          updated_at: o.created_at,
-        };
-      }),
+      data: mergedOrders,
       isLoading: false,
     };
   }
@@ -250,8 +274,6 @@ export function useTradeHistory(symbol?: string) {
         cursor: pageParam,
       }) as { data: unknown; next_cursor?: string; has_more?: boolean };
 
-      console.log('useTradeHistory: Raw Pacifica response:', response);
-
       return {
         trades: Array.isArray(response.data) ? response.data : [],
         nextCursor: response.next_cursor,
@@ -261,8 +283,10 @@ export function useTradeHistory(symbol?: string) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.hasMore ? lastPage.nextCursor : undefined,
     enabled: connected && !!publicKey,
-    refetchInterval: wsConnected ? 30000 : 10000,
-    staleTime: wsConnected ? 25000 : 5000,
+    // When WS is connected, reduce polling significantly since WS provides real-time updates
+    // Only poll as fallback for missed updates (increased intervals to avoid 429 rate limits)
+    refetchInterval: wsConnected ? 30000 : 15000,
+    staleTime: wsConnected ? 20000 : 10000,
   });
 
   // Flatten all pages into a single array
@@ -340,14 +364,11 @@ export function useOrderHistory(symbol?: string) {
         limit: 50,
       });
 
-      console.log('useOrderHistory: Raw Pacifica response:', response);
-
       // Pacifica returns { success, data: [...orders] }
-      const orders = Array.isArray(response.data) ? response.data : [];
-      return orders;
+      return Array.isArray(response.data) ? response.data : [];
     },
     enabled: connected && !!publicKey,
-    refetchInterval: 10000, // Poll every 10 seconds
-    staleTime: 5000,
+    refetchInterval: 30000, // Poll every 30 seconds (reduced to avoid 429 rate limits)
+    staleTime: 20000,
   });
 }

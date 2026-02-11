@@ -91,7 +91,7 @@ export function PrizePoolSection() {
           </p>
 
           {/* Timer */}
-          <div className="mt-6 inline-flex items-center gap-3 px-6 py-3 bg-surface-800/50 border border-surface-700 rounded-xl">
+          <div className="mt-6 inline-flex items-center gap-3 px-6 py-3 bg-surface-800/50 border border-surface-800 rounded-xl">
             <svg className="w-5 h-5 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -133,7 +133,7 @@ export function PrizePoolSection() {
 
         {/* Fee Breakdown */}
         <div className="mt-12 text-center">
-          <div className="inline-flex flex-col sm:flex-row items-center gap-4 sm:gap-8 px-6 py-4 bg-surface-900/50 border border-surface-700 rounded-xl">
+          <div className="inline-flex flex-col sm:flex-row items-center gap-4 sm:gap-8 px-6 py-4 bg-surface-900/50 border border-surface-800 rounded-xl">
             <div>
               <p className="text-sm text-surface-500">Weekly Volume Fees</p>
               <p className="text-xl font-bold text-white">{formatCurrency(prizePool?.totalFeesCollected || 0)}</p>
@@ -211,7 +211,7 @@ function PrizeCard({ rank, prize, totalFees, featured }: PrizeCardProps) {
 
       {/* Current Leader or Placeholder */}
       {prize ? (
-        <div className="border-t border-surface-700/50 pt-4">
+        <div className="border-t border-surface-800/50 pt-4">
           <p className="text-surface-500 text-xs mb-2 uppercase tracking-wide">Current Leader</p>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-surface-700 overflow-hidden flex items-center justify-center">
@@ -234,7 +234,7 @@ function PrizeCard({ rank, prize, totalFees, featured }: PrizeCardProps) {
           </div>
         </div>
       ) : (
-        <div className="border-t border-surface-700/50 pt-4">
+        <div className="border-t border-surface-800/50 pt-4">
           <p className="text-surface-500 text-xs mb-2 uppercase tracking-wide">Current Leader</p>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-surface-700/50 border-2 border-dashed border-surface-600 flex items-center justify-center">

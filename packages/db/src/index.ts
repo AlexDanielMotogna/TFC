@@ -27,5 +27,8 @@ if (process.env.NODE_ENV !== 'production') {
 // Re-export Prisma types
 export * from '@prisma/client';
 
+// Export settlement lock utilities
+export * from './settlement-lock.js';
+
 // Export the client instance as default
 export default prisma;

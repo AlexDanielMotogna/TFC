@@ -119,7 +119,7 @@ export function useBetaAccess() {
             setState({ ...cached.state, isLoading: false });
             return;
           }
-          // Continue to fetch fresh data for pending users
+          // Continue to fetch fresh data for pending users (silently)
           silent = true;
         } else {
           // For approved/rejected, use cached state immediately

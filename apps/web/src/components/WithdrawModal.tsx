@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWithdraw } from '@/hooks';
+import { Portal } from './Portal';
 
 interface WithdrawModalProps {
   isOpen: boolean;
@@ -49,17 +50,18 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
   const isValidAmount = amountNum > 0 && (availableBalance === null || amountNum <= availableBalance);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <Portal>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        />
 
       {/* Modal */}
-      <div className="relative bg-surface-850 border border-surface-700 rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div className="relative bg-surface-850 border border-surface-800 rounded-lg shadow-xl w-full max-w-md mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
           <h3 className="text-lg font-semibold text-white">Withdraw</h3>
           <button
             onClick={onClose}
@@ -91,8 +93,8 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
           </div>
 
           {/* Info Box */}
-          <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-400 space-y-1">
-            <p>Daily withdrawal limit is $100,000, resets at UTC 00:00.</p>
+          <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-200 space-y-1">
+            <p>Daily withdrawal limit is $250,000, resets at UTC 00:00.</p>
             <p>Withdrawal fee is $1.</p>
           </div>
 
@@ -130,5 +132,6 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
         </div>
       </div>
     </div>
+    </Portal>
   );
 }

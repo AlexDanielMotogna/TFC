@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const PACIFICA_API_BASE = 'https://api.pacifica.fi';
+// Chart API is served by Next.js on the same server (relative URL)
+const CHART_API_BASE = '';
+// Pacifica WebSocket for real-time updates
 const PACIFICA_WS_URL = 'wss://ws.pacifica.fi/ws';
 
 export interface CandleData {
@@ -58,6 +60,27 @@ const getInitialDays = (interval: CandleInterval): number => {
   return daysMap[interval];
 };
 
+// Response from our aggregated chart data API
+interface ChartApiResponse {
+  success: boolean;
+  data: Array<{
+    t: number;   // timestamp ms
+    o: number;   // open (already parsed as number)
+    h: number;   // high
+    l: number;   // low
+    c: number;   // close
+    v: number;   // volume
+  }>;
+  meta?: {
+    symbol: string;
+    interval: string;
+    startTime: number;
+    endTime: number;
+    count: number;
+  };
+}
+
+// Legacy Pacifica response (for WebSocket messages)
 interface PacificaKlineResponse {
   success: boolean;
   data: Array<{
@@ -91,7 +114,19 @@ interface PacificaCandleMessage {
   };
 }
 
-// Parse API response to CandleData
+// Parse aggregated API response to CandleData (numbers already parsed)
+const parseChartApiData = (data: ChartApiResponse['data']): CandleData[] => {
+  return data.map(c => ({
+    time: Math.floor(c.t / 1000), // Convert to seconds for lightweight-charts
+    open: c.o,
+    high: c.h,
+    low: c.l,
+    close: c.c,
+    volume: c.v,
+  }));
+};
+
+// Parse legacy Pacifica response (for backward compatibility)
 const parseKlineData = (data: PacificaKlineResponse['data']): CandleData[] => {
   return data.map(c => ({
     time: Math.floor(c.t / 1000), // Convert to seconds for lightweight-charts
@@ -126,13 +161,12 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
     oldestTimestampRef.current = oldestTimestamp;
   }, [oldestTimestamp]);
 
-  // Load more history (for infinite scroll)
+  // Load more history (for infinite scroll) - uses aggregated API
   const loadMoreHistory = useCallback(async () => {
     if (isLoadingMore || isLoading) return;
 
     const sym = currentSymbolRef.current;
     const int = currentIntervalRef.current;
-    const pacificaSymbol = symbolToPacifica(sym);
     const intMs = intervalToMs(int);
 
     // Calculate time range for older candles
@@ -142,8 +176,9 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
 
     try {
       setIsLoadingMore(true);
+      // Use our backend API which aggregates data from multiple sources
       const response = await fetch(
-        `${PACIFICA_API_BASE}/api/v1/kline?symbol=${pacificaSymbol}&interval=${int}&start_time=${startTime}&end_time=${endTime}`
+        `${CHART_API_BASE}/api/chart/candles?symbol=${sym}&interval=${int}&start=${startTime}&end=${endTime}`
       );
 
       // Check if symbol changed during fetch
@@ -156,7 +191,7 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
         throw new Error(`Failed to fetch more candles: ${response.status}`);
       }
 
-      const data: PacificaKlineResponse = await response.json();
+      const data: ChartApiResponse = await response.json();
 
       // Check again after parsing
       if (currentSymbolRef.current !== sym || currentIntervalRef.current !== int) {
@@ -165,7 +200,7 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
       }
 
       if (data.success && data.data && data.data.length > 0) {
-        const olderCandles = parseKlineData(data.data);
+        const olderCandles = parseChartApiData(data.data);
 
         setCandles(prev => {
           // Merge older candles with existing ones
@@ -199,15 +234,16 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
     setIsConnected(false);
     setError(null);
 
-    // Fetch historical data
+    // Fetch historical data from aggregated API (Pacifica + Binance/Bybit)
     const fetchHistoricalCandles = async () => {
       const now = Date.now();
       const days = getInitialDays(interval);
       const startTime = now - (days * 24 * 60 * 60 * 1000);
 
       try {
+        // Use our backend API which aggregates data from multiple sources
         const response = await fetch(
-          `${PACIFICA_API_BASE}/api/v1/kline?symbol=${pacificaSymbol}&interval=${interval}&start_time=${startTime}&end_time=${now}`
+          `${CHART_API_BASE}/api/chart/candles?symbol=${symbol}&interval=${interval}&start=${startTime}&end=${now}`
         );
 
         if (isCancelled) return;
@@ -216,12 +252,12 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
           throw new Error(`Failed to fetch candles: ${response.status}`);
         }
 
-        const data: PacificaKlineResponse = await response.json();
+        const data: ChartApiResponse = await response.json();
 
         if (isCancelled) return;
 
         if (data.success && data.data && data.data.length > 0) {
-          const historicalCandles = parseKlineData(data.data);
+          const historicalCandles = parseChartApiData(data.data);
           historicalCandles.sort((a, b) => a.time - b.time);
 
           setCandles(historicalCandles);

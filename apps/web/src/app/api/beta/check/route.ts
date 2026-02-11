@@ -4,6 +4,7 @@
  */
 import { prisma } from '@tfc/db';
 import { errorResponse, BadRequestError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const walletAddress = searchParams.get('wallet');
 
     if (!walletAddress) {
-      throw new BadRequestError('wallet query parameter is required');
+      throw new BadRequestError('wallet query parameter is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     const entry = await prisma.betaWhitelist.findUnique({

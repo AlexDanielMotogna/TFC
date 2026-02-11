@@ -1,14 +1,26 @@
 import { Server } from 'socket.io';
-import { prisma, FightStatus, Fight, FightParticipant, User } from '@tfc/db';
+import {
+  prisma,
+  FightStatus,
+  Fight,
+  FightParticipant,
+  User,
+  acquireSettlementLock,
+  releaseSettlementLock,
+  SETTLEMENT_LOCK_PREFIX,
+  generateProcessId,
+} from '@tfc/db';
 import { createLogger } from '@tfc/logger';
 import { LOG_EVENTS, WS_EVENTS, PNL_TICK_INTERVAL_MS, type ArenaPnlTickPayload, type PlatformStatsPayload } from '@tfc/shared';
-import { getPrices, getTradeHistory, MarketPrice } from './pacifica-client.js';
+import { getPrices, MarketPrice } from './pacifica-client.js';
 
-// External trades check interval (every 30 seconds)
-const EXTERNAL_TRADES_CHECK_INTERVAL = 30;
+// MVP-9: External trades check moved to end-of-fight only
+// This reduces Pacifica API calls by ~95% during fights
+// @see MVP-SIMPLIFIED-RULES.md
+// const EXTERNAL_TRADES_CHECK_INTERVAL = 30; // Disabled for MVP
 
 // Anti-cheat API configuration
-const WEB_API_URL = process.env.WEB_API_URL || 'http://localhost:3000';
+const WEB_API_URL = process.env.WEB_API_URL || 'http://localhost:3001';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 
 // Snapshot save interval (every 5 seconds to reduce DB load)
@@ -56,7 +68,7 @@ async function calculateUnrealizedPnlFromFightTrades(
   fightId: string,
   userId: string,
   cachedPrices?: MarketPrice[]
-): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number }> {
+): Promise<{ unrealizedPnl: number; funding: number; totalPositionValue: number; margin: number; realizedPnl: number; fees: number; tradesCount: number; maxExposureFromTrades: number }> {
   try {
     const [fightTrades, prices] = await Promise.all([
       prisma.fightTrade.findMany({
@@ -68,13 +80,18 @@ async function calculateUnrealizedPnlFromFightTrades(
 
     // Calculate net position per symbol from fight trades
     // Also track leverage used for each symbol (use the first trade's leverage)
-    const positionsBySymbol: Record<string, { amount: number; totalCost: number; leverage: number | null }> = {};
+    // Track opening fees to add them when position closes (fees = open fee + close fee)
+    const positionsBySymbol: Record<string, { amount: number; totalCost: number; leverage: number | null; openingFees: number }> = {};
 
     // Per Fight-Engine_Rules.md Rules 18-21:
     // Only CLOSED positions count for PnL - opening trades don't contribute
     // We track realizedPnl by only counting pnl from CLOSING trades
     let realizedPnl = 0;
     let totalFees = 0;
+    // Track CUMULATIVE opening notional (total capital committed to opening positions)
+    // This is the sum of all capital used for opening/adding to positions, NOT max concurrent
+    // Example: Open $50 BTC, close it, open $30 ETH → cumulativeOpeningNotional = $80
+    let cumulativeOpeningNotional = 0;
     // Note: Platform fee (0.05%) is already included in Pacifica's fee field via Builder Code
     // No need to calculate separately - Pacifica combines base fee + builder fee
 
@@ -86,11 +103,11 @@ async function calculateUnrealizedPnlFromFightTrades(
       const tradePnl = trade.pnl ? Number(trade.pnl) : 0;
       const tradeFee = Number(trade.fee);
 
-      totalFees += tradeFee;
-      // Note: closingNotional is tracked below only for closing trades
+      // Note: Fees are only counted when CLOSING positions, not when opening
+      // This matches the PnL logic where only closed positions count
 
       if (!positionsBySymbol[symbol]) {
-        positionsBySymbol[symbol] = { amount: 0, totalCost: 0, leverage: tradeLeverage };
+        positionsBySymbol[symbol] = { amount: 0, totalCost: 0, leverage: tradeLeverage, openingFees: 0 };
       }
 
       // Update leverage if this trade has one (use the most recent trade's leverage for opening positions)
@@ -106,10 +123,32 @@ async function calculateUnrealizedPnlFromFightTrades(
           const closeAmount = Math.min(amount, absShort);
           const openAmount = amount - closeAmount;
 
-          // Only count pnl proportionally if partially closing
+          // Calculate PnL for closing portion
+          // If Pacifica's pnl is null, calculate it ourselves from entry/exit prices
           if (closeAmount > 0) {
-            const pnlPortion = closeAmount / amount;
-            realizedPnl += tradePnl * pnlPortion;
+            const avgShortEntry = absShort > 0 ? positionsBySymbol[symbol].totalCost / absShort : price;
+            let closingPnl: number;
+
+            if (tradePnl !== 0) {
+              // Use Pacifica's pnl, adjusted for partial close
+              const pnlPortion = closeAmount / amount;
+              closingPnl = tradePnl * pnlPortion;
+            } else {
+              // Calculate PnL ourselves: SHORT profits when price goes DOWN
+              // PnL = (entryPrice - exitPrice) * closeAmount
+              closingPnl = (avgShortEntry - price) * closeAmount;
+            }
+            realizedPnl += closingPnl;
+
+            // Add BOTH opening fee (proportional) + closing fee when position closes
+            const closingFeePortion = closeAmount / amount;
+            const closingFee = tradeFee * closingFeePortion;
+            // Calculate proportional opening fee based on closed amount
+            const openingFeePerUnit = absShort > 0 ? positionsBySymbol[symbol].openingFees / absShort : 0;
+            const proportionalOpeningFee = openingFeePerUnit * closeAmount;
+            totalFees += proportionalOpeningFee + closingFee;
+            // Reduce tracked opening fees
+            positionsBySymbol[symbol].openingFees -= proportionalOpeningFee;
           }
 
           // Reduce SHORT proportionally
@@ -123,11 +162,20 @@ async function calculateUnrealizedPnlFromFightTrades(
           if (openAmount > 0) {
             positionsBySymbol[symbol].totalCost += openAmount * price;
             positionsBySymbol[symbol].amount += openAmount;
+            // Track cumulative opening notional for capital usage
+            cumulativeOpeningNotional += openAmount * price;
+            // Track opening fee for this new position (proportional to opening amount)
+            const openingFeePortion = openAmount / amount;
+            positionsBySymbol[symbol].openingFees += tradeFee * openingFeePortion;
           }
         } else {
           // OPENING/increasing LONG position - pnl doesn't count per Rules 18-21
           positionsBySymbol[symbol].totalCost += amount * price;
           positionsBySymbol[symbol].amount += amount;
+          // Track cumulative opening notional for capital usage
+          cumulativeOpeningNotional += amount * price;
+          // Track opening fee (will be counted when position closes)
+          positionsBySymbol[symbol].openingFees += tradeFee;
         }
       } else {
         // SELL increases SHORT position or closes LONG
@@ -136,10 +184,35 @@ async function calculateUnrealizedPnlFromFightTrades(
           const closeAmount = Math.min(amount, positionsBySymbol[symbol].amount);
           const openAmount = amount - closeAmount;
 
-          // Only count pnl proportionally if partially closing
+          // Calculate PnL for closing portion
+          // If Pacifica's pnl is null, calculate it ourselves from entry/exit prices
           if (closeAmount > 0) {
-            const pnlPortion = closeAmount / amount;
-            realizedPnl += tradePnl * pnlPortion;
+            const avgLongEntry = positionsBySymbol[symbol].amount > 0
+              ? positionsBySymbol[symbol].totalCost / positionsBySymbol[symbol].amount
+              : price;
+            let closingPnl: number;
+
+            if (tradePnl !== 0) {
+              // Use Pacifica's pnl, adjusted for partial close
+              const pnlPortion = closeAmount / amount;
+              closingPnl = tradePnl * pnlPortion;
+            } else {
+              // Calculate PnL ourselves: LONG profits when price goes UP
+              // PnL = (exitPrice - entryPrice) * closeAmount
+              closingPnl = (price - avgLongEntry) * closeAmount;
+            }
+            realizedPnl += closingPnl;
+
+            // Add BOTH opening fee (proportional) + closing fee when position closes
+            const closingFeePortion = closeAmount / amount;
+            const closingFee = tradeFee * closingFeePortion;
+            // Calculate proportional opening fee based on closed amount
+            const currentLongAmount = positionsBySymbol[symbol].amount;
+            const openingFeePerUnit = currentLongAmount > 0 ? positionsBySymbol[symbol].openingFees / currentLongAmount : 0;
+            const proportionalOpeningFee = openingFeePerUnit * closeAmount;
+            totalFees += proportionalOpeningFee + closingFee;
+            // Reduce tracked opening fees
+            positionsBySymbol[symbol].openingFees -= proportionalOpeningFee;
           }
 
           // Reduce LONG proportionally
@@ -151,11 +224,20 @@ async function calculateUnrealizedPnlFromFightTrades(
           if (openAmount > 0) {
             positionsBySymbol[symbol].totalCost += openAmount * price;
             positionsBySymbol[symbol].amount -= openAmount;
+            // Track cumulative opening notional for capital usage
+            cumulativeOpeningNotional += openAmount * price;
+            // Track opening fee for this new position (proportional to opening amount)
+            const openingFeePortion = openAmount / amount;
+            positionsBySymbol[symbol].openingFees += tradeFee * openingFeePortion;
           }
         } else {
           // OPENING/increasing SHORT position - pnl doesn't count per Rules 18-21
           positionsBySymbol[symbol].totalCost += amount * price;
           positionsBySymbol[symbol].amount -= amount;
+          // Track cumulative opening notional for capital usage
+          cumulativeOpeningNotional += amount * price;
+          // Track opening fee (will be counted when position closes)
+          positionsBySymbol[symbol].openingFees += tradeFee;
         }
       }
     }
@@ -211,111 +293,117 @@ async function calculateUnrealizedPnlFromFightTrades(
       realizedPnl,
       fees: totalFees,
       tradesCount: fightTrades.length,
+      maxExposureFromTrades: cumulativeOpeningNotional, // Total capital committed to opening positions
     };
   } catch (error) {
     logger.error(LOG_EVENTS.API_ERROR, 'Failed to calculate unrealized PnL from fight trades', error as Error, {
       fightId,
       userId,
     });
-    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0 };
+    return { unrealizedPnl: 0, funding: 0, totalPositionValue: 0, margin: 0, realizedPnl: 0, fees: 0, tradesCount: 0, maxExposureFromTrades: 0 };
   }
 }
 
 /**
- * Detect trades made outside TradeFightClub during a fight
- * Compares Pacifica trade history with our FightTrade records
+ * Detect external trades during a fight using the leverage field.
+ *
+ * Logic: The `leverage` field indicates whether a trade is OPENING or CLOSING a position:
+ * - Trade WITH leverage = Opening a position (entering the market)
+ * - Trade WITHOUT leverage (null) = Closing a position (exiting the market)
+ *
+ * For each symbol, if CLOSING amount > OPENING amount, the user closed a position
+ * they didn't open through TFC (i.e., they opened it externally).
+ *
+ * Previous BUY vs SELL logic was wrong because:
+ * - BUY = Open LONG or Close SHORT
+ * - SELL = Open SHORT or Close LONG
+ * A legitimate SHORT trade (open SHORT, close SHORT) would have SELL > BUY,
+ * triggering a false positive for external trades.
  *
  * @param fightId - The fight ID
  * @param userId - The user ID
- * @param accountAddress - The user's Pacifica account address
- * @param fightStart - Fight start timestamp
- * @param fightEnd - Fight end timestamp (or now if still live)
- * @returns Object with detected flag and list of external trade IDs
+ * @returns Object with detected flag and details of imbalanced symbols
  */
 async function detectExternalTrades(
   fightId: string,
-  userId: string,
-  accountAddress: string,
-  fightStart: Date,
-  fightEnd: Date
-): Promise<{ detected: boolean; externalTradeIds: string[] }> {
+  userId: string
+): Promise<{ detected: boolean; externalTradeIds: string[]; details: Array<{ symbol: string; buyAmount: number; sellAmount: number; difference: number }> }> {
   try {
-    const startTime = Math.floor(fightStart.getTime() / 1000);
-    const endTime = Math.floor(fightEnd.getTime() / 1000);
+    // Use the `trade` table to check for external positions
+    const trades = await prisma.trade.findMany({
+      where: { fightId, userId },
+      select: { symbol: true, side: true, amount: true, leverage: true },
+    });
 
-    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Checking for external trades', {
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Checking for external trades (using leverage field)', {
       fightId,
       userId,
-      accountAddress,
-      startTime,
-      endTime,
-      startTimeDate: fightStart.toISOString(),
-      endTimeDate: fightEnd.toISOString(),
+      tradesCount: trades.length,
     });
 
-    // 1. Get all trades from Pacifica in the fight time window
-    const pacificaTrades = await getTradeHistory({
-      accountAddress,
-      startTime,
-      endTime,
-      limit: 100,
-    });
+    // Calculate OPENING vs CLOSING totals per symbol
+    // Opening = trades with leverage field set
+    // Closing = trades without leverage field (null)
+    const symbolTotals: Record<string, { opening: number; closing: number }> = {};
 
-    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Pacifica trades fetched', {
-      fightId,
-      userId,
-      pacificaTradesCount: pacificaTrades.length,
-      pacificaTradeIds: pacificaTrades.map((t) => t.history_id),
-    });
+    for (const trade of trades) {
+      const symbol = trade.symbol;
+      const amount = parseFloat(trade.amount.toString());
+      const isOpening = trade.leverage !== null && trade.leverage !== undefined;
 
-    // 2. Get the pacificaHistoryIds registered in our DB for this fight
-    const fightTrades = await prisma.fightTrade.findMany({
-      where: { fightId, participantUserId: userId },
-      select: { pacificaHistoryId: true },
-    });
+      if (!symbolTotals[symbol]) {
+        symbolTotals[symbol] = { opening: 0, closing: 0 };
+      }
 
-    // Convert BigInt to string for comparison (BigInt.toString() returns decimal string)
-    const registeredIds = new Set(
-      fightTrades.map((t) => String(t.pacificaHistoryId))
-    );
+      if (isOpening) {
+        symbolTotals[symbol].opening += amount;
+      } else {
+        symbolTotals[symbol].closing += amount;
+      }
+    }
 
-    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'DB fight trades fetched', {
-      fightId,
-      userId,
-      dbTradesCount: fightTrades.length,
-      registeredIds: Array.from(registeredIds),
-    });
+    // Find symbols where CLOSING > OPENING (indicates external opens)
+    const imbalancedSymbols: Array<{ symbol: string; buyAmount: number; sellAmount: number; difference: number }> = [];
 
-    // 3. Find trades from Pacifica that are NOT in our DB
-    // Convert history_id to string for consistent comparison
-    const externalTrades = pacificaTrades.filter(
-      (t) => !registeredIds.has(String(t.history_id))
-    );
+    for (const [symbol, totals] of Object.entries(symbolTotals)) {
+      // Use small tolerance for floating point comparison
+      const diff = totals.closing - totals.opening;
+      if (diff > 0.0000001) {
+        imbalancedSymbols.push({
+          symbol,
+          buyAmount: totals.opening,  // renamed for backwards compatibility
+          sellAmount: totals.closing, // renamed for backwards compatibility
+          difference: diff,
+        });
+      }
+    }
 
-    if (externalTrades.length > 0) {
-      logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected', {
+    if (imbalancedSymbols.length > 0) {
+      logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected (CLOSING > OPENING)', {
         fightId,
         userId,
-        count: externalTrades.length,
-        tradeIds: externalTrades.map((t) => t.history_id.toString()),
+        imbalancedSymbols,
+        symbolTotals,
       });
     } else {
       logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'No external trades detected', {
         fightId,
         userId,
+        symbolTotals,
       });
     }
 
     return {
-      detected: externalTrades.length > 0,
-      externalTradeIds: externalTrades.map((t) => t.history_id.toString()),
+      detected: imbalancedSymbols.length > 0,
+      externalTradeIds: imbalancedSymbols.map((s) => `${s.symbol}:closed_${s.sellAmount.toFixed(6)}_opened_${s.buyAmount.toFixed(6)}`),
+      details: imbalancedSymbols,
     };
   } catch (error) {
     logger.error(LOG_EVENTS.API_ERROR, 'Failed to detect external trades', error as Error, {
       fightId,
       userId,
     });
-    return { detected: false, externalTradeIds: [] };
+    return { detected: false, externalTradeIds: [], details: [] };
   }
 }
 
@@ -352,14 +440,19 @@ const FIGHT_ENDING_WARNING_MS = 30000;
 
 export class FightEngine {
   private io: Server;
+  private instanceId: string; // Unique ID for this instance (used for distributed lock)
   private activeFights: Map<string, FightState> = new Map();
   private fightWarningsSent: Set<string> = new Set(); // Track fights that have received 30-second warning
+  private settlingFights: Set<string> = new Set(); // Track fights currently being settled (prevents race condition)
   private tickInterval: NodeJS.Timeout | null = null;
   private cleanupInterval: NodeJS.Timeout | null = null;
   private tickCount: number = 0;
 
   constructor(io: Server) {
     this.io = io;
+    // Generate unique instance ID for distributed lock identification
+    // Useful for debugging and horizontal scaling
+    this.instanceId = generateProcessId(SETTLEMENT_LOCK_PREFIX.REALTIME, process.env.INSTANCE_ID);
   }
 
   /**
@@ -456,29 +549,25 @@ export class FightEngine {
       },
     });
 
-    // Check for external trades every 30 seconds
-    const shouldCheckExternalTrades = this.tickCount % EXTERNAL_TRADES_CHECK_INTERVAL === 0;
+    // MVP-9: External trades check moved to end-of-fight only
+    // This reduces Pacifica API calls by ~95% during fights
+    // @see MVP-SIMPLIFIED-RULES.md
 
     // Save snapshots every 5 seconds (not every tick to reduce DB load)
     const shouldSaveSnapshot = this.tickCount % SNAPSHOT_SAVE_INTERVAL === 0;
-
-    if (shouldCheckExternalTrades) {
-      logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'External trades check triggered', {
-        tickCount: this.tickCount,
-        liveFightsCount: liveFights.length,
-      });
-    }
 
     // Collect arena PnL data for all live fights
     const arenaPnlData: ArenaPnlTickPayload['fights'] = [];
 
     for (const fight of liveFights) {
-      try {
-        // Check for external trades periodically
-        if (shouldCheckExternalTrades && fight.startedAt) {
-          await this.checkExternalTrades(fight);
-        }
+      // CRITICAL: Skip fights that are currently being settled
+      // This prevents the race condition where tick re-adds a fight to activeFights
+      // while endFight is still processing it
+      if (this.settlingFights.has(fight.id)) {
+        continue;
+      }
 
+      try {
         const state = await this.calculateFightState(fight);
 
         if (state) {
@@ -612,19 +701,21 @@ export class FightEngine {
       fight.participants.map(async (p) => {
         // Get all PnL data from FightTrade records for THIS specific fight
         const liveData = await calculateUnrealizedPnlFromFightTrades(fight.id, p.userId, prices);
-        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount } = liveData;
+        const { realizedPnl, unrealizedPnl, fees, funding, margin, tradesCount, maxExposureFromTrades } = liveData;
 
         // Per user requirement: PnL should ONLY update when positions are CLOSED
         // Both live display and settlement use realized PnL only
         // Opening a position (long/short) doesn't affect PnL - only closing does
         // Note: Platform fee is already included in Pacifica's fee via Builder Code
-        const totalPnl = realizedPnl; // Only closed positions count
+        // Subtract fees from realized PnL for accurate profit calculation
+        const totalPnl = realizedPnl - fees; // Realized PnL minus trading fees
 
-        // For pnlPercent (ROI%), we use PnL / margin * 100
-        // When margin = 0 (all positions closed), fall back to maxExposureUsed
-        // This ensures we show realized ROI% even after closing positions
-        const maxExposure = Number(p.maxExposureUsed || 0);
-        const effectiveMargin = margin > 0 ? margin : maxExposure;
+        // For pnlPercent (ROI%), we use PnL / effectiveMargin * 100
+        // Use the MAXIMUM of: current margin, DB maxExposure, or calculated maxExposure
+        // This prevents absurd percentages when current position has small margin
+        // but user has already used significant capital on previous trades
+        const dbMaxExposure = Number(p.maxExposureUsed || 0);
+        const effectiveMargin = Math.max(margin, dbMaxExposure, maxExposureFromTrades);
         const pnlPercent = effectiveMargin > 0 ? (totalPnl / effectiveMargin) * 100 : 0;
 
         // scoreUsdc is the actual PnL in USD
@@ -728,6 +819,7 @@ export class FightEngine {
 
   /**
    * Check for external trades for all participants in a fight
+   * Uses simple BUY vs SELL comparison per symbol
    */
   private async checkExternalTrades(fight: {
     id: string;
@@ -757,30 +849,11 @@ export class FightEngine {
         continue;
       }
 
-      // Get Pacifica connection for this user
-      const connection = await prisma.pacificaConnection.findUnique({
-        where: { userId: participant.userId },
-        select: { accountAddress: true },
-      });
-
-      if (!connection) {
-        logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'No Pacifica connection for user', {
-          fightId: fight.id,
-          userId: participant.userId,
-        });
-        continue;
-      }
-
-      const result = await detectExternalTrades(
-        fight.id,
-        participant.userId,
-        connection.accountAddress,
-        fight.startedAt,
-        new Date()
-      );
+      // Simple detection: compare BUY vs SELL amounts per symbol
+      const result = await detectExternalTrades(fight.id, participant.userId);
 
       if (result.detected) {
-        // Update database
+        // Update participant record
         await prisma.fightParticipant.update({
           where: { id: participant.id },
           data: {
@@ -789,18 +862,34 @@ export class FightEngine {
           },
         });
 
+        // Record anti-cheat violation
+        await prisma.antiCheatViolation.create({
+          data: {
+            fightId: fight.id,
+            ruleCode: 'EXTERNAL_TRADES',
+            ruleName: 'External Trades Detected',
+            ruleMessage: `User sold more than they bought through TFC. Symbols: ${result.details.map(d => `${d.symbol} (sold ${d.sellAmount.toFixed(6)}, bought ${d.buyAmount.toFixed(6)})`).join(', ')}`,
+            metadata: {
+              userId: participant.userId,
+              participantId: participant.id,
+              details: result.details,
+            },
+            actionTaken: 'FLAGGED',
+          },
+        });
+
         // Emit event to fight room
         this.io.to(`fight:${fight.id}`).emit(WS_EVENTS.EXTERNAL_TRADES_DETECTED, {
           fightId: fight.id,
           userId: participant.userId,
           count: result.externalTradeIds.length,
-          tradeIds: result.externalTradeIds,
+          details: result.details,
         });
 
-        logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected and recorded', {
+        logger.warn(LOG_EVENTS.API_ERROR, 'External trades detected and recorded in anti-cheat', {
           fightId: fight.id,
           userId: participant.userId,
-          count: result.externalTradeIds.length,
+          details: result.details,
         });
       }
     }
@@ -865,9 +954,53 @@ export class FightEngine {
 
   /**
    * End a fight
+   *
+   * Uses distributed lock (settling_at/settling_by fields) to prevent race conditions
+   * with the reconcile-fights job.
+   * @see docs/Agents/Fight-Enginer-Scanner.md
    */
   private async endFight(fightId: string, state: FightState) {
-    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Ending fight', { fightId });
+    // ========== DEBUG LOGS - ENDFIGHT CALLED ==========
+    console.log('\n========================================');
+    console.log('🚀 ENDFIGHT CALLED');
+    console.log('========================================');
+    console.log('Fight ID:', fightId);
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('Instance ID:', this.instanceId);
+    console.log('========================================\n');
+    // ==================================================
+
+    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Ending fight', { fightId, instanceId: this.instanceId });
+
+    // STEP 1: Acquire distributed lock in DB FIRST
+    // This prevents race conditions with reconcile-fights job
+    const lockResult = await acquireSettlementLock(prisma, fightId, this.instanceId);
+
+    if (!lockResult.acquired) {
+      console.log(`⛔ [${fightId}] SETTLEMENT LOCK NOT ACQUIRED - another process is handling this fight`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Settlement lock held by another process, skipping', {
+        fightId,
+        settlingBy: lockResult.settlingBy,
+        settlingAt: lockResult.settlingAt,
+        fightStatus: lockResult.fightStatus,
+      });
+      return;
+    }
+
+    console.log(`🔒 [${fightId}] SETTLEMENT LOCK ACQUIRED by ${this.instanceId}`);
+
+    // STEP 2: Add to local settlingFights set (backup for tick loop)
+    if (this.settlingFights.has(fightId)) {
+      console.log(`⛔ [${fightId}] DUPLICATE ENDFIGHT BLOCKED (settlingFights)`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight already being settled locally, skipping duplicate call', { fightId });
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
+      return;
+    }
+    this.settlingFights.add(fightId);
+    console.log(`🚀 [${fightId}] ENDFIGHT STARTED - added to settlingFights`);
+
+    // Remove from active fights
+    this.activeFights.delete(fightId);
 
     // Final check for external trades before ending
     const fight = await prisma.fight.findUnique({
@@ -881,6 +1014,20 @@ export class FightEngine {
 
     if (!fight) {
       logger.error(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight not found for settlement', { fightId });
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
+      this.settlingFights.delete(fightId);
+      return;
+    }
+
+    // Prevent multiple settlements - only process LIVE fights
+    // This is a safety check in case DB status was changed by another process
+    if (fight.status !== FightStatus.LIVE) {
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight already ended, skipping duplicate settlement', {
+        fightId,
+        currentStatus: fight.status,
+      });
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
+      this.settlingFights.delete(fightId);
       return;
     }
 
@@ -891,6 +1038,13 @@ export class FightEngine {
         participants: fight.participants,
       });
     }
+
+    // DEBUG: Check status after external trades check
+    const afterExtTradesCheck = await prisma.fight.findUnique({
+      where: { id: fightId },
+      select: { status: true },
+    });
+    console.log(`🔍 [${fightId}] AFTER external trades check: status=${afterExtTradesCheck?.status}`);
 
     // Recalculate state to get final REALIZED PnL
     // Only closed positions count for winner determination
@@ -905,29 +1059,6 @@ export class FightEngine {
 
     // Use settlement state for final scores, fallback to live state if calculation fails
     const finalState = settlementState || state;
-
-    // Update participant final scores FIRST (needed for anti-cheat validation)
-    if (finalState.participantA) {
-      await prisma.fightParticipant.updateMany({
-        where: { fightId, userId: finalState.participantA.userId },
-        data: {
-          finalPnlPercent: finalState.participantA.pnlPercent,
-          finalScoreUsdc: finalState.participantA.scoreUsdc,
-          tradesCount: finalState.participantA.tradesCount,
-        },
-      });
-    }
-
-    if (finalState.participantB) {
-      await prisma.fightParticipant.updateMany({
-        where: { fightId, userId: finalState.participantB.userId },
-        data: {
-          finalPnlPercent: finalState.participantB.pnlPercent,
-          finalScoreUsdc: finalState.participantB.scoreUsdc,
-          tradesCount: finalState.participantB.tradesCount,
-        },
-      });
-    }
 
     // Determine winner based on REALIZED PnL only
     // Use tolerance for floating point comparison to avoid false wins due to precision errors
@@ -948,10 +1079,65 @@ export class FightEngine {
       }
     }
 
+    console.log(`🎯 [${fightId}] Determined winner: ${determinedWinnerId || (determinedDraw ? 'DRAW' : 'NONE')}`);
+
     // Call anti-cheat API to validate fight and get final status
-    let finalStatus: 'FINISHED' | 'NO_CONTEST' = 'FINISHED';
+    // FAIL SAFE: Default to NO_CONTEST - only set FINISHED if API succeeds
+    let finalStatus: 'FINISHED' | 'NO_CONTEST' = 'NO_CONTEST';
     let winnerId = determinedWinnerId;
     let isDraw = determinedDraw;
+
+    // PRE-HTTP LOCK VERIFICATION
+    // Check that we still hold the lock BEFORE making the HTTP call
+    // This helps diagnose if the lock is being stolen during processing
+    const preLockCheckRaw = await prisma.fight.findUnique({
+      where: { id: fightId },
+    });
+    // Type assertion needed because settlingBy/settlingAt fields may not be in generated types yet
+    const preLockCheck = preLockCheckRaw as typeof preLockCheckRaw & {
+      settlingBy?: string | null;
+      settlingAt?: Date | null;
+    };
+
+    console.log(`🔐 [${fightId}] PRE-HTTP lock check:`, {
+      status: preLockCheck?.status,
+      settlingBy: preLockCheck?.settlingBy,
+      expectedSettlingBy: this.instanceId,
+      match: preLockCheck?.settlingBy === this.instanceId,
+    });
+
+    if (preLockCheck?.status !== 'LIVE') {
+      console.log(`⛔ [${fightId}] Fight no longer LIVE before anti-cheat call! Status: ${preLockCheck?.status}`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight status changed before anti-cheat call', {
+        fightId,
+        currentStatus: preLockCheck?.status,
+        settlingBy: preLockCheck?.settlingBy,
+        expectedSettlingBy: this.instanceId,
+      });
+      this.settlingFights.delete(fightId);
+      await releaseSettlementLock(prisma, fightId, this.instanceId);
+      return;
+    }
+
+    if (preLockCheck?.settlingBy !== this.instanceId) {
+      console.log(`⛔ [${fightId}] Lock was stolen before anti-cheat call!`);
+      console.log(`   Expected settlingBy: ${this.instanceId}`);
+      console.log(`   Actual settlingBy: ${preLockCheck?.settlingBy}`);
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Settlement lock stolen before anti-cheat call', {
+        fightId,
+        currentSettlingBy: preLockCheck?.settlingBy,
+        expectedSettlingBy: this.instanceId,
+      });
+      this.settlingFights.delete(fightId);
+      return;
+    }
+
+    logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Calling anti-cheat API', {
+      fightId,
+      url: `${WEB_API_URL}/api/internal/anti-cheat/settle`,
+      determinedWinnerId,
+      determinedDraw,
+    });
 
     try {
       const response = await fetch(`${WEB_API_URL}/api/internal/anti-cheat/settle`, {
@@ -975,6 +1161,26 @@ export class FightEngine {
           isDraw: boolean;
           violations?: Array<{ ruleCode: string }>;
         };
+
+        // ========== DEBUG LOGS - COPY THIS ==========
+        console.log('\n========================================');
+        console.log('🔍 ANTI-CHEAT API RESPONSE');
+        console.log('========================================');
+        console.log('Fight ID:', fightId);
+        console.log('Full API Response:', JSON.stringify(result, null, 2));
+        console.log('finalStatus from API:', result.finalStatus);
+        console.log('========================================\n');
+        // ============================================
+
+        logger.info(LOG_EVENTS.FIGHT_ACTIVITY, 'Anti-cheat API response received', {
+          fightId,
+          success: result.success,
+          finalStatus: result.finalStatus,
+          winnerId: result.winnerId,
+          isDraw: result.isDraw,
+          violationCount: result.violations?.length || 0,
+        });
+
         if (result.success) {
           finalStatus = result.finalStatus;
           winnerId = result.winnerId;
@@ -1004,19 +1210,132 @@ export class FightEngine {
     }
 
     // Update database with final status from anti-cheat
-    await prisma.fight.update({
-      where: { id: fightId },
-      data: {
-        status: finalStatus === 'NO_CONTEST' ? FightStatus.NO_CONTEST : FightStatus.FINISHED,
-        endedAt: new Date(),
-        winnerId,
-        isDraw,
-      },
+    // CRITICAL: Only update if status is still LIVE to prevent race conditions
+
+    // ========== DEBUG LOGS - BEFORE UPDATE ==========
+    console.log('\n========================================');
+    console.log('💾 ABOUT TO UPDATE DATABASE');
+    console.log('========================================');
+    console.log('Fight ID:', fightId);
+    console.log('finalStatus variable:', finalStatus);
+    console.log('FightStatus.NO_CONTEST value:', FightStatus.NO_CONTEST);
+    console.log('Status to save:', finalStatus === 'NO_CONTEST' ? FightStatus.NO_CONTEST : FightStatus.FINISHED);
+    console.log('Winner ID:', winnerId);
+    console.log('Is Draw:', isDraw);
+    console.log('========================================\n');
+    // ================================================
+
+    logger.info(LOG_EVENTS.FIGHT_FINISH, 'Updating fight in database with atomic transaction', {
+      fightId,
+      finalStatus,
+      statusToSave: finalStatus === 'NO_CONTEST' ? 'NO_CONTEST' : 'FINISHED',
+      winnerId,
+      isDraw,
+      instanceId: this.instanceId,
     });
 
-    // Remove from active fights and cleanup warning tracking
-    this.activeFights.delete(fightId);
+    // Use atomic transaction to:
+    // 1. Lock the row with FOR UPDATE to prevent any concurrent modifications
+    // 2. Verify we still hold the lock and fight is LIVE
+    // 3. Update participant scores
+    // 4. Update fight status
+    // 5. Clear the lock
+    // ALL writes happen in this single transaction - nothing can interfere
+    const updateResult = await prisma.$transaction(async (tx) => {
+      // Lock the row with FOR UPDATE - blocks any concurrent access
+      const lockedRows = await tx.$queryRaw<Array<{
+        id: string;
+        status: string;
+        settling_by: string | null;
+      }>>`
+        SELECT id, status, settling_by
+        FROM fights
+        WHERE id = ${fightId}
+        FOR UPDATE
+      `;
+
+      const currentFight = lockedRows[0];
+      if (!currentFight) {
+        return { success: false, reason: 'fight_not_found' };
+      }
+
+      console.log(`🔒 [${fightId}] Transaction FOR UPDATE acquired: status=${currentFight.status}, settlingBy=${currentFight.settling_by}`);
+
+      if (currentFight.status !== 'LIVE') {
+        return { success: false, reason: 'already_settled', currentStatus: currentFight.status };
+      }
+
+      if (currentFight.settling_by !== this.instanceId) {
+        return { success: false, reason: 'lock_stolen', lockHolder: currentFight.settling_by };
+      }
+
+      // Update participant A scores (inside transaction)
+      if (finalState.participantA) {
+        await tx.fightParticipant.updateMany({
+          where: { fightId, userId: finalState.participantA.userId },
+          data: {
+            finalPnlPercent: finalState.participantA.pnlPercent,
+            finalScoreUsdc: finalState.participantA.scoreUsdc,
+            tradesCount: finalState.participantA.tradesCount,
+          },
+        });
+      }
+
+      // Update participant B scores (inside transaction)
+      if (finalState.participantB) {
+        await tx.fightParticipant.updateMany({
+          where: { fightId, userId: finalState.participantB.userId },
+          data: {
+            finalPnlPercent: finalState.participantB.pnlPercent,
+            finalScoreUsdc: finalState.participantB.scoreUsdc,
+            tradesCount: finalState.participantB.tradesCount,
+          },
+        });
+      }
+
+      // Update fight status and clear lock in one atomic operation
+      await tx.fight.update({
+        where: { id: fightId },
+        data: {
+          status: finalStatus === 'NO_CONTEST' ? FightStatus.NO_CONTEST : FightStatus.FINISHED,
+          endedAt: new Date(),
+          winnerId,
+          isDraw,
+          settlingAt: null, // Clear the lock
+          settlingBy: null,
+        },
+      });
+
+      console.log(`✅ [${fightId}] Transaction committed: participants updated, fight status=${finalStatus}`);
+      return { success: true };
+    });
+
+    // ========== DEBUG LOGS - AFTER UPDATE ==========
+    console.log('\n========================================');
+    console.log('✅ DATABASE UPDATE RESULT');
+    console.log('========================================');
+    console.log('Fight ID:', fightId);
+    console.log('Transaction result:', JSON.stringify(updateResult));
+    console.log('finalStatus was:', finalStatus);
+    console.log('========================================\n');
+    // ================================================
+
+    if (!updateResult.success) {
+      logger.warn(LOG_EVENTS.FIGHT_ACTIVITY, 'Fight settlement transaction failed', {
+        fightId,
+        attemptedStatus: finalStatus,
+        reason: updateResult.reason,
+        ...(updateResult.currentStatus && { currentStatus: updateResult.currentStatus }),
+        ...(updateResult.lockHolder && { lockHolder: updateResult.lockHolder }),
+      });
+      this.settlingFights.delete(fightId);
+      return;
+    }
+
+    // Cleanup tracking sets (lock already cleared in transaction)
     this.fightWarningsSent.delete(fightId);
+    this.settlingFights.delete(fightId);
+    console.log(`✅ [${fightId}] ENDFIGHT COMPLETE - removed from settlingFights, lock cleared`);
 
     // Emit FIGHT_FINISHED with settlement scores (realized PnL only)
     this.io.to(`fight:${fightId}`).emit(WS_EVENTS.FIGHT_FINISHED, {

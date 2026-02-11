@@ -26,9 +26,10 @@ interface MarketSelectorProps {
   selectedMarket: string;
   onSelectMarket: (symbol: string) => void;
   getPrice: (symbol: string) => PriceData | undefined | null;
+  blockedSymbols?: string[]; // Symbols blocked from trading (pre-fight positions)
 }
 
-export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPrice }: MarketSelectorProps) {
+export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPrice, blockedSymbols = [] }: MarketSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'volume' | 'change' | 'symbol'>('volume');
@@ -145,7 +146,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
       )}
       <div
         ref={dropdownRef}
-        className={`fixed bg-surface-900 border border-surface-700 rounded-xl shadow-2xl z-[9999] overflow-hidden flex flex-col ${
+        className={`fixed bg-surface-900  border-surface-800 rounded-xl shadow-2xl z-[9999] overflow-hidden flex flex-col ${
           dropdownPosition.isMobile ? 'inset-4 top-16' : ''
         }`}
         style={dropdownPosition.isMobile ? { maxHeight: 'calc(100vh - 80px)' } : {
@@ -157,7 +158,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
         }}
       >
         {/* Header with close button on mobile */}
-        <div className="p-3 border-b border-surface-700 flex items-center gap-3">
+        <div className="p-3 border-b border-surface-800 flex items-center gap-3">
           <div className="relative flex-1">
             <svg
               className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400"
@@ -173,7 +174,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search markets..."
-              className="w-full pl-10 pr-4 py-2 bg-surface-800 border border-surface-700 rounded-lg text-sm text-white placeholder-surface-500 focus:outline-none focus:border-primary-500"
+              className="w-full pl-10 pr-4 py-2 bg-surface-800 border border-surface-800 rounded-lg text-sm text-white placeholder-surface-500 focus:outline-none focus:border-primary-500"
             />
           </div>
           {dropdownPosition.isMobile && (
@@ -192,7 +193,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
         <div className="overflow-auto flex-1">
         <table className="w-full min-w-[500px]">
           <thead className="sticky top-0 bg-surface-900 z-10">
-            <tr className="border-b border-surface-700">
+            <tr className="border-b border-surface-800">
               <th
                 className="text-left text-xs font-medium text-surface-400 py-2 px-3 cursor-pointer hover:text-white"
                 onClick={() => handleSort('symbol')}
@@ -247,28 +248,38 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
               const nextFunding = priceData?.nextFunding || 0;
               const isSelected = market.symbol === selectedMarket;
               const marketBaseSymbol = extractBaseSymbol(market.symbol);
+              const isBlocked = blockedSymbols.includes(market.symbol);
 
               return (
                 <tr
                   key={market.symbol}
                   onClick={() => {
+                    if (isBlocked) return; // Don't allow selecting blocked symbols
                     onSelectMarket(market.symbol);
                     setIsOpen(false);
                     setSearchQuery('');
                   }}
-                  className={`border-b border-surface-800/50 cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-primary-500/10'
-                      : 'hover:bg-surface-800/50'
+                  className={`border-b border-surface-800/50 transition-colors ${
+                    isBlocked
+                      ? 'opacity-50 cursor-not-allowed'
+                      : isSelected
+                        ? 'bg-primary-500/10 cursor-pointer'
+                        : 'hover:bg-surface-800/50 cursor-pointer'
                   }`}
+                  title={isBlocked ? 'Blocked: You had a position in this symbol before the fight started' : undefined}
                 >
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
                       <TokenIcon symbol={market.symbol} size="md" />
-                      <span className="text-sm font-medium text-white">{marketBaseSymbol}</span>
+                      <span className={`text-sm font-medium ${isBlocked ? 'text-surface-500' : 'text-white'}`}>{marketBaseSymbol}</span>
                       <span className="px-1.5 py-0.5 text-[10px] font-medium bg-surface-700 text-surface-300 rounded">
                         {market.maxLeverage}x
                       </span>
+                      {isBlocked && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded">
+                          Blocked
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="py-2 px-3 text-right">
@@ -319,7 +330,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
       <button
         ref={buttonRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-700 rounded-lg transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-800 rounded-lg transition-colors"
       >
         <TokenIcon symbol={selectedMarket} size="sm" />
         <span className="font-display font-semibold text-white">{selectedMarket}</span>

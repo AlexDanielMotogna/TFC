@@ -68,7 +68,7 @@ export function CryptoTickers() {
             return (
               <div
                 key={symbol}
-                className="rounded-xl bg-surface-850 border border-surface-700 p-5 hover:border-surface-600 transition-all"
+                className="rounded-xl bg-surface-850 border border-surface-800 p-5 hover:border-surface-600 transition-all"
               >
                 {/* Header - Token info */}
                 <div className="flex items-center justify-between mb-4">

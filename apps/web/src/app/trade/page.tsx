@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
-import { PacificaChart } from '@/components/PacificaChart';
+import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
 import { OrderBook } from '@/components/OrderBook';
 import { Positions, type Position, type LimitCloseParams, type MarketCloseParams, type TpSlParams } from '@/components/Positions';
 import { FightBanner } from '@/components/FightBanner';
@@ -16,9 +16,12 @@ import { CloseOppositeModal } from '@/components/CloseOppositeModal';
 import { MarketSelector } from '@/components/MarketSelector';
 import { Toggle } from '@/components/Toggle';
 import { WithdrawModal } from '@/components/WithdrawModal';
+import { EditOrderModal } from '@/components/EditOrderModal';
 import { BetaGate } from '@/components/BetaGate';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 // Default market shown while loading from API
 const DEFAULT_MARKET = { symbol: 'BTC-USD', name: 'Bitcoin', maxLeverage: 50 };
@@ -53,6 +56,8 @@ export default function TradePage() {
   const cancelStopOrder = useCancelStopOrder();
   const cancelAllOrders = useCancelAllOrders();
   const setPositionTpSl = useSetPositionTpSl();
+  const createStopOrder = useCreateStopOrder();
+  const createStandaloneStopOrder = useCreateStandaloneStopOrder();
   const setLeverageMutation = useSetLeverage();
 
   // Account settings (for leverage per symbol)
@@ -77,7 +82,7 @@ export default function TradePage() {
   // Stake limit info (available capital in fight)
   // maxExposureUsed = highest exposure ever reached (never resets when closing positions)
   // available = stake - maxExposureUsed (once capital is used, it can't be reused)
-  const { inFight, stake, currentExposure, maxExposureUsed, available: availableStake } = useStakeInfo();
+  const { inFight, stake, currentExposure, maxExposureUsed, available: availableStake, blockedSymbols } = useStakeInfo();
 
   // Fight-specific data hooks
   const { positions: fightPositions } = useFightPositions(fightId);
@@ -91,20 +96,29 @@ export default function TradePage() {
   // Trading terminal state - initialize from URL if present
   const [selectedMarket, setSelectedMarket] = useState(() => urlSymbol || 'BTC-USD');
 
+  // Check if currently selected symbol is blocked (pre-fight position exists)
+  const isSymbolBlocked = useMemo(() => {
+    return inFight && blockedSymbols.includes(selectedMarket);
+  }, [inFight, blockedSymbols, selectedMarket]);
+
   // Update URL when market changes (shallow navigation)
+  // Preserve fight parameter if user is in an active fight
   const handleMarketChange = useCallback((symbol: string) => {
     setSelectedMarket(symbol);
-    // Extract just the base asset (BTC from BTC-USD)
-    const asset = symbol.split('-')[0];
-    router.replace(`/trade?symbol=${symbol}`, { scroll: false });
-  }, [router]);
+    // Preserve fight parameter if exists
+    const currentFightId = searchParams?.get('fight');
+    const url = currentFightId
+      ? `/trade?fight=${currentFightId}&symbol=${symbol}`
+      : `/trade?symbol=${symbol}`;
+    router.replace(url, { scroll: false });
+  }, [router, searchParams]);
 
   // Set page title with current asset
   useEffect(() => {
     const asset = selectedMarket.split('-')[0];
     document.title = `${asset} - Trade - Trading Fight Club`;
   }, [selectedMarket]);
-  const [selectedInterval, setSelectedInterval] = useState<'1m' | '5m' | '15m' | '1h' | '4h' | '1d'>('5m');
+
   const [selectedSide, setSelectedSide] = useState<'LONG' | 'SHORT'>('LONG');
   const [orderSize, setOrderSize] = useState('');
   const [leverage, setLeverage] = useState(5);
@@ -120,6 +134,7 @@ export default function TradePage() {
   const [slEnabled, setSlEnabled] = useState(false);
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
+  const [reduceOnly, setReduceOnly] = useState(false);
 
   // Close opposite position modal state
   const [showCloseOppositeModal, setShowCloseOppositeModal] = useState(false);
@@ -134,13 +149,58 @@ export default function TradePage() {
   // Withdraw modal state
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
 
+  // Edit order modal state
+  const [showEditOrderModal, setShowEditOrderModal] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<{
+    id: number;
+    symbol: string;
+    side: string;
+    price: string;
+    size: string;
+    type: string;
+  } | null>(null);
+
+  // Close all positions state
+  const [isClosingAllPositions, setIsClosingAllPositions] = useState(false);
+
   // Slippage state
   const [slippage, setSlippage] = useState('0.5');
   const [showSlippageModal, setShowSlippageModal] = useState(false);
   const [slippageInput, setSlippageInput] = useState('0.5');
 
-  // Bottom tabs
-  const [bottomTab, setBottomTab] = useState<'positions' | 'orders' | 'trades' | 'history'>('positions');
+  // Bottom tabs - with URL persistence
+  type BottomTab = 'positions' | 'orders' | 'trades' | 'history';
+  const VALID_BOTTOM_TABS: BottomTab[] = ['positions', 'orders', 'trades', 'history'];
+
+  const getBottomTabFromUrl = useCallback((): BottomTab => {
+    const tabParam = searchParams?.get('tab');
+    if (tabParam && VALID_BOTTOM_TABS.includes(tabParam as BottomTab)) {
+      return tabParam as BottomTab;
+    }
+    return 'positions';
+  }, [searchParams]);
+
+  const [bottomTab, setBottomTabState] = useState<BottomTab>(getBottomTabFromUrl);
+
+  const setBottomTab = useCallback((tab: BottomTab) => {
+    setBottomTabState(tab);
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    if (tab === 'positions') {
+      params.delete('tab'); // Default tab, no need to show in URL
+    } else {
+      params.set('tab', tab);
+    }
+    const newUrl = params.toString() ? `/trade?${params.toString()}` : '/trade';
+    router.replace(newUrl, { scroll: false });
+  }, [router, searchParams]);
+
+  // Sync bottom tab state when URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = getBottomTabFromUrl();
+    if (tabFromUrl !== bottomTab) {
+      setBottomTabState(tabFromUrl);
+    }
+  }, [searchParams, getBottomTabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sort state for tables: { column, desc }
   const [ordersSort, setOrdersSort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
@@ -167,6 +227,20 @@ export default function TradePage() {
   const { markets, getPrice } = usePrices({
   });
 
+  // Auto-select first non-blocked symbol when in a fight and current symbol is blocked
+  useEffect(() => {
+    if (!inFight || !blockedSymbols.length || markets.length === 0) return;
+
+    // If current symbol is blocked, find first non-blocked symbol
+    if (blockedSymbols.includes(selectedMarket)) {
+      const firstNonBlocked = markets.find((m: { symbol: string }) => !blockedSymbols.includes(m.symbol));
+      if (firstNonBlocked) {
+        console.log(`[Trade] Auto-switching from blocked ${selectedMarket} to ${firstNonBlocked.symbol}`);
+        handleMarketChange(firstNonBlocked.symbol);
+      }
+    }
+  }, [inFight, blockedSymbols, markets, selectedMarket, handleMarketChange]);
+
   const currentPriceData = getPrice(selectedMarket);
   // Use oracle price as the main price (closer to last traded price than mark price)
   const currentPrice = currentPriceData?.oracle || currentPriceData?.price || 0;
@@ -186,6 +260,13 @@ export default function TradePage() {
     const rounded = Math.floor(amount / lotSize) * lotSize;
     return rounded.toFixed(precision);
   };
+
+  // Helper to round price to tick size (Pacifica requires prices to be multiples of tick size)
+  const roundToTickSize = useCallback((price: number): string => {
+    const rounded = Math.round(price / tickSize) * tickSize;
+    const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
+    return rounded.toFixed(decimals);
+  }, [tickSize]);
 
   // Check if leverage can be set (validates against open positions)
   const canSetLeverage = useCallback((lev: number): { valid: boolean; error?: string } => {
@@ -256,8 +337,20 @@ export default function TradePage() {
       const orderAmount = roundToLotSize(rawAmount, lotSize);
 
       // Build TP/SL params if enabled (for market and limit orders)
-      const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit ? { stop_price: takeProfit } : undefined;
-      const slParam = (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss ? { stop_price: stopLoss } : undefined;
+      // Round to tick size to avoid "Invalid stop tick" errors from Pacifica
+      const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit
+        ? { stop_price: roundToTickSize(parseFloat(takeProfit)) }
+        : undefined;
+      const slParam = (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss
+        ? { stop_price: roundToTickSize(parseFloat(stopLoss)) }
+        : undefined;
+
+      // Minimum order size: $11 (Pacifica minimum)
+      const positionValueUsd = parseFloat(orderAmount) * priceForCalc;
+      if (positionValueUsd < 11) {
+        toast.error(`Minimum order size is $11 (current: $${positionValueUsd.toFixed(2)})`);
+        return;
+      }
 
       const symbol = selectedMarket.replace('-USD', ''); // Convert BTC-USD to BTC
       const side = selectedSide === 'LONG' ? 'bid' : 'ask';
@@ -268,7 +361,7 @@ export default function TradePage() {
           symbol,
           side,
           amount: orderAmount,
-          reduceOnly: false,
+          reduceOnly,
           slippage_percent: slippage,
           take_profit: tpParam,
           stop_loss: slParam,
@@ -286,15 +379,32 @@ export default function TradePage() {
           side,
           price: limitPrice,
           amount: orderAmount,
-          reduceOnly: false,
+          reduceOnly,
           tif: 'GTC',
           take_profit: tpParam,
           stop_loss: slParam,
         });
       } else if (orderType === 'stop-market' || orderType === 'stop-limit') {
-        // Stop orders - not yet implemented
-        toast.error('Stop orders coming soon. Please use Market or Limit orders for now.');
-        return;
+        // Stop orders
+        if (!triggerPrice || parseFloat(triggerPrice) <= 0) {
+          toast.error('Please enter a trigger price');
+          return;
+        }
+        if (orderType === 'stop-limit' && (!limitPrice || parseFloat(limitPrice) <= 0)) {
+          toast.error('Please enter a limit price for stop-limit orders');
+          return;
+        }
+
+        await createStandaloneStopOrder.mutateAsync({
+          symbol: selectedMarket,
+          side,
+          stopPrice: triggerPrice,
+          amount: orderAmount,
+          limitPrice: orderType === 'stop-limit' ? limitPrice : undefined,
+          reduceOnly,
+          fightId: fightId || undefined,
+          leverage,
+        });
       }
 
       // Clear order form after successful order
@@ -311,7 +421,7 @@ export default function TradePage() {
       // Error notification is handled by the hook's onError handler
       console.error('Failed to place order:', err instanceof Error ? err.message : err);
     }
-  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, orderType, limitPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize, slippage]);
+  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, createStandaloneStopOrder, orderType, limitPrice, triggerPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize, slippage, roundToTickSize, reduceOnly]);
 
   const handlePlaceOrder = useCallback(async () => {
     if (!isAuthenticated) {
@@ -380,11 +490,11 @@ export default function TradePage() {
 
   const handleCancelOrder = useCallback(async (orderId: string, symbol: string, orderType?: string) => {
     try {
-      // Check if this is a TP/SL order - these need to use cancel_stop_order endpoint
-      const isTpSlOrder = orderType && (orderType.includes('TP') || orderType.includes('SL'));
+      // Check if this is a stop order (TP/SL or standalone stop) - these need cancel_stop_order endpoint
+      const isStopOrder = orderType && (orderType.includes('TP') || orderType.includes('SL') || orderType.includes('STOP'));
 
-      if (isTpSlOrder) {
-        // TP/SL orders need to use the stop/cancel endpoint
+      if (isStopOrder) {
+        // Stop orders need to use the stop/cancel endpoint
         await cancelStopOrder.mutateAsync({
           symbol,
           orderId: parseInt(orderId),
@@ -403,6 +513,29 @@ export default function TradePage() {
       console.error('Failed to cancel order:', err instanceof Error ? err.message : err);
     }
   }, [cancelOrder, cancelStopOrder, refetchAccount]);
+
+  const handleEditOrder = useCallback((order: {
+    id: string;
+    symbol: string;
+    side: string;
+    price: string;
+    size: string;
+    type: string;
+  }) => {
+    // Only allow editing LIMIT orders (not TP/SL orders)
+    if (order.type !== 'LIMIT') {
+      return;
+    }
+    setEditingOrder({
+      id: parseInt(order.id),
+      symbol: order.symbol,
+      side: order.side,
+      price: order.price,
+      size: order.size,
+      type: order.type,
+    });
+    setShowEditOrderModal(true);
+  }, []);
 
   const handleClosePosition = useCallback(async (
     positionId: string,
@@ -458,7 +591,7 @@ export default function TradePage() {
           symbol: tokenSymbol,
           side: flipSide,
           amount: doubleAmount,
-          reduceOnly: false, // Not reduce-only because we want to open new position
+          reduceOnly, // Not reduce-only because we want to open new position
           slippage_percent: '1',
           fightId: inActiveFight && fightId ? fightId : undefined,
           isPreFightFlip: isPreFightPosition, // Don't record this as a fight trade
@@ -490,29 +623,99 @@ export default function TradePage() {
     }
   }, [apiPositions, createMarketOrder, createLimitOrder, refetchAccount, inActiveFight, fightId, fightPositions]);
 
+  // Close all positions at market price
+  const handleCloseAllPositions = useCallback(async () => {
+    if (!apiPositions || apiPositions.length === 0) return;
+
+    setIsClosingAllPositions(true);
+
+    try {
+      // Close each position with a market order
+      for (const position of apiPositions) {
+        const tokenSymbol = position.symbol.replace('-USD', '');
+        const closeSide = position.side === 'LONG' ? 'ask' : 'bid';
+
+        await createMarketOrder.mutateAsync({
+          symbol: tokenSymbol,
+          side: closeSide,
+          amount: position.size,
+          reduceOnly: true,
+          slippage_percent: '1',
+        });
+      }
+
+      toast.success(`Closed ${apiPositions.length} position${apiPositions.length > 1 ? 's' : ''}`);
+      await refetchAccount();
+    } catch (err) {
+      console.error('Failed to close all positions:', err instanceof Error ? err.message : err);
+      toast.error('Failed to close all positions');
+    } finally {
+      setIsClosingAllPositions(false);
+    }
+  }, [apiPositions, createMarketOrder, refetchAccount]);
+
   const handleSetTpSl = useCallback(async (params: TpSlParams) => {
     try {
-      // Handle null = remove, object = set, undefined = no change
-      const takeProfit = params.takeProfit === null
-        ? null // Explicitly remove
-        : params.takeProfit
-          ? { stop_price: params.takeProfit.stopPrice, limit_price: params.takeProfit.limitPrice }
-          : undefined; // No change
+      // For PARTIAL orders, use create_stop_order endpoint which supports custom amounts
+      // The set_position_tpsl endpoint only supports full position TP/SL and overwrites existing orders
+      if (params.isPartial && params.partialAmount) {
+        const promises: Promise<any>[] = [];
 
-      const stopLoss = params.stopLoss === null
-        ? null // Explicitly remove
-        : params.stopLoss
-          ? { stop_price: params.stopLoss.stopPrice, limit_price: params.stopLoss.limitPrice }
-          : undefined; // No change
+        // Create partial TP order if specified
+        if (params.takeProfit) {
+          promises.push(
+            createStopOrder.mutateAsync({
+              symbol: params.symbol,
+              side: params.side,
+              stopPrice: params.takeProfit.stopPrice,
+              amount: params.partialAmount,
+              limitPrice: params.takeProfit.limitPrice,
+              type: 'TAKE_PROFIT',
+              fightId: fightId || undefined,
+            })
+          );
+        }
 
-      await setPositionTpSl.mutateAsync({
-        symbol: params.symbol,
-        side: params.side,
-        size: params.size,
-        take_profit: takeProfit,
-        stop_loss: stopLoss,
-        fightId: fightId || undefined, // Track as fight order if in fight
-      });
+        // Create partial SL order if specified
+        if (params.stopLoss) {
+          promises.push(
+            createStopOrder.mutateAsync({
+              symbol: params.symbol,
+              side: params.side,
+              stopPrice: params.stopLoss.stopPrice,
+              amount: params.partialAmount,
+              limitPrice: params.stopLoss.limitPrice,
+              type: 'STOP_LOSS',
+              fightId: fightId || undefined,
+            })
+          );
+        }
+
+        await Promise.all(promises);
+      } else {
+        // For FULL position TP/SL, use set_position_tpsl endpoint
+        // Handle null = remove, object = set, undefined = no change
+        const takeProfit = params.takeProfit === null
+          ? null // Explicitly remove
+          : params.takeProfit
+            ? { stop_price: params.takeProfit.stopPrice, limit_price: params.takeProfit.limitPrice }
+            : undefined; // No change
+
+        const stopLoss = params.stopLoss === null
+          ? null // Explicitly remove
+          : params.stopLoss
+            ? { stop_price: params.stopLoss.stopPrice, limit_price: params.stopLoss.limitPrice }
+            : undefined; // No change
+
+        await setPositionTpSl.mutateAsync({
+          symbol: params.symbol,
+          side: params.side,
+          size: params.size,
+          take_profit: takeProfit,
+          stop_loss: stopLoss,
+          fightId: fightId || undefined, // Track as fight order if in fight
+        });
+      }
 
       // Refresh account data
       await refetchAccount();
@@ -521,7 +724,7 @@ export default function TradePage() {
       console.error('Failed to set TP/SL:', message);
       toast.error(message);
     }
-  }, [setPositionTpSl, refetchAccount, fightId]);
+  }, [setPositionTpSl, createStopOrder, refetchAccount, fightId]);
 
   // Get account equity for cross margin liq price calculation
   const accountEquity = account ? parseFloat(account.accountEquity) || 0 : 0;
@@ -582,10 +785,30 @@ export default function TradePage() {
     const oppositeOrderSide = pos.side === 'LONG' ? 'SHORT' : 'LONG';
 
     // Find ALL Take Profit orders for this position
+    // TP orders can be:
+    // 1. Native Pacifica TP: order.type includes 'TP' or 'take_profit'
+    // 2. Hybrid approach: reduce_only LIMIT orders on opposite side at profit-taking price
+    //    - For LONG position: TP price is ABOVE entry price
+    //    - For SHORT position: TP price is BELOW entry price
     const tpOrders = openOrders.filter(order => {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
-      const isTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
-      return orderSymbol === posSymbol && order.side === oppositeOrderSide && isTP;
+      if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
+
+      // Check for native Pacifica TP orders
+      const isNativeTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
+      if (isNativeTP) return true;
+
+      // Check for hybrid TP (limit orders with reduce_only at profit-taking price)
+      // These are limit orders (not stop orders) that are reduce_only
+      const isLimitOrder = order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
+      if (isLimitOrder && order.reduceOnly) {
+        const orderPrice = parseFloat(order.price) || 0;
+        // For LONG: TP is above entry, for SHORT: TP is below entry
+        if (pos.side === 'LONG' && orderPrice > entryPrice) return true;
+        if (pos.side === 'SHORT' && orderPrice < entryPrice) return true;
+      }
+
+      return false;
     }).map(order => ({
       orderId: order.id,
       type: 'TP' as const,
@@ -596,10 +819,30 @@ export default function TradePage() {
     }));
 
     // Find ALL Stop Loss orders for this position
+    // SL orders can be:
+    // 1. Native Pacifica SL: order.type includes 'SL' or 'stop_loss'
+    // 2. Hybrid approach: reduce_only STOP orders on opposite side at loss-limiting price
+    //    - For LONG position: SL price is BELOW entry price
+    //    - For SHORT position: SL price is ABOVE entry price
     const slOrders = openOrders.filter(order => {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
-      const isSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
-      return orderSymbol === posSymbol && order.side === oppositeOrderSide && isSL;
+      if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
+
+      // Check for native Pacifica SL orders
+      const isNativeSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
+      if (isNativeSL) return true;
+
+      // Check for hybrid SL (stop orders with reduce_only at loss-limiting price)
+      // These are stop_market orders that are reduce_only
+      const isStopOrder = order.type?.toUpperCase().includes('STOP') && !order.type?.includes('TP') && !order.type?.includes('SL');
+      if (isStopOrder && order.reduceOnly) {
+        const triggerPrice = parseFloat(order.stopPrice || order.price) || 0;
+        // For LONG: SL is below entry, for SHORT: SL is above entry
+        if (pos.side === 'LONG' && triggerPrice < entryPrice) return true;
+        if (pos.side === 'SHORT' && triggerPrice > entryPrice) return true;
+      }
+
+      return false;
     }).map(order => ({
       orderId: order.id,
       type: 'SL' as const,
@@ -653,7 +896,7 @@ export default function TradePage() {
     const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
     return {
-      id: `fight-${pos.symbol}-${pos.side}`,
+      id: `${pos.symbol}-${pos.side}`, // Same format as regular positions for handleClosePosition
       symbol: pos.symbol,
       side: pos.side,
       size: positionValueAtMark,
@@ -673,7 +916,13 @@ export default function TradePage() {
   });
 
   // Choose which positions/trades/orders to display based on toggle
-  const activePositions = showFightOnly && fightId ? displayFightPositions : displayPositions;
+  // For Fight Only: use Pacifica positions (instant WebSocket) filtered by blockedSymbols
+  // Since pre-fight symbols are blocked, all remaining positions are fight positions
+  // This gives instant updates vs slow REST polling from displayFightPositions
+  const fightFilteredPositions = displayPositions.filter(
+    (pos) => !blockedSymbols.includes(pos.symbol)
+  );
+  const activePositions = showFightOnly && fightId ? fightFilteredPositions : displayPositions;
   const activeTrades = showFightOnly && fightId ? fightTrades : tradeHistory;
   const activeOpenOrders = showFightOnly && fightId ? fightOpenOrders : openOrders;
   const activeOrderHistory = showFightOnly && fightId ? fightOrderHistory : orderHistoryData;
@@ -681,10 +930,10 @@ export default function TradePage() {
   // Calculate real-time unrealized PnL from positions (updates with WebSocket prices)
   const realtimeUnrealizedPnl = displayPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
 
-  // Calculate fight PnL from positions (for local display in positions table only)
+  // Calculate fight PnL from filtered positions (for local display in positions table only)
   // Banner PnL comes from WebSocket (server-calculated) for consistency between clients
-  const fightPnl = displayFightPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
-  const fightMargin = displayFightPositions.reduce((sum, pos) => sum + pos.margin, 0);
+  const fightPnl = fightFilteredPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
+  const fightMargin = fightFilteredPositions.reduce((sum, pos) => sum + pos.margin, 0);
   const fightRoi = fightMargin > 0 ? (fightPnl / fightMargin) * 100 : 0;
 
   const builderCodeApproved = builderCodeStatus?.approved ?? false;
@@ -694,34 +943,44 @@ export default function TradePage() {
     <BetaGate>
     <AppShell>
       {/* Fight Banner - Shows when in active fight */}
-      <FightBanner />
+      {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
+      <div style={{ overflowAnchor: 'none' }}>
+        <FightBanner />
+      </div>
 
       {/* Active Fights Switcher - Shows when user has active fights */}
-      <ActiveFightsSwitcher />
+      {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
+      <div style={{ overflowAnchor: 'none' }}>
+        <ActiveFightsSwitcher />
+      </div>
 
-      <div className="w-full px-4 py-4">
-        {/* Main Trading Terminal - Fixed height boxes with internal scroll */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-2">
-          {/* Left column: Order Book + Chart stacked, then Positions below */}
-          <div className="xl:col-span-9 flex flex-col gap-2 order-2 xl:order-1">
-            {/* Top row: Order Book + Chart side by side */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
-              {/* Order Book - fixed height with scroll */}
-              <div className="lg:col-span-3 card overflow-hidden">
-                <div className="px-3 py-2 border-b border-surface-700 flex-shrink-0">
+      {/* Main container - overflow-anchor: none prevents scroll jumping when WebSocket updates components */}
+      <div className="w-full px-1 py-1 touch-pan-y min-h-[calc(100vh-3rem)]" style={{ overflowAnchor: 'none' }}>
+        {/* Main Trading Terminal - Responsive layout
+            Mobile (< xl): Chart → Order Book + Place Order (side by side) → Tables
+            Desktop (xl+): Current layout with Order Book + Chart side by side, Place Order right */}
+        {/* transform: translateZ(0) creates a new compositing layer to isolate layout changes */}
+        <div className="grid grid-cols-2 xl:grid-cols-12 gap-1 h-full" style={{ transform: 'translateZ(0)' }}>
+          {/* Left column wrapper - becomes "invisible" on mobile via contents */}
+          <div className="contents xl:col-span-9 xl:flex xl:flex-col xl:gap-1 xl:order-1 xl:h-full">
+            {/* Top row: Order Book + Chart - also contents on mobile */}
+            <div className="contents xl:grid xl:grid-cols-12 xl:gap-1">
+              {/* Order Book - half width on mobile (row 2 left), 3 cols on desktop */}
+              <div className="col-span-1 xl:col-span-3 order-2 card overflow-hidden h-[645px] xl:h-auto flex flex-col">
+                <div className="px-3 py-2 border-b border-surface-800 flex-shrink-0">
                   <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                     Order Book
                   </h3>
                 </div>
-                <div className="h-[570px] overflow-y-auto">
+                <div className="flex-1 xl:h-[615px] overflow-y-auto overscroll-y-auto isolate" style={{ contain: 'strict' }}>
                   <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
                 </div>
               </div>
 
-              {/* Chart - compact */}
-              <div className="lg:col-span-9 card overflow-hidden">
+              {/* Chart - full width on mobile (row 1), 9 cols on desktop */}
+              <div className="col-span-2 xl:col-span-9 order-1 card overflow-hidden">
                 {/* Chart Header - Market Info like Pacifica */}
-                <div className="px-4 py-2 border-b border-surface-700 overflow-x-auto">
+                <div className="px-4 py-2 border-b border-surface-800 overflow-x-auto overscroll-x-auto">
                   {/* Single row with all info like Pacifica - scrollable on small screens */}
                   <div className="flex items-center gap-4 xl:gap-6 text-sm min-w-max">
                     {/* Symbol selector with dropdown table */}
@@ -730,6 +989,7 @@ export default function TradePage() {
                       selectedMarket={selectedMarket}
                       onSelectMarket={handleMarketChange}
                       getPrice={getPrice}
+                      blockedSymbols={inFight ? blockedSymbols : []}
                     />
 
                     {/* Last Traded Price (Oracle) */}
@@ -781,36 +1041,21 @@ export default function TradePage() {
                     </div>
                   </div>
                 </div>
-                {/* Interval selector */}
-                <div className="flex items-center gap-1 px-4 py-2 border-b border-surface-700">
-                  {(['1m', '5m', '15m', '1h', '4h', '1d'] as const).map((int) => (
-                    <button
-                      key={int}
-                      onClick={() => setSelectedInterval(int)}
-                      className={`px-3 py-1 text-xs rounded transition-colors ${selectedInterval === int
-                        ? 'bg-primary-500 text-white'
-                        : 'text-surface-400 hover:text-white hover:bg-surface-700'
-                        }`}
-                    >
-                      {int}
-                    </button>
-                  ))}
-                </div>
                 {/* Chart */}
-                <div className="h-[460px]">
-                  <PacificaChart
+                <div className="h-[505px]">
+                  <TradingViewChartAdvanced
                     symbol={selectedMarket}
-                    interval={selectedInterval}
-                    height={460}
+                    height={505}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Positions Panel - fixed height with internal scroll */}
-            <div className="card h-[320px] flex flex-col overflow-hidden">
-              {/* Tab navigation - fixed, scrollable on mobile */}
-              <div className="flex items-center justify-between border-b border-surface-700 flex-shrink-0 overflow-x-auto">
+            {/* Positions Panel - full width on mobile (row 3), full width inside flex on desktop */}
+            {/* contain: strict prevents layout changes inside from affecting page scroll */}
+            <div className="col-span-2 order-4 card min-h-[389px] xl:min-h-[calc(100vh-3rem-505px-64px)] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
+              {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
+              <div className="flex items-center justify-between border-b border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-auto">
                 <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max">
                   <button
                     onClick={() => setBottomTab('positions')}
@@ -879,16 +1124,16 @@ export default function TradePage() {
                 )}
               </div>
 
-              {/* Tab content - scrollable */}
-              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto'}`}>
+              {/* Tab content - scrollable with overscroll containment to prevent scroll chaining on mobile */}
+              <div className={`p-4 flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto overscroll-y-auto'}`}>
                 {bottomTab === 'positions' && (
                   <Positions
                     positions={activePositions}
                     onClosePosition={handleClosePosition}
                     onSetTpSl={handleSetTpSl}
                     onCancelOrder={handleCancelOrder}
-                    readOnly={showFightOnly && !!fightId}
-                    readOnlyMessage="Fight positions - switch to 'All' to close"
+                    onCloseAll={handleCloseAllPositions}
+                    isClosingAll={isClosingAllPositions}
                   />
                 )}
                 {bottomTab === 'orders' && (
@@ -996,9 +1241,36 @@ export default function TradePage() {
                             const originalSize = parseFloat(order.size) || 0;
                             const filledSize = parseFloat(order.filled) || 0;
                             const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                            const isTpSl = order.type.includes('TP') || order.type.includes('SL');
-                            const orderValue = originalSize * price;
+
+                            // Detect TP/SL orders (native and hybrid)
+                            const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') ||
+                              order.type.toLowerCase().includes('take_profit') || order.type.toLowerCase().includes('stop_loss');
+                            // Hybrid TP: limit order with reduceOnly
+                            const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
+                            // Hybrid SL: stop order with reduceOnly (not native TP/SL)
+                            const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
+                            const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
+
+                            // Determine display type
+                            let displayType = order.type;
+                            if (order.type.includes('TP') || order.type.toLowerCase().includes('take_profit')) {
+                              displayType = 'TP MARKET';
+                            } else if (order.type.includes('SL') || order.type.toLowerCase().includes('stop_loss')) {
+                              displayType = 'SL MARKET';
+                            } else if (isHybridTp) {
+                              displayType = 'TP (Partial)';
+                            } else if (isHybridSl) {
+                              displayType = 'SL (Partial)';
+                            } else if (order.type === 'LIMIT') {
+                              displayType = 'Limit Order';
+                            } else if (order.type === 'STOP_LIMIT') {
+                              displayType = 'Stop Limit';
+                            } else if (order.type === 'STOP_MARKET') {
+                              displayType = 'Stop Market';
+                            }
+
                             const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
+                            const orderValue = originalSize * (price || stopPrice || 0);
 
                             // Format size with token symbol
                             const formatSize = (size: number) => {
@@ -1009,12 +1281,12 @@ export default function TradePage() {
                             };
 
                             return (
-                              <tr key={order.id} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                              <tr key={order.id} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
-                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                                  {timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">
-                                  {order.type === 'LIMIT' ? 'Limit Order' : order.type}
+                                  {displayType}
                                 </td>
                                 <td className="py-2 px-2">
                                   <span className="text-primary-400">{order.symbol}</span>
@@ -1031,18 +1303,26 @@ export default function TradePage() {
                                   {filledSize}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono text-surface-300">
-                                  {isTpSl ? 'Market' : (
-                                    <span>
+                                  {isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : order.type.includes('STOP') ? (
+                                    price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })
+                                  ) : (
+                                    <button
+                                      onClick={() => handleEditOrder({
+                                        id: order.id,
+                                        symbol: order.symbol,
+                                        side: order.side,
+                                        price: order.price,
+                                        size: order.size,
+                                        type: order.type,
+                                      })}
+                                      className="inline-flex items-center gap-1 hover:text-primary-400 transition-colors group"
+                                      title="Edit order price"
+                                    >
                                       {price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })}
-                                      <a
-                                        href={`https://pacifica.fi/trade/${order.symbol}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="ml-1 text-surface-500 hover:text-surface-300"
-                                      >
-                                        ↗
-                                      </a>
-                                    </span>
+                                      <svg className="w-3 h-3 text-surface-500 group-hover:text-primary-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                                      </svg>
+                                    </button>
                                   )}
                                 </td>
                                 <td className="py-2 px-2 text-right font-mono text-surface-300">
@@ -1172,9 +1452,9 @@ export default function TradePage() {
                             const token = trade.symbol?.replace('-USD', '') || '';
 
                             return (
-                              <tr key={trade.history_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                              <tr key={trade.history_id || index} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">
-                                  {timestamp.toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                                  {timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
                                 </td>
                                 <td className="py-2 px-2 text-surface-300">{token}</td>
                                 <td className="py-2 px-2">
@@ -1205,7 +1485,7 @@ export default function TradePage() {
                       </table>
                       {/* Load More Button - only show for regular trade history (not fight-only) */}
                       {!showFightOnly && hasMoreTrades && (
-                        <div className="p-3 border-t border-surface-700 text-center">
+                        <div className="p-3 border-t border-surface-800 text-center">
                           <button
                             onClick={() => fetchMoreTrades()}
                             disabled={isLoadingMoreTrades}
@@ -1368,9 +1648,9 @@ export default function TradePage() {
                           };
 
                           return (
-                            <tr key={order.order_id || index} className="border-t border-surface-700/50 hover:bg-surface-800/30">
+                            <tr key={order.order_id || index} className="border-t border-surface-800/50 hover:bg-surface-800/30">
                               <td className="py-2 px-2 text-surface-300 font-mono whitespace-nowrap">
-                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}
+                                {order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}
                               </td>
                               <td className="py-2 px-2 font-medium text-white">{order.symbol}</td>
                               <td className={`py-2 px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>
@@ -1421,27 +1701,28 @@ export default function TradePage() {
             </div>
           </div>
 
-          {/* Right: Order Entry - fixed height with scroll */}
-          <div className="xl:col-span-3 card order-1 xl:order-2 h-[945px] flex flex-col overflow-hidden">
-            <div className="px-4 pt-4 pb-2 flex-shrink-0 border-b border-surface-700">
+          {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
+          {/* contain: layout prevents internal changes from affecting page scroll */}
+          <div className="col-span-1 xl:col-span-3 order-3 xl:order-2 xl:row-span-2 h-[644px] xl:min-h-[calc(100vh-3rem-8px)] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
+            <div className="px-4 pt-2 pb-2 flex-shrink-0 border-b border-surface-800">
               <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
                 Place Order
               </h3>
             </div>
-            <div className="p-4 flex-1 overflow-y-auto">
+            <div className="p-1 flex-1 overflow-y-auto overscroll-y-auto">
 
               {/* No Pacifica Account Warning */}
               {isAuthenticated && !pacificaConnected && (
-                <div className="mb-4 p-4 bg-loss-500/10 rounded-lg border border-loss-500/30">
-                  <h4 className="text-sm font-semibold text-loss-400 mb-2">No Pacifica Account Found</h4>
-                  <p className="text-xs text-surface-300 mb-3">
-                    Your wallet does not have a Pacifica trading account. You need to deposit funds on Pacifica first to start trading.
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No Pacifica Account</div>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                    Deposit funds on Pacifica first to start trading.
                   </p>
                   <a
                     href={PACIFICA_DEPOSIT_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full py-2 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-lg transition-colors text-center"
+                    className="block w-full py-1.5 bg-primary-500 hover:bg-primary-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                   >
                     Deposit on Pacifica
                   </a>
@@ -1450,18 +1731,18 @@ export default function TradePage() {
 
               {/* Builder Code Authorization Required - One-time approval */}
               {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
-                <div className="mb-4 p-4 bg-primary-500/10 rounded-lg border border-primary-500/30">
-                  <h4 className="text-sm font-semibold text-primary-400 mb-2">Trading Authorization Required</h4>
-                  <p className="text-xs text-surface-300 mb-2">
-                    To trade through TradeFightClub, you need to authorize our builder code. This is a one-time approval.
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Authorization Required</div>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
+                    Authorize TFC builder code to trade. One-time approval.
                   </p>
-                  <p className="text-xs text-surface-400 mb-3">
-                    TradeFightClub fee: <span className="text-primary-400 font-semibold">0.05%</span>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                    TFC fee: <span className="text-primary-400 font-semibold">0.05%</span>
                   </p>
                   <button
                     onClick={() => approveBuilderCode.mutate('0.0005')}
                     disabled={approveBuilderCode.isPending}
-                    className="w-full py-2 bg-primary-500 hover:bg-primary-400 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-1.5 bg-primary-500 hover:bg-primary-400 text-white text-[10px] font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
                   </button>
@@ -1491,25 +1772,27 @@ export default function TradePage() {
                 return (
                   <div className="mb-4">
                     {/* Deposit/Withdraw buttons */}
-                    <div className="flex gap-2 mb-3">
+                    <div className="flex gap-1.5 xl:gap-2 mb-2 xl:mb-3">
                       <a
                         href="https://app.pacifica.fi/trade/BTC"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 py-2 text-center text-sm font-semibold bg-primary-500 hover:bg-primary-400 text-white rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                       >
+                        <FileDownloadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
                         Deposit
                       </a>
                       <button
                         onClick={() => setShowWithdrawModal(true)}
-                        className="flex-1 py-2 text-center text-sm font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded-lg transition-colors"
+                        className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                       >
+                        <FileUploadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
                         Withdraw
                       </button>
                     </div>
 
                     {/* Account stats */}
-                    <div className="space-y-1.5 text-xs">
+                    <div className="space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
                       <div className="flex justify-between group relative">
                         <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Account Equity</span>
                         <span className="text-white font-mono">${equity.toFixed(2)}</span>
@@ -1580,9 +1863,9 @@ export default function TradePage() {
 
               {/* Fight Stake Limit Info - shown when in active fight */}
               {inFight && stake !== null && (
-                <div className="mb-4 p-3 bg-primary-500/10 rounded-lg border border-primary-500/30">
-                  <div className="text-xs text-primary-400 font-semibold mb-2 uppercase">Fight Capital Limit</div>
-                  <div className="space-y-1.5 text-xs">
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Fight Capital Limit</div>
+                  <div className="space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
                     <div className="flex justify-between">
                       <span className="text-surface-400">Fight Stake</span>
                       <span className="text-white font-mono">${stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -1593,7 +1876,7 @@ export default function TradePage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Max Capital Used</span>
-                      <span className="text-primary-400 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-surface-300 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Available to Trade</span>
@@ -1602,14 +1885,14 @@ export default function TradePage() {
                       </span>
                     </div>
                     {/* Progress bar - shows max capital used (not current, since max never decreases) */}
-                    <div className="mt-2">
-                      <div className="h-2 bg-surface-700 rounded-full overflow-hidden">
+                    <div className="mt-1.5 xl:mt-2">
+                      <div className="h-1.5 xl:h-2 bg-surface-700 rounded overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-primary-500 to-primary-400 transition-all duration-300"
+                          className="h-full bg-surface-500 transition-all duration-300"
                           style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }}
                         />
                       </div>
-                      <div className="flex justify-between text-xs text-surface-500 mt-1">
+                      <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
                         <span>{((maxExposureUsed || 0) / stake * 100).toFixed(0)}% used</span>
                         <span>{(100 - (maxExposureUsed || 0) / stake * 100).toFixed(0)}% available</span>
                       </div>
@@ -1619,17 +1902,17 @@ export default function TradePage() {
               )}
 
               {!canTrade && !isAuthenticated && (
-                <div className="mb-4 p-3 bg-surface-800 rounded-lg text-center text-sm text-surface-400">
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-lg text-center text-xs xl:text-sm text-surface-400">
                   {!connected ? 'Connect wallet to trade' : 'Authenticating...'}
                 </div>
               )}
 
               {/* Long/Short Toggle */}
-              <div className="grid grid-cols-2 gap-2 mb-4">
+              <div className="grid grid-cols-2 gap-2 mb-3 xl:mb-4">
                 <button
                   onClick={() => setSelectedSide('LONG')}
                   disabled={!canTrade}
-                  className={`py-3 rounded-lg font-semibold transition-all text-sm ${selectedSide === 'LONG'
+                  className={`py-2 xl:py-3 rounded-lg font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'LONG'
                     ? 'bg-win-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -1639,7 +1922,7 @@ export default function TradePage() {
                 <button
                   onClick={() => setSelectedSide('SHORT')}
                   disabled={!canTrade}
-                  className={`py-3 rounded-lg font-semibold transition-all text-sm ${selectedSide === 'SHORT'
+                  className={`py-2 xl:py-3 rounded-lg font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'SHORT'
                     ? 'bg-loss-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
@@ -1649,8 +1932,8 @@ export default function TradePage() {
               </div>
 
               {/* Order Type Selector */}
-              <div className="mb-4">
-                <label className="block text-xs font-medium text-surface-400 mb-2">
+              <div className="mb-3 xl:mb-4">
+                <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
                   Order Type
                 </label>
                 <div className="relative">
@@ -1658,7 +1941,7 @@ export default function TradePage() {
                     value={orderType}
                     onChange={(e) => setOrderType(e.target.value as typeof orderType)}
                     disabled={!canTrade}
-                    className="input text-sm w-full appearance-none cursor-pointer pr-10 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="input text-xs xl:text-sm w-full appearance-none cursor-pointer pr-10 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="market">Market</option>
                     <option value="limit">Limit</option>
@@ -1675,13 +1958,22 @@ export default function TradePage() {
 
               {/* Price Inputs - Show for non-market orders */}
               {orderType !== 'market' && (
-                <div className="mb-4 space-y-3">
+                <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
                   {/* Trigger Price - for stop orders */}
                   {(orderType === 'stop-market' || orderType === 'stop-limit') && (
                     <div>
-                      <label className="block text-xs font-medium text-surface-400 mb-2">
-                        Trigger Price
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5 xl:mb-2">
+                        <label className="text-[10px] xl:text-xs font-medium text-surface-400">
+                          Trigger Price
+                        </label>
+                        <button
+                          onClick={() => setTriggerPrice(currentPrice.toFixed(2))}
+                          disabled={!canTrade}
+                          className="text-[10px] xl:text-xs font-medium text-primary-400 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Mid
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type="number"
@@ -1689,13 +1981,13 @@ export default function TradePage() {
                           onChange={(e) => setTriggerPrice(e.target.value)}
                           placeholder={currentPrice.toFixed(2)}
                           disabled={!canTrade}
-                          className="input text-sm w-full pr-12"
+                          className="input text-xs xl:text-sm w-full pr-12"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
                           USD
                         </span>
                       </div>
-                      <p className="text-xs text-surface-500 mt-1">
+                      <p className="text-[10px] xl:text-xs text-surface-500 mt-1">
                         {selectedSide === 'LONG'
                           ? 'Order triggers when price rises above this level'
                           : 'Order triggers when price falls below this level'}
@@ -1706,9 +1998,18 @@ export default function TradePage() {
                   {/* Limit Price - for limit and stop-limit orders */}
                   {(orderType === 'limit' || orderType === 'stop-limit') && (
                     <div>
-                      <label className="block text-xs font-medium text-surface-400 mb-2">
-                        {orderType === 'stop-limit' ? 'Limit Price' : 'Price'}
-                      </label>
+                      <div className="flex items-center justify-between mb-1.5 xl:mb-2">
+                        <label className="text-[10px] xl:text-xs font-medium text-surface-400">
+                          {orderType === 'stop-limit' ? 'Limit Price' : 'Price'}
+                        </label>
+                        <button
+                          onClick={() => setLimitPrice(currentPrice.toFixed(2))}
+                          disabled={!canTrade}
+                          className="text-[10px] xl:text-xs font-medium text-primary-400 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Mid
+                        </button>
+                      </div>
                       <div className="relative">
                         <input
                           type="number"
@@ -1716,14 +2017,14 @@ export default function TradePage() {
                           onChange={(e) => setLimitPrice(e.target.value)}
                           placeholder={currentPrice.toFixed(2)}
                           disabled={!canTrade}
-                          className="input text-sm w-full pr-12"
+                          className="input text-xs xl:text-sm w-full pr-12"
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
                           USD
                         </span>
                       </div>
                       {orderType === 'limit' && (
-                        <p className="text-xs text-surface-500 mt-1">
+                        <p className="text-[10px] xl:text-xs text-surface-500 mt-1">
                           {selectedSide === 'LONG'
                             ? 'Buy when price reaches or goes below this level'
                             : 'Sell when price reaches or goes above this level'}
@@ -1735,8 +2036,8 @@ export default function TradePage() {
               )}
 
               {/* Size Input - Pacifica style */}
-              <div className="mb-4">
-                <label className="block text-xs font-medium text-surface-400 mb-2">
+              <div className="mb-3 xl:mb-4">
+                <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
                   Size
                 </label>
                 {(() => {
@@ -1744,15 +2045,27 @@ export default function TradePage() {
                   const available = account ? parseFloat(account.availableToSpend) : 0;
                   // Margin buffer: use 95% of available to maintain margin for fees/slippage
                   const MARGIN_BUFFER = 0.95;
-                  const maxMargin = available * MARGIN_BUFFER;
+
+                  // For reduce_only: max is based on the opposite position size (what can be closed)
+                  const closeablePosition = reduceOnly
+                    ? displayPositions.find(
+                        p => p.symbol.replace('-USD', '') === selectedMarket.replace('-USD', '') &&
+                             p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
+                      )
+                    : null;
+                  const maxMargin = reduceOnly
+                    ? (closeablePosition
+                        ? (closeablePosition.size * currentPrice) / effectiveLeverage
+                        : 0)
+                    : available * MARGIN_BUFFER;
                   const margin = parseFloat(orderSize || '0');
                   const positionSize = margin * effectiveLeverage;
                   const tokenAmount = currentPrice > 0 ? positionSize / currentPrice : 0;
 
                   return (
                     <>
-                      {/* Token and USD inputs side by side */}
-                      <div className="flex gap-2 mb-2">
+                      {/* Token and USD inputs - stacked on mobile, side by side on desktop */}
+                      <div className="flex flex-col xl:flex-row gap-1.5 xl:gap-2 mb-1.5 xl:mb-2">
                         {/* Token amount input (position size in tokens) */}
                         <div className="flex-1 relative">
                           <input
@@ -1764,11 +2077,11 @@ export default function TradePage() {
                               const newMargin = (newTokenAmount * currentPrice) / effectiveLeverage;
                               setOrderSize(newMargin.toFixed(2));
                             }}
-                            className="input text-sm w-full pr-12"
+                            className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
                             placeholder="0.00"
                             disabled={!canTrade}
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary-400 font-medium">
+                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-primary-400 font-medium">
                             {selectedMarket.replace('-USD', '')}
                           </span>
                         </div>
@@ -1783,17 +2096,17 @@ export default function TradePage() {
                               const newMargin = newPositionSize / effectiveLeverage;
                               setOrderSize(newMargin.toFixed(2));
                             }}
-                            className="input text-sm w-full pr-12"
+                            className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
                             placeholder="0.00"
                             disabled={!canTrade}
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400 font-medium">
+                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400 font-medium">
                             USD
                           </span>
                         </div>
                       </div>
-                      {/* Margin indicator */}
-                      <div className="text-xs text-surface-500 mb-2 flex justify-between">
+                      {/* Margin indicator - stacked on mobile, side by side on desktop */}
+                      <div className="text-[10px] xl:text-xs text-surface-500 mb-1.5 xl:mb-2 flex flex-col xl:flex-row xl:justify-between">
                         <span>Margin: ${margin.toFixed(2)}</span>
                         <span>Max: ${maxMargin.toFixed(2)} ({effectiveLeverage}x)</span>
                       </div>
@@ -1802,17 +2115,18 @@ export default function TradePage() {
                         type="range"
                         min="0"
                         max="100"
-                        value={maxMargin > 0 ? Math.min(100, (margin / maxMargin) * 100) : 0}
+                        step="1"
+                        value={maxMargin > 0 ? Math.min(100, Math.round((margin / maxMargin) * 100)) : 0}
                         onChange={(e) => {
                           const percent = parseInt(e.target.value);
                           const newMargin = (maxMargin * percent / 100).toFixed(2);
                           setOrderSize(newMargin);
                         }}
                         disabled={!canTrade}
-                        className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50"
+                        className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none accent-primary-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer touch-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&:disabled::-webkit-slider-thumb]:cursor-not-allowed"
                       />
                       {/* Percentage buttons */}
-                      <div className="flex gap-2 mt-2">
+                      <div className="flex gap-1.5 xl:gap-2 mt-1.5 xl:mt-2">
                         {[25, 50, 75, 100].map((percent) => {
                           const currentPercent = maxMargin > 0
                             ? Math.round((margin / maxMargin) * 100)
@@ -1827,7 +2141,7 @@ export default function TradePage() {
                                 setOrderSize(newMargin);
                               }}
                               disabled={!canTrade}
-                              className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected
+                              className={`flex-1 py-1 xl:py-1.5 text-[10px] xl:text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected
                                 ? 'bg-surface-600 text-white border border-surface-500'
                                 : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-transparent'
                                 }`}
@@ -1843,16 +2157,16 @@ export default function TradePage() {
               </div>
 
               {/* Leverage Slider */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-medium text-surface-400">Leverage</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
+              <div className="mb-3 xl:mb-4">
+                <div className="flex justify-between items-center mb-1.5 xl:mb-2">
+                  <label className="text-[10px] xl:text-xs font-medium text-surface-400">Leverage</label>
+                  <div className="flex items-center gap-1.5 xl:gap-2">
+                    <span className="text-[10px] xl:text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
                     {leverage !== savedLeverage && (
                       <button
                         onClick={handleSetLeverage}
                         disabled={!canTrade || setLeverageMutation.isPending}
-                        className="px-2 py-0.5 text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-1.5 xl:px-2 py-0.5 text-[10px] xl:text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {setLeverageMutation.isPending ? '...' : 'Set'}
                       </button>
@@ -1869,18 +2183,28 @@ export default function TradePage() {
                     setLeverage(newLev); // Only update local state, no API call
                   }}
                   disabled={!canTrade}
-                  className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500 disabled:opacity-50"
+                  className="w-full h-1.5 xl:h-2 bg-surface-700 rounded-lg appearance-none accent-primary-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer touch-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 xl:[&::-webkit-slider-thumb]:w-4 xl:[&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&:disabled::-webkit-slider-thumb]:cursor-not-allowed"
                 />
-                <div className="flex justify-between text-xs text-surface-500 mt-1">
+                <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
                   <span>1x</span>
                   <span>{Math.floor(maxLeverage / 2)}x</span>
                   <span>{maxLeverage}x</span>
                 </div>
               </div>
 
+              {/* Reduce Only Toggle */}
+              <div className="mb-3 xl:mb-4">
+                <Toggle
+                  checked={reduceOnly}
+                  onChange={setReduceOnly}
+                  disabled={!canTrade}
+                  label="Reduce Only"
+                />
+              </div>
+
               {/* Take Profit / Stop Loss - For Market and Limit orders */}
               {(orderType === 'market' || orderType === 'limit') && (
-                <div className="mb-4 space-y-3">
+                <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
                   {/* TP/SL Toggle Header */}
                   <Toggle
                     checked={tpEnabled || slEnabled}
@@ -1927,7 +2251,7 @@ export default function TradePage() {
                       <>
                         {/* Take Profit */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between mb-1.5 xl:mb-2">
                             <Toggle
                               checked={tpEnabled}
                               onChange={setTpEnabled}
@@ -1936,7 +2260,7 @@ export default function TradePage() {
                               label="TP Price"
                             />
                             {tpEnabled && takeProfit && (
-                              <span className="text-xs text-win-400">
+                              <span className="text-[10px] xl:text-xs text-win-400">
                                 {selectedSide === 'LONG'
                                   ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
                                   : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
@@ -1952,7 +2276,7 @@ export default function TradePage() {
                                 onChange={(e) => setTakeProfit(e.target.value)}
                                 placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`}
                                 disabled={!canTrade}
-                                className="input text-sm w-full mb-2"
+                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
                               />
                               {/* TP Percentage Buttons */}
                               <div className="flex gap-1">
@@ -1961,7 +2285,7 @@ export default function TradePage() {
                                     key={pct}
                                     onClick={() => setTakeProfit(calcTpPrice(pct))}
                                     disabled={!canTrade}
-                                    className="flex-1 py-1 text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
                                   >
                                     {pct}%
                                   </button>
@@ -1973,7 +2297,7 @@ export default function TradePage() {
 
                         {/* Stop Loss */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between mb-1.5 xl:mb-2">
                             <Toggle
                               checked={slEnabled}
                               onChange={setSlEnabled}
@@ -1982,7 +2306,7 @@ export default function TradePage() {
                               label="SL Price"
                             />
                             {slEnabled && stopLoss && (
-                              <span className="text-xs text-loss-400">
+                              <span className="text-[10px] xl:text-xs text-loss-400">
                                 {selectedSide === 'LONG'
                                   ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
                                   : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
@@ -1998,7 +2322,7 @@ export default function TradePage() {
                                 onChange={(e) => setStopLoss(e.target.value)}
                                 placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`}
                                 disabled={!canTrade}
-                                className="input text-sm w-full mb-2"
+                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
                               />
                               {/* SL Percentage Buttons */}
                               <div className="flex gap-1">
@@ -2007,7 +2331,7 @@ export default function TradePage() {
                                     key={pct}
                                     onClick={() => setStopLoss(calcSlPrice(pct))}
                                     disabled={!canTrade}
-                                    className="flex-1 py-1 text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
                                   >
                                     {pct}%
                                   </button>
@@ -2027,13 +2351,23 @@ export default function TradePage() {
                 const effectiveLeverage = Math.min(leverage, maxLeverage);
                 const positionSize = Number(orderSize) * effectiveLeverage;
                 const orderMargin = Number(orderSize) || 0;
-                const available = account ? parseFloat(account.availableToSpend) || 0 : 0;
 
                 // Find current position for selected market
                 const mktSymbol = selectedMarket.replace('-USD', '');
                 const currentPos = displayPositions.find(
                   p => p.symbol.replace('-USD', '') === mktSymbol
                 );
+
+                // For reduce_only: show closeable position size instead of available margin
+                const closeablePos = reduceOnly
+                  ? displayPositions.find(
+                      p => p.symbol.replace('-USD', '') === mktSymbol &&
+                           p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
+                    )
+                  : null;
+                const available = reduceOnly
+                  ? 0 // Not used for display in reduce_only mode
+                  : (account ? parseFloat(account.availableToSpend) || 0 : 0);
 
                 // For limit orders, use limit price; for market, use current price
                 const executionPrice = orderType === 'limit' || orderType === 'stop-limit'
@@ -2075,7 +2409,7 @@ export default function TradePage() {
                 }
 
                 return (
-                  <div className="text-xs space-y-1.5 mb-4">
+                  <div className="text-[10px] xl:text-xs space-y-1 xl:space-y-1.5 mb-3 xl:mb-4">
                     {/* Order Type specific info */}
                     <div className="flex justify-between">
                       <span className="text-surface-400">Order Type</span>
@@ -2086,7 +2420,8 @@ export default function TradePage() {
                         <span className="text-surface-400">Max Slippage</span>
                         <button
                           onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }}
-                          className="text-primary-400 font-mono hover:text-primary-300 underline decoration-dotted cursor-pointer"
+                          disabled={!isAuthenticated}
+                          className={`font-mono ${isAuthenticated ? 'text-primary-400 hover:text-primary-300 underline decoration-dotted cursor-pointer' : 'text-surface-500 cursor-not-allowed'}`}
                         >
                           {slippage}%
                         </button>
@@ -2114,49 +2449,71 @@ export default function TradePage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-surface-400">Available</span>
-                      <span className="text-white font-mono">${available.toFixed(2)}</span>
+                      <span className="text-white font-mono">
+                        {reduceOnly
+                          ? (closeablePos
+                              ? `${closeablePos.size.toFixed(5)} ${mktSymbol}`
+                              : 'No position')
+                          : `$${available.toFixed(2)}`
+                        }
+                      </span>
                     </div>
                   </div>
                 );
               })()}
 
               {/* Leverage warning */}
-              {leverage !== savedLeverage && canTrade && (
-                <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-xs text-yellow-400 text-center">
+              {leverage !== savedLeverage && canTrade && !isSymbolBlocked && (
+                <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-[10px] xl:text-xs text-yellow-400 text-center">
                   Click "Set" to confirm leverage before placing order
+                </div>
+              )}
+
+              {/* Blocked symbol warning */}
+              {isSymbolBlocked && (
+                <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[10px] xl:text-xs text-amber-400 text-center">
+                  ⚠️ {selectedMarket.replace('-USD', '')} is blocked - you had a position before the fight started
                 </div>
               )}
 
               {/* Submit Button */}
               <button
                 onClick={handlePlaceOrder}
-                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || leverage !== savedLeverage}
-                className={`w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
+                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || createStandaloneStopOrder.isPending || leverage !== savedLeverage || isSymbolBlocked}
+                className={`w-full py-2.5 xl:py-3 rounded-lg font-bold text-xs xl:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
                   ? 'bg-gradient-to-r from-win-600 to-win-500 hover:from-win-500 hover:to-win-400 text-white'
                   : 'bg-gradient-to-r from-loss-600 to-loss-500 hover:from-loss-500 hover:to-loss-400 text-white'
                   }`}
               >
-                {(createMarketOrder.isPending || createLimitOrder.isPending)
-                  ? 'Placing Order...'
-                  : (() => {
-                    const orderTypeLabel = orderType === 'market' ? '' :
-                      orderType === 'limit' ? ' Limit' :
-                        orderType === 'stop-market' ? ' Stop' :
-                          ' Stop Limit';
-                    return selectedSide === 'LONG'
-                      ? `⬆ Long${orderTypeLabel}`
-                      : `⬇ Short${orderTypeLabel}`;
-                  })()}
+                {isSymbolBlocked
+                  ? '🚫 Symbol Blocked'
+                  : (createMarketOrder.isPending || createLimitOrder.isPending || createStandaloneStopOrder.isPending)
+                    ? 'Placing Order...'
+                    : (() => {
+                      const orderTypeLabel = orderType === 'market' ? '' :
+                        orderType === 'limit' ? ' Limit' :
+                          orderType === 'stop-market' ? ' Stop' :
+                            ' Stop Limit';
+                      return selectedSide === 'LONG'
+                        ? `⬆ Long${orderTypeLabel}`
+                        : `⬇ Short${orderTypeLabel}`;
+                    })()}
               </button>
 
               {/* Challenge CTA */}
-              <div className="mt-4 pt-4 border-t border-surface-700">
-                <Link
-                  href="/lobby"
-                  className="block text-center py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-sm font-semibold transition-colors"
-                >
-                  ⚔ Challenge a Trader
-                </Link>
+              <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-800">
+                {isAuthenticated ? (
+                  <Link
+                    href="/lobby"
+                    className="block text-center py-2.5 xl:py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-xs xl:text-sm font-semibold transition-colors"
+                  >
+                    ⚔ Challenge a Trader
+                  </Link>
+                ) : (
+                  <div className="block text-center py-2.5 xl:py-3 bg-surface-800/50 rounded-lg text-surface-500 text-xs xl:text-sm font-semibold cursor-not-allowed">
+                    ⚔ Challenge a Trader
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2185,7 +2542,17 @@ export default function TradePage() {
       <WithdrawModal
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
-        availableBalance={account?.availableToSpend ? parseFloat(account.availableToSpend) : null}
+        availableBalance={account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null}
+      />
+
+      {/* Edit Order Modal */}
+      <EditOrderModal
+        isOpen={showEditOrderModal}
+        onClose={() => {
+          setShowEditOrderModal(false);
+          setEditingOrder(null);
+        }}
+        order={editingOrder}
       />
 
       {/* Slippage Modal */}

@@ -6,7 +6,7 @@ import { TokenIcon, extractBaseSymbol } from '@/components/TokenIcon';
 
 // Wallets supported - using local icons
 const wallets = [
-  { name: 'Phantom', logo: '/images/landing/walletConnection/Phantom.png' },
+  { name: 'Phantom', logo: '/wallets/Phantom-Icon_App.svg' },
   { name: 'MetaMask', logo: '/images/landing/walletConnection/Metamaks.png' },
   { name: 'Solflare', logo: '/images/landing/walletConnection/Solflare.png' },
 ];
@@ -97,7 +97,7 @@ export function Web3Experience() {
               {wallets.map((wallet) => (
                 <div
                   key={wallet.name}
-                  className="flex items-center gap-2 px-3 py-2 bg-surface-800 border border-surface-700 rounded-full hover:border-surface-600 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 bg-surface-800 border border-surface-800 rounded-full hover:border-surface-600 transition-colors"
                 >
                   <img
                     src={wallet.logo}
@@ -112,7 +112,7 @@ export function Web3Experience() {
             </div>
 
             {/* Execution Features */}
-            <div className="mt-auto pt-6 border-t border-surface-700/50 space-y-4">
+            <div className="mt-auto pt-6 border-t border-surface-800/50 space-y-4">
               {executionFeatures.map((feature, i) => (
                 <div key={i} className="flex items-start gap-3">
                   <div className="w-8 h-8 rounded-lg bg-primary-500/10 flex items-center justify-center flex-shrink-0">
@@ -159,7 +159,7 @@ export function Web3Experience() {
             </div>
 
             {/* Additional Info - Dynamic fees from Pacifica API */}
-            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-surface-700/50">
+            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-surface-800/50">
               <div className="text-center">
                 <div className="text-lg sm:text-2xl font-bold text-white mb-1">{fees.makerFeePercent}%</div>
                 <div className="text-xs text-surface-400">Maker Fees</div>

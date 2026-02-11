@@ -7,6 +7,7 @@ import {
   CandlestickSeries,
   HistogramSeries,
 } from 'lightweight-charts';
+import { Spinner } from './Spinner';
 import type {
   IChartApi,
   ISeriesApi,
@@ -52,6 +53,17 @@ function PacificaChartComponent({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const hasInitiallyScrolled = useRef(false);
+
+  // Detect mobile for touch handling
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024 || 'ontouchstart' in window);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Drawing state
   const [activeTool, setActiveTool] = useState<DrawingTool>('cursor');
@@ -152,7 +164,8 @@ function PacificaChartComponent({
         mouseWheel: true,
         pressedMouseMove: true,
         horzTouchDrag: true,
-        vertTouchDrag: true,
+        // Disable vertical touch drag on mobile to prevent conflict with page scroll
+        vertTouchDrag: !isMobile,
       },
       handleScale: {
         axisPressedMouseMove: true,
@@ -240,7 +253,7 @@ function PacificaChartComponent({
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, [height]);
+  }, [height, isMobile]);
 
   // Update chart data
   useEffect(() => {
@@ -431,7 +444,7 @@ function PacificaChartComponent({
   return (
     <div className="relative w-full h-full">
       {/* Toolbar */}
-      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-surface-800/90 rounded-lg p-1 border border-surface-700">
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-surface-800/90 rounded-lg p-1 border border-surface-800">
         <button
           onClick={() => setActiveTool('cursor')}
           className={`p-1.5 rounded transition-colors ${
@@ -468,7 +481,7 @@ function PacificaChartComponent({
 
       {/* OHLCV Display */}
       {crosshairData && (
-        <div className="absolute top-2 left-2 z-10 flex items-center gap-3 bg-surface-800/90 rounded-lg px-3 py-1.5 border border-surface-700 text-xs font-mono">
+        <div className="absolute top-2 left-2 z-10 flex items-center gap-3 bg-surface-800/90 rounded-lg px-3 py-1.5 border border-surface-800 text-xs font-mono">
           <span className="text-surface-400">{crosshairData.time}</span>
           <span className="text-surface-500">O</span>
           <span className="text-white">{formatPrice(crosshairData.open)}</span>
@@ -515,7 +528,12 @@ function PacificaChartComponent({
       <div
         ref={containerRef}
         className="w-full"
-        style={{ height: `${height}px`, cursor: activeTool !== 'cursor' ? 'crosshair' : 'default' }}
+        style={{
+          height: `${height}px`,
+          cursor: activeTool !== 'cursor' ? 'crosshair' : 'default',
+          // On mobile, allow page scroll to take priority over chart interactions
+          touchAction: isMobile ? 'pan-y' : 'auto',
+        }}
         onClick={handleChartClick}
       />
 
@@ -523,7 +541,7 @@ function PacificaChartComponent({
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-surface-900/80">
           <div className="text-center">
-            <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-2" />
+            <Spinner size="md" className="mx-auto mb-2" />
             <p className="text-surface-400 text-sm">Loading chart data...</p>
           </div>
         </div>

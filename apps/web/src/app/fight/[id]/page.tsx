@@ -5,8 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks';
 import { BetaGate } from '@/components/BetaGate';
+import { Spinner } from '@/components/Spinner';
 import { api, type Fight } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 
 // Tooltip component with styled popup
 function Tooltip({ children, text }: { children: React.ReactNode; text: string }) {
@@ -50,6 +52,20 @@ export default function FightResultsPage() {
   const [trades, setTrades] = useState<FightTrade[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Sorting state for trade history
+  type SortColumn = 'time' | 'trader' | 'symbol' | 'side' | 'size' | 'notional' | 'price' | 'fee';
+  const [sortColumn, setSortColumn] = useState<SortColumn>('time');
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const toggleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDesc(!sortDesc);
+    } else {
+      setSortColumn(column);
+      setSortDesc(true);
+    }
+  };
+
   // Set page title
   useEffect(() => {
     document.title = 'Fight Results - Trading Fight Club';
@@ -71,7 +87,7 @@ export default function FightResultsPage() {
 
         // If fight is WAITING, redirect to lobby
         if (data.status === 'WAITING') {
-          router.push('/lobby');
+          router.push('/trade');
           return;
         }
       } catch (err) {
@@ -144,7 +160,7 @@ export default function FightResultsPage() {
     return (
       <BetaGate>
         <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
+          <Spinner size="md" />
         </div>
       </BetaGate>
     );
@@ -155,8 +171,8 @@ export default function FightResultsPage() {
       <BetaGate>
         <div className="min-h-screen bg-surface-900 flex items-center justify-center text-white">
           <div className="text-center">
-            <p className="text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
-            <Link href="/lobby" className="btn-primary">
+            <p className="text-sm sm:text-xl mb-4 text-surface-400">{error || 'Fight not found'}</p>
+            <Link href="/trade" className="btn-primary">
               Back to Lobby
             </Link>
           </div>
@@ -220,11 +236,44 @@ export default function FightResultsPage() {
   const pnlBreakdownA = calculatePnlBreakdown(participantATrades);
   const pnlBreakdownB = calculatePnlBreakdown(participantBTrades);
 
+  // Calculate notional volume for MIN_VOLUME violation detection
+  const MIN_NOTIONAL = 10; // $10 minimum
+  const calculateNotional = (participantTrades: FightTrade[]) => {
+    return participantTrades.reduce((sum, t) => {
+      return sum + parseFloat(t.amount) * parseFloat(t.price);
+    }, 0);
+  };
+
+  // Get violations for a participant
+  const getParticipantViolations = (
+    participant: typeof participantA,
+    participantTrades: FightTrade[]
+  ): string[] => {
+    if (!participant) return [];
+    const violations: string[] = [];
+
+    // Check EXTERNAL_TRADES
+    if (participant.externalTradesDetected) {
+      violations.push('External Trades');
+    }
+
+    // Check MIN_VOLUME (notional < $10)
+    const notional = calculateNotional(participantTrades);
+    if (notional < MIN_NOTIONAL) {
+      violations.push('Min Volume');
+    }
+
+    return violations;
+  };
+
+  const violationsA = getParticipantViolations(participantA, participantATrades);
+  const violationsB = getParticipantViolations(participantB, participantBTrades);
+
   return (
     <BetaGate>
       <div className="min-h-screen bg-surface-900 text-white">
         {/* Header */}
-      <header className="border-b border-surface-700 bg-surface-900/80 backdrop-blur-md sticky top-0 z-40">
+      <header className="border-b border-surface-800 bg-surface-900/80 backdrop-blur-md sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link
@@ -240,29 +289,55 @@ export default function FightResultsPage() {
                 className={`px-3 py-1 rounded-full text-sm font-semibold ${
                   fight.status === 'FINISHED'
                     ? 'bg-surface-700 text-surface-300'
-                    : 'bg-loss-500/20 text-loss-400'
+                    : fight.status === 'NO_CONTEST'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-loss-500/20 text-loss-400'
                 }`}
               >
-                {fight.status === 'FINISHED' ? 'Completed' : 'Cancelled'}
+                {fight.status === 'FINISHED' ? 'Completed' : fight.status === 'NO_CONTEST' ? 'No Contest' : 'Cancelled'}
               </span>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="container mx-auto px-2 md:px-6 py-8">
         {/* Result Banner */}
         <div className="text-center mb-8">
-          {fight.isDraw ? (
+          {fight.status === 'NO_CONTEST' ? (
             <>
-              <h1 className="text-4xl font-display font-bold text-surface-300 mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-amber-400 mb-2">
+                NO CONTEST
+              </h1>
+              <p className="text-surface-400">
+                {(() => {
+                  const violation = fight.violations?.[0];
+                  if (!violation) return 'Fight excluded from rankings';
+                  switch (violation.ruleCode) {
+                    case 'ZERO_ZERO':
+                      return 'Fight excluded - no trades executed by either participant';
+                    case 'SAME_IP_PATTERN':
+                      return 'Fight excluded - same IP detected for both participants';
+                    case 'REPEATED_MATCHUP':
+                      return 'Fight excluded - too many matchups between same users in 24h';
+                    case 'MIN_VOLUME':
+                      return 'Fight excluded - minimum trading volume not met';
+                    default:
+                      return violation.ruleMessage || 'Fight excluded from rankings';
+                  }
+                })()}
+              </p>
+            </>
+          ) : fight.isDraw ? (
+            <>
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-surface-300 mb-2">
                 DRAW
               </h1>
               <p className="text-surface-400">Both traders finished with equal performance</p>
             </>
           ) : fight.status === 'CANCELLED' ? (
             <>
-              <h1 className="text-4xl font-display font-bold text-loss-400 mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-loss-400 mb-2">
                 CANCELLED
               </h1>
               <p className="text-surface-400">This fight was cancelled</p>
@@ -270,14 +345,14 @@ export default function FightResultsPage() {
           ) : isCurrentUserParticipant ? (
             isCurrentUserWinner ? (
               <>
-                <h1 className="text-4xl font-display font-bold text-win-400 mb-2">
+                <h1 className="text-sm sm:text-4xl font-display font-bold text-win-400 mb-2">
                   VICTORY!
                 </h1>
                 <p className="text-surface-400">Congratulations, you won this fight!</p>
               </>
             ) : (
               <>
-                <h1 className="text-4xl font-display font-bold text-loss-400 mb-2">
+                <h1 className="text-sm sm:text-4xl font-display font-bold text-loss-400 mb-2">
                   DEFEAT
                 </h1>
                 <p className="text-surface-400">Better luck next time!</p>
@@ -285,7 +360,7 @@ export default function FightResultsPage() {
             )
           ) : (
             <>
-              <h1 className="text-4xl font-display font-bold text-white mb-2">
+              <h1 className="text-sm sm:text-4xl font-display font-bold text-white mb-2">
                 FIGHT RESULTS
               </h1>
               <p className="text-surface-400">
@@ -296,13 +371,13 @@ export default function FightResultsPage() {
         </div>
 
         {/* VS Card */}
-        <div className="card p-4 sm:p-6 mb-6 overflow-x-auto">
+        <div className="card p-4 sm:p-6 mb-2 overflow-x-auto">
           <div className="flex items-center justify-between min-w-[280px]">
             {/* Participant A */}
             <div className={`flex-1 text-center ${winner?.userId === participantA?.userId ? 'opacity-100' : fight.winnerId ? 'opacity-60' : 'opacity-100'}`}>
               <div className="relative inline-block mb-2 sm:mb-3">
                 <div
-                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold ${
+                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-sm sm:text-2xl font-bold ${
                     winner?.userId === participantA?.userId
                       ? 'bg-gradient-to-br from-win-500 to-win-600 ring-4 ring-win-500/30'
                       : 'bg-surface-700'
@@ -311,14 +386,16 @@ export default function FightResultsPage() {
                   {participantA?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 {fight.winnerId && winner?.userId === participantA?.userId && (
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-lg sm:text-2xl">👑</div>
+                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2">
+                    <EmojiEventsIcon sx={{ fontSize: { xs: 20, sm: 28 }, color: '#fbbf24' }} />
+                  </div>
                 )}
               </div>
               <h3 className="font-display font-bold text-sm sm:text-lg text-white mb-1 truncate max-w-[80px] sm:max-w-none mx-auto">
                 {participantA?.user?.handle || 'Unknown'}
               </h3>
               <p
-                className={`text-lg sm:text-2xl font-mono font-bold ${
+                className={`text-sm sm:text-2xl font-mono font-bold ${
                   parseDecimal(participantA?.finalPnlPercent) >= 0 ? 'text-win-400' : 'text-loss-400'
                 }`}
               >
@@ -331,23 +408,31 @@ export default function FightResultsPage() {
               <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
                 {participantATrades.length} trades
               </p>
-              {participantA?.externalTradesDetected && (
-                <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantA.externalTradeIds?.join(', ') || 'N/A'}`}>
-                  External trades detected
-                </p>
+              {violationsA.length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {violationsA.map((v, i) => (
+                    <p
+                      key={i}
+                      className="text-[10px] sm:text-xs text-amber-500"
+                      title={v === 'External Trades' ? `External trade IDs: ${participantA?.externalTradeIds?.join(', ') || 'N/A'}` : undefined}
+                    >
+                      {v}
+                    </p>
+                  ))}
+                </div>
               )}
             </div>
 
             {/* VS */}
             <div className="px-2 sm:px-6 flex-shrink-0">
-              <div className="text-xl sm:text-3xl font-display font-bold text-surface-600">VS</div>
+              <div className="text-sm sm:text-3xl font-display font-bold text-surface-600">VS</div>
             </div>
 
             {/* Participant B */}
             <div className={`flex-1 text-center ${winner?.userId === participantB?.userId ? 'opacity-100' : fight.winnerId ? 'opacity-60' : 'opacity-100'}`}>
               <div className="relative inline-block mb-2 sm:mb-3">
                 <div
-                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-xl sm:text-2xl font-bold ${
+                  className={`w-14 h-14 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-sm sm:text-2xl font-bold ${
                     winner?.userId === participantB?.userId
                       ? 'bg-gradient-to-br from-win-500 to-win-600 ring-4 ring-win-500/30'
                       : 'bg-surface-700'
@@ -356,7 +441,9 @@ export default function FightResultsPage() {
                   {participantB?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 {fight.winnerId && winner?.userId === participantB?.userId && (
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 text-lg sm:text-2xl">👑</div>
+                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2">
+                    <EmojiEventsIcon sx={{ fontSize: { xs: 20, sm: 28 }, color: '#fbbf24' }} />
+                  </div>
                 )}
               </div>
               <h3 className="font-display font-bold text-sm sm:text-lg text-white mb-1 truncate max-w-[80px] sm:max-w-none mx-auto">
@@ -365,7 +452,7 @@ export default function FightResultsPage() {
               {participantB && (
                 <>
                   <p
-                    className={`text-lg sm:text-2xl font-mono font-bold ${
+                    className={`text-sm sm:text-2xl font-mono font-bold ${
                       parseDecimal(participantB?.finalPnlPercent) >= 0 ? 'text-win-400' : 'text-loss-400'
                     }`}
                   >
@@ -378,10 +465,18 @@ export default function FightResultsPage() {
                   <p className="text-[10px] sm:text-xs text-surface-500 mt-1 sm:mt-2">
                     {participantBTrades.length} trades
                   </p>
-                  {participantB?.externalTradesDetected && (
-                    <p className="text-[10px] sm:text-xs text-amber-500 mt-1" title={`External trade IDs: ${participantB.externalTradeIds?.join(', ') || 'N/A'}`}>
-                      External trades detected
-                    </p>
+                  {violationsB.length > 0 && (
+                    <div className="mt-1 space-y-0.5">
+                      {violationsB.map((v, i) => (
+                        <p
+                          key={i}
+                          className="text-[10px] sm:text-xs text-amber-500"
+                          title={v === 'External Trades' ? `External trade IDs: ${participantB?.externalTradeIds?.join(', ') || 'N/A'}` : undefined}
+                        >
+                          {v}
+                        </p>
+                      ))}
+                    </div>
                   )}
                 </>
               )}
@@ -390,28 +485,28 @@ export default function FightResultsPage() {
         </div>
 
         {/* Fight Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Duration</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               {formatDuration(fight.durationMinutes)}
             </p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Stake</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               ${fight.stakeUsdc}
             </p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Started</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               {fight.startedAt ? formatTime(fight.startedAt) : '-'}
             </p>
           </div>
           <div className="card p-4 text-center">
             <p className="text-surface-400 text-sm mb-1">Ended</p>
-            <p className="font-display font-bold text-lg text-white">
+            <p className="font-display font-bold text-sm sm:text-lg text-white">
               {fight.endedAt ? formatTime(fight.endedAt) : '-'}
             </p>
           </div>
@@ -419,7 +514,7 @@ export default function FightResultsPage() {
 
         {/* PnL Breakdown */}
         {trades.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
             {/* Participant A Breakdown */}
             <div className="card p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -427,7 +522,7 @@ export default function FightResultsPage() {
                   {participantA?.user?.handle?.[0]?.toUpperCase() || '?'}
                 </div>
                 <h4 className="font-semibold text-white">{participantA?.user?.handle || 'Unknown'}</h4>
-                {winner?.userId === participantA?.userId && <span className="text-xs">👑</span>}
+                {winner?.userId === participantA?.userId && <EmojiEventsIcon sx={{ fontSize: 16, color: '#fbbf24' }} />}
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
@@ -450,7 +545,7 @@ export default function FightResultsPage() {
                   </Tooltip>
                   <span className="text-loss-400 font-mono">-${pnlBreakdownA.totalFees.toFixed(4)}</span>
                 </div>
-                <div className="border-t border-surface-700 pt-2 mt-2">
+                <div className="border-t border-surface-800 pt-2 mt-2">
                   <div className="flex justify-between">
                     <Tooltip text="Position PnL minus fees">
                       <span className="text-white font-semibold">Final Result</span>
@@ -479,7 +574,7 @@ export default function FightResultsPage() {
                     {participantB?.user?.handle?.[0]?.toUpperCase() || '?'}
                   </div>
                   <h4 className="font-semibold text-white">{participantB?.user?.handle || 'Unknown'}</h4>
-                  {winner?.userId === participantB?.userId && <span className="text-xs">👑</span>}
+                  {winner?.userId === participantB?.userId && <EmojiEventsIcon sx={{ fontSize: 16, color: '#fbbf24' }} />}
                 </div>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -502,7 +597,7 @@ export default function FightResultsPage() {
                     </Tooltip>
                     <span className="text-loss-400 font-mono">-${pnlBreakdownB.totalFees.toFixed(4)}</span>
                   </div>
-                  <div className="border-t border-surface-700 pt-2 mt-2">
+                  <div className="border-t border-surface-800 pt-2 mt-2">
                     <div className="flex justify-between">
                       <Tooltip text="Position PnL minus fees">
                         <span className="text-white font-semibold">Final Result</span>
@@ -528,42 +623,89 @@ export default function FightResultsPage() {
 
         {/* Trade History */}
         {trades.length > 0 && (
-          <div className="card p-4 mb-6">
-            <h3 className="font-display font-semibold text-sm uppercase tracking-wide mb-4">
+          <div className="card p-4 mb-2">
+            <h3 className="font-display font-semibold text-[12px] tracking-wide mb-4">
               Trade History
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-[12px]">
                 <thead>
-                  <tr className="text-xs text-surface-400 uppercase tracking-wider border-b border-surface-700">
-                    <th className="text-left py-2 px-2">
-                      <Tooltip text="Time when the trade was executed">Time</Tooltip>
+                  <tr className="text-[12px] text-surface-400 tracking-wider border-b border-surface-800">
+                    <th
+                      className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('time')}
+                    >
+                      Time {sortColumn === 'time' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-left py-2 px-2">
-                      <Tooltip text="Trader who placed this order">Trader</Tooltip>
+                    <th
+                      className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('trader')}
+                    >
+                      Trader {sortColumn === 'trader' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-left py-2 px-2">
-                      <Tooltip text="Trading pair and leverage used">Symbol</Tooltip>
+                    <th
+                      className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('symbol')}
+                    >
+                      Symbol {sortColumn === 'symbol' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-left py-2 px-2">
-                      <Tooltip text="BUY = Long, SELL = Short">Side</Tooltip>
+                    <th
+                      className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('side')}
+                    >
+                      Side {sortColumn === 'side' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-right py-2 px-2">
-                      <Tooltip text="Amount of the asset traded">Size</Tooltip>
+                    <th
+                      className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('size')}
+                    >
+                      Size {sortColumn === 'size' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-right py-2 px-2">
-                      <Tooltip text="Total position value (Size × Price)">Notional</Tooltip>
+                    <th
+                      className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('notional')}
+                    >
+                      Notional {sortColumn === 'notional' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-right py-2 px-2">
-                      <Tooltip text="Execution price per unit">Price</Tooltip>
+                    <th
+                      className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('price')}
+                    >
+                      Price {sortColumn === 'price' && (sortDesc ? '↓' : '↑')}
                     </th>
-                    <th className="text-right py-2 px-2">
-                      <Tooltip text="Trading fee paid to Pacifica">Fee</Tooltip>
+                    <th
+                      className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+                      onClick={() => toggleSort('fee')}
+                    >
+                      Fee {sortColumn === 'fee' && (sortDesc ? '↓' : '↑')}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {trades.map((trade) => {
+                  {[...trades].sort((a, b) => {
+                    const getValue = (trade: FightTrade) => {
+                      switch (sortColumn) {
+                        case 'time': return new Date(trade.executedAt).getTime();
+                        case 'trader': {
+                          const participant = fight.participants?.find((p) => p.userId === trade.participantUserId);
+                          return participant?.user?.handle || '';
+                        }
+                        case 'symbol': return trade.symbol;
+                        case 'side': return trade.side;
+                        case 'size': return parseFloat(trade.amount);
+                        case 'notional': return parseFloat(trade.amount) * parseFloat(trade.price);
+                        case 'price': return parseFloat(trade.price);
+                        case 'fee': return parseFloat(trade.fee || '0');
+                        default: return 0;
+                      }
+                    };
+                    const valA = getValue(a);
+                    const valB = getValue(b);
+                    if (typeof valA === 'string') {
+                      return sortDesc ? valB.toString().localeCompare(valA.toString()) : valA.toString().localeCompare(valB.toString());
+                    }
+                    return sortDesc ? (valB as number) - (valA as number) : (valA as number) - (valB as number);
+                  }).map((trade) => {
                     const trader = fight.participants?.find(
                       (p) => p.userId === trade.participantUserId
                     );
@@ -572,9 +714,9 @@ export default function FightResultsPage() {
                     return (
                       <tr
                         key={trade.id}
-                        className="border-b border-surface-700/50 hover:bg-surface-800/30"
+                        className="border-b border-surface-800/50 hover:bg-surface-800/30 text-[12px]"
                       >
-                        <td className="py-2 px-2 text-surface-400 font-mono text-xs">
+                        <td className="py-2 px-2 text-surface-400 font-mono">
                           <Tooltip text={new Date(trade.executedAt).toLocaleString()}>
                             {formatTime(trade.executedAt)}
                           </Tooltip>
@@ -640,13 +782,13 @@ export default function FightResultsPage() {
 
         {/* No trades message */}
         {trades.length === 0 && (
-          <div className="card p-8 mb-6 text-center">
+          <div className="card p-8 mb-2 text-center">
             <p className="text-surface-400">No trades were executed during this fight</p>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex flex-col sm:flex-row gap-2 justify-center">
           <Link
             href="/lobby"
             className="px-6 py-3 bg-surface-700 hover:bg-surface-600 rounded-lg font-semibold text-center transition-colors"

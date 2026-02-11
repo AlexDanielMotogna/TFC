@@ -4,7 +4,7 @@
  */
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useSearchParams } from 'next/navigation';
@@ -112,14 +112,13 @@ export function useStakeInfo() {
     };
   }, [fightId, connected, token, queryClient]);
 
-  // Clear realtime data when REST data updates (to prevent stale realtime data)
-  useEffect(() => {
-    if (data) {
-      setRealtimeData(null);
-    }
-  }, [data?.maxExposureUsed, data?.currentExposure]);
+  // Note: We no longer clear realtimeData when REST data updates
+  // The websocket updates should take priority and persist until component unmounts
+  // This was causing Bug: capital not updating after trades
+  // Old behavior cleared realtimeData when REST refetch triggered, losing websocket updates
 
-  // Merge REST data with real-time updates (real-time takes priority)
+  // Merge REST data with real-time updates (real-time takes priority for dynamic values)
+  // blockedSymbols comes from REST only (static during fight)
   const mergedData = realtimeData
     ? {
         inFight: true,
@@ -128,6 +127,7 @@ export function useStakeInfo() {
         currentExposure: realtimeData.currentExposure,
         maxExposureUsed: realtimeData.maxExposureUsed,
         available: realtimeData.available,
+        blockedSymbols: data?.blockedSymbols, // From REST, not websocket
       }
     : data;
 
@@ -139,6 +139,7 @@ export function useStakeInfo() {
     currentExposure: mergedData?.currentExposure || null,
     maxExposureUsed: mergedData?.maxExposureUsed || null,
     available: mergedData?.available || null,
+    blockedSymbols: mergedData?.blockedSymbols || [],
     isLoading,
     error: error?.message || null,
     refetch,

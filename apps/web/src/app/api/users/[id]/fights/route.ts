@@ -41,7 +41,6 @@ export async function GET(
       orderBy: {
         createdAt: 'desc',
       },
-      take: 50,
     });
 
     return Response.json({ success: true, data: fights });

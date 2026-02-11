@@ -4,9 +4,12 @@
  */
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
-import { errorResponse, BadRequestError, NotFoundError } from '@/lib/server/errors';
-import { getPositions } from '@/lib/server/pacifica';
+import { errorResponse, BadRequestError, NotFoundError, ConflictError } from '@/lib/server/errors';
+import { ExchangeProvider } from '@/lib/server/exchanges/provider';
 import { canUsersMatch, recordFightSession } from '@/lib/server/anti-cheat';
+import { ErrorCode } from '@/lib/server/error-codes';
+
+const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
 
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
@@ -49,22 +52,49 @@ export async function POST(
       });
 
       if (!fight) {
-        throw new NotFoundError('Fight not found');
+        throw new NotFoundError('Fight not found', ErrorCode.ERR_FIGHT_NOT_FOUND);
       }
 
       // Validate fight is in WAITING status
       if (fight.status !== 'WAITING') {
-        throw new BadRequestError('Fight has already started or finished');
+        throw new BadRequestError('Fight has already started or finished', ErrorCode.ERR_FIGHT_ALREADY_STARTED);
       }
 
       // Validate user is not already in fight
       if (fight.participants.some((p: any) => p.userId === user.userId)) {
-        throw new BadRequestError('You are already in this fight');
+        throw new ConflictError('You are already in this fight', ErrorCode.ERR_FIGHT_USER_ALREADY_JOINED);
       }
 
       // Validate slot B is available
       if (fight.participants.some((p: any) => p.slot === 'B')) {
-        throw new BadRequestError('Fight is already full');
+        throw new BadRequestError('Fight is already full', ErrorCode.ERR_FIGHT_FULL);
+      }
+
+      // MVP-1: Check if user already has an active fight (LIVE or WAITING)
+      // @see MVP-SIMPLIFIED-RULES.md
+      const existingFight = await prisma.fightParticipant.findFirst({
+        where: {
+          userId: user.userId,
+          fight: {
+            status: { in: ['LIVE', 'WAITING'] },
+          },
+        },
+        include: {
+          fight: {
+            select: {
+              id: true,
+              status: true,
+            },
+          },
+        },
+      });
+
+      if (existingFight) {
+        const status = existingFight.fight.status === 'LIVE' ? 'active' : 'pending';
+        throw new ConflictError(
+          `You already have a ${status} fight. Finish or cancel it before joining another.`,
+          ErrorCode.ERR_FIGHT_USER_HAS_ACTIVE
+        );
       }
 
       // Anti-cheat: Check if users can be matched (repeated matchup limit)
@@ -80,7 +110,7 @@ export async function POST(
       });
 
       if (!connection?.isActive) {
-        throw new BadRequestError('Active Pacifica connection required');
+        throw new BadRequestError('Active Pacifica connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
       }
 
       // Get Pacifica connections for both participants to snapshot positions
@@ -97,20 +127,43 @@ export async function POST(
 
       // Snapshot current positions from Pacifica (to exclude from fight PnL calculation)
       // IMPORTANT: Log errors instead of silently failing - this caused Bug #2
-      const [creatorPositions, joinerPositions] = await Promise.all([
-        creatorConnection?.accountAddress
-          ? getPositions(creatorConnection.accountAddress).catch((err) => {
-              console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
-              return [];
-            })
-          : Promise.resolve([]),
-        joinerConnection?.accountAddress
-          ? getPositions(joinerConnection.accountAddress).catch((err) => {
-              console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
-              return [];
-            })
-          : Promise.resolve([]),
-      ]);
+      let creatorPositions, joinerPositions;
+
+      if (USE_EXCHANGE_ADAPTER) {
+        // Use Exchange Adapter (with caching if Redis configured)
+        const adapter = await ExchangeProvider.getUserAdapter(user.userId);
+        [creatorPositions, joinerPositions] = await Promise.all([
+          creatorConnection?.accountAddress
+            ? adapter.getPositions(creatorConnection.accountAddress).catch((err) => {
+                console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
+                return [];
+              })
+            : Promise.resolve([]),
+          joinerConnection?.accountAddress
+            ? adapter.getPositions(joinerConnection.accountAddress).catch((err) => {
+                console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
+                return [];
+              })
+            : Promise.resolve([]),
+        ]);
+      } else {
+        // Fallback to direct Pacifica calls
+        const Pacifica = await import('@/lib/server/pacifica');
+        [creatorPositions, joinerPositions] = await Promise.all([
+          creatorConnection?.accountAddress
+            ? Pacifica.getPositions(creatorConnection.accountAddress).catch((err) => {
+                console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
+                return [];
+              })
+            : Promise.resolve([]),
+          joinerConnection?.accountAddress
+            ? Pacifica.getPositions(joinerConnection.accountAddress).catch((err) => {
+                console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
+                return [];
+              })
+            : Promise.resolve([]),
+        ]);
+      }
 
       // Simplify position data for storage
       // IMPORTANT: Include 'side' to distinguish LONG (bid) vs SHORT (ask) positions
@@ -125,29 +178,45 @@ export async function POST(
       const creatorInitialPositions = simplifyPositions(creatorPositions);
       const joinerInitialPositions = simplifyPositions(joinerPositions);
 
+      // Extract blocked symbols (symbols with pre-fight positions)
+      // These symbols cannot be traded during the fight to avoid PnL contamination
+      // Convert from Pacifica format (BTC) to TFC format (BTC-USD)
+      const creatorBlockedSymbols = [...new Set(creatorInitialPositions.map((p: any) =>
+        p.symbol.includes('-USD') ? p.symbol : `${p.symbol}-USD`
+      ))];
+      const joinerBlockedSymbols = [...new Set(joinerInitialPositions.map((p: any) =>
+        p.symbol.includes('-USD') ? p.symbol : `${p.symbol}-USD`
+      ))];
+
       console.log(`[JoinFight] Fight ${params.id} - Position snapshots:`);
       console.log(`  Creator (${fight.creatorId}): ${creatorInitialPositions.length} positions`,
         creatorInitialPositions.length > 0 ? JSON.stringify(creatorInitialPositions) : '(none)');
+      console.log(`  Creator blocked symbols:`, creatorBlockedSymbols.length > 0 ? creatorBlockedSymbols : '(none)');
       console.log(`  Joiner (${user.userId}): ${joinerInitialPositions.length} positions`,
         joinerInitialPositions.length > 0 ? JSON.stringify(joinerInitialPositions) : '(none)');
+      console.log(`  Joiner blocked symbols:`, joinerBlockedSymbols.length > 0 ? joinerBlockedSymbols : '(none)');
 
       // Join fight and start it
       const updatedFight = await prisma.$transaction(async (tx: any) => {
-        // Update creator (participant A) with their CURRENT positions
+        // Update creator (participant A) with their CURRENT positions and blocked symbols
         // Note: Creator's positions were also captured at fight creation time,
         // but we update them here in case they changed while waiting for a joiner
         await tx.fightParticipant.updateMany({
           where: { fightId: params.id, slot: 'A' },
-          data: { initialPositions: creatorInitialPositions },
+          data: {
+            initialPositions: creatorInitialPositions,
+            blockedSymbols: creatorBlockedSymbols,
+          },
         });
 
-        // Create joiner (participant B) with their initial positions
+        // Create joiner (participant B) with their initial positions and blocked symbols
         await tx.fightParticipant.create({
           data: {
             fightId: params.id,
             userId: user.userId,
             slot: 'B',
             initialPositions: joinerInitialPositions,
+            blockedSymbols: joinerBlockedSymbols,
           },
         });
 

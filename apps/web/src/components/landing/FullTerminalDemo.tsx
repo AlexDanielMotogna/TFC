@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import { Toggle } from '@/components/Toggle';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 interface FullTerminalDemoProps {
   highlightFeature?: 'leverage' | 'long-short' | 'market-orders' | 'limit-orders' | 'stop-loss' | 'take-profit' | 'flip-position' | 'trailing-stop' | 'fight-capital-limit' | 'deposit-withdraw' | 'fight-banner' | 'fight-only' | null;
@@ -81,31 +84,21 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
     return '';
   };
 
-  // Order book demo data
+  // Order book demo data (5 lines per side)
   const askLevels = [
     { price: 96688, size: 1.30, total: 4.54 },
     { price: 96679, size: 0.51, total: 3.24 },
     { price: 96678, size: 0.16, total: 2.73 },
     { price: 96676, size: 0.03, total: 2.58 },
     { price: 96673, size: 0.00, total: 2.54 },
-    { price: 96672, size: 0.16, total: 2.54 },
-    { price: 96669, size: 0.30, total: 2.38 },
-    { price: 96667, size: 0.02, total: 2.09 },
-    { price: 96666, size: 0.03, total: 2.07 },
-    { price: 96664, size: 2.04, total: 2.04 },
   ];
 
   const bidLevels = [
     { price: 96663, size: 0.00, total: 0.00 },
-    { price: 96662, size: 0.00, total: 0.00 },
     { price: 96651, size: 0.19, total: 0.19 },
-    { price: 96646, size: 0.19, total: 0.19 },
-    { price: 96645, size: 0.03, total: 0.22 },
     { price: 96644, size: 0.53, total: 0.76 },
-    { price: 96640, size: 0.03, total: 0.79 },
     { price: 96639, size: 0.21, total: 1.00 },
     { price: 96638, size: 1.85, total: 2.85 },
-    { price: 96637, size: 0.17, total: 2.22 },
   ];
 
   const openModal = (type: 'market' | 'limit' | 'flip' | 'tpsl', position: 'BTC' | 'ETH') => {
@@ -121,7 +114,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Single wrapper to ensure consistent width across all sections */}
       <div className="min-w-[1200px]">
       {/* Top Navbar - matches AppShell.tsx */}
-      <div className="bg-surface-850 border-b border-surface-700 px-4 h-12 flex items-center">
+      <div className="bg-surface-850 border-b border-surface-800 px-4 h-12 flex items-center">
         {/* Logo - Left */}
         <div className="flex-shrink-0">
           <Image
@@ -208,7 +201,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Fight Banner - Matches actual FightBanner.tsx */}
       <div
         onClick={() => setShowFightBannerExplain(true)}
-        className={`bg-surface-850 border-b border-surface-700 px-4 h-10 flex items-center justify-between cursor-pointer hover:bg-surface-800/50 transition-colors ${getHighlightClass('fight-banner')}`}
+        className={`bg-surface-850 border-b border-surface-800 px-4 h-10 flex items-center justify-between cursor-pointer hover:bg-surface-800/50 transition-colors ${getHighlightClass('fight-banner')}`}
       >
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
@@ -254,7 +247,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           </div>
           <div
             onClick={() => setShowSwitchFightExplain(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-700 rounded text-xs cursor-pointer transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-800 rounded text-xs cursor-pointer transition-colors"
           >
             <span className="text-surface-400">vs</span>
             <span className="font-medium text-primary-400">6WZ3...qVaU</span>
@@ -266,34 +259,300 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
         </div>
       </div>
 
-      {/* Main Content with gaps */}
-      <div className="p-2 flex gap-2 h-[700px]">
-        {/* Left side: Order Book + Chart + Positions */}
-        <div className="flex-1 flex flex-col gap-2">
-          {/* Top Row: Order Book + Chart */}
-          <div className="flex gap-2 flex-1">
-            {/* Order Book - matches OrderBook.tsx */}
-            <div className="w-72 bg-surface-900 rounded-none border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col">
+      {/* Market Info Bar - like actual platform */}
+      <div className="bg-surface-900 border-b border-surface-800 px-4 py-2 flex items-center gap-6 text-xs">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+            <span className="text-white text-[8px] font-bold">₿</span>
+          </div>
+          <select className="bg-transparent text-white font-semibold cursor-pointer">
+            <option>BTC-USD</option>
+          </select>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-surface-500 text-[10px]">Last Price</span>
+          <span className="text-white font-mono">73,193.16</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-surface-500 text-[10px]">Mark</span>
+          <span className="text-white font-mono">73,175.00</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-surface-500 text-[10px]">24h Change</span>
+          <span className="text-loss-400 font-mono">-4.18%</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-surface-500 text-[10px]">24h Volume</span>
+          <span className="text-white font-mono">$501,633,443.45</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-surface-500 text-[10px]">Open Interest</span>
+          <span className="text-white font-mono">$21,599,234.47</span>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-surface-500 text-[10px]">Next Funding / Countdown</span>
+          <span className="text-win-400 font-mono">+0.0002% /1h</span>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex gap-1 h-[550px] p-1">
+        {/* Left side: Chart + Order Book + Positions */}
+        <div className="flex-1 flex flex-col gap-1">
+          {/* Top Row: Chart + Order Book */}
+          <div className="flex gap-1 h-[350px]">
+            {/* Chart - Left side */}
+            <div className="flex-1 min-w-0 bg-surface-900 overflow-hidden flex flex-col border border-surface-800 rounded">
+              {/* Chart Symbol Info - like TradingView header */}
+              <div className="px-3 py-1.5 border-b border-surface-800 flex items-center gap-2 text-[10px]">
+                <span className="text-white font-semibold">BTC Perpetual · 30 - PACIFICA</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-win-400" />
+                <span className="text-surface-400">O</span>
+                <span className="text-white font-mono">73,483.00</span>
+                <span className="text-surface-400">H</span>
+                <span className="text-white font-mono">73,599.00</span>
+                <span className="text-surface-400">L</span>
+                <span className="text-white font-mono">73,143.00</span>
+                <span className="text-surface-400">C</span>
+                <span className="text-white font-mono">73,175.00</span>
+                <span className="text-loss-400 font-mono">-289.00 (-0.39%)</span>
+              </div>
+
+              {/* Chart with TradingView tools */}
+              <div className="flex-1 flex">
+                {/* TradingView Tools Sidebar */}
+                <div className="w-8 bg-surface-900 border-r border-surface-800 flex flex-col items-center py-2 gap-1">
+                  {/* Crosshair */}
+                  <button className="p-1.5 text-surface-400 hover:text-white hover:bg-surface-800 rounded">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                  {/* Trend Line */}
+                  <button className="p-1.5 text-surface-400 hover:text-white hover:bg-surface-800 rounded">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <line x1="4" y1="20" x2="20" y2="4" />
+                    </svg>
+                  </button>
+                  {/* Fibonacci */}
+                  <button className="p-1.5 text-surface-400 hover:text-white hover:bg-surface-800 rounded">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <rect x="4" y="4" width="16" height="16" rx="1" />
+                      <line x1="4" y1="9" x2="20" y2="9" />
+                      <line x1="4" y1="15" x2="20" y2="15" />
+                    </svg>
+                  </button>
+                  {/* Rectangle */}
+                  <button className="p-1.5 text-surface-400 hover:text-white hover:bg-surface-800 rounded">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <rect x="4" y="6" width="16" height="12" rx="1" />
+                    </svg>
+                  </button>
+                  {/* Text */}
+                  <button className="p-1.5 text-surface-400 hover:text-white hover:bg-surface-800 rounded">
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M5 4v3h5.5v12h3V7H19V4z" />
+                    </svg>
+                  </button>
+                  <div className="flex-1" />
+                  {/* TradingView logo */}
+                  <div className="p-1.5 text-surface-600">
+                    <svg className="w-4 h-4" viewBox="0 0 36 28" fill="currentColor">
+                      <path d="M14 22H7V11H0V4h14v18zm8-18h7v18h-7V4zm14 0h-7v11h7V4z"/>
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Chart Area */}
+                <div className="flex-1 flex flex-col">
+                  {/* Interval selector */}
+                  <div className="flex items-center gap-1 px-3 py-1.5 border-b border-surface-800">
+                    {['1m', '3m', '15m', '30m', '1h', '5d', '1d'].map((int, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setSelectedInterval(int)}
+                        className={`px-2 py-0.5 text-[10px] rounded transition-colors ${
+                          (int === '30m' && selectedInterval === '5m') ? 'bg-surface-700 text-white' : 'text-surface-400 hover:text-white'
+                        }`}
+                      >
+                        {int}
+                      </button>
+                    ))}
+                    <span className="text-surface-600 mx-1">|</span>
+                    <button className="px-2 py-0.5 text-[10px] text-surface-400 hover:text-white flex items-center gap-1">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/>
+                      </svg>
+                      Indicators
+                    </button>
+                  </div>
+
+                  {/* Chart Area - Realistic candles */}
+                  <div className="flex-1 relative bg-surface-950">
+                    {/* Price scale */}
+                    <div className="absolute right-2 top-3 bottom-10 flex flex-col justify-between text-[9px] text-surface-500 font-mono">
+                      {['98000', '97600', '97200', '96800', '96400', '96000', '95600', '95200', '94800', '94400', '94000'].map(p => <span key={p}>{p}</span>)}
+                    </div>
+
+                    {/* Candlestick chart - SVG for precise control */}
+                    <svg className="absolute inset-3 right-14 bottom-8" viewBox="0 0 800 240" preserveAspectRatio="none">
+                      {/* Grid lines */}
+                      {[0, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240].map((y) => (
+                        <line key={y} x1="0" y1={y} x2="800" y2={y} stroke="#1e293b" strokeWidth="0.5" />
+                      ))}
+
+                      {/* Realistic candle data */}
+                      {[
+                        { x: 10, o: 180, c: 175, h: 170, l: 185 },
+                        { x: 20, o: 175, c: 182, h: 168, l: 188 },
+                        { x: 30, o: 182, c: 178, h: 172, l: 186 },
+                        { x: 40, o: 178, c: 170, h: 165, l: 182 },
+                        { x: 50, o: 170, c: 176, h: 164, l: 180 },
+                        { x: 60, o: 176, c: 185, h: 172, l: 190 },
+                        { x: 70, o: 185, c: 190, h: 180, l: 195 },
+                        { x: 80, o: 190, c: 182, h: 178, l: 195 },
+                        { x: 90, o: 182, c: 175, h: 170, l: 188 },
+                        { x: 100, o: 175, c: 168, h: 162, l: 180 },
+                        { x: 110, o: 168, c: 160, h: 155, l: 172 },
+                        { x: 120, o: 160, c: 155, h: 148, l: 165 },
+                        { x: 130, o: 155, c: 162, h: 150, l: 168 },
+                        { x: 140, o: 162, c: 158, h: 152, l: 166 },
+                        { x: 150, o: 158, c: 165, h: 152, l: 170 },
+                        { x: 160, o: 165, c: 160, h: 155, l: 170 },
+                        { x: 170, o: 160, c: 168, h: 155, l: 172 },
+                        { x: 180, o: 168, c: 162, h: 158, l: 175 },
+                        { x: 190, o: 162, c: 170, h: 158, l: 175 },
+                        { x: 200, o: 170, c: 158, h: 152, l: 175 },
+                        { x: 210, o: 158, c: 150, h: 145, l: 162 },
+                        { x: 220, o: 150, c: 145, h: 138, l: 155 },
+                        { x: 230, o: 145, c: 152, h: 140, l: 158 },
+                        { x: 240, o: 152, c: 148, h: 142, l: 156 },
+                        { x: 250, o: 148, c: 138, h: 132, l: 152 },
+                        { x: 260, o: 138, c: 130, h: 125, l: 142 },
+                        { x: 270, o: 130, c: 135, h: 125, l: 140 },
+                        { x: 280, o: 135, c: 128, h: 122, l: 140 },
+                        { x: 290, o: 128, c: 138, h: 125, l: 145 },
+                        { x: 300, o: 138, c: 148, h: 135, l: 155 },
+                        { x: 310, o: 148, c: 155, h: 142, l: 162 },
+                        { x: 320, o: 155, c: 150, h: 145, l: 160 },
+                        { x: 330, o: 150, c: 158, h: 145, l: 165 },
+                        { x: 340, o: 158, c: 152, h: 148, l: 162 },
+                        { x: 350, o: 152, c: 160, h: 148, l: 165 },
+                        { x: 360, o: 160, c: 155, h: 150, l: 165 },
+                        { x: 370, o: 155, c: 162, h: 150, l: 168 },
+                        { x: 380, o: 162, c: 158, h: 152, l: 168 },
+                        { x: 390, o: 158, c: 165, h: 152, l: 170 },
+                        { x: 400, o: 165, c: 172, h: 160, l: 178 },
+                        { x: 410, o: 172, c: 180, h: 168, l: 185 },
+                        { x: 420, o: 180, c: 175, h: 170, l: 185 },
+                        { x: 430, o: 175, c: 168, h: 162, l: 180 },
+                        { x: 440, o: 168, c: 175, h: 162, l: 180 },
+                        { x: 450, o: 175, c: 165, h: 160, l: 180 },
+                        { x: 460, o: 165, c: 155, h: 148, l: 170 },
+                        { x: 470, o: 155, c: 148, h: 142, l: 160 },
+                        { x: 480, o: 148, c: 140, h: 135, l: 152 },
+                        { x: 490, o: 140, c: 145, h: 135, l: 150 },
+                        { x: 500, o: 145, c: 132, h: 128, l: 150 },
+                        { x: 510, o: 132, c: 125, h: 120, l: 138 },
+                        { x: 520, o: 125, c: 118, h: 112, l: 130 },
+                        { x: 530, o: 118, c: 125, h: 115, l: 132 },
+                        { x: 540, o: 125, c: 115, h: 108, l: 130 },
+                        { x: 550, o: 115, c: 100, h: 95, l: 120 },
+                        { x: 560, o: 100, c: 92, h: 88, l: 108 },
+                        { x: 570, o: 92, c: 85, h: 80, l: 98 },
+                        { x: 580, o: 85, c: 78, h: 72, l: 90 },
+                        { x: 590, o: 78, c: 82, h: 72, l: 88 },
+                        { x: 600, o: 82, c: 75, h: 70, l: 88 },
+                        { x: 610, o: 75, c: 68, h: 62, l: 80 },
+                        { x: 620, o: 68, c: 72, h: 65, l: 78 },
+                        { x: 630, o: 72, c: 65, h: 58, l: 78 },
+                        { x: 640, o: 65, c: 58, h: 52, l: 72 },
+                        { x: 650, o: 58, c: 52, h: 48, l: 65 },
+                        { x: 660, o: 52, c: 58, h: 48, l: 65 },
+                        { x: 670, o: 58, c: 50, h: 45, l: 62 },
+                        { x: 680, o: 50, c: 55, h: 45, l: 60 },
+                        { x: 690, o: 55, c: 48, h: 42, l: 60 },
+                        { x: 700, o: 48, c: 42, h: 38, l: 55 },
+                        { x: 710, o: 42, c: 38, h: 32, l: 48 },
+                        { x: 720, o: 38, c: 45, h: 35, l: 52 },
+                        { x: 730, o: 45, c: 40, h: 35, l: 50 },
+                        { x: 740, o: 40, c: 35, h: 30, l: 48 },
+                        { x: 750, o: 35, c: 38, h: 28, l: 45 },
+                        { x: 760, o: 38, c: 32, h: 28, l: 42 },
+                        { x: 770, o: 32, c: 35, h: 28, l: 40 },
+                        { x: 780, o: 35, c: 30, h: 25, l: 40 },
+                      ].map((candle, i) => {
+                        const isGreen = candle.c < candle.o;
+                        const top = Math.min(candle.o, candle.c);
+                        const bodyHeight = Math.abs(candle.c - candle.o);
+                        return (
+                          <g key={i}>
+                            <line x1={candle.x} y1={candle.h} x2={candle.x} y2={candle.l} stroke={isGreen ? '#26A69A' : '#EF5350'} strokeWidth="1" />
+                            <rect x={candle.x - 3} y={top} width="6" height={Math.max(bodyHeight, 2)} fill={isGreen ? '#26A69A' : '#EF5350'} />
+                          </g>
+                        );
+                      })}
+
+                      {/* Volume bars at bottom */}
+                      {[
+                        10, 15, 12, 18, 14, 22, 25, 20, 16, 13,
+                        11, 19, 24, 17, 15, 12, 20, 18, 14, 16,
+                        22, 28, 25, 19, 17, 15, 13, 18, 22, 20,
+                        16, 14, 12, 19, 24, 21, 18, 15, 13, 17,
+                        25, 32, 28, 22, 18, 15, 20, 26, 35, 42,
+                        55, 48, 38, 32, 28, 45, 52, 40, 35, 30,
+                        38, 45, 35, 42, 38, 48, 55, 45, 40, 35,
+                        42, 50, 45, 48, 52, 58, 52, 48, 45, 50,
+                      ].map((vol, i) => (
+                        <rect key={`vol-${i}`} x={10 + i * 10 - 3} y={240 - vol * 0.6} width="6" height={vol * 0.6} fill={i > 45 ? '#26A69A33' : '#64748b22'} />
+                      ))}
+                    </svg>
+
+                    {/* Current price line */}
+                    <div className="absolute left-3 right-14 top-[12%] border-t border-dashed border-loss-500/60">
+                      <span className="absolute right-0 -top-2.5 bg-loss-500 text-white text-[9px] px-1.5 py-0.5 rounded font-mono">97558.00</span>
+                    </div>
+
+                    {/* TradingView watermark */}
+                    <div className="absolute bottom-10 left-4 flex items-center gap-1">
+                      <svg className="w-5 h-5 text-surface-700" viewBox="0 0 36 28" fill="currentColor">
+                        <path d="M14 22H7V11H0V4h14v18zm8-18h7v18h-7V4zm14 0h-7v11h7V4z"/>
+                      </svg>
+                    </div>
+
+                    {/* Time scale */}
+                    <div className="absolute bottom-2 left-3 right-14 flex justify-between text-[9px] text-surface-500 font-mono">
+                      {['06:00', '07:30', '09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00', '20:00'].map(t => <span key={t}>{t}</span>)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Book - Right side */}
+            <div className="w-64 bg-surface-900 flex-shrink-0 overflow-hidden flex flex-col border border-surface-800 rounded">
+              {/* ORDER BOOK Header */}
+              <div className="px-3 py-2 border-b border-surface-800">
+                <span className="text-white text-xs font-semibold tracking-wider">ORDER BOOK</span>
+              </div>
               {/* Header with agg level and size mode selector */}
-              <div className="px-2 py-1.5 border-b border-surface-700 flex items-center justify-between">
+              <div className="px-2 py-1.5 border-b border-surface-800 flex items-center justify-between">
                 {/* Aggregation level selector */}
-                <select className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500">
-                  <option>0.01</option>
-                  <option>0.02</option>
-                  <option>0.05</option>
-                  <option>0.1</option>
+                <select className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer">
                   <option>1</option>
-                  <option>10</option>
+                  <option>0.1</option>
+                  <option>0.01</option>
                 </select>
                 {/* Size mode selector */}
-                <select className="bg-surface-800 border border-surface-600 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer hover:border-surface-500">
-                  <option>USD</option>
+                <select className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer">
                   <option>BTC</option>
+                  <option>USD</option>
                 </select>
               </div>
 
               {/* Column headers */}
-              <div className="grid grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-700 uppercase">
+              <div className="grid grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-800 uppercase">
                 <span>Price</span>
                 <span className="text-right">Size(BTC)</span>
                 <span className="text-right">Total</span>
@@ -312,7 +571,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Spread */}
-              <div className="px-2 py-1 border-y border-surface-700 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
+              <div className="px-2 py-1 border-y border-surface-800 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
                 <span>Spread</span>
                 <span className="tabular-nums tracking-tight">1.000</span>
                 <span className="tabular-nums tracking-tight">0.001%</span>
@@ -331,7 +590,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Buy/Sell percentage bar */}
-              <div className="px-2 py-1.5 border-t border-surface-700">
+              <div className="px-2 py-1.5 border-t border-surface-800">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-win-400 font-medium tabular-nums">32.8%</span>
                   <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden flex">
@@ -342,239 +601,10 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
               </div>
             </div>
+          </div>{/* End Top Row flex */}
 
-            {/* Chart */}
-            <div className="flex-1 min-w-0 bg-surface-900 rounded-none border border-surface-800 overflow-hidden">
-              {/* Market Info Header */}
-              <div className="px-3 py-2 border-b border-surface-800 flex items-center gap-4 overflow-x-auto text-[10px]">
-              <select className="bg-surface-800 border border-surface-700 rounded px-2 py-1 text-white text-xs font-semibold flex-shrink-0">
-                <option>BTC-USD</option>
-              </select>
-              <div className="flex flex-col flex-shrink-0">
-                <span className="text-surface-500">Last Price</span>
-                <span className="text-white font-mono">96,718.00</span>
-              </div>
-              <div className="flex flex-col flex-shrink-0">
-                <span className="text-surface-500">Mark</span>
-                <span className="text-white font-mono">96,678.61</span>
-              </div>
-              <div className="flex flex-col flex-shrink-0">
-                <span className="text-surface-500">24h Change</span>
-                <span className="text-win-400 font-mono">+3.58%</span>
-              </div>
-              <div className="flex flex-col flex-shrink-0">
-                <span className="text-surface-500">24h Volume</span>
-                <span className="text-white font-mono">$510,399,536.83</span>
-              </div>
-              <div className="flex flex-col flex-shrink-0">
-                <span className="text-surface-500">Open Interest</span>
-                <span className="text-white font-mono">$32,365,266.81</span>
-              </div>
-              <div className="flex flex-col flex-shrink-0">
-                <span className="text-surface-500">Next Funding / Countdown</span>
-                <span className="text-win-400 font-mono">+0.0005% /1h</span>
-              </div>
-            </div>
-
-            {/* Interval selector */}
-            <div className="flex items-center gap-1 px-3 py-1.5 border-b border-surface-800">
-              {['1m', '5m', '15m', '1h', '4h', '1d'].map((int) => (
-                <button
-                  key={int}
-                  onClick={() => setSelectedInterval(int)}
-                  className={`px-2.5 py-1 text-[10px] rounded transition-colors ${
-                    selectedInterval === int ? 'bg-primary-500 text-white' : 'text-surface-400 hover:text-white'
-                  }`}
-                >
-                  {int}
-                </button>
-              ))}
-              <div className="ml-3 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-win-400 animate-pulse" />
-                <span className="text-[10px] text-surface-400">Live</span>
-              </div>
-            </div>
-
-            {/* Chart Area - Realistic candles */}
-            <div className="h-[300px] relative bg-surface-950">
-              {/* Price scale */}
-              <div className="absolute right-2 top-3 bottom-10 flex flex-col justify-between text-[9px] text-surface-500 font-mono">
-                {['98000', '97600', '97200', '96800', '96400', '96000', '95600', '95200', '94800', '94400', '94000'].map(p => <span key={p}>{p}</span>)}
-              </div>
-
-              {/* Candlestick chart - SVG for precise control */}
-              <svg className="absolute inset-3 right-14 bottom-8" viewBox="0 0 800 240" preserveAspectRatio="none">
-                {/* Grid lines */}
-                {[0, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240].map((y) => (
-                  <line key={y} x1="0" y1={y} x2="800" y2={y} stroke="#1e293b" strokeWidth="0.5" />
-                ))}
-
-                {/* Realistic candle data - simulating a pattern similar to screenshot */}
-                {[
-                  // Starting consolidation around 94800-95200
-                  { x: 10, o: 180, c: 175, h: 170, l: 185 },
-                  { x: 20, o: 175, c: 182, h: 168, l: 188 },
-                  { x: 30, o: 182, c: 178, h: 172, l: 186 },
-                  { x: 40, o: 178, c: 170, h: 165, l: 182 },
-                  { x: 50, o: 170, c: 176, h: 164, l: 180 },
-                  // Small dip
-                  { x: 60, o: 176, c: 185, h: 172, l: 190 },
-                  { x: 70, o: 185, c: 190, h: 180, l: 195 },
-                  { x: 80, o: 190, c: 182, h: 178, l: 195 },
-                  { x: 90, o: 182, c: 175, h: 170, l: 188 },
-                  // Recovery
-                  { x: 100, o: 175, c: 168, h: 162, l: 180 },
-                  { x: 110, o: 168, c: 160, h: 155, l: 172 },
-                  { x: 120, o: 160, c: 155, h: 148, l: 165 },
-                  { x: 130, o: 155, c: 162, h: 150, l: 168 },
-                  { x: 140, o: 162, c: 158, h: 152, l: 166 },
-                  // Consolidation mid-range
-                  { x: 150, o: 158, c: 165, h: 152, l: 170 },
-                  { x: 160, o: 165, c: 160, h: 155, l: 170 },
-                  { x: 170, o: 160, c: 168, h: 155, l: 172 },
-                  { x: 180, o: 168, c: 162, h: 158, l: 175 },
-                  { x: 190, o: 162, c: 170, h: 158, l: 175 },
-                  // Move up
-                  { x: 200, o: 170, c: 158, h: 152, l: 175 },
-                  { x: 210, o: 158, c: 150, h: 145, l: 162 },
-                  { x: 220, o: 150, c: 145, h: 138, l: 155 },
-                  { x: 230, o: 145, c: 152, h: 140, l: 158 },
-                  { x: 240, o: 152, c: 148, h: 142, l: 156 },
-                  // Peak area
-                  { x: 250, o: 148, c: 138, h: 132, l: 152 },
-                  { x: 260, o: 138, c: 130, h: 125, l: 142 },
-                  { x: 270, o: 130, c: 135, h: 125, l: 140 },
-                  { x: 280, o: 135, c: 128, h: 122, l: 140 },
-                  { x: 290, o: 128, c: 138, h: 125, l: 145 },
-                  // Pullback
-                  { x: 300, o: 138, c: 148, h: 135, l: 155 },
-                  { x: 310, o: 148, c: 155, h: 142, l: 162 },
-                  { x: 320, o: 155, c: 150, h: 145, l: 160 },
-                  { x: 330, o: 150, c: 158, h: 145, l: 165 },
-                  { x: 340, o: 158, c: 152, h: 148, l: 162 },
-                  // Consolidation
-                  { x: 350, o: 152, c: 160, h: 148, l: 165 },
-                  { x: 360, o: 160, c: 155, h: 150, l: 165 },
-                  { x: 370, o: 155, c: 162, h: 150, l: 168 },
-                  { x: 380, o: 162, c: 158, h: 152, l: 168 },
-                  { x: 390, o: 158, c: 165, h: 152, l: 170 },
-                  // Another dip
-                  { x: 400, o: 165, c: 172, h: 160, l: 178 },
-                  { x: 410, o: 172, c: 180, h: 168, l: 185 },
-                  { x: 420, o: 180, c: 175, h: 170, l: 185 },
-                  { x: 430, o: 175, c: 168, h: 162, l: 180 },
-                  { x: 440, o: 168, c: 175, h: 162, l: 180 },
-                  // Recovery and rally
-                  { x: 450, o: 175, c: 165, h: 160, l: 180 },
-                  { x: 460, o: 165, c: 155, h: 148, l: 170 },
-                  { x: 470, o: 155, c: 148, h: 142, l: 160 },
-                  { x: 480, o: 148, c: 140, h: 135, l: 152 },
-                  { x: 490, o: 140, c: 145, h: 135, l: 150 },
-                  // Strong move up
-                  { x: 500, o: 145, c: 132, h: 128, l: 150 },
-                  { x: 510, o: 132, c: 125, h: 120, l: 138 },
-                  { x: 520, o: 125, c: 118, h: 112, l: 130 },
-                  { x: 530, o: 118, c: 125, h: 115, l: 132 },
-                  { x: 540, o: 125, c: 115, h: 108, l: 130 },
-                  // Sharp rally
-                  { x: 550, o: 115, c: 100, h: 95, l: 120 },
-                  { x: 560, o: 100, c: 92, h: 88, l: 108 },
-                  { x: 570, o: 92, c: 85, h: 80, l: 98 },
-                  { x: 580, o: 85, c: 78, h: 72, l: 90 },
-                  { x: 590, o: 78, c: 82, h: 72, l: 88 },
-                  // Continuation
-                  { x: 600, o: 82, c: 75, h: 70, l: 88 },
-                  { x: 610, o: 75, c: 68, h: 62, l: 80 },
-                  { x: 620, o: 68, c: 72, h: 65, l: 78 },
-                  { x: 630, o: 72, c: 65, h: 58, l: 78 },
-                  { x: 640, o: 65, c: 58, h: 52, l: 72 },
-                  // Top area with some pullback
-                  { x: 650, o: 58, c: 52, h: 48, l: 65 },
-                  { x: 660, o: 52, c: 58, h: 48, l: 65 },
-                  { x: 670, o: 58, c: 50, h: 45, l: 62 },
-                  { x: 680, o: 50, c: 55, h: 45, l: 60 },
-                  { x: 690, o: 55, c: 48, h: 42, l: 60 },
-                  // Final candles near top
-                  { x: 700, o: 48, c: 42, h: 38, l: 55 },
-                  { x: 710, o: 42, c: 38, h: 32, l: 48 },
-                  { x: 720, o: 38, c: 45, h: 35, l: 52 },
-                  { x: 730, o: 45, c: 40, h: 35, l: 50 },
-                  { x: 740, o: 40, c: 35, h: 30, l: 48 },
-                  { x: 750, o: 35, c: 38, h: 28, l: 45 },
-                  { x: 760, o: 38, c: 32, h: 28, l: 42 },
-                  { x: 770, o: 32, c: 35, h: 28, l: 40 },
-                  { x: 780, o: 35, c: 30, h: 25, l: 40 },
-                ].map((candle, i) => {
-                  const isGreen = candle.c < candle.o;
-                  const top = Math.min(candle.o, candle.c);
-                  const bodyHeight = Math.abs(candle.c - candle.o);
-                  return (
-                    <g key={i}>
-                      {/* Wick */}
-                      <line
-                        x1={candle.x}
-                        y1={candle.h}
-                        x2={candle.x}
-                        y2={candle.l}
-                        stroke={isGreen ? '#26A69A' : '#EF5350'}
-                        strokeWidth="1"
-                      />
-                      {/* Body */}
-                      <rect
-                        x={candle.x - 3}
-                        y={top}
-                        width="6"
-                        height={Math.max(bodyHeight, 2)}
-                        fill={isGreen ? '#26A69A' : '#EF5350'}
-                      />
-                    </g>
-                  );
-                })}
-
-                {/* Volume bars at bottom */}
-                {[
-                  10, 15, 12, 18, 14, 22, 25, 20, 16, 13,
-                  11, 19, 24, 17, 15, 12, 20, 18, 14, 16,
-                  22, 28, 25, 19, 17, 15, 13, 18, 22, 20,
-                  16, 14, 12, 19, 24, 21, 18, 15, 13, 17,
-                  25, 32, 28, 22, 18, 15, 20, 26, 35, 42,
-                  55, 48, 38, 32, 28, 45, 52, 40, 35, 30,
-                  38, 45, 35, 42, 38, 48, 55, 45, 40, 35,
-                  42, 50, 45, 48, 52, 58, 52, 48, 45, 50,
-                ].map((vol, i) => (
-                  <rect
-                    key={`vol-${i}`}
-                    x={10 + i * 10 - 3}
-                    y={240 - vol * 0.6}
-                    width="6"
-                    height={vol * 0.6}
-                    fill={i > 45 ? '#26A69A33' : '#64748b22'}
-                  />
-                ))}
-              </svg>
-
-              {/* Current price line */}
-              <div className="absolute left-3 right-14 top-[12%] border-t border-dashed border-loss-500/60">
-                <span className="absolute right-0 -top-2.5 bg-loss-500 text-white text-[9px] px-1.5 py-0.5 rounded font-mono">97558.00</span>
-              </div>
-
-              {/* TradingView watermark */}
-              <div className="absolute bottom-10 left-4 flex items-center gap-1">
-                <svg className="w-5 h-5 text-surface-700" viewBox="0 0 36 28" fill="currentColor">
-                  <path d="M14 22H7V11H0V4h14v18zm8-18h7v18h-7V4zm14 0h-7v11h7V4z"/>
-                </svg>
-              </div>
-
-              {/* Time scale */}
-              <div className="absolute bottom-2 left-3 right-14 flex justify-between text-[9px] text-surface-500 font-mono">
-                {['06:00', '07:30', '09:00', '10:30', '12:00', '13:30', '15:00', '16:30', '18:00', '20:00'].map(t => <span key={t}>{t}</span>)}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Row: Positions Table (Below Order Book + Chart only) */}
-        <div className="bg-surface-900 rounded-none border border-surface-800 overflow-hidden flex flex-col min-h-[197px]">
+        {/* Bottom Row: Positions Table */}
+        <div className="bg-surface-900 overflow-hidden flex flex-col border border-surface-800 rounded flex-1">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-surface-800 flex-shrink-0">
             <div className="flex items-center gap-4">
               {[
@@ -629,7 +659,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-t border-surface-700/50">
+                <tr className="border-t border-surface-800/50">
                   <td className="py-2 px-1">
                     <div className="flex items-center gap-1.5">
                       <span className="text-white font-medium">BTC</span>
@@ -691,7 +721,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       </div>
 
       {/* Right: Place Order */}
-      <div className="w-64 bg-surface-900 rounded-none border border-surface-800 flex-shrink-0 overflow-hidden flex flex-col max-h-[700px]">
+      <div className="w-64 bg-surface-900 flex-shrink-0 overflow-hidden flex flex-col border border-surface-800 rounded">
         {/* Header */}
         <div className="px-3 py-2 border-b border-surface-800">
           <span className="text-white text-xs font-semibold tracking-wider">PLACE ORDER</span>
@@ -699,11 +729,13 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
         <div className="p-3 space-y-3 text-xs flex-1 overflow-y-auto">
           {/* Deposit/Withdraw Buttons */}
-          <div className={`grid grid-cols-2 gap-2 ${getHighlightClass('deposit-withdraw')}`}>
-            <button onClick={() => setShowDepositModal(true)} className="py-2 text-xs font-semibold bg-[#0d9488] hover:bg-[#0f766e] text-white rounded transition-colors">
+          <div className={`flex gap-2 ${getHighlightClass('deposit-withdraw')}`}>
+            <button onClick={() => setShowDepositModal(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors">
+              <FileDownloadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
               Deposit
             </button>
-            <button onClick={() => setShowWithdrawModal(true)} className="py-2 text-xs font-semibold bg-surface-700 hover:bg-surface-600 text-white rounded transition-colors">
+            <button onClick={() => setShowWithdrawModal(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors">
+              <FileUploadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
               Withdraw
             </button>
           </div>
@@ -751,13 +783,13 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           <div className={`grid grid-cols-2 gap-2 ${getHighlightClass('long-short')}`}>
             <button
               onClick={() => setSelectedSide('LONG')}
-              className={`py-2.5 rounded font-semibold text-xs transition-all ${selectedSide === 'LONG' ? 'bg-[#0d9488] text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+              className={`py-2.5 rounded-lg font-semibold text-xs transition-all ${selectedSide === 'LONG' ? 'bg-win-500 text-white shadow-lg' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
             >
               LONG
             </button>
             <button
               onClick={() => setSelectedSide('SHORT')}
-              className={`py-2.5 rounded font-semibold text-xs transition-all ${selectedSide === 'SHORT' ? 'bg-surface-700 text-white' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
+              className={`py-2.5 rounded-lg font-semibold text-xs transition-all ${selectedSide === 'SHORT' ? 'bg-loss-500 text-white shadow-lg' : 'bg-surface-800 text-surface-400 hover:text-white'}`}
             >
               SHORT
             </button>
@@ -765,19 +797,19 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
           {/* Order Type */}
           <div className={getHighlightClass('market-orders')}>
-            <label className="text-surface-400 mb-1.5 block text-xs">Order Type</label>
+            <label className="block text-[10px] font-medium text-surface-400 mb-1.5">Order Type</label>
             <div className="relative">
               <select
                 value={orderType}
                 onChange={(e) => setOrderType(e.target.value as typeof orderType)}
-                className="w-full bg-black border-none rounded px-3 py-2 text-white text-sm appearance-none cursor-pointer pr-8"
+                className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-white text-xs appearance-none cursor-pointer pr-10"
               >
                 <option value="market">Market</option>
                 <option value="limit">Limit</option>
                 <option value="stop-market">Stop Market</option>
                 <option value="stop-limit">Stop Limit</option>
               </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                 <svg className="w-4 h-4 text-surface-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -787,25 +819,29 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
           {/* Size */}
           <div>
-            <label className="text-surface-400 mb-1.5 block text-xs">Size</label>
-            <div className="flex gap-2 mb-2">
+            <label className="block text-[10px] font-medium text-surface-400 mb-1.5">Size</label>
+            {/* Token and USD inputs - matching actual platform */}
+            <div className="flex gap-2 mb-1.5">
               <div className="flex-1 relative">
-                <input type="text" defaultValue="0.00" className="w-full bg-black border-none rounded px-3 py-2 text-white font-mono text-[8px] pr-12" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-primary-400 text-xs font-medium">BTC</span>
+                <input type="text" defaultValue="0.00" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono text-[10px] pr-12" />
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 bg-primary-500/20 text-primary-400 text-[9px] font-semibold rounded">BTC</span>
               </div>
               <div className="flex-1 relative">
-                <input type="text" defaultValue="0.00" className="w-full bg-black border-none rounded px-3 py-2 text-white font-mono text-[8px] pr-12" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-xs">USD</span>
+                <input type="text" defaultValue="0.00" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono text-[10px] pr-10" />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 text-[10px] font-medium">USD</span>
               </div>
             </div>
-            <div className="flex justify-between text-surface-500 text-[10px] mb-2">
-              <span>Margin: <span className="text-white font-mono text-[8px]">$0.00</span></span>
-              <span>Max: <span className="text-white font-mono text-[8px]">$0.34 (50x)</span></span>
+            {/* Margin indicator */}
+            <div className="text-[10px] text-surface-500 mb-1.5 flex justify-between">
+              <span>Margin: <span className="text-white font-mono">$0.00</span></span>
+              <span>Max: <span className="text-white font-mono">$6.98 (50x)</span></span>
             </div>
-            <input type="range" min="0" max="100" defaultValue="0" className="w-full h-1.5 bg-surface-700 rounded-full mb-2 accent-primary-500" />
-            <div className="grid grid-cols-4 gap-1.5">
+            {/* Percentage slider */}
+            <input type="range" min="0" max="100" defaultValue="0" className="w-full h-1.5 bg-surface-700 rounded-lg appearance-none accent-primary-500 cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer" />
+            {/* Percentage buttons */}
+            <div className="flex gap-1.5 mt-1.5">
               {[25, 50, 75, 100].map(p => (
-                <button key={p} className="py-1.5 bg-surface-800 text-surface-400 rounded text-[8px] hover:bg-surface-700 transition-colors">
+                <button key={p} className="flex-1 py-1 text-[10px] font-medium bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white rounded transition-colors border border-transparent">
                   {p}%
                 </button>
               ))}
@@ -814,12 +850,12 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
           {/* Leverage */}
           <div className={getHighlightClass('leverage')}>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-surface-400 text-xs">Leverage</span>
-              <span className="text-primary-400 font-semibold font-mono text-[8px]">{leverage}x</span>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-[10px] font-medium text-surface-400">Leverage</label>
+              <span className="text-[10px] font-semibold text-primary-400">{leverage}x</span>
             </div>
-            <input type="range" min="1" max="50" value={leverage} onChange={(e) => setLeverage(Number(e.target.value))} className="w-full h-1.5 bg-surface-700 rounded-full accent-primary-500 mb-1" />
-            <div className="flex justify-between text-surface-500 font-mono text-[8px]">
+            <input type="range" min="1" max="50" value={leverage} onChange={(e) => setLeverage(Number(e.target.value))} className="w-full h-1.5 bg-surface-700 rounded-lg appearance-none accent-primary-500 cursor-pointer [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:bg-primary-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer" />
+            <div className="flex justify-between text-[10px] text-surface-500 mt-1">
               <span>1x</span>
               <span>25x</span>
               <span>50x</span>
@@ -827,39 +863,39 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
           </div>
 
           {/* Take Profit / Stop Loss */}
-          <div className={getHighlightClass('take-profit')}>
-            <div className="flex items-center gap-1.5 py-1">
-              <button
-                onClick={() => { setTpEnabled(!tpEnabled || !slEnabled); setSlEnabled(!tpEnabled || !slEnabled); }}
-                className={`relative w-7 h-4 rounded-full transition-colors flex-shrink-0 ${tpEnabled || slEnabled ? 'bg-primary-500' : 'bg-surface-700'}`}
-              >
-                <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${tpEnabled || slEnabled ? 'translate-x-3' : ''}`} />
-              </button>
-              <span className="text-surface-300 text-[10px]">Take Profit / Stop Loss</span>
-            </div>
+          <div className={`space-y-2 ${getHighlightClass('take-profit')}`}>
+            {/* TP/SL Toggle Header */}
+            <Toggle
+              checked={tpEnabled || slEnabled}
+              onChange={(checked) => {
+                setTpEnabled(checked);
+                setSlEnabled(checked);
+              }}
+              label="Take Profit / Stop Loss"
+            />
 
             {/* TP/SL Expanded Fields */}
             {(tpEnabled || slEnabled) && (
-              <div className="mt-2 space-y-2">
+              <div className="space-y-2">
                 {/* TP Price */}
                 <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <button
-                      onClick={() => setTpEnabled(!tpEnabled)}
-                      className={`relative w-7 h-4 rounded-full transition-colors flex-shrink-0 ${tpEnabled ? 'bg-primary-500' : 'bg-surface-700'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${tpEnabled ? 'translate-x-3' : ''}`} />
-                    </button>
-                    <span className="text-surface-300 text-[10px]">TP Price</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Toggle
+                      checked={tpEnabled}
+                      onChange={setTpEnabled}
+                      variant="win"
+                      label="TP Price"
+                    />
+                    {tpEnabled && (
+                      <span className="text-[10px] text-win-400">+50.0%</span>
+                    )}
                   </div>
                   {tpEnabled && (
                     <>
-                      <div className="relative mb-1.5">
-                        <input type="text" placeholder="> 89375" className="w-full bg-black border-none rounded px-2 py-1.5 text-white font-mono text-[8px]" />
-                      </div>
-                      <div className="grid grid-cols-4 gap-1">
+                      <input type="text" placeholder="> 96,663" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-white font-mono text-[10px] mb-1.5" />
+                      <div className="flex gap-1">
                         {[25, 50, 75, 100].map(p => (
-                          <button key={`tp-${p}`} className="py-0.5 bg-surface-800 text-win-400 rounded text-[8px] hover:bg-surface-700 transition-colors">
+                          <button key={`tp-${p}`} className="flex-1 py-0.5 bg-surface-800 text-win-400 hover:bg-surface-700 rounded text-[10px] font-medium transition-colors">
                             {p}%
                           </button>
                         ))}
@@ -870,23 +906,23 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
                 {/* SL Price */}
                 <div>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <button
-                      onClick={() => setSlEnabled(!slEnabled)}
-                      className={`relative w-7 h-4 rounded-full transition-colors flex-shrink-0 ${slEnabled ? 'bg-loss-500' : 'bg-surface-700'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full transition-transform ${slEnabled ? 'translate-x-3' : ''}`} />
-                    </button>
-                    <span className="text-surface-300 text-[10px]">SL Price</span>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Toggle
+                      checked={slEnabled}
+                      onChange={setSlEnabled}
+                      variant="loss"
+                      label="SL Price"
+                    />
+                    {slEnabled && (
+                      <span className="text-[10px] text-loss-400">-25.0%</span>
+                    )}
                   </div>
                   {slEnabled && (
                     <>
-                      <div className="relative mb-1.5">
-                        <input type="text" placeholder="< 89375" className="w-full bg-black border-none rounded px-2 py-1.5 text-white font-mono text-[8px]" />
-                      </div>
-                      <div className="grid grid-cols-4 gap-1">
-                        {['-25', '-50', '-75', '-100'].map(p => (
-                          <button key={`sl-${p}`} className="py-0.5 bg-surface-800 text-loss-400 rounded text-[8px] hover:bg-surface-700 transition-colors">
+                      <input type="text" placeholder="< 96,663" className="w-full bg-surface-800 border border-surface-700 rounded-lg px-2 py-1.5 text-white font-mono text-[10px] mb-1.5" />
+                      <div className="flex gap-1">
+                        {[-25, -50, -75, -100].map(p => (
+                          <button key={`sl-${p}`} className="flex-1 py-0.5 bg-surface-800 text-loss-400 hover:bg-surface-700 rounded text-[10px] font-medium transition-colors">
                             {p}%
                           </button>
                         ))}
@@ -925,7 +961,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
         {/* Long/Short Button */}
         <div className="p-3 border-t border-surface-800">
-          <button className={`w-full py-3 rounded font-bold text-sm flex items-center justify-center gap-2 transition-colors ${selectedSide === 'LONG' ? 'bg-[#0d9488] hover:bg-[#0f766e] text-white' : 'bg-loss-500 text-white hover:bg-loss-400'}`}>
+          <button className={`w-full py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${selectedSide === 'LONG' ? 'bg-win-500 hover:bg-win-400 text-white shadow-lg shadow-win-500/25' : 'bg-loss-500 hover:bg-loss-400 text-white shadow-lg shadow-loss-500/25'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d={selectedSide === 'LONG' ? "M4.5 10.5 12 3m0 0 7.5 7.5M12 3v18" : "M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3"} />
             </svg>
@@ -938,9 +974,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
     {/* Modals */}
     {showMarketModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
               <div className="flex items-center gap-3">
                 <h3 className="text-white font-semibold text-lg">Market Close</h3>
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
@@ -1018,7 +1054,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Market Close Button */}
-              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded font-semibold text-sm transition-colors">
+              <button className="w-full py-3 bg-win-500 hover:bg-win-400 text-white rounded font-semibold text-sm transition-colors">
                 Market Close
               </button>
             </div>
@@ -1028,9 +1064,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showLimitModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
               <div className="flex items-center gap-3">
                 <h3 className="text-white font-semibold text-lg">Limit Close</h3>
                 <span className="px-2 py-0.5 rounded text-xs font-semibold bg-loss-500/20 text-loss-400">50x Short</span>
@@ -1127,7 +1163,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Limit Close Button */}
-              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded font-semibold text-sm transition-colors">
+              <button className="w-full py-3 bg-win-500 hover:bg-win-400 text-white rounded font-semibold text-sm transition-colors">
                 Limit Close
               </button>
             </div>
@@ -1137,9 +1173,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFlipModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-lg">Flip Position</h3>
               <button onClick={() => setShowFlipModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1158,7 +1194,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-surface-400">New Position</span>
-                  <span className="text-[#0d9488] font-mono font-semibold">Long 0.000190 BTC</span>
+                  <span className="text-win-400 font-mono font-semibold">Long 0.000190 BTC</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-surface-400">Position Value</span>
@@ -1167,7 +1203,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Flip Position Button */}
-              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded font-semibold text-sm transition-colors">
+              <button className="w-full py-3 bg-win-500 hover:bg-win-400 text-white rounded font-semibold text-sm transition-colors">
                 Flip Position
               </button>
             </div>
@@ -1177,14 +1213,14 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showTpSlModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 w-full max-w-[420px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 w-full max-w-[420px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-base">TP/SL for {selectedPosition}</h3>
               <button onClick={() => { setShowTpSlModal(false); setTpSlTab('full'); setLimitPriceEnabled(false); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
 
             {/* Tab Switcher */}
-            <div className="flex border-b border-surface-700">
+            <div className="flex border-b border-surface-800">
               <button
                 onClick={() => setTpSlTab('full')}
                 className={`flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
@@ -1241,7 +1277,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 {/* Limit Price Toggle */}
-                <div className="flex items-center justify-between py-2 border-t border-surface-700">
+                <div className="flex items-center justify-between py-2 border-t border-surface-800">
                   <span className="text-surface-300 text-sm">Limit Price</span>
                   <button
                     onClick={() => setLimitPriceEnabled(!limitPriceEnabled)}
@@ -1302,8 +1338,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Add Partial TP/SL Modal */}
       {showAddPartialModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 w-full max-w-[420px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 w-full max-w-[420px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-base">Add Partial TP/SL</h3>
               <button onClick={() => { setShowAddPartialModal(false); setConfigureAmountEnabled(false); setLimitPriceEnabled(false); }} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1344,7 +1380,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </div>
 
               {/* Configure Amount Toggle */}
-              <div className="flex items-center justify-between py-2 border-t border-surface-700">
+              <div className="flex items-center justify-between py-2 border-t border-surface-800">
                 <span className="text-surface-300 text-sm">Configure Amount</span>
                 <button
                   onClick={() => setConfigureAmountEnabled(!configureAmountEnabled)}
@@ -1378,7 +1414,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               )}
 
               {/* Limit Price Toggle */}
-              <div className="flex items-center justify-between py-2 border-t border-surface-700">
+              <div className="flex items-center justify-between py-2 border-t border-surface-800">
                 <span className="text-surface-300 text-sm">Limit Price</span>
                 <button
                   onClick={() => setLimitPriceEnabled(!limitPriceEnabled)}
@@ -1421,8 +1457,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Deposit Modal - Opens Pacifica */}
       {showDepositModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-lg">Deposit Funds</h3>
               <button onClick={() => setShowDepositModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1433,7 +1469,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
               <div className="bg-surface-800/50 rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#0d9488] mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <svg className="w-5 h-5 text-win-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                   </svg>
                   <div>
@@ -1443,7 +1479,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-[#0d9488] mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <svg className="w-5 h-5 text-win-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                   </svg>
                   <div>
@@ -1453,7 +1489,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
               </div>
 
-              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2">
+              <button className="w-full py-3 bg-win-500 hover:bg-win-400 text-white rounded-lg font-semibold text-sm transition-colors flex items-center justify-center gap-2">
                 <span>Open Pacifica to Deposit</span>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
@@ -1467,8 +1503,8 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Withdraw Modal - Done in TFC */}
       {showWithdrawModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[480px] shadow-xl">
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[480px] shadow-xl">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800">
               <h3 className="text-white font-semibold text-lg">Withdraw Funds</h3>
               <button onClick={() => setShowWithdrawModal(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1509,7 +1545,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
               </div>
 
-              <button className="w-full py-3 bg-[#0d9488] hover:bg-[#0f766e] text-white rounded-lg font-semibold text-sm transition-colors">
+              <button className="w-full py-3 bg-win-500 hover:bg-win-400 text-white rounded-lg font-semibold text-sm transition-colors">
                 Confirm Withdrawal
               </button>
             </div>
@@ -1519,9 +1555,9 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFightBannerExplain && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#1a1a1a] rounded-lg border border-surface-700 w-full max-w-[540px] shadow-xl max-h-[85vh] overflow-hidden flex flex-col">
+          <div className="bg-[#1a1a1a] rounded-lg border border-surface-800 w-full max-w-[540px] shadow-xl max-h-[85vh] overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-700 flex-shrink-0">
+            <div className="flex justify-between items-center px-4 py-3 border-b border-surface-800 flex-shrink-0">
               <h3 className="text-white font-semibold text-lg">Fight Banner</h3>
               <button onClick={() => setShowFightBannerExplain(false)} className="text-surface-400 hover:text-white text-xl leading-none">×</button>
             </div>
@@ -1533,7 +1569,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
               </p>
 
               {/* Banner Preview - matches actual FightBanner */}
-              <div className="bg-surface-900 rounded-lg p-3 text-sm border border-surface-700 space-y-2.5">
+              <div className="bg-surface-900 rounded-lg p-3 text-sm border border-surface-800 space-y-2.5">
                 {/* Row 1: Live status and opponent */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1544,7 +1580,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 {/* Row 2: Timer, stake, and status */}
-                <div className="flex items-center justify-between border-t border-surface-700 pt-2">
+                <div className="flex items-center justify-between border-t border-surface-800 pt-2">
                   <div className="flex items-center gap-2">
                     <span className="text-zinc-100 font-mono font-bold text-sm">49:47</span>
                     <span className="text-xs text-zinc-100">$5,000 stake</span>
@@ -1553,7 +1589,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
                 </div>
 
                 {/* Row 3: PnL comparison */}
-                <div className="flex items-center justify-between border-t border-surface-700 pt-2">
+                <div className="flex items-center justify-between border-t border-surface-800 pt-2">
                   <div>
                     <div className="text-xs text-surface-400">You</div>
                     <div className="text-loss-500 font-mono tabular-nums text-sm font-medium">-12.0423%</div>
@@ -1610,7 +1646,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFightOnlyExplain && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 sm:p-5 w-full max-w-[420px] shadow-xl max-h-[80vh] overflow-y-auto">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 p-4 sm:p-5 w-full max-w-[420px] shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-semibold text-base">Position Filters</h3>
               <button onClick={() => setShowFightOnlyExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
@@ -1648,7 +1684,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
 
       {showFightCapitalExplain && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-lg border border-surface-700 p-4 sm:p-5 w-full max-w-[480px] shadow-xl max-h-[80vh] overflow-y-auto">
+          <div className="bg-surface-800 rounded-lg border border-surface-800 p-4 sm:p-5 w-full max-w-[480px] shadow-xl max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-white font-semibold text-base">Fight Capital Limit</h3>
               <button onClick={() => setShowFightCapitalExplain(false)} className="text-surface-400 hover:text-white text-lg">×</button>
@@ -1715,7 +1751,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
       {/* Switch Fight Explanation Modal */}
       {showSwitchFightExplain && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface-800 rounded-xl border border-surface-700 max-w-md w-full p-6 shadow-2xl">
+          <div className="bg-surface-800 rounded-xl border border-surface-800 max-w-md w-full p-6 shadow-2xl">
             {/* Icon */}
             <div className="w-16 h-16 rounded-full bg-primary-500/20 flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-primary-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1740,7 +1776,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
             </p>
 
             {/* Fight Info Preview */}
-            <div className="bg-surface-900/50 rounded-lg p-4 mb-6 border border-surface-700">
+            <div className="bg-surface-900/50 rounded-lg p-4 mb-6 border border-surface-800">
               <p className="text-sm text-surface-400 mb-3">Example: Switching to another fight</p>
               <div className="flex items-center justify-between">
                 <div>

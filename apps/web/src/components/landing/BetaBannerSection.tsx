@@ -8,7 +8,7 @@ export function BetaBannerSection() {
 
   return (
     <>
-      <section className="py-8 bg-gradient-to-r from-orange-500/10 via-surface-900 to-primary-500/10 border-y border-surface-700">
+      <section className="py-8 bg-gradient-to-r from-orange-500/10 via-surface-900 to-primary-500/10 border-y border-surface-800">
         <div className="max-w-7xl mx-auto px-4 lg:px-8 text-center">
           <span className="inline-block px-3 py-1 bg-orange-500/20 text-orange-400 text-xs font-medium rounded-full mb-3">
             Limited Access

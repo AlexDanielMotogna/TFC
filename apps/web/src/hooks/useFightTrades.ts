@@ -7,19 +7,20 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 
 export interface FightTrade {
-  history_id: number;
-  order_id: number | null;
-  client_order_id: string | null;
+  id: string;
+  history_id: string;
+  order_id: string | null;
+  participantUserId: string;
   symbol: string;
-  side: string; // open_long, open_short, close_long, close_short
+  side: string; // BUY, SELL
   amount: string;
   price: string;
-  entry_price: string;
   fee: string;
   pnl: string | null;
-  event_type: string;
-  cause: string;
-  created_at: number; // Unix timestamp (milliseconds)
+  leverage: number | null;
+  executedAt: string; // ISO string
+  created_at: number; // Unix timestamp (milliseconds) for UI compatibility
+  notional: string;
   isFightTrade: boolean;
   fightId: string;
 }
@@ -52,10 +53,10 @@ export function useFightTrades(fightId: string | null | undefined) {
       return result.data;
     },
     enabled: isAuthenticated && !!token && !!fightId,
-    refetchInterval: 10000, // Poll every 10 seconds (reduced to avoid rate limits)
-    staleTime: 8000,
+    refetchInterval: 3000, // Poll every 3 seconds for faster updates
+    staleTime: 1000, // Low staleTime so invalidateQueries triggers immediate refetch
     retry: 1,
-    retryDelay: 2000,
+    retryDelay: 500,
   });
 
   return {

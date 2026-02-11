@@ -3,8 +3,13 @@
  * POST /api/orders - Place order (proxies to Pacifica)
  * DELETE /api/orders - Cancel all orders (proxies to Pacifica)
  */
-import { errorResponse, BadRequestError, StakeLimitError } from '@/lib/server/errors';
-import { validateStakeLimit, calculateFightExposure } from '@/lib/server/orders';
+import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError, GatewayTimeoutError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
+import { validateStakeLimit } from '@/lib/server/orders';
+import {
+  calculateFightExposure,
+  updateMaxExposureIfHigher,
+} from '@/lib/server/fight-exposure';
 import { recordOrderAction } from '@/lib/server/order-actions';
 import { calculateReferralCommissions } from '@/lib/server/services/referral';
 import { prisma, FightStatus } from '@tfc/db';
@@ -126,12 +131,12 @@ export async function POST(request: Request) {
     } = body;
 
     if (!account || !symbol || !side || !type || !amount || !signature || !timestamp) {
-      throw new BadRequestError('account, symbol, side, type, amount, signature, and timestamp are required');
+      throw new BadRequestError('account, symbol, side, type, amount, signature, and timestamp are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
     }
 
     // Feature flag: Check if trading is enabled
     if (!FeatureFlags.isTradingEnabled()) {
-      throw new BadRequestError('Trading is temporarily disabled');
+      throw new ServiceUnavailableError('Trading is temporarily disabled', ErrorCode.ERR_ORDER_TRADING_DISABLED);
     }
 
     // Validate stake limit for users in active fights
@@ -153,6 +158,34 @@ export async function POST(request: Request) {
         throw new StakeLimitError(error.message, error.details);
       }
       throw error;
+    }
+
+    // Check if symbol is blocked for this user in their active fight
+    // Blocked symbols = symbols with pre-fight open positions (to avoid PnL contamination)
+    if (fightValidation) {
+      const connection = await prisma.pacificaConnection.findUnique({
+        where: { accountAddress: account },
+        select: { userId: true },
+      });
+
+      if (connection) {
+        const participant = await prisma.fightParticipant.findFirst({
+          where: {
+            userId: connection.userId,
+            fightId: fightValidation.fightId,
+          },
+        });
+
+        // blockedSymbols is String[] - check if symbol is in the list
+        // Allow pre-fight flip trades to bypass this check (they close pre-existing positions)
+        const blockedSymbols = (participant as any)?.blockedSymbols as string[] | undefined;
+        if (blockedSymbols?.includes(symbol) && !is_pre_fight_flip) {
+          throw new BadRequestError(
+            `Symbol ${symbol} is blocked for this fight. You had an open position in this symbol before the fight started. Close pre-fight positions before joining a fight to trade that symbol.`,
+            ErrorCode.ERR_ORDER_SYMBOL_BLOCKED
+          );
+        }
+      }
     }
 
     // Proxy to Pacifica API
@@ -180,7 +213,7 @@ export async function POST(request: Request) {
     } else {
       // LIMIT
       if (!price) {
-        throw new BadRequestError('price is required for limit orders');
+        throw new BadRequestError('price is required for limit orders', ErrorCode.ERR_ORDER_PRICE_REQUIRED);
       }
       endpoint = `${PACIFICA_API_URL}/api/v1/orders/create`;
       // Note: post_only is NOT a valid Pacifica parameter for limit orders
@@ -226,7 +259,14 @@ export async function POST(request: Request) {
     if (!response.ok || !result.success) {
       const errorMessage = result.error || `Pacifica API error: ${response.status}`;
       console.error('Pacifica order error:', errorMessage);
-      throw new BadRequestError(errorMessage);
+      // Determine appropriate error class based on status code
+      if (response.status === 504) {
+        throw new GatewayTimeoutError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else if (response.status >= 500) {
+        throw new ServiceUnavailableError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else {
+        throw new BadRequestError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      }
     }
 
     console.log('Order placed successfully', {
@@ -320,17 +360,41 @@ async function recordAllTrades(
 
   // Auto-detect active fight if not explicitly provided
   let resolvedFightId = specificFightId;
+  let activeFightParticipant: { fightId: string; blockedSymbols: string[] } | null = null;
   if (!resolvedFightId) {
-    const activeFight = await prisma.fightParticipant.findFirst({
+    activeFightParticipant = await prisma.fightParticipant.findFirst({
       where: {
         userId: connection.userId,
         fight: { status: FightStatus.LIVE },
       },
-      select: { fightId: true },
+      select: { fightId: true, blockedSymbols: true },
     });
-    if (activeFight) {
-      resolvedFightId = activeFight.fightId;
+    if (activeFightParticipant) {
+      resolvedFightId = activeFightParticipant.fightId;
       console.log('[recordAllTrades] Auto-detected active fight:', resolvedFightId);
+    }
+  }
+
+  // Auto-detect if this is closing a pre-fight position
+  // Use blockedSymbols from FightParticipant (set when user joined fight with open positions)
+  let autoDetectedPreFightFlip = isPreFightFlip;
+
+  if (!autoDetectedPreFightFlip && resolvedFightId && !leverage && activeFightParticipant?.blockedSymbols) {
+    // This is a CLOSING trade (no leverage) during a fight
+    // Check if this symbol is in the user's blockedSymbols list
+    // blockedSymbols contains symbols with pre-fight positions (e.g., ["BTC-USD", "ETH-USD"])
+    const normalizedSymbol = symbol.includes('-USD') ? symbol : `${symbol}-USD`;
+    const blockedSymbols = activeFightParticipant.blockedSymbols;
+
+    if (blockedSymbols.includes(normalizedSymbol)) {
+      console.log('[recordAllTrades] Auto-detected pre-fight position close via blockedSymbols', {
+        symbol,
+        normalizedSymbol,
+        userId: connection.userId,
+        fightId: resolvedFightId,
+        blockedSymbols,
+      });
+      autoDetectedPreFightFlip = true;
     }
   }
 
@@ -386,6 +450,10 @@ async function recordAllTrades(
   }
 
   // Save to Trade table (ALL trades for platform metrics)
+  // Don't assign fightId if this is closing a pre-fight position
+  // Pre-fight closes should not count as fight activity for anti-cheat validation
+  const shouldAssignFightId = resolvedFightId && !autoDetectedPreFightFlip;
+
   try {
     const trade = await prisma.trade.create({
       data: {
@@ -399,7 +467,7 @@ async function recordAllTrades(
         fee,
         pnl,
         leverage: leverage || null,
-        fightId: resolvedFightId || null,
+        fightId: shouldAssignFightId ? resolvedFightId : null,
         executedAt: new Date(),
       },
     });
@@ -446,7 +514,7 @@ async function recordAllTrades(
 
   // Record to FightTrade if user is in a fight and not a pre-fight flip
   // Pass the execution details we already fetched to avoid duplicate API calls
-  if (!isPreFightFlip) {
+  if (!autoDetectedPreFightFlip) {
     await recordFightTradeWithDetails(
       accountAddress,
       symbol,
@@ -565,6 +633,10 @@ async function recordFightTradeWithDetails(
   const totalBought = fightBuysResult._sum.amount ? parseFloat(fightBuysResult._sum.amount.toString()) : 0;
   const totalSold = fightSellsResult._sum.amount ? parseFloat(fightSellsResult._sum.amount.toString()) : 0;
 
+  // TFC net position = totalBought - totalSold (BEFORE this trade)
+  // Positive = LONG opened via TFC, Negative = SHORT opened via TFC
+  const tfcNet = totalBought - totalSold;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // RULE 35 FIX (SIMPLIFIED): Only record fight-relevant trades
   //
@@ -578,7 +650,8 @@ async function recordFightTradeWithDetails(
   // ═══════════════════════════════════════════════════════════════════════════
 
   // Get current Pacifica position for this symbol (AFTER this trade executed)
-  let pacificaPositionAfter = 0;
+  let pacificaPositionAfter: number | null = null;
+  let pacificaFetchFailed = false;
   try {
     const { getPositions } = await import('@/lib/server/pacifica');
     const positions = await getPositions(accountAddress);
@@ -587,22 +660,32 @@ async function recordFightTradeWithDetails(
       const posAmount = parseFloat(pos.amount || '0');
       // Positive for LONG (bid), negative for SHORT (ask)
       pacificaPositionAfter = pos.side === 'ask' ? -posAmount : posAmount;
+    } else {
+      pacificaPositionAfter = 0; // No position found = flat
     }
     console.log('[RULE 35] Pacifica position after trade:', { symbol, pacificaPositionAfter });
   } catch (err) {
     console.error('[RULE 35] Failed to fetch Pacifica position:', err);
+    pacificaFetchFailed = true;
   }
 
   // Calculate position BEFORE this trade executed
   // For SELL: positionBefore = positionAfter + sellAmount
   // For BUY: positionBefore = positionAfter - buyAmount
-  const positionBefore = tradeSide === 'SELL'
-    ? pacificaPositionAfter + tradeAmount
-    : pacificaPositionAfter - tradeAmount;
+  let positionBefore: number;
 
-  // TFC net position = totalBought - totalSold
-  // Positive = LONG opened via TFC, Negative = SHORT opened via TFC
-  const tfcNet = totalBought - totalSold;
+  if (pacificaFetchFailed) {
+    // FALLBACK: When Pacifica API fails, assume all positions are from TFC
+    // This is conservative - it means we record the full trade as fight-relevant
+    // rather than incorrectly excluding it
+    console.warn('[RULE 35] Using TFC net as fallback for position calculation');
+    // Use TFC net as the position before this trade
+    positionBefore = tfcNet;
+  } else {
+    positionBefore = tradeSide === 'SELL'
+      ? pacificaPositionAfter! + tradeAmount
+      : pacificaPositionAfter! - tradeAmount;
+  }
 
   console.log('[RULE 35] Position analysis:', {
     symbol,
@@ -805,7 +888,13 @@ async function recordFightTradeWithDetails(
   // Update maxExposureUsed and emit stake info update via websocket
   try {
     // Calculate current exposure from ALL fight trades (now includes this new trade)
-    const currentExposure = await calculateFightExposure(fight.id, connection.userId);
+    const exposureResult = await calculateFightExposure(fight.id, connection.userId);
+    const { currentExposure, cumulativeOpeningNotional, positionsBySymbol } = exposureResult;
+
+    console.log(`[MaxExposure] Calculated exposure for fight ${fight.id}, user ${connection.userId}:`);
+    console.log(`[MaxExposure]   currentExposure: ${currentExposure}`);
+    console.log(`[MaxExposure]   cumulativeOpeningNotional: ${cumulativeOpeningNotional}`);
+    console.log(`[MaxExposure]   positionsBySymbol:`, JSON.stringify(positionsBySymbol));
 
     // Get updated participant data
     const participant = await prisma.fightParticipant.findFirst({
@@ -819,26 +908,41 @@ async function recordFightTradeWithDetails(
     });
 
     if (participant) {
-      let maxExposureUsed = parseFloat(participant.maxExposureUsed?.toString() || '0');
+      const prevMaxExposure = parseFloat(participant.maxExposureUsed?.toString() || '0');
 
-      // Update maxExposureUsed if current exposure is higher (water mark)
-      if (currentExposure > maxExposureUsed) {
-        await prisma.fightParticipant.update({
-          where: { id: participant.id },
-          data: { maxExposureUsed: currentExposure },
-        });
-        console.log(`[MaxExposure] Updated: ${maxExposureUsed.toFixed(2)} -> ${currentExposure.toFixed(2)} USDC`);
-        maxExposureUsed = currentExposure;
+      console.log(`[MaxExposure] Participant ${participant.id}: prevMax=${prevMaxExposure}, cumulative=${cumulativeOpeningNotional}`);
+
+      // Update maxExposureUsed with cumulative opening notional (total capital ever committed)
+      // This is NOT the current open exposure, but the SUM of all capital used for OPENING positions
+      // Example: Open $50 BTC, close it, open $30 ETH → maxExposureUsed = $80 (not $30)
+      await updateMaxExposureIfHigher(participant.id, cumulativeOpeningNotional);
+
+      // Verify the update worked by re-reading
+      const updatedParticipant = await prisma.fightParticipant.findUnique({
+        where: { id: participant.id },
+        select: { maxExposureUsed: true },
+      });
+      console.log(`[MaxExposure] After update: maxExposureUsed = ${updatedParticipant?.maxExposureUsed}`);
+
+      // Get the effective max exposure (cumulative, not just current open positions)
+      const effectiveMaxExposure = Math.max(prevMaxExposure, cumulativeOpeningNotional);
+
+      if (cumulativeOpeningNotional > prevMaxExposure) {
+        console.log(`[MaxExposure] Updated: ${prevMaxExposure.toFixed(2)} -> ${cumulativeOpeningNotional.toFixed(2)} USDC (cumulative)`);
       }
 
       // Emit real-time stake info update
+      // currentExposure = open positions value (for display)
+      // effectiveMaxExposure = cumulative capital used (for stake limit calculation)
       await emitStakeInfo(
         fight.id,
         connection.userId,
         participant.fight.stakeUsdc,
         currentExposure,
-        maxExposureUsed
+        effectiveMaxExposure
       );
+    } else {
+      console.error(`[MaxExposure] No participant found for fight ${fight.id}, user ${connection.userId}`);
     }
   } catch (err) {
     console.error('Failed to update maxExposure/emit stake info:', err);
@@ -854,7 +958,7 @@ export async function DELETE(request: Request) {
     const timestamp = searchParams.get('timestamp');
 
     if (!account || !signature || !timestamp) {
-      throw new BadRequestError('account, signature, and timestamp are required');
+      throw new BadRequestError('account, signature, and timestamp are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
     }
 
     const requestBody: Record<string, any> = {
@@ -895,7 +999,14 @@ export async function DELETE(request: Request) {
     if (!response.ok || !result.success) {
       const errorMessage = result.error || `Pacifica API error: ${response.status}`;
       console.error('Pacifica cancel error:', errorMessage);
-      throw new BadRequestError(errorMessage);
+      // Determine appropriate error class based on status code
+      if (response.status === 504) {
+        throw new GatewayTimeoutError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else if (response.status >= 500) {
+        throw new ServiceUnavailableError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      } else {
+        throw new BadRequestError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      }
     }
 
     console.log('All orders cancelled', {

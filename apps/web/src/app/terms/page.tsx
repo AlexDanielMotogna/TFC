@@ -38,7 +38,7 @@ export default function TermsPage() {
               1.1 Trade Fight Club is a <strong>competitive gaming platform</strong> that allows users to compete in 1v1
               trading battles ("Fights") with real-time leaderboards and prizes.
             </p>
-            <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-6 mb-4">
+            <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6 mb-4">
               <p className="font-semibold text-primary mb-2">1.2 Important: TFC is a user interface layer. We do NOT:</p>
               <ul className="list-disc pl-6 space-y-1 text-surface-300">
                 <li>Hold, custody, or control your trading funds</li>
@@ -102,7 +102,7 @@ export default function TermsPage() {
               <li>Referral program and reward payments</li>
               <li>On-chain prize payouts via Solana</li>
             </ul>
-            <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-6 mb-4">
+            <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6 mb-4">
               <p className="font-semibold mb-2">3.2 Payment Processing:</p>
               <ul className="list-disc pl-6 space-y-1 text-surface-300">
                 <li>Entry fees, prizes, and referral rewards are automated wallet-to-wallet transfers on Solana</li>
@@ -117,24 +117,24 @@ export default function TermsPage() {
             <h2 className="text-2xl font-bold text-white mb-4">4. THIRD-PARTY SERVICES</h2>
             <p className="mb-4">4.1 TFC integrates with the following third-party services:</p>
             <div className="space-y-4 mb-4">
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <p className="font-semibold text-primary mb-2">Pacifica - All trading execution, margin, liquidation, and fund custody</p>
                 <ul className="list-disc pl-6 space-y-1 text-surface-300 text-sm">
                   <li>You must comply with <a href="https://app.pacifica.fi/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Pacifica's Terms</a></li>
                   <li>Pacifica is solely responsible for all trading operations</li>
                 </ul>
               </div>
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <p className="font-semibold text-primary mb-2">TradingView - Charting tools and market data widgets</p>
                 <ul className="list-disc pl-6 space-y-1 text-surface-300 text-sm">
                   <li>TradingView branding and links must not be removed</li>
                   <li>Commercial use requires separate licensing from TradingView</li>
                 </ul>
               </div>
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <p className="font-semibold text-primary mb-2">Solana Network - Blockchain infrastructure for wallet connections</p>
               </div>
-              <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-4">
+              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
                 <p className="font-semibold text-primary mb-2">Wallet Providers - Phantom, Solflare, and other Solana wallets</p>
               </div>
             </div>
@@ -262,7 +262,7 @@ export default function TermsPage() {
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-white mb-4">13. CONTACT</h2>
             <p className="mb-4">For questions about these Terms, contact:</p>
-            <div className="bg-surface-800/50 border border-surface-700 rounded-lg p-6">
+            <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6">
               <p className="mb-2"><strong>Company:</strong> Motogna Tech Studio</p>
               <p className="mb-2">
                 <strong>Email:</strong>{' '}

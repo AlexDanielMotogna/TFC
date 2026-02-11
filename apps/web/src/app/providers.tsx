@@ -1,10 +1,10 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useGlobalSocket } from '@/hooks/useGlobalSocket';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, cleanupOldReadNotifications } from '@/lib/queryClient';
 import { ReferralTracker } from '@/components/ReferralTracker';
 
 // Dynamically import wallet components to avoid SSR issues
@@ -17,6 +17,12 @@ const WalletProviderComponent = dynamic(
 function GlobalSocketInitializer({ children }: { children: ReactNode }) {
   // This hook establishes the persistent WebSocket connection
   useGlobalSocket();
+
+  // Cleanup old read notifications on mount
+  useEffect(() => {
+    cleanupOldReadNotifications();
+  }, []);
+
   return <>{children}</>;
 }
 

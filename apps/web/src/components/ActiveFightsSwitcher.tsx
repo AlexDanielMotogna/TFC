@@ -14,9 +14,9 @@ export function ActiveFightsSwitcher() {
   const { user } = useAuthStore();
   const { activeFights, activeFightsCount, isLoading } = useMyActiveFights();
 
-  // Don't show if no active fights or still loading
+  // Return hidden placeholder to avoid layout shifts
   if (isLoading || activeFightsCount === 0) {
-    return null;
+    return <div className="h-0 overflow-hidden" />;
   }
 
   // Calculate time remaining for a fight
@@ -46,11 +46,11 @@ export function ActiveFightsSwitcher() {
   if (currentFightId) {
     const otherFights = activeFights.filter((f) => f.id !== currentFightId);
     if (otherFights.length === 0) {
-      return null; // No other fights to switch to
+      return <div className="h-0 overflow-hidden" />; // No other fights to switch to
     }
 
     return (
-      <div className="w-full bg-surface-800/50 border-b border-surface-700">
+      <div className="w-full bg-surface-800/50 border-b border-surface-800">
         <div className="container mx-auto px-4 py-2">
           <div className="flex items-center justify-between">
             <span className="text-xs text-surface-400">

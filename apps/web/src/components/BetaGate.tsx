@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useBetaAccess } from '@/hooks';
 import { BetaAccessDenied } from './BetaAccessDenied';
+import { Spinner } from './Spinner';
 
 interface BetaGateProps {
   children: ReactNode;
@@ -21,26 +22,30 @@ interface BetaGateProps {
  * </BetaGate>
  */
 export function BetaGate({ children, showLoading = true }: BetaGateProps) {
-  const { connected } = useWallet();
-  const { hasAccess, status, isLoading } = useBetaAccess();
+  const { connected, publicKey } = useWallet();
+  const { hasAccess, status, isLoading, refetch } = useBetaAccess();
 
-  // Show loading while checking access (only if connected)
-  if (connected && isLoading && showLoading) {
+  // Wait for publicKey to be available before checking access
+  // This prevents showing denied page during wallet reconnection
+  const walletReady = connected && publicKey;
+
+  // Show loading while checking access (only if wallet is ready)
+  if (walletReady && isLoading && showLoading) {
     return (
       <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mx-auto mb-4" />
-          <p className="text-surface-400">Checking beta access...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Spinner size="md" />
+          <span className="text-sm text-surface-400">Checking beta access...</span>
         </div>
       </div>
     );
   }
 
-  // If connected and doesn't have access, show denied page
-  if (connected && !hasAccess) {
-    return <BetaAccessDenied status={status} />;
+  // If wallet is ready and doesn't have access, show denied page
+  if (walletReady && !hasAccess) {
+    return <BetaAccessDenied status={status} onRefresh={refetch} />;
   }
 
-  // Has access or not connected (wallet modal will handle connection)
+  // Has access, not connected, or wallet still initializing
   return <>{children}</>;
 }

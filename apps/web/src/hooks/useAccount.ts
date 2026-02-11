@@ -21,6 +21,7 @@ export interface AccountSummary {
   availableBalance: string;
   totalMarginUsed: string;
   availableToSpend: string;
+  availableToWithdraw: string;
   feeLevel?: number;
   crossMmr?: string;
   // Dynamic fees from Pacifica API (these change monthly)
@@ -49,11 +50,8 @@ export function useAccount(): UseAccountReturn {
 
   const account = useMemo(() => {
     if (!accountInfo) {
-      console.log('useAccount: accountInfo is null');
       return null;
     }
-
-    console.log('useAccount: Raw accountInfo from Pacifica:', accountInfo);
 
     // Pacifica API doesn't return unrealized_pnl directly
     // Calculate it: unrealized_pnl = account_equity - balance
@@ -61,24 +59,21 @@ export function useAccount(): UseAccountReturn {
     const accountEquity = parseFloat(accountInfo.account_equity || accountInfo.equity || '0');
     const unrealizedPnl = accountEquity - balance;
 
-    const mapped = {
+    return {
       balance: accountInfo.balance || '0',
       equity: accountInfo.account_equity || accountInfo.equity || '0',
-      accountEquity: accountInfo.account_equity || accountInfo.equity || '0', // Duplicate for compatibility
-      unrealizedPnl: unrealizedPnl.toString(), // Calculated: account_equity - balance
+      accountEquity: accountInfo.account_equity || accountInfo.equity || '0',
+      unrealizedPnl: unrealizedPnl.toString(),
       marginUsed: accountInfo.total_margin_used || accountInfo.margin_used || '0',
       availableBalance: accountInfo.available_to_spend || accountInfo.available_balance || '0',
       totalMarginUsed: accountInfo.total_margin_used || accountInfo.margin_used || '0',
       availableToSpend: accountInfo.available_to_spend || accountInfo.available_balance || '0',
+      availableToWithdraw: accountInfo.available_to_withdraw || '0',
       feeLevel: accountInfo.fee_level,
       crossMmr: accountInfo.cross_mmr,
-      // Dynamic fees from Pacifica API (change monthly, not hardcoded)
       makerFee: accountInfo.maker_fee,
       takerFee: accountInfo.taker_fee,
     };
-
-    console.log('useAccount: Mapped account data:', mapped);
-    return mapped;
   }, [accountInfo]);
 
   // Build a map of symbol -> leverage from account settings
@@ -96,12 +91,8 @@ export function useAccount(): UseAccountReturn {
 
   const positions: Position[] = useMemo(() => {
     if (!positionsData || positionsData.length === 0) {
-      console.log('useAccount: No positions data');
       return [];
     }
-
-    console.log('useAccount: Raw positions from Pacifica:', positionsData);
-    console.log('useAccount: Leverage map from settings:', leverageMap);
 
     // Transform Pacifica positions to our format
     // Pacifica /positions returns: symbol, side (bid/ask), amount, entry_price, margin, funding, isolated
@@ -138,13 +129,6 @@ export function useAccount(): UseAccountReturn {
   const openOrders: OpenOrder[] = useMemo(() => {
     if (!ordersData) return [];
 
-    console.log('useAccount: Raw orders from Pacifica:', ordersData);
-    // Debug: Log all field names from first order
-    if (ordersData.length > 0) {
-      console.log('useAccount: First order fields:', Object.keys(ordersData[0]));
-      console.log('useAccount: First order full data:', JSON.stringify(ordersData[0], null, 2));
-    }
-
     // Transform Pacifica orders to our format
     // Pacifica fields: order_id, symbol, side, price, initial_amount, filled_amount,
     // cancelled_amount, order_type (limit, take_profit_market, stop_loss_market),
@@ -180,18 +164,8 @@ export function useAccount(): UseAccountReturn {
 
         if (matchingPosition) {
           resolvedSize = matchingPosition.amount || '0';
-          console.log(`useAccount: TP/SL order ${order.order_id} - using position size:`, resolvedSize);
         }
       }
-
-      console.log(`useAccount: Order ${order.order_id} (${order.order_type}) data:`, {
-        initial_amount: order.initial_amount,
-        amount: order.amount,
-        size: order.size,
-        resolved_size: resolvedSize,
-        stop_price: order.stop_price,
-        price: order.price,
-      });
 
       return {
         id: order.order_id?.toString() || '',
@@ -199,7 +173,7 @@ export function useAccount(): UseAccountReturn {
         side: order.side === 'bid' ? 'LONG' : 'SHORT',
         type: typeDisplay,
         size: resolvedSize,
-        price: order.stop_price || order.price || '0', // Use stop_price for TP/SL orders
+        price: isTpSlOrder ? (order.stop_price || order.price || '0') : (order.price || '0'), // TP/SL: use stop_price as display price; stop-limit: keep limit price
         filled: order.filled_amount || '0',
         status: order.reduce_only ? 'REDUCE_ONLY' : 'OPEN',
         reduceOnly: order.reduce_only || false,

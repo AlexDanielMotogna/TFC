@@ -5,10 +5,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useAuthStore } from '@/lib/store';
+import { Shield } from 'lucide-react';
 
 export function LandingNavbar() {
   const { connected } = useWallet();
+  const { user } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-surface-800/50 bg-surface-900/80 backdrop-blur-xl">
@@ -42,6 +47,9 @@ export function LandingNavbar() {
             <a href="#markets" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
               Markets
             </a>
+            <a href="#referrals" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Referrals
+            </a>
             <a href="#faq" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
               FAQ
             </a>
@@ -49,10 +57,21 @@ export function LandingNavbar() {
 
           {/* Right Side Actions */}
           <div className="flex items-center gap-3">
+            {/* Admin Button (only for admins) */}
+            {connected && isAdmin && (
+              <Link
+                href="/admin"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-primary-400 bg-primary-500/10 hover:bg-primary-500/20 border border-primary-500/20 rounded-lg transition-colors"
+              >
+                <Shield size={16} />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
+
             {/* Wallet / Enter Arena */}
             {connected ? (
               <Link
-                href="/lobby"
+                href="/trade"
                 className="btn-glow-orange text-sm px-4 py-2"
               >
                 Enter Arena
@@ -83,6 +102,18 @@ export function LandingNavbar() {
         {mobileMenuOpen && (
           <div className="lg:hidden py-4 border-t border-surface-800">
             <div className="flex flex-col gap-2">
+              {/* Admin Link (only for admins) */}
+              {connected && isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-4 py-3 text-primary-400 bg-primary-500/10 border border-primary-500/20 hover:bg-primary-500/20 rounded-lg"
+                >
+                  <Shield size={18} />
+                  Admin Panel
+                </Link>
+              )}
+
               <a href="#home" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 Home
               </a>
@@ -97,6 +128,9 @@ export function LandingNavbar() {
               </a>
               <a href="#markets" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 Markets
+              </a>
+              <a href="#referrals" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                Referrals
               </a>
               <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 FAQ

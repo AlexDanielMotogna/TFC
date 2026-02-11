@@ -7,6 +7,8 @@
  */
 import { prisma, PrizeStatus } from '@tfc/db';
 import { NextResponse } from 'next/server';
+import { errorResponse, UnauthorizedError, BadRequestError, NotFoundError, ConflictError } from '@/lib/server/errors';
+import { ErrorCode } from '@/lib/server/error-codes';
 
 export async function POST(request: Request) {
   try {
@@ -15,17 +17,11 @@ export async function POST(request: Request) {
 
     // Simple admin secret check (replace with proper auth in production)
     if (adminSecret !== process.env.ADMIN_SECRET) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
+      throw new UnauthorizedError('Unauthorized', ErrorCode.ERR_AUTH_UNAUTHORIZED);
     }
 
     if (!prizePoolId) {
-      return NextResponse.json(
-        { success: false, error: 'prizePoolId is required' },
-        { status: 400 }
-      );
+      throw new BadRequestError('prizePoolId is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Get the prize pool
@@ -35,24 +31,15 @@ export async function POST(request: Request) {
     });
 
     if (!prizePool) {
-      return NextResponse.json(
-        { success: false, error: 'Prize pool not found' },
-        { status: 404 }
-      );
+      throw new NotFoundError('Prize pool not found', ErrorCode.ERR_PRIZE_NOT_FOUND);
     }
 
     if (!prizePool.isFinalized) {
-      return NextResponse.json(
-        { success: false, error: 'Prize pool is not finalized yet' },
-        { status: 400 }
-      );
+      throw new BadRequestError('Prize pool is not finalized yet', ErrorCode.ERR_PRIZE_NOT_FINALIZED);
     }
 
     if (prizePool.isDistributed) {
-      return NextResponse.json(
-        { success: false, error: 'Prize pool already distributed' },
-        { status: 400 }
-      );
+      throw new ConflictError('Prize pool already distributed', ErrorCode.ERR_PRIZE_ALREADY_DISTRIBUTED);
     }
 
     // Mark pool as distributed
@@ -90,9 +77,6 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('[Admin] Error distributing prize pool:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to mark as distributed' },
-      { status: 500 }
-    );
+    return errorResponse(error);
   }
 }

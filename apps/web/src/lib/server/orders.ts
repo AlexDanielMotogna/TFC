@@ -1,8 +1,22 @@
 /**
  * Order validation helpers for stake-based position limits
+ *
+ * @see MVP-SIMPLIFIED-RULES.md - Stake Limit section
  */
-import { prisma, FightStatus } from '@tfc/db';
 import { getPrices, MarketPrice } from './pacifica';
+import {
+  calculateFightExposure,
+  getActiveFightForUser,
+  getUserIdFromAccount,
+  calculateAvailableCapital,
+} from './fight-exposure';
+
+// Re-export commonly used functions for backward compatibility
+export {
+  calculateFightExposure,
+  getActiveFightForUser,
+  getUserIdFromAccount,
+} from './fight-exposure';
 
 /**
  * Get current market price for a symbol
@@ -16,149 +30,6 @@ export async function getCurrentPrice(symbol: string): Promise<number> {
   }
 
   return parseFloat(price.mark);
-}
-
-/**
- * Calculate current position exposure for a specific fight from FightTrade records
- * This ensures each fight has independent exposure tracking
- *
- * @param fightId - The specific fight to calculate exposure for
- * @param userId - The user's ID
- * @returns Current open position notional value for this fight only
- */
-export async function calculateFightExposure(
-  fightId: string,
-  userId: string
-): Promise<number> {
-  const fightTrades = await prisma.fightTrade.findMany({
-    where: {
-      fightId,
-      participantUserId: userId,
-    },
-  });
-
-  // Calculate net position per symbol from fight trades
-  const positionsBySymbol: Record<string, { amount: number; totalNotional: number }> = {};
-
-  for (const trade of fightTrades) {
-    const symbol = trade.symbol;
-    const amount = parseFloat(trade.amount.toString());
-    const price = parseFloat(trade.price.toString());
-
-    if (!positionsBySymbol[symbol]) {
-      positionsBySymbol[symbol] = { amount: 0, totalNotional: 0 };
-    }
-
-    const pos = positionsBySymbol[symbol];
-
-    if (trade.side === 'BUY') {
-      // Opening/adding to LONG, or closing SHORT
-      if (pos.amount < 0) {
-        // Closing SHORT position
-        const shortToClose = Math.min(amount, Math.abs(pos.amount));
-        const longToOpen = amount - shortToClose;
-        // Reduce short notional proportionally
-        if (Math.abs(pos.amount) > 0) {
-          const avgShortEntry = pos.totalNotional / Math.abs(pos.amount);
-          pos.totalNotional -= shortToClose * avgShortEntry;
-        }
-        // Add new long notional if opening long
-        if (longToOpen > 0) {
-          pos.totalNotional += longToOpen * price;
-        }
-      } else {
-        // Opening/adding to LONG
-        pos.totalNotional += amount * price;
-      }
-      pos.amount += amount;
-    } else {
-      // SELL: Opening/adding to SHORT, or closing LONG
-      if (pos.amount > 0) {
-        // Closing LONG position
-        const longToClose = Math.min(amount, pos.amount);
-        const shortToOpen = amount - longToClose;
-        // Reduce long notional proportionally
-        if (pos.amount > 0) {
-          const avgLongEntry = pos.totalNotional / pos.amount;
-          pos.totalNotional -= longToClose * avgLongEntry;
-        }
-        // Add new short notional if opening short
-        if (shortToOpen > 0) {
-          pos.totalNotional += shortToOpen * price;
-        }
-      } else {
-        // Opening/adding to SHORT
-        pos.totalNotional += amount * price;
-      }
-      pos.amount -= amount;
-    }
-  }
-
-  // Current exposure = sum of absolute notional values of open positions from THIS fight
-  return Object.values(positionsBySymbol).reduce((sum, pos) => {
-    // Only count if there's still an open position
-    if (Math.abs(pos.amount) < 0.0000001) {
-      return sum;
-    }
-    return sum + Math.abs(pos.totalNotional);
-  }, 0);
-}
-
-/**
- * Get active LIVE fight for a user (if any)
- * @param fightId - Optional specific fight ID to look for. If provided, only returns if user is in that specific fight.
- */
-export async function getActiveFightForUser(userId: string, fightId?: string): Promise<{
-  fightId: string;
-  participantId: string;
-  stakeUsdc: number;
-  maxExposureUsed: number;
-} | null> {
-  // Build where clause - if fightId provided, look for that specific fight
-  const whereClause = fightId
-    ? {
-        userId,
-        fightId,
-        fight: { status: FightStatus.LIVE },
-      }
-    : {
-        userId,
-        fight: { status: FightStatus.LIVE },
-      };
-
-  const participant = await prisma.fightParticipant.findFirst({
-    where: whereClause,
-    include: {
-      fight: {
-        select: {
-          id: true,
-          stakeUsdc: true,
-        },
-      },
-    },
-  });
-
-  if (!participant) {
-    return null;
-  }
-
-  return {
-    fightId: participant.fight.id,
-    participantId: participant.id,
-    stakeUsdc: participant.fight.stakeUsdc,
-    maxExposureUsed: parseFloat(participant.maxExposureUsed?.toString() || '0'),
-  };
-}
-
-/**
- * Get user ID from Pacifica account address
- */
-export async function getUserIdFromAccount(accountAddress: string): Promise<string | null> {
-  const connection = await prisma.pacificaConnection.findUnique({
-    where: { accountAddress },
-  });
-
-  return connection?.userId || null;
 }
 
 /**
@@ -209,7 +80,7 @@ export async function validateStakeLimit(
   const { maxExposureUsed } = activeFight;
 
   // Calculate current position exposure from FightTrade records for THIS specific fight
-  const currentExposure = await calculateFightExposure(
+  const { currentExposure } = await calculateFightExposure(
     activeFight.fightId,
     userId
   );
@@ -228,31 +99,36 @@ export async function validateStakeLimit(
   // Calculate new exposure after this order
   const newExposure = currentExposure + orderNotional;
 
-  // Calculate available capital: stake minus what's already been used (maxExposureUsed)
-  // BUT we can "reuse" capital that's currently in open positions (currentExposure)
-  // because that capital is already counted in maxExposureUsed
-  //
-  // Example with $100 stake:
-  // 1. Open $80 position → maxExposure=$80, current=$80, available=$20
-  // 2. Close position → maxExposure=$80, current=$0, available=$20 (NOT $100!)
-  // 3. Open $20 position → maxExposure=$100, current=$20, available=$0
-  //
-  // The formula: available = stake - maxExposureUsed + currentExposure
-  // Because currentExposure is "capital already allocated" that can be reused
-  const availableCapital = stake - maxExposureUsed + currentExposure;
+  // Calculate available capital using centralized formula
+  const availableCapital = calculateAvailableCapital(
+    stake,
+    maxExposureUsed,
+    currentExposure
+  );
 
   // Check if order exceeds available capital
   if (orderNotional > availableCapital) {
     const available = Math.max(0, availableCapital);
     const error = new Error(
       `Stake limit exceeded. ` +
-      `Fight stake: ${stake.toFixed(2)} USDC. ` +
-      `Max capital used: ${maxExposureUsed.toFixed(2)} USDC. ` +
-      `Available: ${available.toFixed(2)} USDC. ` +
-      `Order size: ${orderNotional.toFixed(2)} USDC.`
+        `Fight stake: ${stake.toFixed(2)} USDC. ` +
+        `Max capital used: ${maxExposureUsed.toFixed(2)} USDC. ` +
+        `Available: ${available.toFixed(2)} USDC. ` +
+        `Order size: ${orderNotional.toFixed(2)} USDC.`
     );
-    (error as any).code = 'STAKE_LIMIT_EXCEEDED';
-    (error as any).details = {
+    (error as unknown as { code: string }).code = 'STAKE_LIMIT_EXCEEDED';
+    (
+      error as unknown as {
+        details: {
+          stake: number;
+          maxExposureUsed: number;
+          currentExposure: number;
+          orderNotional: number;
+          newExposure: number;
+          available: number;
+        };
+      }
+    ).details = {
       stake,
       maxExposureUsed,
       currentExposure,
@@ -272,6 +148,3 @@ export async function validateStakeLimit(
     participantId: activeFight.participantId,
   };
 }
-
-// Note: maxExposureUsed is now updated inside recordFightTradeWithDetails in route.ts
-// after the FightTrade is recorded. This ensures accurate calculation from actual trade data.

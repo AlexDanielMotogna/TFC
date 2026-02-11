@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrices } from '@/hooks/usePrices';
+import { Portal } from './Portal';
+import { Spinner } from './Spinner';
 import type { Position } from './Positions';
 
 // Lot sizes per symbol (from Pacifica)
@@ -32,6 +34,10 @@ const LOT_SIZES: Record<string, number> = {
   PAXG: 0.0001,
   ENA: 0.1,
   KPEPE: 1,
+  // Forex pairs
+  USDJPY: 0.001,
+  EURUSD: 0.001,
+  GBPUSD: 0.001,
 };
 
 interface LimitCloseModalProps {
@@ -136,13 +142,14 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-    >
-      <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-700">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-surface-700">
+    <Portal>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        onClick={handleBackdropClick}
+      >
+        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800">
+          {/* Header */}
+        <div className="flex items-center justify-between p-4 border-surface-800">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-white">Limit Close</h2>
             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
@@ -187,7 +194,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 type="text"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                 placeholder="0.00"
               />
               <button
@@ -209,7 +216,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 onBlur={handleAmountBlur}
-                className="flex-1 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
                 placeholder="0.00"
               />
               <span className="text-surface-400">{tokenSymbol}</span>
@@ -217,7 +224,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 type="text"
                 value={amount ? (parseFloat(amount) * (parseFloat(price) || position.markPrice)).toFixed(2) : ''}
                 readOnly
-                className="w-24 bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
+                className="w-24 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
                 placeholder="0.00"
               />
               <span className="text-surface-400">USD</span>
@@ -268,7 +275,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-surface-700">
+        <div className="p-4 border-t border-surface-800">
           <button
             onClick={handleConfirm}
             disabled={isSubmitting || !price || !amount || parseFloat(amount) <= 0}
@@ -276,7 +283,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <Spinner size="xs" variant="white" />
                 Submitting...
               </span>
             ) : (
@@ -286,5 +293,6 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
