@@ -243,39 +243,80 @@ export async function authenticateWallet(
     let pacificaConnected = user.pacificaConnection?.isActive === true;
 
     // If not connected, try to auto-link using the wallet address
+    // Includes retry logic for transient errors (timeout, rate limit, etc.)
     if (!pacificaConnected) {
-      try {
-        const accountInfo = await Pacifica.getAccount(walletAddress);
-        // Pacifica returns an object with balance if account exists
-        if (accountInfo && accountInfo.balance !== undefined) {
-          // Account exists on Pacifica, link it
-          await prisma.pacificaConnection.upsert({
-            where: { userId: user.id },
-            create: {
+      const MAX_RETRIES = 2;
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const accountInfo = await Pacifica.getAccount(walletAddress);
+          // Pacifica returns an object with balance if account exists
+          if (accountInfo && accountInfo.balance !== undefined) {
+            // Account exists on Pacifica, link it
+            await prisma.pacificaConnection.upsert({
+              where: { userId: user.id },
+              create: {
+                userId: user.id,
+                accountAddress: walletAddress,
+                vaultKeyReference: 'read-only',
+                builderCodeApproved: false,
+                isActive: true,
+              },
+              update: {
+                accountAddress: walletAddress,
+                isActive: true,
+              },
+            });
+            pacificaConnected = true;
+            console.log('Pacifica auto-linked on wallet connect', {
               userId: user.id,
-              accountAddress: walletAddress,
-              vaultKeyReference: 'read-only',
-              builderCodeApproved: false,
-              isActive: true,
-            },
-            update: {
-              accountAddress: walletAddress,
-              isActive: true,
-            },
-          });
-          pacificaConnected = true;
-          console.log('Pacifica auto-linked on wallet connect', {
+              walletAddress: walletAddress.slice(0, 8) + '...',
+              balance: accountInfo.balance,
+            });
+            break; // Success - exit retry loop
+          }
+        } catch (pacificaError: any) {
+          const isLastAttempt = attempt === MAX_RETRIES;
+          const errorMessage = pacificaError?.message || 'Unknown error';
+          const statusCode = pacificaError?.statusCode;
+
+          // Log the actual error for debugging
+          console.error('Pacifica account check failed', {
             userId: user.id,
             walletAddress: walletAddress.slice(0, 8) + '...',
-            balance: accountInfo.balance,
+            attempt: attempt + 1,
+            maxRetries: MAX_RETRIES + 1,
+            error: errorMessage,
+            statusCode,
           });
+
+          // Don't retry for definitive errors
+          const isNotFoundError = statusCode === 404 ||
+            errorMessage.toLowerCase().includes('not found');
+          const isBetaAccessError = errorMessage.toLowerCase().includes('beta access') ||
+            errorMessage.toLowerCase().includes('beta code');
+
+          if (isNotFoundError || isBetaAccessError) {
+            // Log specific reason for debugging
+            console.log('Pacifica account check failed (no retry)', {
+              userId: user.id,
+              walletAddress: walletAddress.slice(0, 8) + '...',
+              reason: isNotFoundError ? 'account_not_found' : 'beta_access_required',
+            });
+            break; // Don't retry - account genuinely doesn't exist or needs beta
+          }
+
+          // Retry with exponential backoff for transient errors
+          if (!isLastAttempt) {
+            const delay = 500 * (attempt + 1); // 500ms, 1000ms
+            console.log('Retrying Pacifica account check', {
+              userId: user.id,
+              nextAttempt: attempt + 2,
+              delayMs: delay,
+            });
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
         }
-      } catch (pacificaError) {
-        // Pacifica account doesn't exist or error - user needs to deposit first
-        console.log('No Pacifica account found for wallet', {
-          userId: user.id,
-          walletAddress: walletAddress.slice(0, 8) + '...',
-        });
       }
     }
 

@@ -25,6 +25,11 @@ export const LOG_EVENTS = {
   PACIFICA_WS_DISCONNECT: 'pacifica.ws.disconnect',
   PACIFICA_API_RATE_LIMITED: 'pacifica.api.rate_limited',
   PACIFICA_FILL_RECEIVED: 'pacifica.fill.received',
+  PACIFICA_ACCOUNT_CHECK_SUCCESS: 'pacifica.account.check.success',
+  PACIFICA_ACCOUNT_CHECK_NOT_FOUND: 'pacifica.account.check.not_found',
+  PACIFICA_ACCOUNT_CHECK_BETA_REQUIRED: 'pacifica.account.check.beta_required',
+  PACIFICA_ACCOUNT_CHECK_RETRY: 'pacifica.account.check.retry',
+  PACIFICA_ACCOUNT_CHECK_FAILURE: 'pacifica.account.check.failure',
 
   // ─────────────────────────────────────────────────────────────
   // Fights
