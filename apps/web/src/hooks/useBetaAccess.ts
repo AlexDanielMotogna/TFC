@@ -22,7 +22,8 @@ interface CachedBetaAccess {
 }
 
 // Get cached state from sessionStorage
-function getCachedState(walletAddress: string): Omit<BetaAccessState, 'isLoading'> | null {
+// Returns { state, isFresh } - state even if expired (for silent re-fetch)
+function getCachedState(walletAddress: string): { state: Omit<BetaAccessState, 'isLoading'>; isFresh: boolean } | null {
   if (typeof window === 'undefined') return null;
   try {
     const cached = sessionStorage.getItem(BETA_CACHE_KEY);
@@ -30,9 +31,10 @@ function getCachedState(walletAddress: string): Omit<BetaAccessState, 'isLoading
 
     const data: CachedBetaAccess = JSON.parse(cached);
 
-    // Check if cache is for the same wallet and not expired
-    if (data.walletAddress === walletAddress && Date.now() - data.timestamp < CACHE_TTL_MS) {
-      return data.state;
+    // Check if cache is for the same wallet
+    if (data.walletAddress === walletAddress) {
+      const isFresh = Date.now() - data.timestamp < CACHE_TTL_MS;
+      return { state: data.state, isFresh };
     }
     return null;
   } catch {
@@ -55,16 +57,27 @@ function setCachedState(walletAddress: string, state: Omit<BetaAccessState, 'isL
   }
 }
 
+// Clear cached state from sessionStorage
+function clearCachedState() {
+  if (typeof window === 'undefined') return;
+  try {
+    sessionStorage.removeItem(BETA_CACHE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export function useBetaAccess() {
   const { publicKey, connected } = useWallet();
   const walletAddress = publicKey?.toBase58() || null;
 
   // Try to get cached state immediately to avoid loading flicker
-  const cachedState = walletAddress ? getCachedState(walletAddress) : null;
+  const cachedData = walletAddress ? getCachedState(walletAddress) : null;
 
   const [state, setState] = useState<BetaAccessState>(() => {
-    if (cachedState) {
-      return { ...cachedState, isLoading: false };
+    if (cachedData) {
+      // Use cached state, no loading even if stale (will re-fetch silently)
+      return { ...cachedData.state, isLoading: false };
     }
     return {
       hasAccess: false,
@@ -76,9 +89,12 @@ export function useBetaAccess() {
   });
   const [isApplying, setIsApplying] = useState(false);
   const lastCheckedWallet = useRef<string | null>(null);
+  const hasVerifiedOnce = useRef(false);
 
-  // Check beta access (force = true bypasses cache)
-  const checkAccess = useCallback(async (force = false) => {
+  // Check beta access
+  // force = true bypasses cache
+  // silent = true doesn't show global loading (for manual refresh button)
+  const checkAccess = useCallback(async (force = false, silent = false) => {
     if (!walletAddress) {
       setState({
         hasAccess: false,
@@ -87,6 +103,7 @@ export function useBetaAccess() {
         appliedAt: null,
         isLoading: false,
       });
+      hasVerifiedOnce.current = false;
       return;
     }
 
@@ -94,24 +111,39 @@ export function useBetaAccess() {
     if (!force) {
       const cached = getCachedState(walletAddress);
       if (cached) {
-        // Don't use cache for pending status - always check fresh
+        // For pending status, always do a fresh check on page navigation
         // This ensures users see their approval immediately
-        if (cached.status === 'pending') {
+        if (cached.state.status === 'pending') {
           // But skip if we just checked this wallet (prevent spam on same session)
           if (lastCheckedWallet.current === walletAddress) {
-            setState({ ...cached, isLoading: false });
+            setState({ ...cached.state, isLoading: false });
             return;
           }
+          // Continue to fetch fresh data for pending users
+          silent = true;
         } else {
-          // For approved/rejected, use cache normally
-          setState({ ...cached, isLoading: false });
+          // For approved/rejected, use cached state immediately
+          setState({ ...cached.state, isLoading: false });
           lastCheckedWallet.current = walletAddress;
-          return;
+
+          // If cache is fresh, we're done
+          if (cached.isFresh) {
+            hasVerifiedOnce.current = true;
+            return;
+          }
+
+          // Cache expired - re-fetch silently in background
+          silent = true;
         }
       }
     }
 
-    setState(prev => ({ ...prev, isLoading: true }));
+    // Only show global loading if not silent AND we haven't verified once already
+    // This ensures first check shows loading, but re-verifications are silent
+    const shouldShowLoading = !silent && !hasVerifiedOnce.current;
+    if (shouldShowLoading) {
+      setState(prev => ({ ...prev, isLoading: true }));
+    }
 
     try {
       const res = await fetch(`/api/beta/check?wallet=${walletAddress}`);
@@ -126,10 +158,12 @@ export function useBetaAccess() {
         };
         setState({ ...newState, isLoading: false });
         setCachedState(walletAddress, newState);
+
         // Don't set lastCheckedWallet for pending status
         // This allows fresh check on next page navigation
         if (data.status !== 'pending') {
           lastCheckedWallet.current = walletAddress;
+          hasVerifiedOnce.current = true;
         }
       } else {
         setState(prev => ({ ...prev, isLoading: false }));
@@ -174,11 +208,35 @@ export function useBetaAccess() {
     }
   }, [walletAddress, isApplying]);
 
-  // Check access on wallet connect
+  // Detect wallet change while still connected (common on mobile dApp browsers)
+  // When wallet changes without disconnecting, clear stale cache and force re-check
+  const prevWalletRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (connected && walletAddress) {
-      checkAccess();
+      if (prevWalletRef.current && prevWalletRef.current !== walletAddress) {
+        // Wallet changed while connected — clear everything and force fresh check
+        clearCachedState();
+        lastCheckedWallet.current = null;
+        hasVerifiedOnce.current = false;
+        setState({
+          hasAccess: false,
+          status: null,
+          applied: false,
+          appliedAt: null,
+          isLoading: true,
+        });
+        checkAccess(true);
+      } else {
+        checkAccess();
+      }
+      prevWalletRef.current = walletAddress;
     } else {
+      // Clear cache and reset state when disconnected
+      clearCachedState();
+      lastCheckedWallet.current = null;
+      hasVerifiedOnce.current = false;
+      prevWalletRef.current = null;
       setState({
         hasAccess: false,
         status: null,
@@ -193,6 +251,6 @@ export function useBetaAccess() {
     ...state,
     isApplying,
     applyForBeta,
-    refetch: () => checkAccess(true), // Force fresh check, bypassing cache
+    refetch: () => checkAccess(true, true), // Force fresh check, silent (no global loading)
   };
 }
