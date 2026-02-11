@@ -259,85 +259,106 @@ export async function authenticateWallet(
       }
     }
 
-    // Check if Pacifica is already connected
-    let pacificaConnected = user.pacificaConnection?.isActive === true;
+    // Track Pacifica connection status and failure reason
+    let pacificaConnected = false;
+    let pacificaFailReason: 'not_found' | 'beta_required' | null = null;
 
-    // If not connected, try to auto-link using the wallet address
-    // Includes retry logic for transient errors (timeout, rate limit, etc.)
-    if (!pacificaConnected) {
-      const MAX_RETRIES = 2;
+    // ALWAYS verify with Pacifica API on every login to ensure DB is in sync
+    // This handles cases where users created Pacifica accounts after first login
+    const MAX_RETRIES = 2;
 
-      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        try {
-          const accountInfo = await Pacifica.getAccount(walletAddress);
-          // Pacifica returns an object with balance if account exists
-          if (accountInfo && accountInfo.balance !== undefined) {
-            // Account exists on Pacifica, link it
-            await prisma.pacificaConnection.upsert({
-              where: { userId: user.id },
-              create: {
-                userId: user.id,
-                accountAddress: walletAddress,
-                vaultKeyReference: 'read-only',
-                builderCodeApproved: false,
-                isActive: true,
-              },
-              update: {
-                accountAddress: walletAddress,
-                isActive: true,
-              },
-            });
-            pacificaConnected = true;
-            console.log('Pacifica auto-linked on wallet connect', {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const accountInfo = await Pacifica.getAccount(walletAddress);
+        // Pacifica returns an object with balance if account exists
+        if (accountInfo && accountInfo.balance !== undefined) {
+          // Account exists on Pacifica, link/update it in DB
+          await prisma.pacificaConnection.upsert({
+            where: { userId: user.id },
+            create: {
               userId: user.id,
-              walletAddress: walletAddress.slice(0, 8) + '...',
-              balance: accountInfo.balance,
-            });
-            break; // Success - exit retry loop
-          }
-        } catch (pacificaError: any) {
-          const isLastAttempt = attempt === MAX_RETRIES;
-          const errorMessage = pacificaError?.message || 'Unknown error';
-          const statusCode = pacificaError?.statusCode;
-
-          // Log the actual error for debugging
-          console.error('Pacifica account check failed', {
+              accountAddress: walletAddress,
+              vaultKeyReference: 'read-only',
+              builderCodeApproved: false,
+              isActive: true,
+            },
+            update: {
+              accountAddress: walletAddress,
+              isActive: true,
+            },
+          });
+          pacificaConnected = true;
+          console.log('Pacifica auto-linked on wallet connect', {
             userId: user.id,
             walletAddress: walletAddress.slice(0, 8) + '...',
-            attempt: attempt + 1,
-            maxRetries: MAX_RETRIES + 1,
-            error: errorMessage,
-            statusCode,
+            balance: accountInfo.balance,
           });
+          break; // Success - exit retry loop
+        }
+      } catch (pacificaError: any) {
+        const isLastAttempt = attempt === MAX_RETRIES;
+        const errorMessage = pacificaError?.message || 'Unknown error';
+        const statusCode = pacificaError?.statusCode;
 
-          // Don't retry for definitive errors
-          const isNotFoundError = statusCode === 404 ||
-            errorMessage.toLowerCase().includes('not found');
-          const isBetaAccessError = errorMessage.toLowerCase().includes('beta access') ||
-            errorMessage.toLowerCase().includes('beta code');
+        // Log the actual error for debugging
+        console.error('Pacifica account check failed', {
+          userId: user.id,
+          walletAddress: walletAddress.slice(0, 8) + '...',
+          attempt: attempt + 1,
+          maxRetries: MAX_RETRIES + 1,
+          error: errorMessage,
+          statusCode,
+        });
 
-          if (isNotFoundError || isBetaAccessError) {
-            // Log specific reason for debugging
-            console.log('Pacifica account check failed (no retry)', {
+        // Don't retry for definitive errors
+        const isNotFoundError = statusCode === 404 ||
+          errorMessage.toLowerCase().includes('not found');
+        const isBetaAccessError = errorMessage.toLowerCase().includes('beta access') ||
+          errorMessage.toLowerCase().includes('beta code');
+
+        if (isNotFoundError || isBetaAccessError) {
+          // Set the failure reason for UI messaging
+          pacificaFailReason = isNotFoundError ? 'not_found' : 'beta_required';
+          // Log specific reason for debugging
+          console.log('Pacifica account check failed (no retry)', {
+            userId: user.id,
+            walletAddress: walletAddress.slice(0, 8) + '...',
+            reason: pacificaFailReason,
+          });
+          // Update DB to mark as inactive (in case it was previously active)
+          await prisma.pacificaConnection.upsert({
+            where: { userId: user.id },
+            create: {
               userId: user.id,
-              walletAddress: walletAddress.slice(0, 8) + '...',
-              reason: isNotFoundError ? 'account_not_found' : 'beta_access_required',
-            });
-            break; // Don't retry - account genuinely doesn't exist or needs beta
-          }
+              accountAddress: walletAddress,
+              vaultKeyReference: 'read-only',
+              builderCodeApproved: false,
+              isActive: false,
+            },
+            update: {
+              isActive: false,
+            },
+          });
+          break; // Don't retry - account genuinely doesn't exist or needs beta
+        }
 
-          // Retry with exponential backoff for transient errors
-          if (!isLastAttempt) {
-            const delay = 500 * (attempt + 1); // 500ms, 1000ms
-            console.log('Retrying Pacifica account check', {
-              userId: user.id,
-              nextAttempt: attempt + 2,
-              delayMs: delay,
-            });
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
+        // Retry with exponential backoff for transient errors
+        if (!isLastAttempt) {
+          const delay = 500 * (attempt + 1); // 500ms, 1000ms
+          console.log('Retrying Pacifica account check', {
+            userId: user.id,
+            nextAttempt: attempt + 2,
+            delayMs: delay,
+          });
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
+    }
+
+    // If Pacifica check succeeded but no account found (no error thrown)
+    // This can happen if getAccount returns null/undefined instead of throwing
+    if (!pacificaConnected && !pacificaFailReason) {
+      pacificaFailReason = 'not_found';
     }
 
     // Check if wallet is an admin wallet
@@ -380,6 +401,7 @@ export async function authenticateWallet(
         role: user.role || 'USER',
       },
       pacificaConnected,
+      pacificaFailReason,
     };
   } catch (error) {
     console.error('Wallet authentication failed', error, {

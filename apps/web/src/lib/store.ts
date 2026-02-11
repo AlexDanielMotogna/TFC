@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { PacificaFailReason } from './api';
 
 export interface User {
   id: string;
@@ -15,9 +16,10 @@ interface AuthState {
   isAuthenticated: boolean;
   isAdmin: boolean;
   pacificaConnected: boolean;
+  pacificaFailReason: PacificaFailReason;
   _hasHydrated: boolean;
 
-  setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string) => void;
+  setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string, pacificaFailReason?: PacificaFailReason) => void;
   setPacificaConnected: (connected: boolean) => void;
   clearAuth: () => void;
   setHasHydrated: (state: boolean) => void;
@@ -32,9 +34,10 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isAdmin: false,
       pacificaConnected: false,
+      pacificaFailReason: null,
       _hasHydrated: false,
 
-      setAuth: (token, user, pacificaConnected, walletAddress) =>
+      setAuth: (token, user, pacificaConnected, walletAddress, pacificaFailReason = null) =>
         set({
           token,
           user,
@@ -42,10 +45,11 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
           isAdmin: user.role === 'ADMIN',
           pacificaConnected,
+          pacificaFailReason,
         }),
 
       setPacificaConnected: (connected) =>
-        set({ pacificaConnected: connected }),
+        set({ pacificaConnected: connected, pacificaFailReason: connected ? null : undefined }),
 
       clearAuth: () =>
         set({
@@ -55,6 +59,7 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           isAdmin: false,
           pacificaConnected: false,
+          pacificaFailReason: null,
         }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -68,6 +73,7 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         isAdmin: state.isAdmin,
         pacificaConnected: state.pacificaConnected,
+        pacificaFailReason: state.pacificaFailReason,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
