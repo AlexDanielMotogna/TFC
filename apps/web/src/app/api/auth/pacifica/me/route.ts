@@ -11,9 +11,9 @@ import { withAuth } from '@/lib/server/auth';
 import * as AuthService from '@/lib/server/services/auth';
 import { errorResponse } from '@/lib/server/errors';
 
-// Rate limit auto-link retries: max once per 30 seconds per user
+// Rate limit auto-link retries: max once per 10 seconds per user
 const lastRetryAttempt = new Map<string, number>();
-const RETRY_INTERVAL_MS = 30_000;
+const RETRY_INTERVAL_MS = 10_000;
 
 export async function GET(request: Request) {
   try {
@@ -28,15 +28,27 @@ export async function GET(request: Request) {
 
         if (now - lastAttempt > RETRY_INTERVAL_MS) {
           lastRetryAttempt.set(user.userId, now);
-          try {
-            const result = await AuthService.linkPacificaAccount(user.userId, user.walletAddress);
-            if (result.connected) {
-              connection = await AuthService.getConnection(user.userId);
-              // Clear from retry map on success
-              lastRetryAttempt.delete(user.userId);
+          // Try up to 2 attempts to link Pacifica account
+          for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+              const result = await AuthService.linkPacificaAccount(user.userId, user.walletAddress);
+              if (result.connected) {
+                connection = await AuthService.getConnection(user.userId);
+                // Clear from retry map on success
+                lastRetryAttempt.delete(user.userId);
+                break;
+              }
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : 'Unknown error';
+              console.warn('Pacifica auto-link retry failed', {
+                userId: user.userId,
+                attempt,
+                error: errMsg,
+              });
+              if (attempt < 2) {
+                await new Promise((r) => setTimeout(r, 1000));
+              }
             }
-          } catch {
-            // Pacifica account doesn't exist yet or API error - that's OK
           }
         }
       }
