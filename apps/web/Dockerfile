@@ -65,6 +65,10 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 # Copy Prisma schema (required for runtime validation)
 COPY --from=builder /app/packages/db/prisma ./packages/db/prisma
 
+# Ensure Next.js can write to cache directories at runtime (ISR/prerender)
+RUN mkdir -p /app/apps/web/.next/cache
+RUN chown -R nextjs:nodejs /app/apps/web/.next
+
 USER nextjs
 
 EXPOSE 3000
