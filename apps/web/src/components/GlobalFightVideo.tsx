@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useVideoStore } from '@/lib/stores/videoStore';
 
-const MIN_DURATION = 8000; // 8 seconds for testing (will be 3000 in production)
+const MIN_DURATION = 5000; // Match video duration (5 seconds)
 
 /**
  * GlobalFightVideo - Global video overlay shown when joining a fight
@@ -108,7 +108,7 @@ export function GlobalFightVideo() {
             preload="auto"
             controls={false}
           >
-            <source src="/Video/Fight_intro_video.mp4" type="video/mp4" />
+            <source src="/Video/Fight_intro_video.webm" type="video/webm" />
             Your browser does not support the video tag.
           </video>
         </div>

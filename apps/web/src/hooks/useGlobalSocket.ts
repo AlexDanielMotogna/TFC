@@ -12,6 +12,7 @@ import { useAuthStore, useStore } from '@/lib/store';
 import { queryClient } from '@/lib/queryClient';
 import { toast } from 'sonner';
 import type { Fight } from '@/lib/api';
+import { useVideoStore } from '@/lib/stores/videoStore';
 import type {
   AdminStatsPayload,
   AdminUserEventPayload,
@@ -267,12 +268,16 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       // Refresh notifications (e.g. "Opponent Joined!" for the creator)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
-      // Toast the creator that their fight has been accepted
+      // Notify the creator that their fight has been accepted
       const currentUserId = useAuthStore.getState().user?.id;
       if (currentUserId && fight.creator?.id === currentUserId) {
         const opponent = fight.participants?.find(p => p.userId !== currentUserId);
         const opponentName = opponent?.user?.handle || 'Someone';
         toast.success(`${opponentName} joined your fight! Game on!`);
+
+        // Play intro video and redirect creator to terminal
+        useVideoStore.getState().startVideo();
+        window.location.href = `/trade?fight=${fight.id}`;
       }
     });
 
