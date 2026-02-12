@@ -185,6 +185,8 @@ export function useAuth() {
     if (isAuthenticated && storedWalletAddress === currentWalletAddress) {
       hasAttemptedAuth.current = true;
       globalHasAttempted = true;
+      // Force immediate Pacifica status re-check — stored value may be stale
+      queryClient.invalidateQueries({ queryKey: ['pacifica-connection'] });
       return;
     }
 
