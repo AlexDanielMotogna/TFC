@@ -16,7 +16,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
   const { isAuthenticated, isAdmin, token, clearAuth, _hasHydrated } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [verified, setVerified] = useState(false);
 
   // Client-side quick check
   useEffect(() => {
@@ -25,7 +24,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     }
   }, [_hasHydrated, isAuthenticated, isAdmin, router]);
 
-  // Server-side verification: confirm admin role via JWT
+  // Server-side verification: confirm admin role via JWT (non-blocking)
+  // Prevents access if someone tampered with localStorage to set isAdmin=true
   useEffect(() => {
     if (!_hasHydrated || !token || !isAdmin) return;
 
@@ -33,23 +33,19 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
-        if (res.ok) {
-          setVerified(true);
-        } else {
+        if (!res.ok) {
           // Token invalid or not admin - clear tampered state and redirect
           clearAuth();
           router.replace('/');
         }
       })
       .catch(() => {
-        // Network error - still allow if client state says admin
-        // API calls will individually fail if token is bad
-        setVerified(true);
+        // Network error - ignore, individual API calls will fail if token is bad
       });
   }, [_hasHydrated, token, isAdmin, clearAuth, router]);
 
-  // Show loading while hydrating or verifying
-  if (!_hasHydrated || (!verified && isAuthenticated && isAdmin)) {
+  // Show loading while hydrating
+  if (!_hasHydrated) {
     return (
       <div className="min-h-screen bg-surface-900 flex items-center justify-center">
         <Spinner size="sm" />
