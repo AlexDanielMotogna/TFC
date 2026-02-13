@@ -14,17 +14,42 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, isAdmin, token, clearAuth, _hasHydrated } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [verified, setVerified] = useState(false);
 
+  // Client-side quick check
   useEffect(() => {
     if (_hasHydrated && (!isAuthenticated || !isAdmin)) {
       router.replace('/');
     }
   }, [_hasHydrated, isAuthenticated, isAdmin, router]);
 
-  // Show loading while hydrating
-  if (!_hasHydrated) {
+  // Server-side verification: confirm admin role via JWT
+  useEffect(() => {
+    if (!_hasHydrated || !token || !isAdmin) return;
+
+    fetch('/api/admin/verify', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (res.ok) {
+          setVerified(true);
+        } else {
+          // Token invalid or not admin - clear tampered state and redirect
+          clearAuth();
+          router.replace('/');
+        }
+      })
+      .catch(() => {
+        // Network error - still allow if client state says admin
+        // API calls will individually fail if token is bad
+        setVerified(true);
+      });
+  }, [_hasHydrated, token, isAdmin, clearAuth, router]);
+
+  // Show loading while hydrating or verifying
+  if (!_hasHydrated || (!verified && isAuthenticated && isAdmin)) {
     return (
       <div className="min-h-screen bg-surface-900 flex items-center justify-center">
         <Spinner size="sm" />
