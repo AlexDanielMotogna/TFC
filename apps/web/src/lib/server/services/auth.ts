@@ -7,6 +7,7 @@ import * as Pacifica from '../pacifica';
 import { generateToken } from '../auth';
 import { generateReferralCode } from '../referral-utils';
 import { processReferralRegistration } from './referral';
+import { broadcastUserCreated, broadcastUserUpdated } from '../admin-realtime';
 import * as ed from '@noble/ed25519';
 import { base58 } from '@scure/base';
 
@@ -254,6 +255,15 @@ export async function authenticateWallet(
         referralCode: userReferralCode,
       });
 
+      // Broadcast user creation to admin panel
+      await broadcastUserCreated({
+        id: user.id,
+        handle: user.handle,
+        walletAddress: user.walletAddress!,
+        role: user.role || 'USER',
+        createdAt: user.createdAt,
+      });
+
       // Process referral registration if referral code was provided
       if (referralCode) {
         await processReferralRegistration(user.id, referralCode);
@@ -380,6 +390,16 @@ export async function authenticateWallet(
       console.log('User promoted to admin', {
         userId: user.id,
         walletAddress: walletAddress.slice(0, 8) + '...',
+      });
+
+      // Broadcast role update to admin panel
+      await broadcastUserUpdated({
+        id: user.id,
+        handle: user.handle,
+        walletAddress: user.walletAddress,
+        role: 'ADMIN',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       });
     }
 

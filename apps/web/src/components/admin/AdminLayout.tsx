@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminAlerts } from './AdminAlerts';
 import { Spinner } from '@/components/Spinner';
+import { Menu } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,7 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
   const { isAuthenticated, isAdmin, _hasHydrated } = useAuthStore();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (_hasHydrated && (!isAuthenticated || !isAdmin)) {
@@ -44,11 +46,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-surface-900 flex">
-      <AdminSidebar />
+      <AdminSidebar
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
-        <header className="h-14 bg-surface-850 border-b border-surface-700 flex items-center justify-between px-6">
+        <header className="h-14 bg-surface-850 border-b border-surface-700 flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-3">
+            {/* Mobile menu button */}
+            <button
+              onClick={() => setMobileMenuOpen(true)}
+              className="lg:hidden p-2 -ml-2 hover:bg-surface-700 rounded text-surface-400 hover:text-white transition-colors"
+            >
+              <Menu size={20} />
+            </button>
             <span className="text-sm font-medium text-white">Admin Panel</span>
             <span className="px-2 py-0.5 text-xs font-medium bg-primary-500/20 text-primary-400 rounded">
               {process.env.NODE_ENV === 'production' ? 'PROD' : 'DEV'}
@@ -58,13 +70,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           {/* Alert Badges */}
           <AdminAlerts />
 
-          <div className="text-sm text-surface-400">
+          <div className="hidden sm:block text-sm text-surface-400">
             Trading Fight Club
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 p-6 overflow-auto">{children}</main>
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">{children}</main>
       </div>
     </div>
   );

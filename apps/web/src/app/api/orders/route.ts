@@ -12,6 +12,7 @@ import {
 } from '@/lib/server/fight-exposure';
 import { recordOrderAction } from '@/lib/server/order-actions';
 import { calculateReferralCommissions } from '@/lib/server/services/referral';
+import { broadcastAdminTrade } from '@/lib/server/admin-realtime';
 import { prisma, FightStatus } from '@tfc/db';
 import { FeatureFlags } from '@/lib/server/feature-flags';
 
@@ -479,6 +480,23 @@ async function recordAllTrades(
       amount,
       price: executionPrice,
       fee,
+    });
+
+    // Broadcast trade to admin panel (non-blocking)
+    broadcastAdminTrade({
+      id: trade.id,
+      fightId: trade.fightId || '',
+      userId: connection.userId,
+      userHandle: connection.user.handle,
+      symbol: trade.symbol,
+      side: tradeSide,
+      amount: parseFloat(amount),
+      price: parseFloat(executionPrice),
+      fee: parseFloat(fee),
+      pnl: pnl ? parseFloat(pnl) : null,
+      timestamp: trade.executedAt,
+    }).catch(err => {
+      console.error('[recordAllTrades] Failed to broadcast admin trade:', err);
     });
 
     // Calculate referral commissions (non-blocking)
