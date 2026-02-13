@@ -258,6 +258,23 @@ export async function createSignedUpdateLeverage(
 }
 
 /**
+ * Sign margin mode update (cross/isolated)
+ * NOTE: account is NOT included in signed data
+ */
+export async function createSignedUpdateMarginMode(
+  wallet: WalletContextState,
+  params: {
+    symbol: string;
+    is_isolated: boolean;
+  }
+): Promise<SignedOperation> {
+  return signPacificaOperation(wallet, 'update_margin_mode', {
+    symbol: params.symbol,
+    is_isolated: params.is_isolated,
+  });
+}
+
+/**
  * Sign TP/SL update
  * NOTE: account is NOT included in signed data (same as market orders)
  * NOTE: null values are used to remove TP/SL

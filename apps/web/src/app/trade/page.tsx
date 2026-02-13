@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
 import { OrderBook } from '@/components/OrderBook';
@@ -59,6 +59,7 @@ export default function TradePage() {
   const createStopOrder = useCreateStopOrder();
   const createStandaloneStopOrder = useCreateStandaloneStopOrder();
   const setLeverageMutation = useSetLeverage();
+  const setMarginModeMutation = useSetMarginMode();
 
   // Account settings (for leverage per symbol)
   const { data: accountSettings } = useAccountSettings();
@@ -123,6 +124,7 @@ export default function TradePage() {
   const [orderSize, setOrderSize] = useState('');
   const [leverage, setLeverage] = useState(5);
   const [savedLeverage, setSavedLeverage] = useState(5); // Track server-saved leverage
+  const [isIsolated, setIsIsolated] = useState(false); // Cross (false) or Isolated (true)
 
   // Order type state
   const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop-market' | 'stop-limit'>('market');
@@ -135,6 +137,10 @@ export default function TradePage() {
   const [takeProfit, setTakeProfit] = useState('');
   const [stopLoss, setStopLoss] = useState('');
   const [reduceOnly, setReduceOnly] = useState(false);
+
+  // Margin mode confirmation modal state
+  const [showMarginModeModal, setShowMarginModeModal] = useState(false);
+  const [pendingMarginMode, setPendingMarginMode] = useState<boolean | null>(null); // null = no pending change
 
   // Close opposite position modal state
   const [showCloseOppositeModal, setShowCloseOppositeModal] = useState(false);
@@ -305,6 +311,36 @@ export default function TradePage() {
     );
   }, [leverage, selectedMarket, canSetLeverage, setLeverageMutation]);
 
+  // Handle margin mode change (cross/isolated) — opens confirmation modal
+  const handleSetMarginMode = useCallback((isolated: boolean) => {
+    if (isolated === isIsolated) return;
+    setPendingMarginMode(isolated);
+    setShowMarginModeModal(true);
+  }, [isIsolated]);
+
+  // Confirm margin mode change from modal
+  const confirmMarginMode = useCallback(() => {
+    if (pendingMarginMode === null) return;
+    setMarginModeMutation.mutate(
+      { symbol: selectedMarket, isIsolated: pendingMarginMode },
+      {
+        onSuccess: () => {
+          setIsIsolated(pendingMarginMode);
+          setShowMarginModeModal(false);
+          setPendingMarginMode(null);
+        }
+      }
+    );
+  }, [pendingMarginMode, selectedMarket, setMarginModeMutation]);
+
+  // Check if current market has an open position (blocks margin mode change)
+  const hasOpenPosition = useMemo(() => {
+    const marketSymbol = selectedMarket.replace('-USD', '');
+    return apiPositions.some(
+      (pos: any) => (pos.symbol || '').replace('-USD', '') === marketSymbol
+    );
+  }, [selectedMarket, apiPositions]);
+
   // Initialize leverage from account settings when market changes
   useEffect(() => {
     if (accountSettings && Array.isArray(accountSettings)) {
@@ -318,6 +354,8 @@ export default function TradePage() {
         setLeverage(maxLeverage);
         setSavedLeverage(maxLeverage);
       }
+      // Load margin mode from settings
+      setIsIsolated(setting?.isolated ?? false);
     }
   }, [selectedMarket, accountSettings, maxLeverage]);
 
@@ -2181,6 +2219,36 @@ export default function TradePage() {
                 })()}
               </div>
 
+              {/* Margin Mode Toggle (Cross/Isolated) */}
+              <div className="mb-3 xl:mb-4">
+                <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">Margin</label>
+                <div className="grid grid-cols-2 gap-1">
+                  <button
+                    onClick={() => handleSetMarginMode(false)}
+                    disabled={!canTrade || hasOpenPosition}
+                    className={`py-1.5 xl:py-2 rounded-lg font-semibold transition-all text-[10px] xl:text-xs ${!isIsolated
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-surface-800 text-surface-400 hover:text-white'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Cross
+                  </button>
+                  <button
+                    onClick={() => handleSetMarginMode(true)}
+                    disabled={!canTrade || hasOpenPosition}
+                    className={`py-1.5 xl:py-2 rounded-lg font-semibold transition-all text-[10px] xl:text-xs ${isIsolated
+                      ? 'bg-primary-500 text-white'
+                      : 'bg-surface-800 text-surface-400 hover:text-white'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Isolated
+                  </button>
+                </div>
+                {hasOpenPosition && (
+                  <p className="text-[9px] xl:text-[10px] text-surface-500 mt-1">Close position to change margin mode</p>
+                )}
+              </div>
+
               {/* Leverage Slider */}
               <div className="mb-3 xl:mb-4">
                 <div className="flex justify-between items-center mb-1.5 xl:mb-2">
@@ -2554,6 +2622,46 @@ export default function TradePage() {
         }}
         order={editingOrder}
       />
+
+      {/* Margin Mode Confirmation Modal */}
+      {showMarginModeModal && pendingMarginMode !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }}>
+          <div className="bg-surface-800 border border-surface-600 rounded-xl p-5 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-white font-bold text-sm">{selectedMarket.replace('-USD', '')} Margin Mode</h3>
+              <button onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }} className="text-surface-400 hover:text-white text-lg">&times;</button>
+            </div>
+            {/* Cross / Isolated tab selector */}
+            <div className="flex gap-1 mb-4">
+              <button
+                onClick={() => setPendingMarginMode(false)}
+                className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${!pendingMarginMode ? 'bg-surface-700 text-white border border-surface-500' : 'text-surface-400 hover:text-white'}`}
+              >
+                Cross
+              </button>
+              <button
+                onClick={() => setPendingMarginMode(true)}
+                className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${pendingMarginMode ? 'bg-surface-700 text-white border border-surface-500' : 'text-surface-400 hover:text-white'}`}
+              >
+                Isolated
+              </button>
+            </div>
+            <p className="text-surface-400 text-xs mb-5">
+              {pendingMarginMode
+                ? 'In isolated margin mode, each position uses its own margin as collateral. Can be adjusted independently per position. One isolated position liquidation does not affect other positions.'
+                : 'In cross margin mode, all positions share the same cross margin as collateral. When liquidation occurs, cross margin balance and all open cross positions may be forfeited.'
+              }
+            </p>
+            <button
+              onClick={confirmMarginMode}
+              disabled={setMarginModeMutation.isPending}
+              className="w-full py-2.5 bg-primary-500 hover:bg-primary-400 text-white font-semibold rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {setMarginModeMutation.isPending ? 'Confirming...' : 'Confirm Margin Mode'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Slippage Modal */}
       {showSlippageModal && (
