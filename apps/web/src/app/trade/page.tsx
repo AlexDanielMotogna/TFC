@@ -878,6 +878,16 @@ export default function TradePage() {
     };
   });
 
+  // When Reduce Only is ON, auto-select the closing side (opposite of current position)
+  const currentMarketPosition = displayPositions.find(
+    p => p.symbol.replace('-USD', '') === selectedMarket.replace('-USD', '')
+  );
+  useEffect(() => {
+    if (reduceOnly && currentMarketPosition) {
+      setSelectedSide(currentMarketPosition.side === 'LONG' ? 'SHORT' : 'LONG');
+    }
+  }, [reduceOnly, currentMarketPosition?.side]);
+
   // Convert fight positions to display format
   const displayFightPositions: Position[] = fightPositions.map((pos) => {
     const priceData = getPrice(pos.symbol);
@@ -1928,7 +1938,7 @@ export default function TradePage() {
               <div className="grid grid-cols-2 gap-2 mb-3 xl:mb-4">
                 <button
                   onClick={() => setSelectedSide('LONG')}
-                  disabled={!canTrade}
+                  disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'LONG')}
                   className={`py-2 xl:py-3 rounded-lg font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'LONG'
                     ? 'bg-win-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
@@ -1938,7 +1948,7 @@ export default function TradePage() {
                 </button>
                 <button
                   onClick={() => setSelectedSide('SHORT')}
-                  disabled={!canTrade}
+                  disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'SHORT')}
                   className={`py-2 xl:py-3 rounded-lg font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'SHORT'
                     ? 'bg-loss-500 text-white shadow-lg'
                     : 'bg-surface-800 text-surface-400 hover:text-white'
@@ -2071,9 +2081,7 @@ export default function TradePage() {
                       )
                     : null;
                   const maxMargin = reduceOnly
-                    ? (closeablePosition
-                        ? (closeablePosition.size * currentPrice) / effectiveLeverage
-                        : 0)
+                    ? (closeablePosition ? closeablePosition.margin : 0)
                     : available * MARGIN_BUFFER;
                   const margin = parseFloat(orderSize || '0');
                   const positionSize = margin * effectiveLeverage;
@@ -2383,7 +2391,7 @@ export default function TradePage() {
                     )
                   : null;
                 const available = reduceOnly
-                  ? 0 // Not used for display in reduce_only mode
+                  ? (closeablePos ? closeablePos.margin : 0)
                   : (account ? parseFloat(account.availableToSpend) || 0 : 0);
 
                 // For limit orders, use limit price; for market, use current price
@@ -2467,12 +2475,7 @@ export default function TradePage() {
                     <div className="flex justify-between">
                       <span className="text-surface-400">Available</span>
                       <span className="text-white font-mono">
-                        {reduceOnly
-                          ? (closeablePos
-                              ? `${closeablePos.size.toFixed(5)} ${mktSymbol}`
-                              : 'No position')
-                          : `$${available.toFixed(2)}`
-                        }
+                        {`$${available.toFixed(2)}`}
                       </span>
                     </div>
                   </div>
