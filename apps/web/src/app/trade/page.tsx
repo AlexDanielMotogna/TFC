@@ -2277,14 +2277,8 @@ export default function TradePage() {
                         {/* Take Profit */}
                         <div>
                           <div className="flex items-center justify-between mb-1.5 xl:mb-2">
-                            <Toggle
-                              checked={tpEnabled}
-                              onChange={setTpEnabled}
-                              disabled={!canTrade}
-                              variant="win"
-                              label="TP Price"
-                            />
-                            {tpEnabled && takeProfit && (
+                            <span className="text-[10px] xl:text-xs font-medium text-win-400">TP Price</span>
+                            {takeProfit && (
                               <span className="text-[10px] xl:text-xs text-win-400">
                                 {selectedSide === 'LONG'
                                   ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
@@ -2293,44 +2287,34 @@ export default function TradePage() {
                               </span>
                             )}
                           </div>
-                          {tpEnabled && (
-                            <>
-                              <input
-                                type="number"
-                                value={takeProfit}
-                                onChange={(e) => setTakeProfit(e.target.value)}
-                                placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`}
+                          <input
+                            type="number"
+                            value={takeProfit}
+                            onChange={(e) => setTakeProfit(e.target.value)}
+                            placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`}
+                            disabled={!canTrade}
+                            className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
+                          />
+                          {/* TP Percentage Buttons */}
+                          <div className="flex gap-1">
+                            {[25, 50, 75, 100].map((pct) => (
+                              <button
+                                key={pct}
+                                onClick={() => setTakeProfit(calcTpPrice(pct))}
                                 disabled={!canTrade}
-                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
-                              />
-                              {/* TP Percentage Buttons */}
-                              <div className="flex gap-1">
-                                {[25, 50, 75, 100].map((pct) => (
-                                  <button
-                                    key={pct}
-                                    onClick={() => setTakeProfit(calcTpPrice(pct))}
-                                    disabled={!canTrade}
-                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
-                                  >
-                                    {pct}%
-                                  </button>
-                                ))}
-                              </div>
-                            </>
-                          )}
+                                className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-win-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                              >
+                                {pct}%
+                              </button>
+                            ))}
+                          </div>
                         </div>
 
                         {/* Stop Loss */}
                         <div>
                           <div className="flex items-center justify-between mb-1.5 xl:mb-2">
-                            <Toggle
-                              checked={slEnabled}
-                              onChange={setSlEnabled}
-                              disabled={!canTrade}
-                              variant="loss"
-                              label="SL Price"
-                            />
-                            {slEnabled && stopLoss && (
+                            <span className="text-[10px] xl:text-xs font-medium text-loss-400">SL Price</span>
+                            {stopLoss && (
                               <span className="text-[10px] xl:text-xs text-loss-400">
                                 {selectedSide === 'LONG'
                                   ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
@@ -2339,31 +2323,27 @@ export default function TradePage() {
                               </span>
                             )}
                           </div>
-                          {slEnabled && (
-                            <>
-                              <input
-                                type="number"
-                                value={stopLoss}
-                                onChange={(e) => setStopLoss(e.target.value)}
-                                placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`}
+                          <input
+                            type="number"
+                            value={stopLoss}
+                            onChange={(e) => setStopLoss(e.target.value)}
+                            placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`}
+                            disabled={!canTrade}
+                            className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
+                          />
+                          {/* SL Percentage Buttons */}
+                          <div className="flex gap-1">
+                            {[-25, -50, -75, -100].map((pct) => (
+                              <button
+                                key={pct}
+                                onClick={() => setStopLoss(calcSlPrice(pct))}
                                 disabled={!canTrade}
-                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
-                              />
-                              {/* SL Percentage Buttons */}
-                              <div className="flex gap-1">
-                                {[-25, -50, -75, -100].map((pct) => (
-                                  <button
-                                    key={pct}
-                                    onClick={() => setStopLoss(calcSlPrice(pct))}
-                                    disabled={!canTrade}
-                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
-                                  >
-                                    {pct}%
-                                  </button>
-                                ))}
-                              </div>
-                            </>
-                          )}
+                                className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-loss-400 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                              >
+                                {pct}%
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       </>
                     );
