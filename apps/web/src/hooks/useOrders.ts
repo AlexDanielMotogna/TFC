@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
+import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
@@ -877,6 +877,65 @@ export function useSetLeverage() {
         notify('ORDER', 'Leverage Failed', 'Cannot decrease leverage while position is open', { variant: 'error' });
       } else {
         notify('ORDER', 'Leverage Failed', `Failed to set leverage: ${error.message}`, { variant: 'error' });
+      }
+    },
+  });
+}
+
+/**
+ * Hook to set margin mode (cross/isolated) for a trading pair
+ */
+export function useSetMarginMode() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { symbol: string; isIsolated: boolean }) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation with wallet
+      const { signature, timestamp } = await createSignedUpdateMarginMode(wallet, {
+        symbol,
+        is_isolated: params.isIsolated,
+      });
+
+      // Send to backend proxy
+      const response = await fetch('/api/account/margin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account,
+          symbol,
+          is_isolated: params.isIsolated,
+          signature,
+          timestamp,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['account-settings'] });
+      const symbol = variables.symbol.replace('-USD', '');
+      const mode = variables.isIsolated ? 'Isolated' : 'Cross';
+      notify('ORDER', 'Margin Mode', `${symbol} set to ${mode} margin`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to set margin mode:', error);
+      if (error.message.includes('open position') || error.message.includes('OpenPosition')) {
+        notify('ORDER', 'Margin Mode Failed', 'Close position first to change margin mode', { variant: 'error' });
+      } else {
+        notify('ORDER', 'Margin Mode Failed', `Failed to set margin mode: ${error.message}`, { variant: 'error' });
       }
     },
   });
