@@ -14,14 +14,35 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, isAdmin, token, clearAuth, _hasHydrated } = useAuthStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Client-side quick check
   useEffect(() => {
     if (_hasHydrated && (!isAuthenticated || !isAdmin)) {
       router.replace('/');
     }
   }, [_hasHydrated, isAuthenticated, isAdmin, router]);
+
+  // Server-side verification: confirm admin role via JWT (non-blocking)
+  // Prevents access if someone tampered with localStorage to set isAdmin=true
+  useEffect(() => {
+    if (!_hasHydrated || !token || !isAdmin) return;
+
+    fetch('/api/admin/verify', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => {
+        if (!res.ok) {
+          // Token invalid or not admin - clear tampered state and redirect
+          clearAuth();
+          router.replace('/');
+        }
+      })
+      .catch(() => {
+        // Network error - ignore, individual API calls will fail if token is bad
+      });
+  }, [_hasHydrated, token, isAdmin, clearAuth, router]);
 
   // Show loading while hydrating
   if (!_hasHydrated) {
