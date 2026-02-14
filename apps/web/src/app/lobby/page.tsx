@@ -299,7 +299,7 @@ export default function LobbyPage() {
             alt=""
             width={500}
             height={500}
-            className="fixed left-[20%] md:left-[30%] top-1/2 -translate-y-1/2 w-[250px] md:w-[380px] opacity-[0.08] invert"
+            className="fixed left-[-15%] sm:left-[-5%] md:left-[5%] lg:left-[15%] xl:left-[25%] top-1/2 -translate-y-1/2 w-[200px] sm:w-[250px] md:w-[300px] lg:w-[380px] opacity-[0.05] md:opacity-[0.06] invert"
             priority
           />
           <Image
@@ -307,7 +307,7 @@ export default function LobbyPage() {
             alt=""
             width={500}
             height={500}
-            className="fixed right-[20%] md:right-[30%] top-1/2 -translate-y-1/2 w-[250px] md:w-[380px] opacity-[0.08] invert"
+            className="fixed right-[-15%] sm:right-[-5%] md:right-[5%] lg:right-[15%] xl:right-[25%] top-1/2 -translate-y-1/2 w-[200px] sm:w-[250px] md:w-[300px] lg:w-[380px] opacity-[0.05] md:opacity-[0.06] invert"
             priority
           />
         </div>
