@@ -117,44 +117,37 @@ export function FightBanner() {
         />
       </div>
       <div className="relative max-w-screen-2xl mx-auto px-2 sm:px-4">
-        {/* Mobile: 2 rows — You (left) | Timer | Opp (right) */}
-        <div className="sm:hidden py-1.5">
-          {/* Row 1: You PnL + Timer + Opp PnL */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
-              <span className="text-[10px] text-surface-500">You</span>
-              <span className={`font-mono text-xs font-semibold tabular-nums ${myPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                {formatPnl(myPnl)}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`font-mono text-sm font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
-                {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
-              </span>
-              <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                isWinning
-                  ? 'bg-win-500/10 text-win-500'
-                  : isLosing
-                    ? 'bg-loss-500/10 text-loss-500'
-                    : 'bg-surface-700 text-surface-400'
-              }`}>
-                {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`font-mono text-xs font-semibold tabular-nums ${opponentPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                {formatPnl(opponentPnl)}
-              </span>
-              <span className="text-[10px] text-surface-500">{opponent.user?.handle || 'Opp'}</span>
-            </div>
+        {/* Mobile: single row — You PnL | Timer | Status | Opp PnL */}
+        <div className="sm:hidden flex items-center justify-between h-8 gap-1">
+          {/* Left: connection dot + You PnL */}
+          <div className="flex items-center gap-1 min-w-0">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
+            <span className="text-[10px] text-surface-500">You</span>
+            <span className={`font-mono text-[11px] font-semibold tabular-nums ${myPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+              {formatPnl(myPnl)}
+            </span>
           </div>
-          {/* Row 2: Stake + Warnings */}
-          <div className="flex items-center justify-center gap-3 text-[10px]">
-            <span className="text-surface-500">${maxSize.toLocaleString()} stake</span>
-            {hasOpenPositions && (
-              <span className="text-amber-500 animate-pulse">{fightPositions.length} Open</span>
-            )}
+          {/* Center: Timer + Status badge */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={`px-1 py-0.5 rounded text-[9px] font-medium ${
+              isWinning
+                ? 'bg-win-500/10 text-win-500'
+                : isLosing
+                  ? 'bg-loss-500/10 text-loss-500'
+                  : 'bg-surface-700 text-surface-400'
+            }`}>
+              {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
+            </div>
+            <span className={`font-mono text-[11px] font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
+              {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
+            </span>
+          </div>
+          {/* Right: Opp PnL + truncated handle */}
+          <div className="flex items-center gap-1 min-w-0 justify-end">
+            <span className={`font-mono text-[11px] font-semibold tabular-nums ${opponentPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+              {formatPnl(opponentPnl)}
+            </span>
+            <span className="text-[10px] text-surface-500 truncate max-w-[48px]">{opponent.user?.handle || 'Opp'}</span>
           </div>
         </div>
 

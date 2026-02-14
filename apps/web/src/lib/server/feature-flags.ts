@@ -55,7 +55,7 @@ export function isWalletAllowed(walletAddress: string): boolean {
  */
 export const StakeLimits = {
   maxPerUser: () => parseFloat(process.env.MAX_STAKE_PER_USER_USDC || '1000'),
-  maxPerFight: () => parseFloat(process.env.MAX_STAKE_PER_FIGHT_USDC || '500'),
+  maxPerFight: () => parseFloat(process.env.MAX_STAKE_PER_FIGHT_USDC || '5000'),
 };
 
 /**
