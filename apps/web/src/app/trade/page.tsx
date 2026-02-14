@@ -230,6 +230,8 @@ function TradePageContent() {
 
   // Fight filter toggle (only visible when in active fight)
   const [showFightOnly, setShowFightOnly] = useState(true);
+  // Fight capital limit accordion (collapsed by default)
+  const [showFightCapital, setShowFightCapital] = useState(true);
 
   // Markets and prices from Pacifica API (dynamic, not hardcoded)
   const { markets, getPrice } = usePrices({
@@ -1140,7 +1142,7 @@ function TradePageContent() {
             <div className="col-span-2 order-4 card min-h-[389px] xl:min-h-[400px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
               {/* Tab navigation - fixed, scrollable on mobile with overscroll containment */}
               <div className="flex items-center justify-between border-surface-800 flex-shrink-0 overflow-x-auto overscroll-x-auto">
-                <div className="flex items-center gap-3 sm:gap-6 px-4 min-w-max max-[1199px]:min-w-0 max-[1199px]:w-full max-[1199px]:gap-0 max-[1199px]:px-0">
+                <div className="flex items-center gap-3 sm:gap-6 px-2 sm:px-4 max-[1199px]:min-w-0 max-[1199px]:w-full max-[1199px]:gap-0 min-w-max max-[1199px]:min-w-0">
                   <button
                     onClick={() => setBottomTab('positions')}
                     className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap max-[1199px]:flex-1 max-[1199px]:text-center ${bottomTab === 'positions'
@@ -1185,10 +1187,10 @@ function TradePageContent() {
 
                 {/* Fight filter toggle - only show when in active fight */}
                 {fightId && (
-                  <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-1 mx-4 flex-shrink-0">
+                  <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-0.5 sm:p-1 mr-2 sm:mx-4 flex-shrink-0">
                     <button
                       onClick={() => setShowFightOnly(false)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${!showFightOnly
+                      className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded transition-colors ${!showFightOnly
                         ? 'bg-surface-600 text-white'
                         : 'text-surface-400 hover:text-white'
                         }`}
@@ -1197,7 +1199,7 @@ function TradePageContent() {
                     </button>
                     <button
                       onClick={() => setShowFightOnly(true)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${showFightOnly
+                      className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium rounded transition-colors ${showFightOnly
                         ? 'bg-primary-500 text-white'
                         : 'text-surface-400 hover:text-white'
                         }`}
@@ -1947,6 +1949,58 @@ function TradePageContent() {
                 </button>
               </div>
 
+              {/* Fight Stake Limit Info - collapsible accordion */}
+              {inFight && stake !== null && (
+                <div className="mb-3 xl:mb-4 bg-surface-800 rounded border-surface-700 overflow-hidden">
+                  <button
+                    onClick={() => setShowFightCapital(!showFightCapital)}
+                    className="w-full flex items-center justify-between p-2 xl:p-3 hover:bg-surface-700/50 transition-colors"
+                  >
+                    <span className="text-[10px] xl:text-xs text-surface-300 font-semibold uppercase">Fight Capital</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[10px] xl:text-xs font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                        ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <svg className={`w-3 h-3 text-surface-400 transition-transform ${showFightCapital ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    </div>
+                  </button>
+                  {showFightCapital && (
+                    <div className="px-2 xl:px-3 pb-2 xl:pb-3 space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Fight Stake</span>
+                        <span className="text-white font-mono">${stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Current Positions</span>
+                        <span className="text-surface-300 font-mono">${(currentExposure || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Max Capital Used</span>
+                        <span className="text-surface-300 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Available to Trade</span>
+                        <span className={`font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                          ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 xl:mt-2">
+                        <div className="h-1.5 xl:h-2 bg-surface-700 rounded overflow-hidden">
+                          <div
+                            className="h-full bg-surface-500 transition-all duration-300"
+                            style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
+                          <span>{((maxExposureUsed || 0) / stake * 100).toFixed(0)}% used</span>
+                          <span>{(100 - (maxExposureUsed || 0) / stake * 100).toFixed(0)}% available</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Leverage Slider */}
               <div className="mb-3 xl:mb-4">
                 <div className="flex justify-between items-center mb-1.5 xl:mb-2">
@@ -2646,46 +2700,6 @@ function TradePageContent() {
                   </div>
                 );
               })()}
-
-              {/* Fight Stake Limit Info - shown when in active fight */}
-              {inFight && stake !== null && (
-                <div className="mt-3 xl:mt-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Fight Capital Limit</div>
-                  <div className="space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Fight Stake</span>
-                      <span className="text-white font-mono">${stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Current Positions</span>
-                      <span className="text-surface-300 font-mono">${(currentExposure || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Max Capital Used</span>
-                      <span className="text-surface-300 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Available to Trade</span>
-                      <span className={`font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                        ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    {/* Progress bar - shows max capital used (not current, since max never decreases) */}
-                    <div className="mt-1.5 xl:mt-2">
-                      <div className="h-1.5 xl:h-2 bg-surface-700 rounded overflow-hidden">
-                        <div
-                          className="h-full bg-surface-500 transition-all duration-300"
-                          style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
-                        <span>{((maxExposureUsed || 0) / stake * 100).toFixed(0)}% used</span>
-                        <span>{(100 - (maxExposureUsed || 0) / stake * 100).toFixed(0)}% available</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Challenge CTA */}
               <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-800">

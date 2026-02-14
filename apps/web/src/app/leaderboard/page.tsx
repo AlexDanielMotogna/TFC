@@ -113,7 +113,7 @@ export default function LeaderboardPage() {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Leaderboard</h1>
+              <h1 className="font-display text-sm sm:text-2xl font-bold tracking-tight text-white">Leaderboard</h1>
             </div>
             <div className="flex items-center gap-3">
               {isFetching && !isLoading && <Spinner size="xs" />}
@@ -152,7 +152,7 @@ export default function LeaderboardPage() {
                 </div>
                 <span className="text-xs text-surface-500">Total Fighters</span>
               </div>
-              <p className="text-2xl md:text-3xl font-bold text-white">{entries.length}</p>
+              <p className="text-sm sm:text-3xl font-bold text-white">{entries.length}</p>
             </div>
 
             {/* Weekly Fees */}
@@ -164,7 +164,7 @@ export default function LeaderboardPage() {
                   </div>
                   <span className="text-xs text-surface-500">Weekly Fees</span>
                 </div>
-                <p className="text-2xl md:text-3xl font-bold text-white">
+                <p className="text-sm sm:text-3xl font-bold text-white">
                   {isPrizePoolLoading ? <span className="inline-block h-8 w-16 bg-surface-700 rounded animate-pulse" /> : formatCurrency(prizePool?.totalFeesCollected || 0)}
                 </p>
               </div>
@@ -179,7 +179,7 @@ export default function LeaderboardPage() {
                   </div>
                   <span className="text-xs text-surface-500">Prize Pool</span>
                 </div>
-                <p className="text-2xl md:text-3xl font-bold text-gradient-orange">
+                <p className="text-sm sm:text-3xl font-bold text-gradient-orange">
                   {isPrizePoolLoading ? <span className="inline-block h-8 w-16 bg-surface-700 rounded animate-pulse" /> : formatCurrency(prizePool?.totalPrizePool || 0)}
                 </p>
               </div>
@@ -194,7 +194,7 @@ export default function LeaderboardPage() {
                   </div>
                   <span className="text-xs text-surface-500">Time Remaining</span>
                 </div>
-                <p className="text-2xl md:text-3xl font-mono font-bold text-white">
+                <p className="text-sm sm:text-3xl font-mono font-bold text-white">
                   {isPrizePoolLoading ? <span className="inline-block h-8 w-16 bg-surface-700 rounded animate-pulse" /> : prizePool?.timeRemaining.formatted || '--'}
                 </p>
               </div>
@@ -206,7 +206,7 @@ export default function LeaderboardPage() {
                   </div>
                   <span className="text-xs text-surface-500">Total Fights</span>
                 </div>
-                <p className="text-2xl md:text-3xl font-bold text-white">
+                <p className="text-sm sm:text-3xl font-bold text-white">
                   {entries.reduce((sum, e) => sum + e.totalFights, 0)}
                 </p>
               </div>
