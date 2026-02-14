@@ -270,7 +270,6 @@ export default function LobbyPage() {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Arena</h1>
-                <p className="text-surface-500 text-xs mt-0.5">Challenge traders to 1v1 battles. Win weekly prizes.</p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
@@ -320,7 +319,6 @@ export default function LobbyPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Arena</h1>
-              <p className="text-surface-500 text-xs mt-0.5">Challenge traders to 1v1 battles. Win weekly prizes.</p>
             </div>
             <div className="flex items-center gap-3">
               {/* WebSocket Status */}
@@ -344,36 +342,36 @@ export default function LobbyPage() {
           {/* Stats Cards Row */}
           <div className="grid grid-cols-3 gap-2 mb-4">
             {/* Live Fights */}
-            <div className="card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-live-500/10 flex items-center justify-center">
-                  <span className="w-2.5 h-2.5 bg-live-400 rounded-full animate-pulse" />
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-live-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-live-400 rounded-full animate-pulse" />
                 </div>
-                <span className="text-xs text-surface-500">Live Fights</span>
+                <span className="text-[10px] sm:text-xs text-surface-500">Live</span>
               </div>
-              <p className="text-2xl md:text-3xl font-bold text-white">{stats.live}</p>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{stats.live}</p>
             </div>
 
             {/* Pending Challenges */}
-            <div className="card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                  <span className="text-sm leading-none" style={{ color: '#facc15' }}>⚔</span>
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs sm:text-sm leading-none" style={{ color: '#facc15' }}>&#x2694;</span>
                 </div>
-                <span className="text-xs text-surface-500">Pending</span>
+                <span className="text-[10px] sm:text-xs text-surface-500">Pending</span>
               </div>
-              <p className="text-2xl md:text-3xl font-bold text-white">{stats.pending}</p>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{stats.pending}</p>
             </div>
 
             {/* Active Fighters */}
-            <div className="card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-primary-500/10 flex items-center justify-center">
-                  <span className="text-sm leading-none" style={{ color: '#5196c9' }}>⚔</span>
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-primary-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs sm:text-sm leading-none" style={{ color: '#5196c9' }}>&#x2694;</span>
                 </div>
-                <span className="text-xs text-surface-500">Fighters</span>
+                <span className="text-[10px] sm:text-xs text-surface-500">Fighters</span>
               </div>
-              <p className="text-2xl md:text-3xl font-bold text-white">{stats.fighters}</p>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{stats.fighters}</p>
             </div>
           </div>
         </div>
@@ -394,12 +392,12 @@ export default function LobbyPage() {
         {/* Tabs + Filters Row */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           {/* Tabs */}
-          <div className="bg-surface-800 rounded-xl p-1 flex border border-surface-800">
+          <div className="bg-surface-800 rounded-xl p-1 flex w-full sm:w-auto border border-surface-800">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-surface-700 text-white'
                     : 'text-surface-400 hover:text-white'
