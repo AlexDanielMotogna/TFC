@@ -157,6 +157,15 @@ export function useFight() {
     return () => clearInterval(interval);
   }, [fight]);
 
+  // Show resolving spinner as soon as the client-side timer hits 0
+  // This fires instantly — no need to wait for the server's arena:fight_ended event
+  useEffect(() => {
+    if (!fight || fight.status !== 'LIVE' || !pathname || pathname !== '/trade') return;
+    if (timeRemaining !== null && timeRemaining <= 0 && !isResolving) {
+      setIsResolving(true);
+    }
+  }, [fight, timeRemaining, isResolving, pathname]);
+
   // Redirect when fight ends (LIVE -> FINISHED/CANCELLED)
   // Only redirect if we're on the /trade page with a fight param
   useEffect(() => {
@@ -201,7 +210,7 @@ export function useFight() {
 
       // Only auto-redirect from /trade page
       if (pathname === '/trade') {
-        // Show resolving overlay immediately
+        // Show resolving overlay (may already be true from timer-based trigger above)
         setIsResolving(true);
 
         // Small delay to let user see the final state

@@ -39,12 +39,22 @@ export function FightCard({ fight, compact = false, onJoinFight, onCancelFight }
       const updatedFight = await onJoinFight(fight.id);
 
       console.log('[FightCard] API success! Starting video overlay...');
-      // API verified matchup limits - NOW start the video
       startVideo();
 
-      // Redirect happens independently (video plays over the transition)
+      // Build URL with safe initial symbol (avoid blocked assets)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const myParticipant = updatedFight.participants?.find((p: any) => p.userId === user?.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const blocked: string[] = (myParticipant as any)?.blockedSymbols || [];
+      let url = `/trade?fight=${updatedFight.id}`;
+      if (blocked.length > 0) {
+        const safe = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD', 'HYPE-USD']
+          .find(s => !blocked.includes(s));
+        if (safe && safe !== 'BTC-USD') url += `&symbol=${safe}`;
+      }
+
       console.log('[FightCard] Redirecting to terminal...');
-      router.push(`/trade?fight=${updatedFight.id}`);
+      router.push(url);
     } catch (err) {
       console.error('[FightCard] Failed to join fight:', err);
       // Error is shown as a toast by useFights hook

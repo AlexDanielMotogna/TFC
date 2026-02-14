@@ -123,6 +123,8 @@ export interface FightParticipant {
   // External trades detection
   externalTradesDetected: boolean;
   externalTradeIds: string[];
+  // Symbols blocked from trading (pre-fight positions)
+  blockedSymbols?: string[];
 }
 
 export interface User {

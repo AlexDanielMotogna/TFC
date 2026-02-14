@@ -158,6 +158,10 @@ function TradingViewChartAdvancedComponent({
         isReadyRef.current = true;
         setIsChartReady(true);
 
+        // Force initial canvas paint even if behind a z-index overlay (e.g., fight video).
+        // TradingView defers canvas rendering when occluded; a resize forces it to draw.
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+
         widget.subscribe('onSymbolChanged', (...args: unknown[]) => {
           const symbolData = args[0] as { name?: string } | undefined;
           if (symbolData?.name && onSymbolChange) {

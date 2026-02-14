@@ -13,6 +13,7 @@ import { queryClient } from '@/lib/queryClient';
 import { toast } from 'sonner';
 import type { Fight } from '@/lib/api';
 import { useVideoStore } from '@/lib/stores/videoStore';
+import { useNavigationStore } from '@/lib/stores/navigationStore';
 import type {
   AdminStatsPayload,
   AdminUserEventPayload,
@@ -281,7 +282,17 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       useGlobalSocketStore.getState().updateFight({ ...fight, status: 'LIVE' } as FightUpdate);
       useStore.getState().updateFight({ ...fight, status: 'LIVE' });
 
-      // Invalidate React Query cache to move fight from WAITING to LIVE
+      // Synchronously move fight from WAITING → LIVE in React Query cache
+      // so returning to Lobby never flashes stale data
+      const liveFight = { ...fight, status: 'LIVE' } as Fight;
+      queryClient.setQueryData<Fight[]>(['fights', 'WAITING'], (old) =>
+        old ? old.filter(f => f.id !== fight.id) : []
+      );
+      queryClient.setQueryData<Fight[]>(['fights', 'LIVE'], (old) =>
+        old ? [...old.filter(f => f.id !== fight.id), liveFight] : [liveFight]
+      );
+
+      // Also invalidate for background refetch with fresh server data
       queryClient.invalidateQueries({ queryKey: ['fights', 'WAITING'] });
       queryClient.invalidateQueries({ queryKey: ['fights', 'LIVE'] });
       queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
@@ -293,13 +304,34 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       // Notify the creator that their fight has been accepted
       const currentUserId = useAuthStore.getState().user?.id;
       if (currentUserId && fight.creator?.id === currentUserId) {
+        // Guard: don't redirect if fight already expired (creator was offline)
+        if (fight.startedAt && fight.durationMinutes) {
+          const endTime = new Date(fight.startedAt).getTime() + fight.durationMinutes * 60000;
+          if (Date.now() > endTime) {
+            toast.info('Your fight already ended while you were away');
+            return;
+          }
+        }
+
         const opponent = fight.participants?.find(p => p.userId !== currentUserId);
         const opponentName = opponent?.user?.handle || 'Someone';
         toast.success(`${opponentName} joined your fight! Game on!`);
 
-        // Play intro video and redirect creator to terminal
+        // Play intro video and redirect creator to terminal (SPA navigation)
         useVideoStore.getState().startVideo();
-        window.location.href = `/trade?fight=${fight.id}`;
+
+        // Build URL with safe initial symbol (avoid blocked assets)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const myParticipant = fight.participants?.find((p: any) => p.userId === currentUserId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const blocked: string[] = (myParticipant as any)?.blockedSymbols || [];
+        let url = `/trade?fight=${fight.id}`;
+        if (blocked.length > 0) {
+          const safe = ['BTC-USD', 'ETH-USD', 'SOL-USD', 'DOGE-USD', 'HYPE-USD']
+            .find(s => !blocked.includes(s));
+          if (safe && safe !== 'BTC-USD') url += `&symbol=${safe}`;
+        }
+        useNavigationStore.getState().navigate(url);
       }
     });
 
@@ -309,7 +341,16 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       useGlobalSocketStore.getState().updateFight({ ...fight } as FightUpdate);
       useStore.getState().updateFight({ ...fight });
 
-      // Invalidate React Query cache to move fight from LIVE to FINISHED
+      // Synchronously remove fight from LIVE/WAITING in React Query cache
+      // so returning to Lobby never flashes a finished fight in the wrong tab
+      queryClient.setQueryData<Fight[]>(['fights', 'LIVE'], (old) =>
+        old ? old.filter(f => f.id !== fight.id) : []
+      );
+      queryClient.setQueryData<Fight[]>(['fights', 'WAITING'], (old) =>
+        old ? old.filter(f => f.id !== fight.id) : []
+      );
+
+      // Also invalidate for background refetch with fresh server data
       queryClient.invalidateQueries({ queryKey: ['fights', 'LIVE'] });
       queryClient.invalidateQueries({ queryKey: ['fights', 'FINISHED'] });
       queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
@@ -339,7 +380,15 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       useGlobalSocketStore.getState().removeFight(data.fightId);
       useStore.getState().removeFight(data.fightId);
 
-      // Invalidate React Query cache to remove deleted fight from UI
+      // Synchronously remove from all React Query caches
+      queryClient.setQueryData<Fight[]>(['fights', 'WAITING'], (old) =>
+        old ? old.filter(f => f.id !== data.fightId) : []
+      );
+      queryClient.setQueryData<Fight[]>(['fights', 'LIVE'], (old) =>
+        old ? old.filter(f => f.id !== data.fightId) : []
+      );
+
+      // Also invalidate for background refetch
       queryClient.invalidateQueries({ queryKey: ['fights'] });
       queryClient.invalidateQueries({ queryKey: ['fights', 'my'] });
     });

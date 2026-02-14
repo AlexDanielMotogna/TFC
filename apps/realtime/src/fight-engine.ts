@@ -1525,6 +1525,7 @@ export class FightEngine {
         finalPnlPercent: p.finalPnlPercent,
         finalScoreUsdc: p.finalScoreUsdc,
         tradesCount: p.tradesCount,
+        blockedSymbols: p.blockedSymbols || [],
         user: {
           id: p.user.id,
           handle: p.user.handle,
