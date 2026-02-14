@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { io, Socket } from 'socket.io-client';
-import { toast } from 'sonner';
-import { useStore, useAuthStore } from '@/lib/store';
+import { useStore } from '@/lib/store';
 import type { Fight } from '@/lib/api';
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3002';
@@ -18,7 +16,6 @@ export function useArenaSocket() {
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const { addFight, updateFight, removeFight } = useStore();
-  const router = useRouter();
 
   useEffect(() => {
     const socket = io(SOCKET_URL, {
@@ -61,22 +58,7 @@ export function useArenaSocket() {
     socket.on('arena:fight_started', (fight: Fight) => {
       console.log('[Arena] Fight started:', fight.id);
       updateFight(fight);
-
-      // Notify the creator that their fight has started
-      // This notification is persistent (1 min) and visible globally
-      const currentUser = useAuthStore.getState().user;
-      if (currentUser && fight.creator?.id === currentUser.id) {
-        toast.success('Your fight has started!', {
-          description: 'An opponent has joined. Ready to trade?',
-          duration: 60000, // 1 minute - persistent until action
-          action: {
-            label: 'Go to Terminal →',
-            onClick: () => {
-              router.push(`/trade?fight=${fight.id}`);
-            },
-          },
-        });
-      }
+      // Creator notification + video + redirect handled by useGlobalSocket.ts
     });
 
     socket.on('arena:fight_ended', (fight: Fight) => {
@@ -94,7 +76,7 @@ export function useArenaSocket() {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [addFight, updateFight, removeFight, router]);
+  }, [addFight, updateFight, removeFight]);
 
   return {
     isConnected,
