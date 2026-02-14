@@ -139,7 +139,7 @@ export function FAQSection() {
             Still have questions?
           </p>
           <a
-            href="https://twitter.com/tradefightclub"
+            href="https://x.com/T_F_C_official"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-orange-400 hover:text-orange-300 transition-colors"

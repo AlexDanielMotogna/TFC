@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePrices } from '@/hooks/usePrices';
 import { Portal } from './Portal';
+import { Slider } from './Slider';
 import { Spinner } from './Spinner';
 import type { Position } from './Positions';
 
@@ -233,13 +234,11 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
 
           {/* Percentage Slider */}
           <div>
-            <input
-              type="range"
-              min="0"
-              max="100"
+            <Slider
+              min={0}
+              max={100}
               value={percentage}
-              onChange={(e) => handlePercentageChange(parseInt(e.target.value))}
-              className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer slider-thumb"
+              onChange={handlePercentageChange}
             />
             <div className="flex justify-between mt-2">
               <span className="text-xs text-surface-500">{percentage.toFixed(0)}%</span>

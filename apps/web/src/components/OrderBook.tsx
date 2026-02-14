@@ -242,7 +242,7 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
         <div className="relative" ref={sizeModeDropdownRef}>
           <button
             onClick={() => setSizeModeDropdownOpen(!sizeModeDropdownOpen)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-white hover:bg-surface-800 transition-colors"
+            className="flex items-center gap-1  py-0.5 rounded text-xs text-surface-300 hover:text-white hover:bg-surface-800 transition-colors"
           >
             {sizeMode === 'USD' ? 'USD' : baseToken}
             <svg className={`w-3 h-3 text-surface-500 transition-transform ${sizeModeDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -346,25 +346,27 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
         ))}
       </div>
 
-      {/* Buy/Sell percentage bar */}
-      <div className="flex-shrink-0 px-2 py-1.5 border-t border-surface-800">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-win-400 font-medium tabular-nums">
-            {buyPercent.toFixed(1)}%
-          </span>
-          <div className="flex-1 h-1.5 bg-surface-800 rounded-full overflow-hidden flex">
-            <div
-              className="bg-win-500 transition-all duration-300"
-              style={{ width: `${buyPercent}%` }}
-            />
-            <div
-              className="bg-loss-500 transition-all duration-300"
-              style={{ width: `${sellPercent}%` }}
-            />
+      {/* Buy/Sell ratio bar — labels embedded in the bar */}
+      <div className="flex-shrink-0 py-1.5 border-t border-surface-800">
+        <div className="relative h-5 flex overflow-hidden">
+          {/* Buy side */}
+          <div
+            className="h-full flex items-center bg-gradient-to-r from-win-500/30 to-win-600/10 transition-all duration-500 ease-out"
+            style={{ width: `${buyPercent}%` }}
+          >
+            <span className="pl-1.5 text-[10px] text-win-400 font-semibold tabular-nums whitespace-nowrap">
+              B {buyPercent.toFixed(0)}%
+            </span>
           </div>
-          <span className="text-[10px] text-loss-400 font-medium tabular-nums">
-            {sellPercent.toFixed(1)}%
-          </span>
+          {/* Sell side */}
+          <div
+            className="h-full flex items-center justify-end bg-gradient-to-l from-loss-500/30 to-loss-600/10 transition-all duration-500 ease-out"
+            style={{ width: `${sellPercent}%` }}
+          >
+            <span className="pr-1.5 text-[10px] text-loss-400 font-semibold tabular-nums whitespace-nowrap">
+              {sellPercent.toFixed(0)}% S
+            </span>
+          </div>
         </div>
       </div>
     </div>

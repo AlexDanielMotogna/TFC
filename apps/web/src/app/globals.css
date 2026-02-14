@@ -532,12 +532,13 @@ body {
 input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  background: transparent;
   cursor: pointer;
+  @apply h-2 rounded-full bg-surface-700;
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
-  @apply h-2 rounded-full bg-surface-700;
+  @apply h-2 rounded-full;
+  background: transparent;
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -553,7 +554,8 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 input[type="range"]::-moz-range-track {
-  @apply h-2 rounded-full bg-surface-700;
+  @apply h-2 rounded-full;
+  background: transparent;
 }
 
 input[type="range"]::-moz-range-thumb {

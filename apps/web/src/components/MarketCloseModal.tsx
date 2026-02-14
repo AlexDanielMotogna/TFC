@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { usePrices } from '@/hooks/usePrices';
 import { Portal } from './Portal';
+import { Slider } from './Slider';
 import { Spinner } from './Spinner';
 import type { Position } from './Positions';
 
@@ -210,20 +211,13 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
 
           {/* Percentage Slider */}
           <div className="pt-2">
-            <div className="relative">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={percentage}
-                onChange={(e) => handlePercentageChange(parseInt(e.target.value))}
-                className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
-                style={{
-                  background: `linear-gradient(to right, #22d3ee 0%, #22d3ee ${percentage}%, #374151 ${percentage}%, #374151 100%)`
-                }}
-              />
-            </div>
-            <div className="flex justify-end mt-2">
+            <Slider
+              min={0}
+              max={100}
+              value={percentage}
+              onChange={handlePercentageChange}
+            />
+            <div className="flex justify-end">
               <span className="text-surface-300 font-mono">{percentage.toFixed(0)}</span>
               <span className="text-surface-500 ml-1">%</span>
             </div>

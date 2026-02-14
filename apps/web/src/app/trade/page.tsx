@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -34,7 +34,7 @@ const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
 // NOTE: Pacifica fees (maker_fee, taker_fee) are now fetched dynamically from the API
 // They change monthly, so we no longer use hardcoded fee tiers
 
-export default function TradePage() {
+function TradePageContent() {
   const { connected } = useWallet();
   const { isAuthenticated, pacificaConnected, pacificaFailReason } = useAuth();
   const router = useRouter();
@@ -1345,13 +1345,13 @@ export default function TradePage() {
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'type')}>Order Type {ordersSort.col === 'type' && (ordersSort.desc ? '↓' : '↑')}</th>
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'token')}>Token {ordersSort.col === 'token' && (ordersSort.desc ? '↓' : '↑')}</th>
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'side')}>Side {ordersSort.col === 'side' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'originalSize')}>Original Size {ordersSort.col === 'originalSize' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'filledSize')}>Filled Size {ordersSort.col === 'filledSize' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'price')}>Price {ordersSort.col === 'price' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'value')}>Order Value {ordersSort.col === 'value' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-center py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'reduceOnly')}>Reduce Only {ordersSort.col === 'reduceOnly' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-center py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'trigger')}>Trigger {ordersSort.col === 'trigger' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-center py-2 px-2 font-medium">
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'originalSize')}>Original Size {ordersSort.col === 'originalSize' && (ordersSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'filledSize')}>Filled Size {ordersSort.col === 'filledSize' && (ordersSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'price')}>Price {ordersSort.col === 'price' && (ordersSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'value')}>Order Value {ordersSort.col === 'value' && (ordersSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'reduceOnly')}>Reduce Only {ordersSort.col === 'reduceOnly' && (ordersSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'trigger')}>Trigger {ordersSort.col === 'trigger' && (ordersSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium">
                               <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">Cancel All</button>
                             </th>
                           </tr>
@@ -1408,9 +1408,9 @@ export default function TradePage() {
                                 <td className="py-2 px-2 text-surface-300">{displayType}</td>
                                 <td className="py-2 px-2"><span className="text-primary-400">{order.symbol}</span></td>
                                 <td className="py-2 px-2"><span className={`font-medium ${order.side === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>{order.side === 'LONG' ? 'Long' : 'Short'}</span></td>
-                                <td className="py-2 px-2 text-right font-mono text-white">{formatSize(originalSize)} {order.symbol}</td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-400">{filledSize}</td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-300">
+                                <td className="py-2 px-2 font-mono text-white">{formatSize(originalSize)} {order.symbol}</td>
+                                <td className="py-2 px-2 font-mono text-surface-400">{filledSize}</td>
+                                <td className="py-2 px-2 font-mono text-surface-300">
                                   {isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : order.type.includes('STOP') ? (
                                     price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })
                                   ) : (
@@ -1420,10 +1420,10 @@ export default function TradePage() {
                                     </button>
                                   )}
                                 </td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-300">${orderValue.toFixed(2)}</td>
-                                <td className="py-2 px-2 text-center text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</td>
-                                <td className="py-2 px-2 text-center text-surface-400">{stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}</td>
-                                <td className="py-2 px-2 text-center">
+                                <td className="py-2 px-2 font-mono text-surface-300">${orderValue.toFixed(2)}</td>
+                                <td className="py-2 px-2 text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</td>
+                                <td className="py-2 px-2 text-surface-400">{stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}</td>
+                                <td className="py-2 px-2">
                                   <button onClick={() => handleCancelOrder(order.id, order.symbol, order.type)} disabled={cancelOrder.isPending || cancelStopOrder.isPending} className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">{isTpSl ? 'Remove' : 'Cancel'}</button>
                                 </td>
                               </tr>
@@ -1538,11 +1538,11 @@ export default function TradePage() {
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'token')}>Token {tradesSort.col === 'token' && (tradesSort.desc ? '↓' : '↑')}</th>
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'side')}>Side {tradesSort.col === 'side' && (tradesSort.desc ? '↓' : '↑')}</th>
                             <th className="text-left py-2 px-2 font-medium whitespace-nowrap">Order Type</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'size')}>Size {tradesSort.col === 'size' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'price')}>Price {tradesSort.col === 'price' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'value')}>Trade Value {tradesSort.col === 'value' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'fee')}>Fees {tradesSort.col === 'fee' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'pnl')}>Realized PnL {tradesSort.col === 'pnl' && (tradesSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'size')}>Size {tradesSort.col === 'size' && (tradesSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'price')}>Price {tradesSort.col === 'price' && (tradesSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'value')}>Trade Value {tradesSort.col === 'value' && (tradesSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'fee')}>Fees {tradesSort.col === 'fee' && (tradesSort.desc ? '↓' : '↑')}</th>
+                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'pnl')}>Realized PnL {tradesSort.col === 'pnl' && (tradesSort.desc ? '↓' : '↑')}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1582,11 +1582,11 @@ export default function TradePage() {
                                 <td className="py-2 px-2 text-surface-300">{token}</td>
                                 <td className="py-2 px-2"><span className={`font-medium ${sideColor}`}>{sideFormatted}</span></td>
                                 <td className="py-2 px-2 text-surface-300">Fulfill Taker</td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-300 whitespace-nowrap">{amount.toFixed(amount < 0.01 ? 5 : 4)} {token}</td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-300">{price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-300">${tradeValue.toFixed(2)}</td>
-                                <td className="py-2 px-2 text-right font-mono text-surface-300">${fee.toFixed(2)}</td>
-                                <td className="py-2 px-2 text-right"><span className={`font-mono ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}</span></td>
+                                <td className="py-2 px-2 font-mono text-surface-300 whitespace-nowrap">{amount.toFixed(amount < 0.01 ? 5 : 4)} {token}</td>
+                                <td className="py-2 px-2 font-mono text-surface-300">{price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                                <td className="py-2 px-2 font-mono text-surface-300">${tradeValue.toFixed(2)}</td>
+                                <td className="py-2 px-2 font-mono text-surface-300">${fee.toFixed(2)}</td>
+                                <td className="py-2 px-2"><span className={`font-mono ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}</span></td>
                               </tr>
                             );
                           })}
@@ -1712,13 +1712,13 @@ export default function TradePage() {
                           <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'token')}>Token {orderHistorySort.col === 'token' && (orderHistorySort.desc ? '↓' : '↑')}</th>
                           <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'side')}>Side {orderHistorySort.col === 'side' && (orderHistorySort.desc ? '↓' : '↑')}</th>
                           <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'type')}>Order Type {orderHistorySort.col === 'type' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'originalSize')}>Original Size {orderHistorySort.col === 'originalSize' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'filledSize')}>Filled Size {orderHistorySort.col === 'filledSize' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'initialPrice')}>Initial Price {orderHistorySort.col === 'initialPrice' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'avgPrice')}>Avg Filled Price {orderHistorySort.col === 'avgPrice' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'value')}>Order Value {orderHistorySort.col === 'value' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-center py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'status')}>Status {orderHistorySort.col === 'status' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'orderId')}>Order ID {orderHistorySort.col === 'orderId' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'originalSize')}>Original Size {orderHistorySort.col === 'originalSize' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'filledSize')}>Filled Size {orderHistorySort.col === 'filledSize' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'initialPrice')}>Initial Price {orderHistorySort.col === 'initialPrice' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'avgPrice')}>Avg Filled Price {orderHistorySort.col === 'avgPrice' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'value')}>Order Value {orderHistorySort.col === 'value' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'status')}>Status {orderHistorySort.col === 'status' && (orderHistorySort.desc ? '↓' : '↑')}</th>
+                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'orderId')}>Order ID {orderHistorySort.col === 'orderId' && (orderHistorySort.desc ? '↓' : '↑')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1779,15 +1779,15 @@ export default function TradePage() {
                               <td className="py-2 px-2 font-medium text-white">{order.symbol}</td>
                               <td className={`py-2 px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>{orderSide}</td>
                               <td className="py-2 px-2 text-surface-300">{orderType}</td>
-                              <td className="py-2 px-2 text-right font-mono text-surface-200 whitespace-nowrap">{isTpSlOrder ? 'N/A' : `${initialAmount.toFixed(5)} ${order.symbol}`}</td>
-                              <td className="py-2 px-2 text-right font-mono text-surface-200 whitespace-nowrap">{isTpSlOrder ? 'N/A' : `${filledAmount.toFixed(5)} ${order.symbol}`}</td>
-                              <td className="py-2 px-2 text-right font-mono text-surface-200">{isTpSlOrder ? formatPrice(stopPrice) : (isRegularMarketOrder ? 'Market' : formatPrice(initialPrice))}</td>
-                              <td className="py-2 px-2 text-right font-mono text-surface-200">{isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A')}</td>
-                              <td className="py-2 px-2 text-right font-mono text-win-400">{isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}</td>
-                              <td className="py-2 px-2 text-center">
+                              <td className="py-2 px-2 font-mono text-surface-200 whitespace-nowrap">{isTpSlOrder ? 'N/A' : `${initialAmount.toFixed(5)} ${order.symbol}`}</td>
+                              <td className="py-2 px-2 font-mono text-surface-200 whitespace-nowrap">{isTpSlOrder ? 'N/A' : `${filledAmount.toFixed(5)} ${order.symbol}`}</td>
+                              <td className="py-2 px-2 font-mono text-surface-200">{isTpSlOrder ? formatPrice(stopPrice) : (isRegularMarketOrder ? 'Market' : formatPrice(initialPrice))}</td>
+                              <td className="py-2 px-2 font-mono text-surface-200">{isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A')}</td>
+                              <td className="py-2 px-2 font-mono text-win-400">{isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}</td>
+                              <td className="py-2 px-2">
                                 <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Triggered' ? 'bg-primary-500/20 text-primary-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-primary-500/20 text-primary-400'}`}>{status}</span>
                               </td>
-                              <td className="py-2 px-2 text-right font-mono text-surface-400">{order.order_id || '-'}</td>
+                              <td className="py-2 px-2 font-mono text-surface-400">{order.order_id || '-'}</td>
                             </tr>
                           );
                         })}
@@ -2833,5 +2833,21 @@ export default function TradePage() {
       )}
     </AppShell>
     </BetaGate>
+  );
+}
+
+function TradePageLoading() {
+  return (
+    <div className="min-h-screen bg-surface-900 flex items-center justify-center">
+      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default function TradePage() {
+  return (
+    <Suspense fallback={<TradePageLoading />}>
+      <TradePageContent />
+    </Suspense>
   );
 }

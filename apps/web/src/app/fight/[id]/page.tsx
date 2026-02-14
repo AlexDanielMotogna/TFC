@@ -159,8 +159,12 @@ export default function FightResultsPage() {
   if (isLoading) {
     return (
       <BetaGate>
-        <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-          <Spinner size="md" />
+        <div className="min-h-screen bg-surface-900 flex flex-col items-center justify-center gap-4">
+          <Spinner size="lg" />
+          <div className="text-center">
+            <p className="text-white font-display font-bold text-lg">Resolving Fight</p>
+            <p className="text-surface-400 text-sm mt-1">Calculating final scores...</p>
+          </div>
         </div>
       </BetaGate>
     );
