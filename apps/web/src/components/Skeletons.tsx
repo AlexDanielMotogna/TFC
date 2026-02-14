@@ -101,20 +101,20 @@ export function LeaderboardRowSkeleton() {
           <SkeletonText width="w-24" />
         </div>
       </td>
-      <td className="py-4 px-4 text-center">
-        <SkeletonText width="w-8" className="mx-auto" />
+      <td className="py-4 px-4">
+        <SkeletonText width="w-8" />
       </td>
-      <td className="py-4 px-4 text-center">
-        <SkeletonText width="w-16" className="mx-auto" />
+      <td className="py-4 px-4">
+        <SkeletonText width="w-16" />
       </td>
-      <td className="py-4 px-4 text-center">
-        <Skeleton className="w-20 h-2 rounded-full mx-auto" />
+      <td className="py-4 px-4">
+        <Skeleton className="w-20 h-2 rounded-full" />
       </td>
-      <td className="py-4 px-4 text-right">
-        <SkeletonText width="w-16" className="ml-auto" />
+      <td className="py-4 px-4">
+        <SkeletonText width="w-16" />
       </td>
-      <td className="py-4 px-4 text-right">
-        <SkeletonText width="w-20" className="ml-auto" />
+      <td className="py-4 px-4">
+        <SkeletonText width="w-20" />
       </td>
     </tr>
   );
@@ -124,46 +124,34 @@ export function LeaderboardRowSkeleton() {
 export function LeaderboardSkeleton() {
   return (
     <div className="space-y-2">
-      {/* Title */}
-      <div className="text-center mb-4">
-        <SkeletonText width="w-48" height="h-10" className="mx-auto mb-2" />
-        <SkeletonText width="w-64" height="h-4" className="mx-auto" />
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkeletonCard key={i} className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Skeleton className="w-8 h-8 rounded-lg" />
+              <SkeletonText width="w-20" height="h-3" />
+            </div>
+            <SkeletonText width="w-24" height="h-8" />
+          </SkeletonCard>
+        ))}
       </div>
 
-      {/* Prize Pool Badge */}
-      <div className="flex justify-center">
-        <Skeleton className="w-80 h-14 rounded-xl" />
-      </div>
-
-      {/* Range Toggle */}
-      <div className="flex justify-center">
-        <Skeleton className="w-56 h-12 rounded-xl" />
-      </div>
-
-      {/* Podium Cards (Desktop) */}
-      <div className="hidden md:grid grid-cols-3 gap-3 max-w-3xl mx-auto">
-        {[2, 1, 3].map((place) => (
-          <SkeletonCard key={place} className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Skeleton className="w-7 h-7 rounded-full" />
-              <div className="space-y-1">
-                <SkeletonText width="w-16" height="h-4" />
-                <SkeletonText width="w-12" height="h-3" />
+      {/* Top 3 Podium Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+        {[1, 2, 3].map((place) => (
+          <SkeletonCard key={place} className="p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <Skeleton className="w-10 h-10 rounded-lg" />
+              <div className="space-y-1 flex-1">
+                <SkeletonText width="w-24" height="h-4" />
+                <SkeletonText width="w-16" height="h-3" />
               </div>
             </div>
-            <div className="mb-3">
-              <SkeletonText width="w-10" height="h-3" className="mb-1" />
-              <SkeletonText width="w-16" height="h-6" />
-            </div>
-            <div className="border-t border-surface-800/50 pt-3">
-              <SkeletonText width="w-20" height="h-3" className="mb-2" />
-              <div className="flex items-center gap-2">
-                <SkeletonAvatar size="w-8 h-8" />
-                <div className="space-y-1">
-                  <SkeletonText width="w-20" height="h-4" />
-                  <SkeletonText width="w-24" height="h-3" />
-                </div>
-              </div>
+            <SkeletonText width="w-28" height="h-8" className="mb-2" />
+            <div className="flex gap-3">
+              <SkeletonText width="w-20" height="h-3" />
+              <SkeletonText width="w-16" height="h-3" />
             </div>
           </SkeletonCard>
         ))}
@@ -307,28 +295,30 @@ export function ProfileSkeleton() {
 }
 
 
-// Arena/Lobby Skeleton - Tabs, filters, and content area
-// Note: Header (title + stats) is rendered by the page wrapper
+// Arena/Lobby Skeleton - Stats cards, tabs, and content area
+// Note: Header (title + button) is rendered by the page wrapper
 export function ArenaSkeleton() {
   return (
     <div className="space-y-2">
-      {/* Tabs and Filters */}
-      <div className="border-b border-surface-800 pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          {/* Tabs */}
-          <div className="flex gap-1">
-            {['Live', 'Pending', 'Finished', 'My Fights'].map((tab, i) => (
-              <div key={tab} className={`px-4 py-2 text-sm rounded-lg ${i === 0 ? 'text-white bg-surface-800' : 'text-surface-500'}`}>
-                {tab}
-              </div>
-            ))}
-          </div>
-          {/* Filters */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-surface-500">Filter:</span>
-            <Skeleton className="w-28 h-8 rounded-lg" />
-            <Skeleton className="w-24 h-8 rounded-lg" />
-          </div>
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-3 gap-2 mb-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <SkeletonCard key={i} className="p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Skeleton className="w-8 h-8 rounded-lg" />
+              <SkeletonText width="w-20" height="h-3" />
+            </div>
+            <SkeletonText width="w-16" height="h-8" />
+          </SkeletonCard>
+        ))}
+      </div>
+
+      {/* Tabs + Filters */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+        <Skeleton className="w-72 h-10 rounded-xl" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="w-28 h-8 rounded-lg" />
+          <Skeleton className="w-24 h-8 rounded-lg" />
         </div>
       </div>
 

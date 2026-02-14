@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { usePrices } from '@/hooks/usePrices';
 import { Portal } from './Portal';
+import { Slider } from './Slider';
 import { Spinner } from './Spinner';
 import type { Position, TpSlOrder } from './Positions';
 
@@ -822,16 +823,11 @@ export function TpSlModal({ position, onClose, onConfirm, onCancelOrder, isSubmi
 
                   {/* Slider */}
                   <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
+                    <Slider
+                      min={0}
+                      max={100}
                       value={partialPercentage}
-                      onChange={(e) => handlePartialPercentageChange(parseInt(e.target.value))}
-                      className="flex-1 h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
-                      style={{
-                        background: `linear-gradient(to right, #22d3ee 0%, #22d3ee ${partialPercentage}%, #374151 ${partialPercentage}%, #374151 100%)`
-                      }}
+                      onChange={handlePartialPercentageChange}
                     />
                     <span className="text-sm text-white font-mono min-w-[50px] text-right">{partialPercentage.toFixed(0)}%</span>
                   </div>

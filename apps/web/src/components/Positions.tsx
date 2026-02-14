@@ -86,6 +86,17 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
   // Sorting state
   const [sort, setSort] = useState<SortState>({ col: 'pnl', desc: true });
 
+  // Expand/collapse state for mobile cards (must be before any early returns)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const toggleCard = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   // Sync tpSlPosition with updated position from props when orders change
   // This ensures the modal shows current orders after cancellation
   useEffect(() => {
@@ -292,17 +303,6 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
     );
 
     return { displayContent };
-  };
-
-  // Expand/collapse state for mobile cards
-  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const toggleCard = (id: string) => {
-    setExpandedCards(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
   };
 
   return (
