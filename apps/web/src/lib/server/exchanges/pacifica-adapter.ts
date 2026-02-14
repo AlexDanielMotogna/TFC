@@ -110,12 +110,26 @@ export class PacificaAdapter implements ExchangeAdapter {
 
   async getKlines(params: KlineParams): Promise<Candle[]> {
     const pacificaSymbol = this.denormalizeSymbol(params.symbol);
-    const candles = await Pacifica.getKlines({
-      symbol: pacificaSymbol,
-      interval: params.interval,
-      startTime: params.startTime || Date.now() - 24 * 60 * 60 * 1000, // Default: last 24h
-      endTime: params.endTime,
-    });
+    // Use mark price klines (continuous, no gaps) instead of last traded price
+    // Falls back to regular klines if mark_price_kline endpoint fails
+    let rawCandles;
+    try {
+      rawCandles = await Pacifica.getMarkPriceKlines({
+        symbol: pacificaSymbol,
+        interval: params.interval,
+        startTime: params.startTime || Date.now() - 24 * 60 * 60 * 1000,
+        endTime: params.endTime,
+      });
+    } catch {
+      // Fallback to regular klines if mark price endpoint not available
+      rawCandles = await Pacifica.getKlines({
+        symbol: pacificaSymbol,
+        interval: params.interval,
+        startTime: params.startTime || Date.now() - 24 * 60 * 60 * 1000,
+        endTime: params.endTime,
+      });
+    }
+    const candles = rawCandles;
 
     // Pacifica returns {t, o, h, l, c, v} format, normalize to adapter format
     return candles.map((c: any) => ({
