@@ -239,6 +239,72 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
     );
   }
 
+  // Sorted positions (shared between desktop table and mobile cards)
+  const sortedPositions = [...positions].sort((a, b) => {
+    const getValue = (pos: Position) => {
+      switch (sort.col) {
+        case 'token': return pos.symbol;
+        case 'size': return pos.sizeInToken;
+        case 'value': return pos.size;
+        case 'entry': return pos.entryPrice;
+        case 'mark': return pos.markPrice;
+        case 'pnl': return pos.unrealizedPnl;
+        case 'liq': return pos.liquidationPrice;
+        case 'margin': return pos.margin;
+        case 'funding': return pos.funding;
+        default: return 0;
+      }
+    };
+    const valA = getValue(a);
+    const valB = getValue(b);
+    if (typeof valA === 'string') {
+      return sort.desc ? valB.toString().localeCompare(valA) : valA.localeCompare(valB.toString());
+    }
+    return sort.desc ? (valB as number) - (valA as number) : (valA as number) - (valB as number);
+  });
+
+  // TP/SL display helper (shared between desktop and mobile)
+  const renderTpSlContent = (pos: Position) => {
+    const tpCount = pos.tpOrders?.length || 0;
+    const slCount = pos.slOrders?.length || 0;
+    const hasMultiple = tpCount > 1 || slCount > 1;
+
+    const displayContent = hasMultiple ? (
+      <span className="font-mono">
+        <span className={tpCount > 0 ? 'text-win-400' : 'text-surface-500'}>
+          {tpCount > 0 ? `${tpCount} TP${tpCount > 1 ? 's' : ''}` : '-'}
+        </span>
+        <span className="text-surface-500 mx-1">/</span>
+        <span className={slCount > 0 ? 'text-loss-400' : 'text-surface-500'}>
+          {slCount > 0 ? `${slCount} SL${slCount > 1 ? 's' : ''}` : '-'}
+        </span>
+      </span>
+    ) : (
+      <span className="font-mono">
+        <span className={pos.takeProfit ? 'text-win-400' : 'text-surface-500'}>
+          {pos.takeProfit ? formatPrice(pos.takeProfit) : '-'}
+        </span>
+        <span className="text-surface-500 mx-1">/</span>
+        <span className={pos.stopLoss ? 'text-loss-400' : 'text-surface-500'}>
+          {pos.stopLoss ? formatPrice(pos.stopLoss) : '-'}
+        </span>
+      </span>
+    );
+
+    return { displayContent };
+  };
+
+  // Expand/collapse state for mobile cards
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const toggleCard = (id: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Info banner for read-only mode */}
@@ -250,8 +316,144 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           <span>{readOnlyMessage}</span>
         </div>
       )}
-      {/* Table with horizontal scroll only */}
-      <div className="overflow-x-auto flex-1">
+
+      {/* ── Mobile card view (< 1200px) ── */}
+      <div className="flex-1 overflow-y-auto max-[1199px]:block hidden">
+        <div className="space-y-2 px-1">
+          {sortedPositions.map((pos) => {
+            const isExpanded = expandedCards.has(pos.id);
+            const { displayContent: tpSlDisplay } = renderTpSlContent(pos);
+
+            return (
+              <div key={pos.id} className="border border-surface-800/50 rounded-lg bg-surface-900/50">
+                {/* Card header — always visible */}
+                <button
+                  onClick={() => toggleCard(pos.id)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium text-white text-sm">{getTokenSymbol(pos.symbol)}</span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                        pos.side === 'LONG'
+                          ? 'bg-win-500/20 text-win-400'
+                          : 'bg-loss-500/20 text-loss-400'
+                      }`}
+                    >
+                      {pos.leverage}x {pos.side === 'LONG' ? 'Long' : 'Short'}
+                    </span>
+                    <span
+                      className={`font-mono text-xs font-medium ${
+                        pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
+                      }`}
+                    >
+                      {pos.unrealizedPnl >= 0 ? '+' : '-'}${pos.unrealizedPnl < 1 && pos.unrealizedPnl > -1
+                        ? Math.abs(pos.unrealizedPnl).toFixed(4)
+                        : Math.abs(pos.unrealizedPnl).toFixed(2)}
+                      {' '}({pos.unrealizedPnlPercent >= 0 ? '+' : ''}{pos.unrealizedPnlPercent.toFixed(2)}%)
+                    </span>
+                  </div>
+                  <svg
+                    className={`w-4 h-4 text-surface-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Card body — collapsed by default */}
+                {isExpanded && (
+                  <div className="px-3 pb-3 pt-0">
+                    {/* Data grid: 3 columns */}
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
+                      {/* Row 1 */}
+                      <div>
+                        <div className="text-surface-500">Size</div>
+                        <div className="font-mono text-white">{formatTokenAmount(pos.sizeInToken, pos.symbol)}</div>
+                      </div>
+                      <div>
+                        <div className="text-surface-500">Position Value</div>
+                        <div className="font-mono text-surface-300">${pos.size.toFixed(2)}</div>
+                      </div>
+                      <div>
+                        <div className="text-surface-500">Entry / Breakeven Price</div>
+                        <div className="font-mono text-surface-300">{formatPrice(pos.entryPrice)}</div>
+                      </div>
+
+                      {/* Row 2 */}
+                      <div>
+                        <div className="text-surface-500">Mark Price</div>
+                        <div className="font-mono text-surface-300">{formatPrice(pos.markPrice)}</div>
+                      </div>
+                      <div>
+                        <div className="text-surface-500">Margin</div>
+                        <div className="font-mono text-white">${pos.margin.toFixed(2)} ({pos.marginType})</div>
+                      </div>
+                      <div>
+                        <div className="text-surface-500">Liq Price</div>
+                        <div className="font-mono text-loss-400">{formatPrice(pos.liquidationPrice)}</div>
+                      </div>
+
+                      {/* Row 3 */}
+                      <div>
+                        <div className="text-surface-500">Funding</div>
+                        <div className={`font-mono ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                          {pos.funding >= 0 ? '+' : '-'}${pos.funding < 0.01 && pos.funding > -0.01
+                            ? Math.abs(pos.funding).toFixed(4)
+                            : Math.abs(pos.funding).toFixed(2)}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-surface-500">TP/SL</div>
+                        <div className="flex items-center gap-1">
+                          {tpSlDisplay}
+                          {!readOnly && onSetTpSl && (
+                            <button onClick={() => setTpSlPosition(pos)} className="ml-0.5">
+                              <svg className="w-3 h-3 text-surface-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    {!readOnly && (
+                      <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-surface-800/50">
+                        <button
+                          onClick={() => handleClose(pos.id, 'market')}
+                          disabled={closingId === pos.id}
+                          className="px-3 py-1.5 text-xs font-medium bg-surface-700 hover:bg-surface-600 rounded transition-colors disabled:opacity-50 text-win-400"
+                        >
+                          {closingId === pos.id && closingType === 'market' ? '...' : 'Market'}
+                        </button>
+                        <button
+                          onClick={() => handleClose(pos.id, 'limit')}
+                          disabled={closingId === pos.id}
+                          className="px-3 py-1.5 text-xs font-medium bg-surface-700 hover:bg-surface-600 rounded transition-colors disabled:opacity-50 text-white"
+                        >
+                          {closingId === pos.id && closingType === 'limit' ? '...' : 'Limit'}
+                        </button>
+                        <button
+                          onClick={() => handleClose(pos.id, 'flip')}
+                          disabled={closingId === pos.id}
+                          className="px-3 py-1.5 text-xs font-medium bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 rounded transition-colors disabled:opacity-50"
+                        >
+                          {closingId === pos.id && closingType === 'flip' ? '...' : 'Flip'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Desktop table view (>= 1200px) ── */}
+      <div className="overflow-x-auto flex-1 max-[1199px]:hidden">
       <table className="w-full text-xs min-w-[900px]">
         <thead>
           <tr className="text-xs text-surface-400 tracking-wider">
@@ -262,49 +464,49 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               Token {sort.col === 'token' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('size')}
             >
               Size {sort.col === 'size' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('value')}
             >
-              Pos Value {sort.col === 'value' && (sort.desc ? '↓' : '↑')}
+              Position Value {sort.col === 'value' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('entry')}
             >
               Entry {sort.col === 'entry' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('mark')}
             >
               Mark {sort.col === 'mark' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('pnl')}
             >
               PnL (ROI%) {sort.col === 'pnl' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('liq')}
             >
               Liq Price {sort.col === 'liq' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('margin')}
             >
               Margin {sort.col === 'margin' && (sort.desc ? '↓' : '↑')}
             </th>
             <th
-              className="text-right py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
+              className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap"
               onClick={() => toggleSort('funding')}
             >
               Funding {sort.col === 'funding' && (sort.desc ? '↓' : '↑')}
@@ -314,31 +516,13 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           </tr>
         </thead>
         <tbody>
-          {[...positions].sort((a, b) => {
-            const getValue = (pos: Position) => {
-              switch (sort.col) {
-                case 'token': return pos.symbol;
-                case 'size': return pos.sizeInToken;
-                case 'value': return pos.size;
-                case 'entry': return pos.entryPrice;
-                case 'mark': return pos.markPrice;
-                case 'pnl': return pos.unrealizedPnl;
-                case 'liq': return pos.liquidationPrice;
-                case 'margin': return pos.margin;
-                case 'funding': return pos.funding;
-                default: return 0;
-              }
-            };
-            const valA = getValue(a);
-            const valB = getValue(b);
-            if (typeof valA === 'string') {
-              return sort.desc ? valB.toString().localeCompare(valA) : valA.localeCompare(valB.toString());
-            }
-            return sort.desc ? (valB as number) - (valA as number) : (valA as number) - (valB as number);
-          }).map((pos) => (
+          {sortedPositions.map((pos) => {
+            const { displayContent: tpSlDisplay } = renderTpSlContent(pos);
+
+            return (
             <tr
               key={pos.id}
-              className="border-t border-surface-800/50 hover:bg-surface-800/30"
+              className="border-surface-800/50 hover:bg-surface-800/30"
             >
               {/* Token - Symbol with leverage badge */}
               <td className="py-3 px-2">
@@ -357,27 +541,27 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Size in token */}
-              <td className="py-3 px-2 text-right font-mono text-white">
+              <td className="py-3 px-2 text-left font-mono text-white">
                 {formatTokenAmount(pos.sizeInToken, pos.symbol)}
               </td>
 
               {/* Position Value in USD */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300">
+              <td className="py-3 px-2 text-left font-mono text-surface-300">
                 ${pos.size.toFixed(2)}
               </td>
 
               {/* Entry Price */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300 min-w-[85px]">
+              <td className="py-3 px-2 text-left font-mono text-surface-300 min-w-[85px]">
                 {formatPrice(pos.entryPrice)}
               </td>
 
               {/* Mark Price */}
-              <td className="py-3 px-2 text-right font-mono text-surface-300 min-w-[85px]">
+              <td className="py-3 px-2 text-left font-mono text-surface-300 min-w-[85px]">
                 {formatPrice(pos.markPrice)}
               </td>
 
               {/* PnL with ROI% */}
-              <td className="py-3 px-2 text-right min-w-[140px]">
+              <td className="py-3 px-2 text-left min-w-[140px]">
                 <div
                   className={`font-mono font-medium ${
                     pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
@@ -394,12 +578,12 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Liquidation Price */}
-              <td className="py-3 px-2 text-right font-mono text-loss-400 min-w-[85px]">
+              <td className="py-3 px-2 text-left font-mono text-loss-400 min-w-[85px]">
                 {formatPrice(pos.liquidationPrice)}
               </td>
 
               {/* Margin with type */}
-              <td className="py-3 px-2 text-right">
+              <td className="py-3 px-2 text-left">
                 <div className="font-mono text-white">
                   ${pos.margin.toFixed(2)}
                 </div>
@@ -409,7 +593,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Funding */}
-              <td className="py-3 px-2 text-right">
+              <td className="py-3 px-2 text-left">
                 <span className={`font-mono ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                   {pos.funding >= 0 ? '+' : '-'}${pos.funding < 0.01 && pos.funding > -0.01
                     ? `${Math.abs(pos.funding).toFixed(4)}`
@@ -419,59 +603,27 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
 
               {/* TP/SL */}
               <td className="py-3 px-2 text-center">
-                {(() => {
-                  const tpCount = pos.tpOrders?.length || 0;
-                  const slCount = pos.slOrders?.length || 0;
-                  const hasMultiple = tpCount > 1 || slCount > 1;
-
-                  // Display content based on number of orders
-                  const displayContent = hasMultiple ? (
-                    // Show counts when multiple orders exist (like Pacifica)
-                    <span className="font-mono">
-                      <span className={tpCount > 0 ? 'text-win-400' : 'text-surface-500'}>
-                        {tpCount > 0 ? `${tpCount} TP${tpCount > 1 ? 's' : ''}` : '-'}
-                      </span>
-                      <span className="text-surface-500 mx-1">/</span>
-                      <span className={slCount > 0 ? 'text-loss-400' : 'text-surface-500'}>
-                        {slCount > 0 ? `${slCount} SL${slCount > 1 ? 's' : ''}` : '-'}
-                      </span>
-                    </span>
-                  ) : (
-                    // Show single price when only one order each (or none)
-                    <span className="font-mono">
-                      <span className={pos.takeProfit ? 'text-win-400' : 'text-surface-500'}>
-                        {pos.takeProfit ? formatPrice(pos.takeProfit) : '-'}
-                      </span>
-                      <span className="text-surface-500 mx-1">/</span>
-                      <span className={pos.stopLoss ? 'text-loss-400' : 'text-surface-500'}>
-                        {pos.stopLoss ? formatPrice(pos.stopLoss) : '-'}
-                      </span>
-                    </span>
-                  );
-
-                  return !readOnly && onSetTpSl ? (
-                    <button
-                      onClick={() => setTpSlPosition(pos)}
-                      className="inline-flex items-center gap-1.5 text-xs hover:bg-surface-700/50 rounded px-2 py-1 transition-colors group"
-                      title="Set TP/SL"
+                {!readOnly && onSetTpSl ? (
+                  <button
+                    onClick={() => setTpSlPosition(pos)}
+                    className="inline-flex items-center gap-1.5 text-xs hover:bg-surface-700/50 rounded px-2 py-1 transition-colors group"
+                    title="Set TP/SL"
+                  >
+                    {tpSlDisplay}
+                    <svg
+                      className="w-3.5 h-3.5 text-surface-500 group-hover:text-primary-400 transition-colors"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
                     >
-                      {displayContent}
-                      {/* Edit icon */}
-                      <svg
-                        className="w-3.5 h-3.5 text-surface-500 group-hover:text-primary-400 transition-colors"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                  ) : (
-                    <div className="inline-flex items-center gap-1.5 text-xs">
-                      {displayContent}
-                    </div>
-                  );
-                })()}
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                ) : (
+                  <div className="inline-flex items-center gap-1.5 text-xs">
+                    {tpSlDisplay}
+                  </div>
+                )}
               </td>
 
               {/* Close actions - hidden in read-only mode */}
@@ -503,13 +655,14 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                 </td>
               )}
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
       </div>
 
       {/* Summary - fixed at bottom */}
-      <div className="mt-auto pt-3 border-t border-surface-800 flex items-center gap-4 px-2 flex-shrink-0">
+      <div className="mt-auto pt-3 border-t border-surface-800 flex items-center gap-4 px-2 p-2 flex-shrink-0">
         <div className="text-xs text-surface-400">
           Positions: <span className="text-white">{positions.length}</span>
         </div>

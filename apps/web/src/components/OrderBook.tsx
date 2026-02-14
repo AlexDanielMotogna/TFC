@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { useOrderBook, type AggLevel } from '@/hooks/useOrderBook';
 
 interface OrderBookProps {
@@ -99,6 +99,27 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
   // Aggregation level (server-side) - valid values: 1, 2, 5, 10, 100, 1000
   const [aggLevel, setAggLevel] = useState<AggLevel>(1);
 
+  // Dropdown open states
+  const [aggDropdownOpen, setAggDropdownOpen] = useState(false);
+  const [sizeModeDropdownOpen, setSizeModeDropdownOpen] = useState(false);
+  const aggDropdownRef = useRef<HTMLDivElement>(null);
+  const sizeModeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    if (!aggDropdownOpen && !sizeModeDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (aggDropdownOpen && aggDropdownRef.current && !aggDropdownRef.current.contains(e.target as Node)) {
+        setAggDropdownOpen(false);
+      }
+      if (sizeModeDropdownOpen && sizeModeDropdownRef.current && !sizeModeDropdownRef.current.contains(e.target as Node)) {
+        setSizeModeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [aggDropdownOpen, sizeModeDropdownOpen]);
+
   // Calculate aggregation options based on tickSize
   // agg_level is a multiplier of tick_size (e.g., tickSize=0.01, agg_level=10 → 0.10)
   const aggOptions = useMemo(() => {
@@ -124,16 +145,16 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       return { processedAsks: [], processedBids: [], maxTotal: 0, bidTotal: 0, askTotal: 0, spread: 0, spreadPercent: 0 };
     }
 
-    // Take up to 9 levels for each side
+    // Take up to 10 levels for each side
     let askRunningTotal = 0;
-    const asks = orderBook.asks.slice(0, 9).map((level) => {
+    const asks = orderBook.asks.slice(0, 10).map((level) => {
       const displaySize = sizeMode === 'USD' ? level.size * level.price : level.size;
       askRunningTotal += displaySize;
       return { ...level, displaySize, total: askRunningTotal };
     });
 
     let bidRunningTotal = 0;
-    const bids = orderBook.bids.slice(0, 9).map((level) => {
+    const bids = orderBook.bids.slice(0, 10).map((level) => {
       const displaySize = sizeMode === 'USD' ? level.size * level.price : level.size;
       bidRunningTotal += displaySize;
       return { ...level, displaySize, total: bidRunningTotal };
@@ -181,52 +202,95 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
   return (
     <div className="h-full flex flex-col text-xs overflow-hidden" style={{ contain: 'layout' }}>
       {/* Header with agg level and size mode selector */}
-      <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-b border-surface-800">
-        {/* Aggregation level selector (server-side) - shows actual tick values */}
-        <div className="relative">
-          <select
-            value={aggLevel}
-            onChange={(e) => setAggLevel(Number(e.target.value) as AggLevel)}
-            className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer"
+      <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-surface-800">
+        {/* Aggregation level — custom dropdown */}
+        <div className="relative" ref={aggDropdownRef}>
+          <button
+            onClick={() => setAggDropdownOpen(!aggDropdownOpen)}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-white hover:bg-surface-800 transition-colors"
           >
-            {aggOptions.map((opt) => (
-              <option key={opt.level} value={opt.level}>
-                {opt.displayValue}
-              </option>
-            ))}
-          </select>
+            {aggOptions.find(o => o.level === aggLevel)?.displayValue ?? String(aggLevel)}
+            <svg className={`w-3 h-3 text-surface-500 transition-transform ${aggDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {aggDropdownOpen && (
+            <div className="absolute left-0 top-full mt-1 min-w-[72px] bg-surface-850 rounded-lg shadow-xl overflow-hidden z-50 py-1">
+              {aggOptions.map((opt) => (
+                <button
+                  key={opt.level}
+                  onClick={() => { setAggLevel(opt.level); setAggDropdownOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 text-xs transition-colors ${
+                    aggLevel === opt.level
+                      ? 'text-white bg-surface-700/50'
+                      : 'text-surface-400 hover:text-white hover:bg-surface-800'
+                  }`}
+                >
+                  <span>{opt.displayValue}</span>
+                  {aggLevel === opt.level && (
+                    <svg className="w-3 h-3 text-primary-400 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Size mode selector (USD/Token) - hidden on narrow screens where Size column is hidden */}
-        <div className="relative hidden sm:block">
-          <select
-            value={sizeMode}
-            onChange={(e) => setSizeMode(e.target.value as 'USD' | 'TOKEN')}
-            className="bg-surface-800 rounded px-2 py-0.5 text-xs text-surface-300 cursor-pointer"
+        {/* Size mode (USD/Token) — custom dropdown */}
+        <div className="relative" ref={sizeModeDropdownRef}>
+          <button
+            onClick={() => setSizeModeDropdownOpen(!sizeModeDropdownOpen)}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-white hover:bg-surface-800 transition-colors"
           >
-            <option value="USD">USD</option>
-            <option value="TOKEN">{baseToken}</option>
-          </select>
+            {sizeMode === 'USD' ? 'USD' : baseToken}
+            <svg className={`w-3 h-3 text-surface-500 transition-transform ${sizeModeDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {sizeModeDropdownOpen && (
+            <div className="absolute right-0 top-full mt-1 min-w-[72px] bg-surface-850 rounded-lg shadow-xl overflow-hidden z-50 py-1">
+              {([{ value: 'USD' as const, label: 'USD' }, { value: 'TOKEN' as const, label: baseToken }]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => { setSizeMode(opt.value); setSizeModeDropdownOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 text-xs transition-colors ${
+                    sizeMode === opt.value
+                      ? 'text-white bg-surface-700/50'
+                      : 'text-surface-400 hover:text-white hover:bg-surface-800'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {sizeMode === opt.value && (
+                    <svg className="w-3 h-3 text-primary-400 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Column headers - responsive: hide Size on narrow screens */}
-      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-b border-surface-800 uppercase">
+      <div className="flex-shrink-0 grid grid-cols-2 sm:grid-cols-3 text-[10px] text-surface-400 px-2 py-1 border-surface-800 uppercase">
         <span>Price</span>
         <span className="hidden sm:block text-right">Size({sizeMode === 'USD' ? 'USD' : baseToken})</span>
         <span className="text-right">Total</span>
       </div>
 
-      {/* Asks (sells) - fixed container height (9 rows × 28px) to prevent layout shifts */}
-      <div className="h-[252px] flex flex-col overflow-hidden">
+      {/* Asks (sells) - flex-1 to fill available space, rows distribute evenly */}
+      <div className="flex-1 flex flex-col justify-end overflow-hidden">
         {/* Empty placeholder rows to maintain stable layout */}
-        {Array(Math.max(0, 9 - processedAsks.length)).fill(null).map((_, i) => (
-          <div key={`ask-empty-${i}`} className="h-7" />
+        {Array(Math.max(0, 10 - processedAsks.length)).fill(null).map((_, i) => (
+          <div key={`ask-empty-${i}`} className="flex-1" />
         ))}
         {processedAsks.map((level) => (
           <div
             key={`ask-${level.price}`}
-            className="relative h-7 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
+            className="relative flex-1 min-h-[28px] grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
@@ -247,18 +311,18 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
       </div>
 
       {/* Spread */}
-      <div className="flex-shrink-0 px-2 py-1 border-y border-surface-800 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
+      <div className="flex-shrink-0 px-2 py-1 border-surface-800 bg-surface-800/30 flex justify-between text-[10px] text-surface-400">
         <span>Spread</span>
         <span className="tabular-nums tracking-tight">{spread > 0 ? formatPrice(spread) : '-'}</span>
         <span className="tabular-nums tracking-tight">{spread > 0 ? spreadPercent.toFixed(3) + '%' : '-'}</span>
       </div>
 
-      {/* Bids (buys) - fixed container height (9 rows × 28px) to prevent layout shifts */}
-      <div className="h-[252px] flex flex-col overflow-hidden">
+      {/* Bids (buys) - flex-1 to fill available space, rows distribute evenly */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         {processedBids.map((level) => (
           <div
             key={`bid-${level.price}`}
-            className="relative h-7 grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
+            className="relative flex-1 min-h-[28px] grid grid-cols-2 sm:grid-cols-3 text-xs px-2 cursor-pointer hover:bg-surface-700/30 items-center"
             onClick={() => onPriceClick?.(level.price)}
           >
             <div
@@ -277,8 +341,8 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
           </div>
         ))}
         {/* Empty placeholder rows to maintain stable layout */}
-        {Array(Math.max(0, 9 - processedBids.length)).fill(null).map((_, i) => (
-          <div key={`bid-empty-${i}`} className="h-7" />
+        {Array(Math.max(0, 10 - processedBids.length)).fill(null).map((_, i) => (
+          <div key={`bid-empty-${i}`} className="flex-1" />
         ))}
       </div>
 

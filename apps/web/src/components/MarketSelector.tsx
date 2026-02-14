@@ -259,7 +259,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
                     setIsOpen(false);
                     setSearchQuery('');
                   }}
-                  className={`border-b border-surface-800/50 transition-colors ${
+                  className={`transition-colors ${
                     isBlocked
                       ? 'opacity-50 cursor-not-allowed'
                       : isSelected
