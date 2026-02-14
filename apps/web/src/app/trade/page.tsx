@@ -1808,11 +1808,11 @@ function TradePageContent() {
           {/* Right: Order Entry - same height as Order Book on mobile (600px) with internal scroll */}
           {/* contain: layout prevents internal changes from affecting page scroll */}
           <div className="col-span-1 xl:col-span-1 order-3 xl:order-2 xl:row-span-2 h-[644px] xl:min-h-[1104px] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
-            <div className="px-4 pt-2 pb-2 flex-shrink-0 border-surface-800 flex items-center justify-between">
-              <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
+            <div className="px-3 xl:px-4 pt-2 pb-2 flex-shrink-0 border-surface-800">
+              <h3 className="font-display font-semibold text-sm uppercase tracking-wide mb-2">
                 Place Order
               </h3>
-              <div className="flex items-center gap-0.5 bg-surface-800 rounded p-0.5">
+              <div className="flex items-center gap-0.5 bg-surface-800 rounded p-0.5 w-fit">
                 <button
                   onClick={() => handleSetMarginMode(false)}
                   disabled={!canTrade || hasOpenPosition}
@@ -1914,7 +1914,7 @@ function TradePageContent() {
                           : 'text-surface-500 hover:text-surface-300'
                       } disabled:opacity-50`}
                     >
-                      {type === 'market' ? 'Market' : type === 'limit' ? 'Limit' : type === 'stop-market' ? 'Stop' : 'Stop Limit'}
+                      <span className="whitespace-nowrap">{type === 'market' ? 'Market' : type === 'limit' ? 'Limit' : type === 'stop-market' ? 'Stop' : 'Stop Limit'}</span>
                       {orderType === type && (
                         <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-primary-400 rounded-full" />
                       )}
