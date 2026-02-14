@@ -1003,6 +1003,102 @@ export function useEditOrder() {
   });
 }
 
+// ─── Batch Orders Types ───
+
+export interface BatchCreateAction {
+  type: 'Create';
+  data: {
+    account: string;
+    signature: string;
+    timestamp: number;
+    expiry_window: number;
+    symbol: string;
+    price: string;
+    amount: string;
+    side: 'bid' | 'ask';
+    tif: string;
+    reduce_only: boolean;
+    builder_code?: string;
+    client_order_id?: string;
+  };
+}
+
+export interface BatchCancelAction {
+  type: 'Cancel';
+  data: {
+    account: string;
+    signature: string;
+    timestamp: number;
+    expiry_window: number;
+    symbol: string;
+    order_id: number;
+  };
+}
+
+export type BatchAction = BatchCreateAction | BatchCancelAction;
+
+interface BatchActionResult {
+  success: boolean;
+  order_id?: number;
+  error?: string | null;
+}
+
+interface BatchOrdersResponse {
+  results: BatchActionResult[];
+}
+
+/**
+ * Hook to execute a batch of order actions atomically.
+ * Each action must be pre-signed by the caller using existing signing functions.
+ * Max 10 actions per batch (enforced by Pacifica).
+ */
+export function useBatchOrders() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { actions: BatchAction[] }) => {
+      if (!params.actions.length) {
+        throw new Error('Batch must contain at least one action');
+      }
+      if (params.actions.length > 10) {
+        throw new Error('Batch cannot exceed 10 actions');
+      }
+
+      const response = await fetch('/api/orders/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actions: params.actions }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data as BatchOrdersResponse;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['positions'] });
+      queryClient.invalidateQueries({ queryKey: ['account'] });
+
+      const successes = data.results.filter((r) => r.success).length;
+      const failures = data.results.filter((r) => !r.success).length;
+
+      if (failures === 0) {
+        notify('ORDER', 'Batch Complete', `${successes} action${successes > 1 ? 's' : ''} executed`, { variant: 'success' });
+      } else {
+        notify('ORDER', 'Batch Partial', `${successes} succeeded, ${failures} failed`, { variant: 'warning' });
+      }
+    },
+    onError: (error: Error) => {
+      console.error('Failed to execute batch orders:', error);
+      notify('ORDER', 'Batch Failed', `Batch failed: ${error.message}`, { variant: 'error' });
+    },
+  });
+}
+
 interface WithdrawParams {
   amount: string;
 }
