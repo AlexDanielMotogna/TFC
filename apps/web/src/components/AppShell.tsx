@@ -370,13 +370,13 @@ export function AppShell({ children }: AppShellProps) {
         </main>
 
         {/* Footer - visible only on desktop */}
-        <footer className="hidden min-[1200px]:block border-t border-surface-800 py-1">
+        {/* <footer className="hidden min-[1200px]:block border-t border-surface-800 py-1">
           <div className="w-full px-4">
             <div className="flex items-center justify-center text-[10px] text-surface-500">
               <span>Trading Fight Club</span>
             </div>
           </div>
-        </footer>
+        </footer> */}
       </div>
 
       {/* Bottom Navigation - visible only on mobile/tablet (< 1200px) */}

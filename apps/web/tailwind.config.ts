@@ -12,18 +12,18 @@ export default {
         // Professional Trading Platform Palette
         // Neutral, clean colors inspired by Bloomberg/TradingView
 
-        // Primary - Subtle blue accent (professional, trustworthy)
+        // Primary - Muted blue accent (softer, less saturated)
         primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
+          50: '#eef6fc',
+          100: '#d5e8f7',
+          200: '#a8cfed',
+          300: '#7ab4de',
+          400: '#5196c9',
+          500: '#3a7db0',
+          600: '#2e6593',
+          700: '#254f75',
+          800: '#1c3d5a',
+          900: '#132c42',
         },
 
         // Accent - Warm neutral for highlights
@@ -116,17 +116,17 @@ export default {
         'subtle': '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
         'card': '0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4)',
         'elevated': '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4)',
-        'glow-sm': '0 0 10px rgba(14, 165, 233, 0.3)',
-        'glow-primary': '0 0 20px rgba(14, 165, 233, 0.3)',
+        'glow-sm': '0 0 10px rgba(58, 125, 176, 0.3)',
+        'glow-primary': '0 0 20px rgba(58, 125, 176, 0.3)',
         'glow-accent': '0 0 20px rgba(139, 92, 246, 0.3)',
         'glow-success': '0 0 20px rgba(38, 166, 154, 0.3)', // Teal glow
         'glow-orange': '0 0 20px rgba(249, 115, 22, 0.4)',
-        'glow-lg': '0 0 40px rgba(14, 165, 233, 0.2)',
+        'glow-lg': '0 0 40px rgba(58, 125, 176, 0.2)',
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'hero-gradient': 'linear-gradient(135deg, rgba(14,165,233,0.1) 0%, rgba(139,92,246,0.1) 100%)',
+        'hero-gradient': 'linear-gradient(135deg, rgba(58,125,176,0.1) 0%, rgba(139,92,246,0.1) 100%)',
         'card-gradient': 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%)',
       },
       animation: {
@@ -147,8 +147,8 @@ export default {
           '100%': { transform: 'translateY(0)', opacity: '1' },
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(14,165,233,0.3)' },
-          '50%': { boxShadow: '0 0 40px rgba(14,165,233,0.5)' },
+          '0%, 100%': { boxShadow: '0 0 20px rgba(58,125,176,0.3)' },
+          '50%': { boxShadow: '0 0 40px rgba(58,125,176,0.5)' },
         },
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
