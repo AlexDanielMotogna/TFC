@@ -98,7 +98,7 @@ export async function getOrderbook(symbol: string, aggLevel = 1): Promise<Orderb
 }
 
 /**
- * Get historical candles
+ * Get historical candles (last traded price)
  * GET /api/v1/kline
  */
 export async function getKlines(params: {
@@ -108,6 +108,25 @@ export async function getKlines(params: {
   endTime?: number;
 }): Promise<Candle[]> {
   let url = `/api/v1/kline?symbol=${params.symbol}&interval=${params.interval}&start_time=${params.startTime}`;
+
+  if (params.endTime) {
+    url += `&end_time=${params.endTime}`;
+  }
+
+  return request<Candle[]>('GET', url);
+}
+
+/**
+ * Get historical mark price candles (continuous, no gaps)
+ * GET /api/v1/mark_price_kline
+ */
+export async function getMarkPriceKlines(params: {
+  symbol: string;
+  interval: string;
+  startTime: number;
+  endTime?: number;
+}): Promise<Candle[]> {
+  let url = `/api/v1/mark_price_kline?symbol=${params.symbol}&interval=${params.interval}&start_time=${params.startTime}`;
 
   if (params.endTime) {
     url += `&end_time=${params.endTime}`;

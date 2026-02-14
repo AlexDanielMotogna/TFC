@@ -303,13 +303,24 @@ async function fetchFromPacifica(
       }));
     }
 
-    // Fallback to direct Pacifica calls
-    const rawCandles = await Pacifica.getKlines({
-      symbol: pacificaSymbol,
-      interval,
-      startTime,
-      endTime,
-    });
+    // Fallback to direct Pacifica calls (prefer mark price klines - no gaps)
+    let rawCandles;
+    try {
+      rawCandles = await Pacifica.getMarkPriceKlines({
+        symbol: pacificaSymbol,
+        interval,
+        startTime,
+        endTime,
+      });
+    } catch {
+      // Fall back to regular klines if mark price endpoint fails
+      rawCandles = await Pacifica.getKlines({
+        symbol: pacificaSymbol,
+        interval,
+        startTime,
+        endTime,
+      });
+    }
 
     return rawCandles.map(c => ({
       t: c.t,
