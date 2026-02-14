@@ -22,7 +22,7 @@ interface Subscription {
 }
 
 interface PacificaCandleMessage {
-  channel: 'candle';
+  channel: 'candle' | 'mark_price_candle';
   data: {
     t: number;   // start time ms
     T: number;   // end time ms
@@ -183,32 +183,37 @@ class WebSocketManager {
   private sendSubscribe(symbol: string, interval: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    this.ws.send(
-      JSON.stringify({
-        method: 'subscribe',
-        params: {
-          source: 'candle',
-          symbol,
-          interval,
-        },
-      })
-    );
-    console.log(`[TradingView WS] Subscribed to ${symbol} ${interval}`);
+    // Subscribe to both candle (trades) and mark_price_candle (continuous)
+    for (const source of ['candle', 'mark_price_candle']) {
+      this.ws.send(
+        JSON.stringify({
+          method: 'subscribe',
+          params: {
+            source,
+            symbol,
+            interval,
+          },
+        })
+      );
+    }
+    console.log(`[TradingView WS] Subscribed to ${symbol} ${interval} (candle + mark_price)`);
   }
 
   private sendUnsubscribe(symbol: string, interval: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
-    this.ws.send(
-      JSON.stringify({
-        method: 'unsubscribe',
-        params: {
-          source: 'candle',
-          symbol,
-          interval,
-        },
-      })
-    );
+    for (const source of ['candle', 'mark_price_candle']) {
+      this.ws.send(
+        JSON.stringify({
+          method: 'unsubscribe',
+          params: {
+            source,
+            symbol,
+            interval,
+          },
+        })
+      );
+    }
     console.log(`[TradingView WS] Unsubscribed from ${symbol} ${interval}`);
   }
 
@@ -216,7 +221,7 @@ class WebSocketManager {
     try {
       const message: PacificaCandleMessage = JSON.parse(data);
 
-      if (message.channel !== 'candle' || !message.data) return;
+      if ((message.channel !== 'candle' && message.channel !== 'mark_price_candle') || !message.data) return;
 
       const { s: symbol, i: interval } = message.data;
 
