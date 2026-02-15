@@ -13,11 +13,10 @@ import {
 import { createLogger } from '@tfc/logger';
 import { LOG_EVENTS, WS_EVENTS, PNL_TICK_INTERVAL_MS, type ArenaPnlTickPayload, type PlatformStatsPayload } from '@tfc/shared';
 import { getPrices, MarketPrice } from './pacifica-client.js';
+import { FillDetector } from './fill-detector.js';
 
-// MVP-9: External trades check moved to end-of-fight only
-// This reduces Pacifica API calls by ~95% during fights
-// @see MVP-SIMPLIFIED-RULES.md
-// const EXTERNAL_TRADES_CHECK_INTERVAL = 30; // Disabled for MVP
+// Fill detection interval: check every 5 ticks (5 seconds)
+const FILL_CHECK_INTERVAL = 5;
 
 // Anti-cheat API configuration
 const WEB_API_URL = process.env.WEB_API_URL || 'http://localhost:3001';
@@ -444,12 +443,14 @@ export class FightEngine {
   private activeFights: Map<string, FightState> = new Map();
   private fightWarningsSent: Set<string> = new Set(); // Track fights that have received 30-second warning
   private settlingFights: Set<string> = new Set(); // Track fights currently being settled (prevents race condition)
+  private fillDetector: FillDetector;
   private tickInterval: NodeJS.Timeout | null = null;
   private cleanupInterval: NodeJS.Timeout | null = null;
   private tickCount: number = 0;
 
   constructor(io: Server) {
     this.io = io;
+    this.fillDetector = new FillDetector();
     // Generate unique instance ID for distributed lock identification
     // Useful for debugging and horizontal scaling
     this.instanceId = generateProcessId(SETTLEMENT_LOCK_PREFIX.REALTIME, process.env.INSTANCE_ID);
@@ -555,6 +556,13 @@ export class FightEngine {
 
     // Save snapshots every 5 seconds (not every tick to reduce DB load)
     const shouldSaveSnapshot = this.tickCount % SNAPSHOT_SAVE_INTERVAL === 0;
+
+    // Check for filled limit/stop orders every 5 seconds (fire-and-forget)
+    if (this.tickCount % FILL_CHECK_INTERVAL === 0 && liveFights.length > 0) {
+      this.fillDetector.checkForFilledOrders(liveFights).catch(err => {
+        logger.error(LOG_EVENTS.API_ERROR, 'Fill detection failed', err as Error);
+      });
+    }
 
     // Collect arena PnL data for all live fights
     const arenaPnlData: ArenaPnlTickPayload['fights'] = [];
@@ -1335,6 +1343,7 @@ export class FightEngine {
     // Cleanup tracking sets (lock already cleared in transaction)
     this.fightWarningsSent.delete(fightId);
     this.settlingFights.delete(fightId);
+    this.fillDetector.clearFight(fightId);
     console.log(`✅ [${fightId}] ENDFIGHT COMPLETE - removed from settlingFights, lock cleared`);
 
     // Emit FIGHT_FINISHED with settlement scores (realized PnL only)

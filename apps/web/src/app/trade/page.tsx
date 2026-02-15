@@ -388,9 +388,9 @@ function TradePageContent() {
         : undefined;
 
       // Minimum order size: $11 (Pacifica minimum)
-      const positionValueUsd = parseFloat(orderAmount) * priceForCalc;
-      if (positionValueUsd < 11) {
-        toast.error(`Minimum order size is $11 (current: $${positionValueUsd.toFixed(2)})`);
+      // Use effectivePositionSize (margin × leverage) which matches the USD display in the UI
+      if (effectivePositionSize < 11) {
+        toast.error(`Minimum order size is $11 (current: $${effectivePositionSize.toFixed(2)})`);
         return;
       }
 
@@ -425,6 +425,8 @@ function TradePageContent() {
           tif: 'GTC',
           take_profit: tpParam,
           stop_loss: slParam,
+          fightId: fightId || undefined,
+          leverage,
         });
       } else if (orderType === 'stop-market' || orderType === 'stop-limit') {
         // Stop orders
@@ -437,12 +439,25 @@ function TradePageContent() {
           return;
         }
 
+        // Validate stop order direction:
+        // Buy stop (bid/LONG): trigger must be ABOVE current price (breakout entry)
+        // Sell stop (ask/SHORT): trigger must be BELOW current price (breakdown entry)
+        const trigger = parseFloat(triggerPrice);
+        if (side === 'bid' && trigger <= currentPrice) {
+          toast.error(`Buy stop trigger must be above current price ($${currentPrice.toFixed(2)}). Use a limit order to buy below market.`);
+          return;
+        }
+        if (side === 'ask' && trigger >= currentPrice) {
+          toast.error(`Sell stop trigger must be below current price ($${currentPrice.toFixed(2)}). Use a limit order to sell above market.`);
+          return;
+        }
+
         await createStandaloneStopOrder.mutateAsync({
           symbol: selectedMarket,
           side,
-          stopPrice: triggerPrice,
+          stopPrice: roundToTickSize(parseFloat(triggerPrice)),
           amount: orderAmount,
-          limitPrice: orderType === 'stop-limit' ? limitPrice : undefined,
+          limitPrice: orderType === 'stop-limit' ? roundToTickSize(parseFloat(limitPrice)) : undefined,
           reduceOnly,
           fightId: fightId || undefined,
           leverage,
@@ -2100,7 +2115,7 @@ function TradePageContent() {
                           type="number"
                           value={triggerPrice}
                           onChange={(e) => setTriggerPrice(e.target.value)}
-                          placeholder={currentPrice.toFixed(2)}
+                          placeholder={selectedSide === 'LONG' ? `> ${currentPrice.toFixed(2)}` : `< ${currentPrice.toFixed(2)}`}
                           disabled={!canTrade}
                           className="input text-xs xl:text-sm w-full pr-12"
                         />
@@ -2108,6 +2123,11 @@ function TradePageContent() {
                           USD
                         </span>
                       </div>
+                      <p className="text-[9px] xl:text-[10px] text-surface-500 mt-0.5">
+                        {selectedSide === 'LONG'
+                          ? 'Triggers when price rises above this level'
+                          : 'Triggers when price drops below this level'}
+                      </p>
                     </div>
                   )}
 

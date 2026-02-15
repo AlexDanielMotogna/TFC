@@ -52,17 +52,30 @@ export async function GET(
       }
 
       // Get order actions recorded during this fight (for cross-referencing)
-      const orderActions = await prisma.tfcOrderAction.findMany({
-        where: {
-          fightId,
-          userId: user.userId,
-          actionType: {
-            in: ['MARKET_ORDER', 'LIMIT_ORDER', 'SET_TPSL'],
-          },
-          success: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+      // Use raw SQL with TEXT cast because CREATE_STOP may not be in the PostgreSQL enum yet
+      const orderActionsRaw = await prisma.$queryRaw<Array<{
+        id: string;
+        action_type: string;
+        symbol: string;
+        pacifica_order_id: bigint | null;
+        created_at: Date;
+      }>>`
+        SELECT id, action_type::text as action_type, symbol, pacifica_order_id, created_at
+        FROM tfc_order_actions
+        WHERE fight_id = ${fightId}
+          AND user_id = ${user.userId}
+          AND action_type::text IN ('MARKET_ORDER', 'LIMIT_ORDER', 'SET_TPSL', 'CREATE_STOP')
+          AND success = true
+        ORDER BY created_at DESC
+      `;
+
+      const orderActions = orderActionsRaw.map(row => ({
+        id: row.id,
+        actionType: row.action_type,
+        symbol: row.symbol,
+        pacificaOrderId: row.pacifica_order_id,
+        createdAt: row.created_at,
+      }));
 
       // If no orders were placed during this fight, return empty
       if (orderActions.length === 0) {
@@ -70,10 +83,10 @@ export async function GET(
       }
 
       // Build sets for matching
-      // Order IDs for MARKET_ORDER and LIMIT_ORDER
+      // Order IDs for MARKET_ORDER, LIMIT_ORDER, and CREATE_STOP
       const fightOrderIds = new Set(
         orderActions
-          .filter(oa => oa.pacificaOrderId && (oa.actionType === 'MARKET_ORDER' || oa.actionType === 'LIMIT_ORDER'))
+          .filter(oa => oa.pacificaOrderId && (oa.actionType === 'MARKET_ORDER' || oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP'))
           .map(oa => oa.pacificaOrderId!.toString())
       );
 
