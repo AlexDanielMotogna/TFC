@@ -53,6 +53,9 @@ export function LandingNavbar() {
             <a href="#faq" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
               FAQ
             </a>
+            <Link href="/docs" className="px-4 py-2 text-sm text-surface-300 hover:text-white transition-colors">
+              Docs
+            </Link>
           </div>
 
           {/* Right Side Actions */}
@@ -135,6 +138,9 @@ export function LandingNavbar() {
               <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
                 FAQ
               </a>
+              <Link href="/docs" onClick={() => setMobileMenuOpen(false)} className="px-4 py-3 text-surface-300 hover:text-white hover:bg-surface-800 rounded-lg">
+                Docs
+              </Link>
             </div>
           </div>
         )}
