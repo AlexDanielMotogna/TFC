@@ -34,6 +34,8 @@ interface CreateLimitOrderParams {
   builder_code?: string;
   take_profit?: { stop_price: string };
   stop_loss?: { stop_price: string };
+  fightId?: string;
+  leverage?: number;
 }
 
 interface CancelOrderParams {
@@ -238,6 +240,8 @@ export function useCreateLimitOrder() {
           builder_code: builderCode,
           take_profit: params.take_profit,
           stop_loss: params.stop_loss,
+          fight_id: params.fightId,
+          leverage: params.leverage,
           signature,
           timestamp,
         }),

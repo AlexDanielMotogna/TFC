@@ -457,6 +457,8 @@ enum OrderActionType {
   CANCEL_ALL // All orders cancelled
   SET_TPSL // TP/SL set on position
   CANCEL_STOP // Stop order (TP/SL) cancelled
+  CREATE_STOP // Standalone stop order created
+  EDIT_ORDER // Order edited (price/amount change)
   ORDER_FILLED // Order was filled (links to Trade)
   ORDER_PARTIAL // Order was partially filled
 }

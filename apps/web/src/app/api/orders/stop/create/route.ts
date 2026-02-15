@@ -5,9 +5,10 @@
  * Unlike set_position_tpsl, this creates a separate stop order
  * without overwriting existing TP/SL orders
  */
-import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
+import { validateStakeLimit } from '@/lib/server/orders';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -22,6 +23,26 @@ export async function POST(request: Request) {
 
     if (!stop_order.stop_price || !stop_order.amount) {
       throw new BadRequestError('stop_order must contain stop_price and amount', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+    }
+
+    // Validate stake limit for users in active fights (stop orders can open positions)
+    if (!reduce_only) {
+      try {
+        await validateStakeLimit(
+          account,
+          symbol,
+          stop_order.amount,
+          stop_order.stop_price,
+          'LIMIT', // Treat stop orders like limit orders for notional calculation
+          false,
+          fight_id || undefined
+        );
+      } catch (error: any) {
+        if (error.code === 'STAKE_LIMIT_EXCEEDED') {
+          throw new StakeLimitError(error.message, error.details);
+        }
+        throw error;
+      }
     }
 
     const requestBody = {
@@ -68,7 +89,18 @@ export async function POST(request: Request) {
         fullResponse: result,
         request: requestBody,
       });
-      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+
+      // Provide better error messages for common Pacifica stop order errors
+      let errorMessage = result.error || `Pacifica API error: ${response.status}`;
+      if (errorMessage.includes('Invalid stop tick')) {
+        // Pacifica rejects stop orders where the trigger price is on the wrong side of current market
+        // Buy stop: trigger must be ABOVE current price; Sell stop: trigger must be BELOW
+        errorMessage = side === 'bid'
+          ? 'Buy stop trigger price must be above the current market price. Use a limit order to buy below market.'
+          : 'Sell stop trigger price must be below the current market price. Use a limit order to sell above market.';
+      }
+
+      throw new ServiceUnavailableError(errorMessage, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Stop order created', {
