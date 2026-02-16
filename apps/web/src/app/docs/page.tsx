@@ -35,11 +35,20 @@ function extractHeadings(markdown: string): Heading[] {
 }
 
 export default function DocsPage() {
-  const filePath = path.join(
-    process.cwd(),
-    '../../docs/AppDocumentationPage/Documentation.md'
-  );
-  const content = fs.readFileSync(filePath, 'utf-8');
+  // Try multiple paths since process.cwd() varies between monorepo root and apps/web
+  const possiblePaths = [
+    path.join(process.cwd(), 'docs/AppDocumentationPage/Documentation.md'),
+    path.join(process.cwd(), '../../docs/AppDocumentationPage/Documentation.md'),
+  ];
+
+  let content = '';
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      content = fs.readFileSync(p, 'utf-8');
+      break;
+    }
+  }
+
   const headings = extractHeadings(content);
 
   return <DocsLayout content={content} headings={headings} />;
