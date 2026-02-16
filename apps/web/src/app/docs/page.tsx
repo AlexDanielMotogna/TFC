@@ -1,6 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import { DocsLayout } from '@/components/docs/DocsLayout';
+import { DOCS_MARKDOWN } from '@/components/docs/docsMarkdown';
 
 export const metadata = {
   title: 'Documentation - Trading Fight Club',
@@ -35,21 +34,7 @@ function extractHeadings(markdown: string): Heading[] {
 }
 
 export default function DocsPage() {
-  // Try multiple paths since process.cwd() varies between monorepo root and apps/web
-  const possiblePaths = [
-    path.join(process.cwd(), 'docs/AppDocumentationPage/Documentation.md'),
-    path.join(process.cwd(), '../../docs/AppDocumentationPage/Documentation.md'),
-  ];
+  const headings = extractHeadings(DOCS_MARKDOWN);
 
-  let content = '';
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      content = fs.readFileSync(p, 'utf-8');
-      break;
-    }
-  }
-
-  const headings = extractHeadings(content);
-
-  return <DocsLayout content={content} headings={headings} />;
+  return <DocsLayout content={DOCS_MARKDOWN} headings={headings} />;
 }
