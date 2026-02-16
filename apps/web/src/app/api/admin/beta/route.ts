@@ -14,6 +14,8 @@ export async function GET(request: Request) {
       const { searchParams } = new URL(request.url);
       const status = searchParams.get('status');
       const search = searchParams.get('search');
+      const ip = searchParams.get('ip');
+      const flaggedOnly = searchParams.get('flagged') === 'true';
       const page = parseInt(searchParams.get('page') || '1', 10);
       const pageSize = parseInt(searchParams.get('pageSize') || '25', 10);
 
@@ -30,6 +32,17 @@ export async function GET(request: Request) {
         };
       }
 
+      if (ip) {
+        where.ipAddress = ip;
+      }
+
+      if (flaggedOnly) {
+        where.OR = [
+          { multiIpFlag: true },
+          { deviceMatchFlag: true },
+        ];
+      }
+
       const [applications, total] = await Promise.all([
         prisma.betaWhitelist.findMany({
           where,
@@ -40,16 +53,27 @@ export async function GET(request: Request) {
         prisma.betaWhitelist.count({ where }),
       ]);
 
-      // Get counts by status
-      const statusCounts = await prisma.betaWhitelist.groupBy({
-        by: ['status'],
-        _count: true,
-      });
+      // Get counts by status + flagged count
+      const [statusCounts, flaggedCount] = await Promise.all([
+        prisma.betaWhitelist.groupBy({
+          by: ['status'],
+          _count: true,
+        }),
+        prisma.betaWhitelist.count({
+          where: {
+            OR: [
+              { multiIpFlag: true },
+              { deviceMatchFlag: true },
+            ],
+          },
+        }),
+      ]);
 
       const counts = {
         pending: 0,
         approved: 0,
         rejected: 0,
+        flagged: flaggedCount,
         total,
       };
 
