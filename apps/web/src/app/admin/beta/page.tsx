@@ -3,13 +3,20 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminTable, AdminPagination, AdminBadge } from '@/components/admin';
-import { Search, Check, X, Users } from 'lucide-react';
+import { Search, Check, X, Users, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BetaApplication {
   id: string;
   walletAddress: string;
   status: 'pending' | 'approved' | 'rejected';
+  ipAddress: string | null;
+  country: string | null;
+  isp: string | null;
+  userAgent: string | null;
+  multiIpFlag: boolean;
+  deviceMatchFlag: boolean;
+  ipAccountCount: number;
   appliedAt: string;
   approvedAt: string | null;
 }
@@ -25,6 +32,7 @@ interface Counts {
   pending: number;
   approved: number;
   rejected: number;
+  flagged: number;
   total: number;
 }
 
@@ -56,11 +64,14 @@ export default function AdminBetaPage() {
     pending: 0,
     approved: 0,
     rejected: 0,
+    flagged: 0,
     total: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
+  const [ipFilter, setIpFilter] = useState<string>('');
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [selectedWallets, setSelectedWallets] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -76,6 +87,8 @@ export default function AdminBetaPage() {
 
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
+      if (ipFilter) params.set('ip', ipFilter);
+      if (flaggedOnly) params.set('flagged', 'true');
 
       const response = await fetch(`/api/admin/beta?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -92,7 +105,7 @@ export default function AdminBetaPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [token, pagination.page, pagination.pageSize, search, statusFilter]);
+  }, [token, pagination.page, pagination.pageSize, search, statusFilter, ipFilter, flaggedOnly]);
 
   useEffect(() => {
     fetchApplications();
@@ -209,6 +222,58 @@ export default function AdminBetaPage() {
       ),
     },
     {
+      key: 'ipAddress',
+      header: 'IP Address',
+      render: (app: BetaApplication) => (
+        <div className="flex items-center gap-1.5">
+          {(app.multiIpFlag || app.deviceMatchFlag) && (
+            <span title={app.deviceMatchFlag ? 'Device match (same IP + UA)' : 'Multiple wallets from same IP'}>
+              <AlertTriangle
+                size={14}
+                className={`flex-shrink-0 ${app.deviceMatchFlag ? 'text-loss-400' : 'text-warning'}`}
+              />
+            </span>
+          )}
+          {app.ipAddress ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIpFilter(app.ipAddress!);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="font-mono text-sm text-primary-400 hover:text-primary-300 hover:underline"
+              title={`Filter by IP: ${app.ipAddress}`}
+            >
+              {app.ipAddress}
+            </button>
+          ) : (
+            <span className="text-surface-500 text-sm">-</span>
+          )}
+          {app.ipAccountCount > 1 && (
+            <span className="text-xs bg-warning/20 text-warning px-1.5 py-0.5 rounded-full font-medium">
+              {app.ipAccountCount}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'country',
+      header: 'Country',
+      render: (app: BetaApplication) => (
+        <span className="text-surface-400 text-sm">{app.country || '-'}</span>
+      ),
+    },
+    {
+      key: 'isp',
+      header: 'ISP',
+      render: (app: BetaApplication) => (
+        <span className="text-surface-400 text-sm truncate max-w-[150px] block" title={app.isp || undefined}>
+          {app.isp || '-'}
+        </span>
+      ),
+    },
+    {
       key: 'status',
       header: 'Status',
       render: (app: BetaApplication) => (
@@ -271,7 +336,7 @@ export default function AdminBetaPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-surface-850 border border-surface-700 rounded-lg p-4">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-surface-700 rounded-lg">
@@ -316,6 +381,25 @@ export default function AdminBetaPage() {
             </div>
           </div>
         </div>
+        <div
+          className={`bg-surface-850 border rounded-lg p-4 cursor-pointer transition-colors ${
+            flaggedOnly ? 'border-warning' : 'border-surface-700 hover:border-surface-600'
+          }`}
+          onClick={() => {
+            setFlaggedOnly(!flaggedOnly);
+            setPagination((p) => ({ ...p, page: 1 }));
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-warning/20 rounded-lg">
+              <AlertTriangle size={20} className="text-warning" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-white">{counts.flagged}</p>
+              <p className="text-sm text-surface-400">Flagged</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
@@ -349,6 +433,38 @@ export default function AdminBetaPage() {
           <option value="approved">Approved</option>
           <option value="rejected">Rejected</option>
         </select>
+
+        <button
+          onClick={() => {
+            setFlaggedOnly(!flaggedOnly);
+            setPagination((p) => ({ ...p, page: 1 }));
+          }}
+          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+            flaggedOnly
+              ? 'bg-warning/20 text-warning border border-warning/30'
+              : 'bg-surface-850 border border-surface-700 text-surface-400 hover:text-white'
+          }`}
+        >
+          <AlertTriangle size={14} className="inline mr-1.5 -mt-0.5" />
+          Flagged Only
+        </button>
+
+        {ipFilter && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-primary-500/10 border border-primary-500/30 rounded-lg">
+            <span className="text-sm text-primary-400">
+              IP: <span className="font-mono">{ipFilter}</span>
+            </span>
+            <button
+              onClick={() => {
+                setIpFilter('');
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="text-primary-400 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         {/* Bulk Actions */}
         {selectedWallets.size > 0 && (

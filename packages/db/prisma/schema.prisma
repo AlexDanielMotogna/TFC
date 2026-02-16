@@ -457,6 +457,8 @@ enum OrderActionType {
   CANCEL_ALL // All orders cancelled
   SET_TPSL // TP/SL set on position
   CANCEL_STOP // Stop order (TP/SL) cancelled
+  CREATE_STOP // Stop order created
+  EDIT_ORDER // Order edited
   ORDER_FILLED // Order was filled (links to Trade)
   ORDER_PARTIAL // Order was partially filled
 }
@@ -630,12 +632,20 @@ model ReferralPayout {
 // Manages closed beta access
 // ─────────────────────────────────────────────────────────────
 model BetaWhitelist {
-  id            String    @id @default(uuid())
-  walletAddress String    @unique @map("wallet_address")
-  status        String    @default("pending") // pending, approved, rejected
-  appliedAt     DateTime  @default(now()) @map("applied_at")
-  approvedAt    DateTime? @map("approved_at")
+  id              String    @id @default(uuid())
+  walletAddress   String    @unique @map("wallet_address")
+  status          String    @default("pending") // pending, approved, rejected
+  ipAddress       String?   @map("ip_address")
+  country         String?
+  isp             String?
+  userAgent       String?   @map("user_agent")
+  multiIpFlag     Boolean   @default(false) @map("multi_ip_flag")
+  deviceMatchFlag Boolean   @default(false) @map("device_match_flag")
+  ipAccountCount  Int       @default(1) @map("ip_account_count")
+  appliedAt       DateTime  @default(now()) @map("applied_at")
+  approvedAt      DateTime? @map("approved_at")
 
+  @@index([ipAddress])
   @@map("beta_whitelist")
 }
 
