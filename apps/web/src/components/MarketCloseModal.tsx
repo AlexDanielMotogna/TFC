@@ -145,39 +145,36 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
   return (
     <Portal>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         onClick={handleBackdropClick}
       >
-        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800">
+        <div className="bg-surface-900 rounded-2xl w-full max-w-md mx-4">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-surface-800">
+        <div className="flex items-center justify-between p-6 pb-0">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-white">Market Close</h2>
-            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+            <h2 className="text-white font-semibold text-sm">Market Close</h2>
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
               position.side === 'LONG'
                 ? 'bg-win-500/20 text-win-400'
                 : 'bg-loss-500/20 text-loss-400'
             }`}>
               {position.leverage}x {position.side === 'LONG' ? 'Long' : 'Short'}
             </span>
-            <span className="text-white font-mono">{position.sizeInToken.toFixed(8)} {tokenSymbol}</span>
           </div>
           <button
             onClick={onClose}
-            className="text-surface-400 hover:text-white transition-colors"
+            className="text-surface-500 hover:text-white transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
-          <p className="text-sm text-surface-400">Attempt to close position immediately.</p>
-
+        <div className="p-6 space-y-4">
           {/* Live Price Display */}
-          <div className="flex items-center justify-between bg-surface-900/50 rounded-lg px-3 py-2">
+          <div className="flex items-center justify-between bg-surface-800 rounded-xl px-3 py-2.5">
             <div className="flex items-center gap-2">
               <span className="text-white font-mono text-lg tabular-nums">{formatPrice(livePrice)}</span>
               <span className="text-surface-500 text-sm">USD</span>
@@ -195,15 +192,15 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 onBlur={handleAmountBlur}
-                className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                 placeholder="0.00"
               />
-              <span className="text-surface-400 min-w-[40px]">{tokenSymbol}</span>
+              <span className="text-surface-500 min-w-[40px]">{tokenSymbol}</span>
               <input
                 type="text"
                 value={usdValue.toFixed(2)}
                 readOnly
-                className="w-24 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
+                className="w-24 bg-surface-800 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
               />
               <span className="text-surface-400">USD</span>
             </div>
@@ -231,8 +228,8 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
                 onClick={() => handlePercentageChange(pct)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                   Math.abs(percentage - pct) < 1
-                    ? 'bg-surface-600 text-white'
-                    : 'bg-surface-700 text-surface-300 hover:bg-surface-600'
+                    ? 'bg-surface-700 text-white'
+                    : 'bg-surface-800 text-surface-400 hover:bg-surface-700'
                 }`}
               >
                 {pct}%
@@ -242,7 +239,7 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
 
           {/* Estimated PnL */}
           <div className="flex justify-end items-center gap-2 text-sm">
-            <span className="text-surface-400">Estimated PnL:</span>
+            <span className="text-surface-500">Est. PnL</span>
             <span className={`font-mono font-semibold ${
               estimatedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
             }`}>
@@ -251,12 +248,12 @@ export function MarketCloseModal({ position, onClose, onConfirm, isSubmitting = 
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-surface-800">
+        {/* Submit */}
+        <div className="px-6 pb-6">
           <button
             onClick={handleConfirm}
             disabled={isSubmitting || !amount || parseFloat(amount) <= 0}
-            className="w-full py-3 rounded-lg font-semibold bg-primary-500 hover:bg-primary-400 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 rounded-lg font-medium bg-white text-black transition-colors hover:bg-surface-200 disabled:bg-surface-700 disabled:text-surface-500 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">

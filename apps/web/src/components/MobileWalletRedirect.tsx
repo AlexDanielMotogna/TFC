@@ -23,7 +23,7 @@ export function MobileWalletSelector({ onClose }: { onClose: () => void }) {
       />
 
       {/* Modal - bottom sheet on mobile */}
-      <div className="relative bg-surface-900 border border-surface-700 rounded-t-2xl sm:rounded-2xl p-5 w-full sm:max-w-sm shadow-2xl">
+      <div className="relative bg-surface-900 rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-sm">
         <h2 className="text-lg font-display font-bold text-white text-center mb-1">
           Connect Wallet
         </h2>

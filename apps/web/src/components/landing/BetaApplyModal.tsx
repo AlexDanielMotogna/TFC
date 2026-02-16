@@ -30,30 +30,24 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       {/* Modal */}
-      <div className="relative bg-surface-850 border border-surface-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+      <div className="bg-surface-900 rounded-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
-          <h3 className="text-lg font-semibold text-white">Join Closed Beta</h3>
+        <div className="flex items-center justify-between mb-5">
+          <h3 className="text-white font-semibold text-sm">Join Closed Beta</h3>
           <button
             onClick={onClose}
-            className="text-surface-400 hover:text-white transition-colors"
+            className="text-surface-500 hover:text-white transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 space-y-4">
+        <div className="space-y-4">
           {!connected ? (
             // Not connected state
             <>
@@ -83,12 +77,12 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
                 </div>
                 <h4 className="text-white font-medium mb-2">You Have Beta Access!</h4>
                 <p className="text-surface-400 text-sm">
-                  Your wallet <span className="text-primary-400 font-mono">{shortenedAddress}</span> has been approved for the closed beta.
+                  Your wallet <span className="text-white font-mono">{shortenedAddress}</span> has been approved for the closed beta.
                 </p>
               </div>
               <button
                 onClick={() => { onClose(); router.push('/trade'); }}
-                className="w-full py-3 bg-primary-500 hover:bg-primary-400 text-white font-semibold rounded-lg transition-colors"
+                className="w-full py-2.5 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition-colors"
               >
                 Start Trading
               </button>
@@ -97,19 +91,19 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
             // Already applied, pending
             <>
               <div className="text-center py-4">
-                <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="w-16 h-16 rounded-full bg-surface-800 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
                 <h4 className="text-white font-medium mb-2">Application Pending</h4>
                 <p className="text-surface-400 text-sm">
-                  Your application for <span className="text-primary-400 font-mono">{shortenedAddress}</span> is being reviewed. We'll notify you when you're approved.
+                  Your application for <span className="text-white font-mono">{shortenedAddress}</span> is being reviewed. We'll notify you when you're approved.
                 </p>
               </div>
 
               {/* Fast-track CTA */}
-              <div className="bg-surface-800/50 rounded-lg p-3 text-center">
+              <div className="bg-surface-800 rounded-xl p-3 text-center">
                 <p className="text-surface-300 text-xs mb-2">
                   Want to speed up your access? Comment with your Solana wallet, like & retweet our post:
                 </p>
@@ -117,7 +111,7 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
                   href="https://x.com/T_F_C_official/status/2020309380374085942"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-xs font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 text-surface-300 hover:text-white text-xs font-semibold transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -152,7 +146,7 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
               </div>
 
               {/* Wallet Info */}
-              <div className="bg-surface-800/50 rounded-lg p-4">
+              <div className="bg-surface-800 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <span className="text-surface-400 text-sm">Wallet</span>
                   <span className="text-white font-mono text-sm">{shortenedAddress}</span>
@@ -160,14 +154,14 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
               </div>
 
               {/* Info */}
-              <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-400 space-y-1">
+              <div className="bg-surface-800 rounded-xl p-3 text-xs text-surface-400 space-y-1">
                 <p>• Your wallet address will be added to our waitlist</p>
                 <p>• We'll approve access in batches during the beta period</p>
                 <p>• Speed up your access by engaging with our X post below</p>
               </div>
 
               {/* Fast-track CTA */}
-              <div className="bg-surface-800/50 rounded-lg p-3 text-center">
+              <div className="bg-surface-800 rounded-xl p-3 text-center">
                 <p className="text-surface-300 text-xs mb-2">
                   Comment with your Solana wallet, like & retweet to fast-track your access:
                 </p>
@@ -175,7 +169,7 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
                   href="https://x.com/T_F_C_official/status/2020309380374085942"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-xs font-semibold transition-colors"
+                  className="inline-flex items-center gap-1.5 text-surface-300 hover:text-white text-xs font-semibold transition-colors"
                 >
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />

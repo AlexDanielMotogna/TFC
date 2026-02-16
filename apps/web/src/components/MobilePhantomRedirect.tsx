@@ -32,7 +32,7 @@ export function MobilePhantomRedirect() {
       <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className="relative bg-surface-900 border-t border-surface-700 sm:border sm:rounded-2xl rounded-t-2xl p-6 w-full sm:max-w-sm shadow-2xl">
+      <div className="relative bg-surface-900 rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-sm">
         <h2 className="text-lg font-bold text-white text-center mb-1">
           Open in Wallet App
         </h2>

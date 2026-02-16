@@ -30,11 +30,11 @@ export function Slider({
 
   const colorMap: Record<string, { fill: string; tick: string; thumb: string; glow: string; inner: string }> = {
     primary: {
-      fill: 'bg-primary-500',
-      tick: 'bg-primary-400',
-      thumb: 'bg-primary-500',
-      glow: 'shadow-primary-500/30',
-      inner: 'bg-primary-400',
+      fill: 'bg-surface-400',
+      tick: 'bg-surface-400',
+      thumb: 'bg-surface-400',
+      glow: 'shadow-surface-400/30',
+      inner: 'bg-surface-300',
     },
     orange: {
       fill: 'bg-orange-500',
