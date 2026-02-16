@@ -71,11 +71,11 @@ function fillBarGaps(bars: Bar[], resolution: string): Bar[] {
   const intervalMs = RESOLUTION_MS[resolution];
   if (!intervalMs) return bars;
 
-  const filled: Bar[] = [bars[0]];
+  const filled: Bar[] = [bars[0]!];
 
   for (let i = 1; i < bars.length; i++) {
-    const prevBar = filled[filled.length - 1];
-    const currentBar = bars[i];
+    const prevBar = filled[filled.length - 1]!;
+    const currentBar = bars[i]!;
 
     // Calculate how many bars are missing between prev and current
     const gap = currentBar.time - prevBar.time;
@@ -387,7 +387,7 @@ export class PacificaDatafeed {
       if (intervalMs && filledBars.length >= 2) {
         let gapCount = 0;
         for (let i = 1; i < filledBars.length; i++) {
-          const diff = filledBars[i].time - filledBars[i - 1].time;
+          const diff = filledBars[i]!.time - filledBars[i - 1]!.time;
           if (diff > intervalMs * 1.5) gapCount++;
         }
         if (gapCount > 0) {

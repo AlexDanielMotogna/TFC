@@ -225,7 +225,7 @@ export default function AdminBetaPage() {
       key: 'ipAddress',
       header: 'IP Address',
       render: (app: BetaApplication) => (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5" title={app.userAgent || undefined}>
           {(app.multiIpFlag || app.deviceMatchFlag) && (
             <span title={app.deviceMatchFlag ? 'Device match (same IP + UA)' : 'Multiple wallets from same IP'}>
               <AlertTriangle
@@ -242,7 +242,6 @@ export default function AdminBetaPage() {
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
               className="font-mono text-sm text-primary-400 hover:text-primary-300 hover:underline"
-              title={`Filter by IP: ${app.ipAddress}`}
             >
               {app.ipAddress}
             </button>

@@ -473,11 +473,11 @@ function fillCandleGaps(candles: Candle[], interval: string): Candle[] {
   if (candles.length < 2) return candles;
 
   const intervalMs = getIntervalMs(interval);
-  const filled: Candle[] = [candles[0]];
+  const filled: Candle[] = [candles[0]!];
 
   for (let i = 1; i < candles.length; i++) {
-    const prev = filled[filled.length - 1];
-    const curr = candles[i];
+    const prev = filled[filled.length - 1]!;
+    const curr = candles[i]!;
 
     const gap = curr.t - prev.t;
     const missingCount = Math.round(gap / intervalMs) - 1;

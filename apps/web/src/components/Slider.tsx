@@ -52,7 +52,7 @@ export function Slider({
     },
   };
 
-  const c = colorMap[color] || colorMap.primary;
+  const c = colorMap[color] ?? colorMap['primary']!;
 
   const handlePointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
