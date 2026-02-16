@@ -319,7 +319,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
 
       {/* ── Mobile card view (< 1200px) ── */}
       <div className="flex-1 overflow-y-auto max-[1199px]:block hidden">
-        <div className="space-y-2 px-1">
+        <div className="px-1">
           {sortedPositions.map((pos) => {
             const isExpanded = expandedCards.has(pos.id);
             const { displayContent: tpSlDisplay } = renderTpSlContent(pos);

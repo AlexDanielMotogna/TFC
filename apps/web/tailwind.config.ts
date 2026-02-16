@@ -132,6 +132,9 @@ export default {
       animation: {
         'fade-in': 'fadeIn 0.15s ease-out',
         'slide-up': 'slideUp 0.2s ease-out',
+        'sheet-up': 'sheetUp 0.45s cubic-bezier(0.32, 0.72, 0, 1)',
+        'sheet-down': 'sheetDown 1s cubic-bezier(0.32, 0.72, 0, 1) forwards',
+        'fade-out': 'fadeOut 1s ease-in forwards',
         'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
         'float': 'float 6s ease-in-out infinite',
         'shimmer': 'shimmer 2s linear infinite',
@@ -145,6 +148,22 @@ export default {
         slideUp: {
           '0%': { transform: 'translateY(4px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        sheetUp: {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+        sheetSlide: {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
+        },
+        sheetDown: {
+          '0%': { transform: 'translateY(0)' },
+          '100%': { transform: 'translateY(100%)' },
+        },
+        fadeOut: {
+          '0%': { opacity: '1' },
+          '100%': { opacity: '0' },
         },
         pulseGlow: {
           '0%, 100%': { boxShadow: '0 0 20px rgba(58,125,176,0.3)' },
