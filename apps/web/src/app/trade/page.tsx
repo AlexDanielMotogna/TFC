@@ -26,7 +26,7 @@ import FileUploadIcon from '@mui/icons-material/FileUpload';
 // Default market shown while loading from API
 const DEFAULT_MARKET = { symbol: 'BTC-USD', name: 'Bitcoin', maxLeverage: 50 };
 
-const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
 
 // TradeFightClub platform fee (fixed)
 const TRADECLUB_FEE = 0.0005; // 0.05% builder fee

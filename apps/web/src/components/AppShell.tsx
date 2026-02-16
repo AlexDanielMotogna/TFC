@@ -27,7 +27,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
 
-const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
 
 // Wallet icon for balance
 function WalletIcon({ className }: { className?: string }) {
