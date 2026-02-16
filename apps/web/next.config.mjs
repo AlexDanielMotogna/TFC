@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@tfc/shared'],
+  transpilePackages: ['@tfc/shared', 'react-markdown', 'remark-gfm', 'rehype-slug'],
   reactStrictMode: true,
   output: 'standalone',
   // Skip type-checking and linting during Docker build (run in CI instead)
