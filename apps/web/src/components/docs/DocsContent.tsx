@@ -83,7 +83,7 @@ function parseInline(text: string): React.ReactNode[] {
 /** Parse a markdown table block into JSX */
 function parseTable(lines: string[]): React.ReactNode {
   // First line = headers, second line = separator, rest = rows
-  const headers = lines[0]
+  const headers = lines[0]!
     .split('|')
     .map((c) => c.trim())
     .filter(Boolean);
@@ -136,7 +136,7 @@ function renderMarkdown(markdown: string): React.ReactNode[] {
   let key = 0;
 
   while (i < lines.length) {
-    const line = lines[i];
+    const line = lines[i]!;
 
     // Skip empty lines
     if (line.trim() === '') {
@@ -200,8 +200,8 @@ function renderMarkdown(markdown: string): React.ReactNode[] {
     // Table (lines starting with |)
     if (line.trim().startsWith('|')) {
       const tableLines: string[] = [];
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        tableLines.push(lines[i]);
+      while (i < lines.length && lines[i]!.trim().startsWith('|')) {
+        tableLines.push(lines[i]!);
         i++;
       }
       elements.push(
@@ -213,8 +213,8 @@ function renderMarkdown(markdown: string): React.ReactNode[] {
     // Ordered list (lines starting with number.)
     if (/^\d+\.\s/.test(line)) {
       const items: string[] = [];
-      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
-        items.push(lines[i].replace(/^\d+\.\s/, ''));
+      while (i < lines.length && /^\d+\.\s/.test(lines[i]!)) {
+        items.push(lines[i]!.replace(/^\d+\.\s/, ''));
         i++;
       }
       elements.push(
@@ -232,8 +232,8 @@ function renderMarkdown(markdown: string): React.ReactNode[] {
     // Unordered list (lines starting with -)
     if (line.startsWith('- ')) {
       const items: string[] = [];
-      while (i < lines.length && lines[i].startsWith('- ')) {
-        items.push(lines[i].slice(2));
+      while (i < lines.length && lines[i]!.startsWith('- ')) {
+        items.push(lines[i]!.slice(2));
         i++;
       }
       elements.push(
@@ -253,14 +253,14 @@ function renderMarkdown(markdown: string): React.ReactNode[] {
       const paraLines: string[] = [];
       while (
         i < lines.length &&
-        lines[i].trim() !== '' &&
-        !lines[i].startsWith('#') &&
-        !lines[i].startsWith('- ') &&
-        !/^\d+\.\s/.test(lines[i]) &&
-        !lines[i].trim().startsWith('|') &&
-        !/^---+$/.test(lines[i].trim())
+        lines[i]!.trim() !== '' &&
+        !lines[i]!.startsWith('#') &&
+        !lines[i]!.startsWith('- ') &&
+        !/^\d+\.\s/.test(lines[i]!) &&
+        !lines[i]!.trim().startsWith('|') &&
+        !/^---+$/.test(lines[i]!.trim())
       ) {
-        paraLines.push(lines[i]);
+        paraLines.push(lines[i]!);
         i++;
       }
       if (paraLines.length > 0) {
