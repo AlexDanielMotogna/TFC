@@ -17,6 +17,8 @@ function formatOrderType(orderType: string): string {
   if (orderType === 'stop_loss_market') return 'SL MARKET';
   if (orderType === 'take_profit_limit') return 'TP LIMIT';
   if (orderType === 'stop_loss_limit') return 'SL LIMIT';
+  if (orderType === 'stop_market') return 'STOP_MARKET';
+  if (orderType === 'stop_limit') return 'STOP_LIMIT';
   if (orderType === 'limit') return 'LIMIT';
   if (orderType === 'market') return 'MARKET';
   return orderType?.toUpperCase() || 'UNKNOWN';
@@ -60,19 +62,36 @@ export async function GET(
         return Response.json({ success: true, data: [] });
       }
 
-      // Get LIMIT_ORDER and SET_TPSL (stop loss/take profit) actions for this fight
-      // Stop loss orders are recorded as SET_TPSL, not LIMIT_ORDER
-      const orderActions = await prisma.tfcOrderAction.findMany({
-        where: {
-          fightId,
-          userId: user.userId,
-          actionType: {
-            in: ['LIMIT_ORDER', 'SET_TPSL'],
-          },
-          success: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+      // Get all non-market order actions for this fight
+      // LIMIT_ORDER = limit orders, SET_TPSL = TP/SL via position, CREATE_STOP = standalone stop orders
+      // Use raw SQL with TEXT cast because CREATE_STOP may not be in the PostgreSQL enum yet
+      const orderActionsRaw = await prisma.$queryRaw<Array<{
+        id: string;
+        action_type: string;
+        symbol: string;
+        side: string | null;
+        pacifica_order_id: bigint | null;
+        created_at: Date;
+      }>>`
+        SELECT id, action_type::text as action_type, symbol, side,
+               pacifica_order_id, created_at
+        FROM tfc_order_actions
+        WHERE fight_id = ${fightId}
+          AND user_id = ${user.userId}
+          AND action_type::text IN ('LIMIT_ORDER', 'SET_TPSL', 'CREATE_STOP')
+          AND success = true
+        ORDER BY created_at DESC
+      `;
+
+      // Normalize to camelCase
+      const orderActions = orderActionsRaw.map(row => ({
+        id: row.id,
+        actionType: row.action_type,
+        symbol: row.symbol,
+        side: row.side,
+        pacificaOrderId: row.pacifica_order_id,
+        createdAt: row.created_at,
+      }));
 
       // If no orders were placed during this fight, return empty
       if (orderActions.length === 0) {
@@ -105,13 +124,13 @@ export async function GET(
         positionMap.set(`${pos.symbol}-${pos.side}`, pos.amount || '0');
       });
 
-      // Separate LIMIT_ORDER and SET_TPSL actions
-      const limitOrderActions = orderActions.filter(oa => oa.actionType === 'LIMIT_ORDER');
+      // Separate order types: LIMIT_ORDER/CREATE_STOP (matched by pacificaOrderId) vs SET_TPSL (matched by symbol)
+      const orderByIdActions = orderActions.filter(oa => oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP');
       const tpslActions = orderActions.filter(oa => oa.actionType === 'SET_TPSL');
 
-      // For LIMIT_ORDER: cross-reference by pacificaOrderId
+      // For LIMIT_ORDER and CREATE_STOP: cross-reference by pacificaOrderId
       const fightOrderIds = new Set(
-        limitOrderActions
+        orderByIdActions
           .filter(oa => oa.pacificaOrderId)
           .map(oa => oa.pacificaOrderId!.toString())
       );

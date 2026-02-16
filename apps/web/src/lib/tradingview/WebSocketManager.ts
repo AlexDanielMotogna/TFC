@@ -22,7 +22,7 @@ interface Subscription {
 }
 
 interface PacificaCandleMessage {
-  channel: 'candle';
+  channel: 'mark_price_candle';
   data: {
     t: number;   // start time ms
     T: number;   // end time ms
@@ -183,17 +183,19 @@ class WebSocketManager {
   private sendSubscribe(symbol: string, interval: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
 
+    // Subscribe to mark_price_candle only (continuous, no gaps)
+    // "candle" channel uses last traded price which has gaps when no trades occur
     this.ws.send(
       JSON.stringify({
         method: 'subscribe',
         params: {
-          source: 'candle',
+          source: 'mark_price_candle',
           symbol,
           interval,
         },
       })
     );
-    console.log(`[TradingView WS] Subscribed to ${symbol} ${interval}`);
+    console.log(`[TradingView WS] Subscribed to ${symbol} ${interval} (mark_price_candle)`);
   }
 
   private sendUnsubscribe(symbol: string, interval: string): void {
@@ -203,7 +205,7 @@ class WebSocketManager {
       JSON.stringify({
         method: 'unsubscribe',
         params: {
-          source: 'candle',
+          source: 'mark_price_candle',
           symbol,
           interval,
         },
@@ -216,7 +218,7 @@ class WebSocketManager {
     try {
       const message: PacificaCandleMessage = JSON.parse(data);
 
-      if (message.channel !== 'candle' || !message.data) return;
+      if (message.channel !== 'mark_price_candle' || !message.data) return;
 
       const { s: symbol, i: interval } = message.data;
 

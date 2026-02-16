@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCreateMarketOrder, useCreateLimitOrder, useSetPositionTpSl } from '@/hooks/useOrders';
 import { usePrices } from '@/hooks/usePrices';
 import type { Position } from '@/hooks/usePacificaWebSocket';
+import { Slider } from './Slider';
 import CloseIcon from '@mui/icons-material/Close';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
@@ -427,16 +428,12 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                   ))}
                 </div>
 
-                <input
-                  type="range"
-                  min="1"
-                  max="100"
-                  value={closeAmount}
-                  onChange={(e) => setCloseAmount(e.target.value)}
-                  className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
-                  style={{
-                    background: `linear-gradient(to right, #f97316 0%, #f97316 ${closePercentage}%, #27272a ${closePercentage}%, #27272a 100%)`
-                  }}
+                <Slider
+                  min={1}
+                  max={100}
+                  value={closePercentage}
+                  onChange={(v) => setCloseAmount(v.toString())}
+                  color="orange"
                 />
                 <div className="text-xs text-surface-500 mt-2">
                   {formatAmount(closeAmountTokens)} {symbolBase} (${(closeAmountTokens * currentPrice).toFixed(2)})
@@ -505,16 +502,11 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               </div>
 
               {/* Percentage Slider */}
-              <input
-                type="range"
-                min="0"
-                max="100"
+              <Slider
+                min={0}
+                max={100}
                 value={limitClosePercentage}
-                onChange={(e) => handleLimitPercentageChange(parseInt(e.target.value))}
-                className="w-full h-2 bg-surface-700 rounded-lg appearance-none cursor-pointer accent-primary-500"
-                style={{
-                  background: `linear-gradient(to right, #22d3ee 0%, #22d3ee ${limitClosePercentage}%, #27272a ${limitClosePercentage}%, #27272a 100%)`
-                }}
+                onChange={handleLimitPercentageChange}
               />
 
               {/* Estimated PnL */}

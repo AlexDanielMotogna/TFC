@@ -14,7 +14,9 @@ import { prisma, FightStatus } from '@tfc/db';
 import {
   calculateFightExposure,
   calculateAvailableCapital,
+  updateMaxExposureIfHigher,
 } from '@/lib/server/fight-exposure';
+import { getPositions } from '@/lib/server/pacifica';
 
 export async function GET(request: Request) {
   try {
@@ -82,16 +84,52 @@ export async function GET(request: Request) {
       });
     }
 
-    // Calculate current exposure using centralized utility
-    const { currentExposure } = await calculateFightExposure(
+    // Calculate current exposure from FightTrade records
+    const { currentExposure: fightTradeExposure } = await calculateFightExposure(
       participant.fight.id,
       connection.userId
     );
 
+    // Also get live Pacifica positions for symbols traded during THIS fight
+    // Only count positions in symbols where we have a TfcOrderAction for this fight
+    let livePositionExposure = 0;
+    try {
+      const fightSymbolsRaw = await prisma.$queryRaw<Array<{ symbol: string }>>`
+        SELECT DISTINCT symbol
+        FROM tfc_order_actions
+        WHERE fight_id = ${participant.fight.id}
+          AND user_id = ${connection.userId}
+          AND success = true
+      `;
+      const fightSymbols = new Set(fightSymbolsRaw.map((r: any) => r.symbol));
+
+      if (fightSymbols.size > 0) {
+        const positions = await getPositions(account);
+        livePositionExposure = positions
+          .filter((p: any) => fightSymbols.has(p.symbol))
+          .reduce((sum: number, p: any) => {
+            return sum + Math.abs(parseFloat(p.amount)) * parseFloat(p.entry_price);
+          }, 0);
+      }
+    } catch (err) {
+      console.error('[stake-info] Failed to fetch live positions:', err);
+    }
+
+    // Use the higher of FightTrade vs live position exposure
+    const currentExposure = Math.max(fightTradeExposure, livePositionExposure);
+
     const stake = participant.fight.stakeUsdc;
-    const maxExposureUsed = parseFloat(
+    let maxExposureUsed = parseFloat(
       participant.maxExposureUsed?.toString() || '0'
     );
+
+    // If live exposure is higher than recorded, update the water mark
+    if (livePositionExposure > maxExposureUsed) {
+      maxExposureUsed = livePositionExposure;
+      updateMaxExposureIfHigher(participant.id, livePositionExposure).catch(err => {
+        console.error('[stake-info] Failed to update maxExposureUsed:', err);
+      });
+    }
 
     // Calculate available capital using centralized formula
     const available = calculateAvailableCapital(

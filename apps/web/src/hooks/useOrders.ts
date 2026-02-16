@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
+import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
@@ -34,6 +34,8 @@ interface CreateLimitOrderParams {
   builder_code?: string;
   take_profit?: { stop_price: string };
   stop_loss?: { stop_price: string };
+  fightId?: string;
+  leverage?: number;
 }
 
 interface CancelOrderParams {
@@ -238,6 +240,8 @@ export function useCreateLimitOrder() {
           builder_code: builderCode,
           take_profit: params.take_profit,
           stop_loss: params.stop_loss,
+          fight_id: params.fightId,
+          leverage: params.leverage,
           signature,
           timestamp,
         }),
@@ -883,6 +887,65 @@ export function useSetLeverage() {
 }
 
 /**
+ * Hook to set margin mode (cross/isolated) for a trading pair
+ */
+export function useSetMarginMode() {
+  const wallet = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { symbol: string; isIsolated: boolean }) => {
+      if (!wallet.connected || !wallet.publicKey) {
+        throw new Error('Wallet not connected');
+      }
+
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation with wallet
+      const { signature, timestamp } = await createSignedUpdateMarginMode(wallet, {
+        symbol,
+        is_isolated: params.isIsolated,
+      });
+
+      // Send to backend proxy
+      const response = await fetch('/api/account/margin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account,
+          symbol,
+          is_isolated: params.isIsolated,
+          signature,
+          timestamp,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['account-settings'] });
+      const symbol = variables.symbol.replace('-USD', '');
+      const mode = variables.isIsolated ? 'Isolated' : 'Cross';
+      notify('ORDER', 'Margin Mode', `${symbol} set to ${mode} margin`, { variant: 'success' });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to set margin mode:', error);
+      if (error.message.includes('open position') || error.message.includes('OpenPosition')) {
+        notify('ORDER', 'Margin Mode Failed', 'Close position first to change margin mode', { variant: 'error' });
+      } else {
+        notify('ORDER', 'Margin Mode Failed', `Failed to set margin mode: ${error.message}`, { variant: 'error' });
+      }
+    },
+  });
+}
+
+/**
  * Hook to edit an existing limit order (modify price and/or size)
  * Note: Editing cancels the original order and creates a new one with TIF=ALO
  */
@@ -940,6 +1003,102 @@ export function useEditOrder() {
     onError: (error: Error) => {
       console.error('Failed to edit order:', error);
       notify('ORDER', 'Edit Failed', `Failed to edit order: ${error.message}`, { variant: 'error' });
+    },
+  });
+}
+
+// ─── Batch Orders Types ───
+
+export interface BatchCreateAction {
+  type: 'Create';
+  data: {
+    account: string;
+    signature: string;
+    timestamp: number;
+    expiry_window: number;
+    symbol: string;
+    price: string;
+    amount: string;
+    side: 'bid' | 'ask';
+    tif: string;
+    reduce_only: boolean;
+    builder_code?: string;
+    client_order_id?: string;
+  };
+}
+
+export interface BatchCancelAction {
+  type: 'Cancel';
+  data: {
+    account: string;
+    signature: string;
+    timestamp: number;
+    expiry_window: number;
+    symbol: string;
+    order_id: number;
+  };
+}
+
+export type BatchAction = BatchCreateAction | BatchCancelAction;
+
+interface BatchActionResult {
+  success: boolean;
+  order_id?: number;
+  error?: string | null;
+}
+
+interface BatchOrdersResponse {
+  results: BatchActionResult[];
+}
+
+/**
+ * Hook to execute a batch of order actions atomically.
+ * Each action must be pre-signed by the caller using existing signing functions.
+ * Max 10 actions per batch (enforced by Pacifica).
+ */
+export function useBatchOrders() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (params: { actions: BatchAction[] }) => {
+      if (!params.actions.length) {
+        throw new Error('Batch must contain at least one action');
+      }
+      if (params.actions.length > 10) {
+        throw new Error('Batch cannot exceed 10 actions');
+      }
+
+      const response = await fetch('/api/orders/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actions: params.actions }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.data as BatchOrdersResponse;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['positions'] });
+      queryClient.invalidateQueries({ queryKey: ['account'] });
+
+      const successes = data.results.filter((r) => r.success).length;
+      const failures = data.results.filter((r) => !r.success).length;
+
+      if (failures === 0) {
+        notify('ORDER', 'Batch Complete', `${successes} action${successes > 1 ? 's' : ''} executed`, { variant: 'success' });
+      } else {
+        notify('ORDER', 'Batch Partial', `${successes} succeeded, ${failures} failed`, { variant: 'warning' });
+      }
+    },
+    onError: (error: Error) => {
+      console.error('Failed to execute batch orders:', error);
+      notify('ORDER', 'Batch Failed', `Batch failed: ${error.message}`, { variant: 'error' });
     },
   });
 }

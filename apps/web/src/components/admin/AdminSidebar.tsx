@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
   HandCoins,
+  X,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -33,27 +34,54 @@ const navItems = [
   { href: '/admin/system', label: 'System', icon: Settings },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function AdminSidebar({ mobileOpen = false, onMobileClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside
-      className={`bg-surface-850 border-r border-surface-700 flex flex-col transition-all duration-200 ${
-        collapsed ? 'w-16' : 'w-56'
-      }`}
-    >
+    <>
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onMobileClose}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`bg-surface-850 border-r border-surface-700 flex flex-col transition-all duration-200
+          ${collapsed ? 'w-16' : 'w-56'}
+          fixed lg:static inset-y-0 left-0 z-50
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
       {/* Header */}
       <div className="h-14 flex items-center justify-between px-4 border-b border-surface-700">
         {!collapsed && (
           <span className="font-semibold text-white text-sm">TFC Admin</span>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded hover:bg-surface-700 text-surface-400 hover:text-white transition-colors"
-        >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Mobile close button */}
+          <button
+            onClick={onMobileClose}
+            className="lg:hidden p-1.5 rounded hover:bg-surface-700 text-surface-400 hover:text-white transition-colors"
+          >
+            <X size={18} />
+          </button>
+          {/* Desktop collapse button */}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="hidden lg:block p-1.5 rounded hover:bg-surface-700 text-surface-400 hover:text-white transition-colors"
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -69,6 +97,7 @@ export function AdminSidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => onMobileClose?.()} // Close sidebar on mobile when clicking a link
               className={`flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors ${
                 isActive
                   ? 'bg-surface-700 text-white'
@@ -96,5 +125,6 @@ export function AdminSidebar() {
         </Link>
       </div>
     </aside>
+    </>
   );
 }

@@ -25,3 +25,42 @@
 .group-wWM3zP_M- {
   background-color: #111113 !important;
 }
+
+/* Make chart borders match background */
+.chart-container,
+.layout__area--center,
+.layout__area--right,
+.layout__area--bottom,
+.layout__area--left,
+.layout__area--top {
+  border-color: #111113 !important;
+}
+
+/* Price scale border matches background */
+.price-axis-container {
+  border-color: #111113 !important;
+}
+
+/* Time axis border matches background */
+.time-axis-container {
+  border-color: #111113 !important;
+}
+
+/* Pane separators match background */
+.pane-separator {
+  background-color: #111113 !important;
+  border-color: #111113 !important;
+}
+
+/* Chart wrapper borders match background */
+.chart-markup-table td {
+  border-color: #111113 !important;
+}
+
+/* Layout area borders match background */
+[class*="borderTop"],
+[class*="borderBottom"],
+[class*="borderLeft"],
+[class*="borderRight"] {
+  border-color: #111113 !important;
+}

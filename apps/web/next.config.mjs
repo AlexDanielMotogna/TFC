@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@tfc/shared'],
+  transpilePackages: ['@tfc/shared', 'react-markdown', 'remark-gfm', 'rehype-slug'],
   reactStrictMode: true,
   output: 'standalone',
   // Exclude Prisma from bundling - let it use native Node.js require at runtime

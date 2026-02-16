@@ -18,35 +18,6 @@ interface ChartWidget {
   setSymbol: (symbol: string, resolution: string, callback?: () => void) => void;
   remove: () => void;
   subscribe: (event: string, callback: (...args: unknown[]) => void) => void;
-  save: (callback: (data: object) => void) => void;
-  load: (data: object) => void;
-}
-
-// LocalStorage key for chart data
-const CHART_STORAGE_KEY = 'tfc_tradingview_chart_data';
-
-// Save chart data to localStorage
-function saveChartData(data: object): void {
-  try {
-    localStorage.setItem(CHART_STORAGE_KEY, JSON.stringify(data));
-    console.log('[TradingView] Chart data saved');
-  } catch (error) {
-    console.error('[TradingView] Failed to save chart data:', error);
-  }
-}
-
-// Load chart data from localStorage
-function loadChartData(): object | null {
-  try {
-    const data = localStorage.getItem(CHART_STORAGE_KEY);
-    if (data) {
-      console.log('[TradingView] Chart data loaded from storage');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('[TradingView] Failed to load chart data:', error);
-  }
-  return null;
 }
 
 function TradingViewChartAdvancedComponent({
@@ -126,12 +97,6 @@ function TradingViewChartAdvancedComponent({
         foregroundColor: '#6366f1',
       },
 
-      // Auto-save settings (save after 1 second of inactivity)
-      auto_save_delay: 1,
-
-      // Load saved chart data if available
-      saved_data: loadChartData(),
-
       overrides: {
         'paneProperties.background': '#111113',
         'paneProperties.backgroundGradientStartColor': '#111113',
@@ -139,11 +104,16 @@ function TradingViewChartAdvancedComponent({
         'paneProperties.backgroundType': 'solid',
         'paneProperties.vertGridProperties.color': 'rgba(255, 255, 255, 0.05)',
         'paneProperties.horzGridProperties.color': 'rgba(255, 255, 255, 0.05)',
-        'paneProperties.separatorColor': '#1f1f23',
+        'paneProperties.separatorColor': '#111113',
+        'paneProperties.crossHairProperties.color': '#9ca3af',
         'scalesProperties.textColor': '#9ca3af',
         'scalesProperties.backgroundColor': '#111113',
-        'scalesProperties.lineColor': '#1f1f23',
+        'scalesProperties.lineColor': '#111113',
         'scalesProperties.fontSize': 11,
+        'scalesProperties.showSeriesBorderLine': false,
+        'scalesProperties.showStudyBorderLine': false,
+        'scalesProperties.showPriceScaleBorderLine': false,
+        'scalesProperties.showTimeScaleBorderLine': false,
         'mainSeriesProperties.candleStyle.upColor': '#26A69A',
         'mainSeriesProperties.candleStyle.downColor': '#EF5350',
         'mainSeriesProperties.candleStyle.borderUpColor': '#26A69A',
@@ -162,6 +132,7 @@ function TradingViewChartAdvancedComponent({
         'header_screenshot',
         'header_fullscreen_button',
         'control_bar',
+        'timeframes_toolbar',
         'volume_force_overlay',
         'symbol_info',
         'symbol_search_hot_key',
@@ -187,6 +158,10 @@ function TradingViewChartAdvancedComponent({
         isReadyRef.current = true;
         setIsChartReady(true);
 
+        // Force initial canvas paint even if behind a z-index overlay (e.g., fight video).
+        // TradingView defers canvas rendering when occluded; a resize forces it to draw.
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
+
         widget.subscribe('onSymbolChanged', (...args: unknown[]) => {
           const symbolData = args[0] as { name?: string } | undefined;
           if (symbolData?.name && onSymbolChange) {
@@ -201,12 +176,6 @@ function TradingViewChartAdvancedComponent({
           }
         });
 
-        // Subscribe to auto-save events to persist chart data
-        widget.subscribe('onAutoSaveNeeded', () => {
-          widget.save((data: object) => {
-            saveChartData(data);
-          });
-        });
       });
     } catch (error) {
       console.error('[TradingView] Failed to create widget:', error);
@@ -247,6 +216,18 @@ function TradingViewChartAdvancedComponent({
         className="absolute inset-0"
         style={{ background: '#111113' }}
       />
+
+      {/* TFC watermark logo */}
+      {isChartReady && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]">
+          <img
+            src="/images/logos/favicon-white-192.png"
+            alt=""
+            className="w-24 h-24 opacity-[0.04] select-none"
+            draggable={false}
+          />
+        </div>
+      )}
 
       {!isChartReady && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#111113]">

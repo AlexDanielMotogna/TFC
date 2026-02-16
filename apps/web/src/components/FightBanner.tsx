@@ -11,6 +11,7 @@
 import { useFight } from '@/hooks/useFight';
 import { useFightPositions } from '@/hooks/useFightPositions';
 import { useAuthStore } from '@/lib/store';
+import { Spinner } from './Spinner';
 
 export function FightBanner() {
   const { _hasHydrated } = useAuthStore();
@@ -19,6 +20,8 @@ export function FightBanner() {
     isActive,
     isLoading,
     isConnected,
+    isResolving,
+    fightResult,
     opponent,
     myPnl,
     opponentPnl,
@@ -30,6 +33,31 @@ export function FightBanner() {
   // MVP-6: Get open fight positions to show warning
   const { positions: fightPositions } = useFightPositions(fightId);
   const hasOpenPositions = fightPositions.length > 0;
+
+  // Show resolving overlay when fight just ended
+  if (isResolving) {
+    const resultConfig = {
+      victory: { text: 'Victory!', color: 'text-win-400' },
+      defeat: { text: 'Defeat', color: 'text-loss-400' },
+      draw: { text: 'Draw', color: 'text-surface-300' },
+      cancelled: { text: 'Cancelled', color: 'text-amber-400' },
+      no_contest: { text: 'No Contest', color: 'text-amber-400' },
+      resolving: { text: 'Fight Ended', color: 'text-surface-300' },
+    }[fightResult || 'resolving'];
+
+    return (
+      <div className="w-full relative overflow-hidden border-b border-surface-800">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-surface-800/50 to-transparent" />
+        <div className="relative flex items-center justify-center gap-3 h-10 px-4">
+          <Spinner size="xs" />
+          <span className={`font-display font-bold text-sm ${resultConfig.color}`}>
+            {resultConfig.text}
+          </span>
+          <span className="text-surface-400 text-xs">Loading results...</span>
+        </div>
+      </div>
+    );
+  }
 
   // Return empty placeholder with 0 height to avoid layout shifts
   // The component always renders but with height:0 when not active
@@ -56,90 +84,52 @@ export function FightBanner() {
   const isLosing = myPnl < opponentPnl;
   const isLowTime = timeRemaining !== null && timeRemaining < 60000;
 
+  // Calculate PnL advantage for background split
+  // Positive diff = you're winning, negative = opponent winning
+  // Map to a percentage: 50% = tied, >50% = you dominate, <50% = opp dominates
+  const pnlDiff = myPnl - opponentPnl;
+  // Clamp the diff so the bar doesn't go fully to one side (keep 10-90% range)
+  const maxDiff = 2; // ±2% PnL diff = full bar
+  const normalizedDiff = Math.max(-1, Math.min(1, pnlDiff / maxDiff));
+  const myBarPercent = 50 + normalizedDiff * 40; // 10% to 90%
+
   return (
-    <div className="w-full bg-surface-850 border-b border-surface-800">
-      <div className="max-w-screen-2xl mx-auto px-2 sm:px-4">
-        {/* Mobile: 2 rows layout */}
-        <div className="sm:hidden py-1.5">
-          {/* Row 1: Opponent + Timer + Status */}
-          <div className="flex items-center justify-between mb-1">
-            <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
-              <span className="text-zinc-400 text-xs">
-                vs <span className="text-zinc-100 font-medium">{opponent.user?.handle || 'Opponent'}</span>
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`font-mono text-sm font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
-                {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
-              </span>
-              <div className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                isWinning
-                  ? 'bg-win-500/10 text-win-500'
-                  : isLosing
-                    ? 'bg-loss-500/10 text-loss-500'
-                    : 'bg-surface-700 text-surface-400'
-              }`}>
-                {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
-              </div>
-            </div>
-          </div>
-          {/* Row 2: Stake + PnL comparison */}
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="text-surface-500">${maxSize.toLocaleString()} stake</span>
-            <div className="flex items-center gap-3">
-              <span className="text-surface-500">
-                You: <span className={`font-mono tabular-nums ${myPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>{formatPnl(myPnl)}</span>
-              </span>
-              <span className="text-surface-500">
-                Opp: <span className={`font-mono tabular-nums ${opponentPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>{formatPnl(opponentPnl)}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Desktop: Single row layout */}
-        <div className="hidden sm:flex items-center justify-between h-10 gap-4">
-          {/* Left: Status + Opponent */}
-          <div className="flex items-center gap-3 text-sm">
-            <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
-              <span className="text-surface-400">Live</span>
-            </div>
-            <div className="h-4 w-px bg-surface-700" />
-            <span className="text-zinc-400">
-              vs <span className="text-zinc-100 font-medium">{opponent.user?.handle || 'Opponent'}</span>
+    <div className="w-full relative overflow-hidden border-b border-surface-800">
+      {/* Dynamic PnL background — colors reflect winning/losing status */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+        {/* Your side (left) — green when winning, red when losing */}
+        <div
+          className={`absolute inset-y-0 left-0 transition-all duration-700 ease-out ${
+            isWinning ? 'bg-gradient-to-r from-win-500/30 via-win-500/15 to-transparent'
+            : isLosing ? 'bg-gradient-to-r from-loss-500/30 via-loss-500/15 to-transparent'
+            : 'bg-gradient-to-r from-surface-500/15 to-transparent'
+          }`}
+          style={{ width: `${myBarPercent}%` }}
+        />
+        {/* Opponent side (right) — red when you're winning, green when you're losing */}
+        <div
+          className={`absolute inset-y-0 right-0 transition-all duration-700 ease-out ${
+            isWinning ? 'bg-gradient-to-l from-loss-500/30 via-loss-500/15 to-transparent'
+            : isLosing ? 'bg-gradient-to-l from-win-500/30 via-win-500/15 to-transparent'
+            : 'bg-gradient-to-l from-surface-500/15 to-transparent'
+          }`}
+          style={{ width: `${100 - myBarPercent}%` }}
+        />
+      </div>
+      <div className="relative max-w-screen-2xl mx-auto px-2 sm:px-4">
+        {/* Mobile: single row — You PnL | Timer | Status | Opp PnL */}
+        <div className="sm:hidden flex items-center justify-between h-8 gap-1">
+          {/* Left: connection dot + You PnL */}
+          <div className="flex items-center gap-1 min-w-0">
+            <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
+            <span className="text-[10px] text-surface-500">You</span>
+            <span className={`font-mono text-[11px] font-semibold tabular-nums ${myPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+              {formatPnl(myPnl)}
             </span>
           </div>
-
-          {/* Center: Timer + Stake */}
-          <div className="flex items-center gap-3">
-            <span className={`font-mono text-base font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
-              {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
-            </span>
-            <span className="text-xs text-surface-500">
-              ${maxSize.toLocaleString()} stake
-            </span>
-          </div>
-
-          {/* Right: PnL - MVP-5: Realized only */}
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-3">
-              <div className="text-right" title="Realized PnL from closed positions only">
-                <div className="text-xs text-surface-500">You</div>
-                <div className={`font-mono tabular-nums ${myPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>
-                  {formatPnl(myPnl)}
-                </div>
-              </div>
-              <div className="h-6 w-px bg-surface-700" />
-              <div title="Realized PnL from closed positions only">
-                <div className="text-xs text-surface-500">Opp</div>
-                <div className={`font-mono tabular-nums ${opponentPnl >= 0 ? 'text-win-500' : 'text-loss-500'}`}>
-                  {formatPnl(opponentPnl)}
-                </div>
-              </div>
-            </div>
-            <div className={`px-2 py-0.5 rounded text-xs font-medium ${
+          {/* Center: Timer + Status badge */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div className={`px-1 py-0.5 rounded text-[9px] font-medium ${
               isWinning
                 ? 'bg-win-500/10 text-win-500'
                 : isLosing
@@ -147,6 +137,30 @@ export function FightBanner() {
                   : 'bg-surface-700 text-surface-400'
             }`}>
               {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
+            </div>
+            <span className={`font-mono text-[11px] font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
+              {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
+            </span>
+          </div>
+          {/* Right: Opp PnL + truncated handle */}
+          <div className="flex items-center gap-1 min-w-0 justify-end">
+            <span className={`font-mono text-[11px] font-semibold tabular-nums ${opponentPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+              {formatPnl(opponentPnl)}
+            </span>
+            <span className="text-[10px] text-surface-500 truncate max-w-[48px]">{opponent.user?.handle || 'Opp'}</span>
+          </div>
+        </div>
+
+        {/* Desktop: You (left) | Center (timer + status) | Opp (right) */}
+        <div className="hidden sm:flex items-center justify-between h-10 gap-4">
+          {/* Left: You — PnL + status + warnings */}
+          <div className="flex items-center gap-3 text-sm min-w-0">
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-green-500' : 'bg-surface-500'}`} />
+              <span className="text-surface-400">You</span>
+            </div>
+            <div className={`font-mono text-sm font-semibold tabular-nums ${myPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`} title="Realized PnL from closed positions only">
+              {formatPnl(myPnl)}
             </div>
             {/* MVP-6: Open positions warning */}
             {hasOpenPositions && (
@@ -160,12 +174,41 @@ export function FightBanner() {
             {/* External trades warning */}
             {externalTradesDetected && (
               <div className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/10 text-amber-500" title="Trades made outside TradeFightClub detected">
-                External Trades
+                External
               </div>
             )}
           </div>
+
+          {/* Center: Timer + Stake + Status */}
+          <div className="flex items-center gap-3">
+            <div className={`px-2 py-0.5 rounded text-xs font-medium ${
+              isWinning
+                ? 'bg-win-500/10 text-win-500'
+                : isLosing
+                  ? 'bg-loss-500/10 text-loss-500'
+                  : 'bg-surface-700 text-surface-400'
+            }`}>
+              {isWinning ? 'Ahead' : isLosing ? 'Behind' : 'Tied'}
+            </div>
+            <span className={`font-mono text-base font-semibold tabular-nums ${isLowTime ? 'text-loss-500' : 'text-zinc-100'}`}>
+              {timeRemaining !== null ? formatTime(timeRemaining) : '--:--'}
+            </span>
+            <span className="text-xs text-surface-500">
+              ${maxSize.toLocaleString()}
+            </span>
+          </div>
+
+          {/* Right: Opponent — PnL + name */}
+          <div className="flex items-center gap-3 text-sm min-w-0">
+            <div className={`font-mono text-sm font-semibold tabular-nums ${opponentPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`} title="Realized PnL from closed positions only">
+              {formatPnl(opponentPnl)}
+            </div>
+            <span className="text-surface-400 truncate">
+              {opponent.user?.handle || 'Opponent'}
+            </span>
+          </div>
         </div>
-      </div>
+      </div>{/* end relative content */}
     </div>
   );
 }

@@ -30,6 +30,8 @@ export function usePacificaConnection() {
     },
     enabled: isAuthenticated && !!token,
     refetchInterval: 10000, // Poll every 10 seconds
+    refetchOnMount: 'always', // Always fetch fresh data on mount (important for iOS dApp browsers)
+    refetchOnWindowFocus: true, // Re-fetch when app returns to foreground
     staleTime: 5000,
   });
 

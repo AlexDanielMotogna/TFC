@@ -1,18 +1,67 @@
 'use client';
 
-import { useAuth } from '@/hooks';
+import { useEffect, useState } from 'react';
+import { useAuthStore } from '@/lib/store';
 
-const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
 
 /**
  * Modal shown when a user is authenticated but has no Pacifica account.
  * Cannot be dismissed — the user must deposit on Pacifica to continue.
+ *
+ * IMPORTANT: Does NOT show immediately. First verifies with the server
+ * to avoid false positives when Pacifica auto-link failed during login.
  */
 export function NoPacificaModal() {
-  const { isAuthenticated, pacificaConnected } = useAuth();
+  const { token, isAuthenticated, pacificaConnected, setPacificaConnected, _hasHydrated } = useAuthStore();
+  const [isVerifying, setIsVerifying] = useState(true);
+  const [serverConfirmedDisconnected, setServerConfirmedDisconnected] = useState(false);
 
-  // Only show when authenticated but no Pacifica account
-  if (!isAuthenticated || pacificaConnected) return null;
+  // Verify with server before showing the blocking modal
+  useEffect(() => {
+    if (!_hasHydrated || !isAuthenticated || !token || pacificaConnected) {
+      setIsVerifying(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function verify() {
+      try {
+        const res = await fetch('/api/auth/pacifica/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (cancelled) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data.connected) {
+            // Server says connected — update store, don't show modal
+            setPacificaConnected(true);
+            setServerConfirmedDisconnected(false);
+          } else {
+            // Server confirmed: no Pacifica account
+            setServerConfirmedDisconnected(true);
+          }
+        } else {
+          // API error — don't block the user, assume connected
+          setServerConfirmedDisconnected(false);
+        }
+      } catch {
+        // Network error — don't block the user
+        setServerConfirmedDisconnected(false);
+      } finally {
+        if (!cancelled) setIsVerifying(false);
+      }
+    }
+
+    verify();
+    return () => { cancelled = true; };
+  }, [_hasHydrated, isAuthenticated, token, pacificaConnected, setPacificaConnected]);
+
+  // Don't show until hydrated and server-verified
+  if (!_hasHydrated || !isAuthenticated || pacificaConnected) return null;
+  if (isVerifying || !serverConfirmedDisconnected) return null;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">

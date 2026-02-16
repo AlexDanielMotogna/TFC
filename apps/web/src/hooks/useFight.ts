@@ -55,6 +55,8 @@ export function useFight() {
   const [isLoading, setIsLoading] = useState(!!searchParams?.get('fight'));
   const [error, setError] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
+  // Show resolving state between fight ending and redirect to results page
+  const [isResolving, setIsResolving] = useState(false);
 
   // Track previous status to detect when fight ends
   const prevStatusRef = useRef<string | null>(null);
@@ -155,6 +157,15 @@ export function useFight() {
     return () => clearInterval(interval);
   }, [fight]);
 
+  // Show resolving spinner as soon as the client-side timer hits 0
+  // This fires instantly — no need to wait for the server's arena:fight_ended event
+  useEffect(() => {
+    if (!fight || fight.status !== 'LIVE' || !pathname || pathname !== '/trade') return;
+    if (timeRemaining !== null && timeRemaining <= 0 && !isResolving) {
+      setIsResolving(true);
+    }
+  }, [fight, timeRemaining, isResolving, pathname]);
+
   // Redirect when fight ends (LIVE -> FINISHED/CANCELLED)
   // Only redirect if we're on the /trade page with a fight param
   useEffect(() => {
@@ -199,11 +210,14 @@ export function useFight() {
 
       // Only auto-redirect from /trade page
       if (pathname === '/trade') {
+        // Show resolving overlay (may already be true from timer-based trigger above)
+        setIsResolving(true);
+
         // Small delay to let user see the final state
         const timer = setTimeout(() => {
           // Redirect to fight results page
           router.push(`/fight/${fightId}`);
-        }, prevStatus === 'LIVE' ? 2000 : 500); // Longer delay if we just watched it end
+        }, prevStatus === 'LIVE' ? 3000 : 500); // 3s delay if we just watched it end
 
         return () => clearTimeout(timer);
       }
@@ -290,6 +304,23 @@ export function useFight() {
     return finalMyPnlPercent > opponentPnlPercent ? 'WINNING' : 'LOSING';
   })();
 
+  // Determine fight result for resolving overlay
+  // Uses PnL data as fallback when winnerId isn't set yet
+  const fightResult = useMemo(() => {
+    if (!isResolving) return null;
+    if (!fight) return 'resolving' as const;
+    if (fight.status === 'CANCELLED') return 'cancelled' as const;
+    if (fight.status === 'NO_CONTEST') return 'no_contest' as const;
+    if (fight.isDraw) return 'draw' as const;
+    if (fight.winnerId) {
+      return fight.winnerId === user?.id ? 'victory' as const : 'defeat' as const;
+    }
+    // Fallback: use real-time PnL to show preliminary result
+    if (finalFightStatus === 'WINNING') return 'victory' as const;
+    if (finalFightStatus === 'LOSING') return 'defeat' as const;
+    return 'draw' as const;
+  }, [fight, isResolving, user?.id, finalFightStatus]);
+
   return {
     fight,
     fightId,
@@ -297,6 +328,8 @@ export function useFight() {
     error,
     isActive,
     isConnected,
+    isResolving,
+    fightResult,
     opponent,
     currentUser: currentUserParticipant,
     // PnL as percentage (e.g., 9.5 for +9.5%)

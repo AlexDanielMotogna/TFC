@@ -14,6 +14,7 @@ import { AppShell } from '@/components/AppShell';
 import { ArenaSkeleton } from '@/components/Skeletons';
 import { BetaGate } from '@/components/BetaGate';
 import { Spinner } from '@/components/Spinner';
+import Image from 'next/image';
 
 type ArenaTab = 'live' | 'pending' | 'finished' | 'my-fights';
 const VALID_TABS: ArenaTab[] = ['live', 'pending', 'finished', 'my-fights'];
@@ -264,31 +265,20 @@ export default function LobbyPage() {
       <BetaGate>
       <AppShell>
         <div className="container mx-auto px-2 md:px-6 py-6">
-          {/* Header matches actual layout - title left, stats center, button right */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
-            {/* Title - Left */}
-            <div>
-              <h2 className="font-display text-sm sm:text-2xl font-bold text-white">Arena</h2>
-              <p className="text-surface-400 text-sm">Challenge traders to 1v1 battles. Win weekly prizes.</p>
-            </div>
-
-            {/* Stats - Center */}
-            <div className="flex items-center gap-2 md:gap-6">
-              <div className="flex items-center gap-2.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-surface-500 animate-pulse" />
-                <span className="text-xs text-surface-500">...</span>
+          {/* Header */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Arena</h1>
               </div>
-              <div className="w-px h-4 bg-surface-700" />
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 bg-surface-500 rounded-full" />
-                <span className="text-sm text-surface-400">- Live</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-surface-500 animate-pulse" />
+                  <span className="text-xs text-surface-500">...</span>
+                </div>
+                <div className="w-28 h-9 rounded-lg bg-surface-700 animate-pulse" />
               </div>
-              <span className="text-sm text-surface-400">- Pending</span>
-              <span className="text-sm text-surface-400 hidden sm:block">- Fighters</span>
             </div>
-
-            {/* Create Fight button - Right */}
-            <div className="w-28 h-10 rounded-lg bg-surface-700 animate-pulse" />
           </div>
           <ArenaSkeleton />
         </div>
@@ -300,59 +290,90 @@ export default function LobbyPage() {
   return (
     <BetaGate>
     <AppShell>
-      <div className="container mx-auto px-2 md:px-6 py-6">
-        {/* Compact Header with Stats */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
-          <div>
-            <h2 className="font-display text-sm sm:text-2xl font-bold text-white">Arena</h2>
-            <p className="text-surface-400 text-sm">
-              Challenge traders to 1v1 battles. Win weekly prizes.
-            </p>
+      <div className="relative container mx-auto px-2 md:px-6 py-6">
+        {/* Bull vs Bear Background — fixed to viewport, behind content */}
+        <div className="fixed inset-0 pointer-events-none select-none z-0" aria-hidden="true">
+          <Image
+            src="/images/background/TFC_Bull_transparent.png"
+            alt=""
+            width={500}
+            height={500}
+            className="fixed left-[-15%] sm:left-[-5%] md:left-[5%] lg:left-[15%] xl:left-[25%] top-1/2 -translate-y-1/2 w-[200px] sm:w-[250px] md:w-[300px] lg:w-[380px] opacity-[0.05] md:opacity-[0.06] invert"
+            priority
+          />
+          <Image
+            src="/images/background/TFC_Bear-transparent.png"
+            alt=""
+            width={500}
+            height={500}
+            className="fixed right-[-15%] sm:right-[-5%] md:right-[5%] lg:right-[15%] xl:right-[25%] top-1/2 -translate-y-1/2 w-[200px] sm:w-[250px] md:w-[300px] lg:w-[380px] opacity-[0.05] md:opacity-[0.06] invert"
+            priority
+          />
+        </div>
+
+        {/* Content layer — above background images */}
+        <div className="relative z-10">
+
+        {/* Dashboard Header */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Arena</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* WebSocket Status */}
+              <div className="flex items-center gap-1.5" title={wsConnected ? 'Real-time updates active' : 'Connecting...'}>
+                <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-win-400' : 'bg-surface-500 animate-pulse'}`} />
+                <span className="text-xs text-surface-500">{wsConnected ? 'Live' : '...'}</span>
+              </div>
+              {/* Create Button */}
+              {connecting ? (
+                <button disabled className="btn-primary opacity-50">Connecting...</button>
+              ) : connected && isAuthenticating ? (
+                <button disabled className="btn-primary opacity-50">Signing...</button>
+              ) : connected && !isAuthenticated ? (
+                <button disabled className="btn-primary opacity-50">Authenticating...</button>
+              ) : (
+                <button onClick={handleCreateClick} className="btn-primary">+ Create Fight</button>
+              )}
+            </div>
           </div>
 
-          {/* Inline Stats */}
-          <div className="flex items-center gap-2 md:gap-6">
-            {/* WebSocket Status */}
-            <div className="flex items-center gap-2.5" title={wsConnected ? 'Real-time updates active' : 'Connecting...'}>
-              <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-win-400' : 'bg-surface-500 animate-pulse'}`} />
-              <span className="text-xs text-surface-500">{wsConnected ? 'Live' : '...'}</span>
+          {/* Stats Cards Row */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {/* Live Fights */}
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-live-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-live-400 rounded-full animate-pulse" />
+                </div>
+                <span className="text-[10px] sm:text-xs text-surface-500">Live</span>
+              </div>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{stats.live}</p>
             </div>
-            <div className="w-px h-4 bg-surface-700" />
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-live-400 rounded-full animate-pulse" />
-              <span className="text-sm text-surface-300">
-                <span className="font-bold text-white">{stats.live}</span> Live
-              </span>
+
+            {/* Pending Challenges */}
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs sm:text-sm leading-none" style={{ color: '#facc15' }}>&#x2694;</span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-surface-500">Pending</span>
+              </div>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{stats.pending}</p>
             </div>
-            <div className="text-sm text-surface-300">
-              <span className="font-bold text-white">{stats.pending}</span> Pending
-            </div>
-            <div className="text-sm text-surface-300 hidden sm:block">
-              <span className="font-bold text-white">{stats.fighters}</span> Fighters
+
+            {/* Active Fighters */}
+            <div className="card p-3 sm:p-4">
+              <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-primary-500/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs sm:text-sm leading-none" style={{ color: '#5196c9' }}>&#x2694;</span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-surface-500">Fighters</span>
+              </div>
+              <p className="text-xl sm:text-2xl md:text-3xl font-bold text-white">{stats.fighters}</p>
             </div>
           </div>
-
-          {/* Create Button - Always shows "Create Fight", opens wallet modal if not connected */}
-          {connecting ? (
-            <button disabled className="btn-primary opacity-50">
-              Connecting...
-            </button>
-          ) : connected && isAuthenticating ? (
-            <button disabled className="btn-primary opacity-50">
-              Signing...
-            </button>
-          ) : connected && !isAuthenticated ? (
-            <button disabled className="btn-primary opacity-50">
-              Authenticating...
-            </button>
-          ) : (
-            <button
-              onClick={handleCreateClick}
-              className="btn-primary"
-            >
-              + Create Fight
-            </button>
-          )}
         </div>
 
         {/* Error Message */}
@@ -368,88 +389,84 @@ export default function LobbyPage() {
           </div>
         )}
 
-        {/* Tabs and Filters */}
-        <div className="border-b border-surface-800 mb-2 overflow-x-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 min-w-max sm:min-w-0">
-            {/* Tabs */}
-            <div className="flex gap-2 flex-shrink-0">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+        {/* Tabs + Filters Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          {/* Tabs */}
+          <div className="bg-surface-800 rounded-xl p-1 flex w-full sm:w-auto border border-surface-800">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-surface-700 text-white'
+                    : 'text-surface-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`ml-1.5 px-1.5 py-0.5 text-[10px] rounded ${
                     activeTab === tab.id
-                      ? 'text-primary-400 border-primary-400'
-                      : 'text-surface-400 border-transparent hover:text-white hover:border-surface-600'
-                  }`}
-                >
-                  {tab.label}
-                  {tab.count !== undefined && tab.count > 0 && (
-                    <span className={`ml-2 px-1.5 py-0.5 text-xs rounded ${
-                      activeTab === tab.id
-                        ? 'bg-primary-500/20 text-primary-400'
-                        : 'bg-surface-700 text-surface-400'
-                    }`}>
-                      {tab.count}
-                    </span>
-                  )}
-                </button>
+                      ? 'bg-primary-500/20 text-primary-400'
+                      : 'bg-surface-600 text-surface-400'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Filters */}
+          <div className="flex items-center gap-2">
+            {/* Status Filter - only show on My Fights tab */}
+            {activeTab === 'my-fights' && (
+              <select
+                value={filterStatus ?? ''}
+                onChange={(e) => setFilterStatus(e.target.value || null)}
+                className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+              >
+                <option value="">All Status</option>
+                <option value="WAITING">Waiting</option>
+                <option value="LIVE">Live</option>
+                <option value="FINISHED">Finished</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            )}
+
+            {/* Duration Filter */}
+            <select
+              value={filterDuration ?? ''}
+              onChange={(e) => setFilterDuration(e.target.value ? Number(e.target.value) : null)}
+              className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+            >
+              <option value="">All Durations</option>
+              {FIGHT_DURATIONS_MINUTES.map((d) => (
+                <option key={d} value={d}>{d}m</option>
               ))}
-            </div>
+            </select>
 
-            {/* Filters */}
-            <div className="flex items-center gap-2 pb-3 sm:pb-0">
-              <span className="text-xs text-surface-500 mr-1">Filter:</span>
+            {/* Max Size Filter */}
+            <select
+              value={filterMaxSize ?? ''}
+              onChange={(e) => setFilterMaxSize(e.target.value ? Number(e.target.value) : null)}
+              className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+            >
+              <option value="">All Sizes</option>
+              {FIGHT_STAKES_USDC.map((s) => (
+                <option key={s} value={s}>${s.toLocaleString()}</option>
+              ))}
+            </select>
 
-              {/* Status Filter - only show on My Fights tab */}
-              {activeTab === 'my-fights' && (
-                <select
-                  value={filterStatus ?? ''}
-                  onChange={(e) => setFilterStatus(e.target.value || null)}
-                  className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
-                >
-                  <option value="">All Status</option>
-                  <option value="WAITING">Waiting</option>
-                  <option value="LIVE">Live</option>
-                  <option value="FINISHED">Finished</option>
-                  <option value="CANCELLED">Cancelled</option>
-                </select>
-              )}
-
-              {/* Duration Filter */}
-              <select
-                value={filterDuration ?? ''}
-                onChange={(e) => setFilterDuration(e.target.value ? Number(e.target.value) : null)}
-                className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-xs text-surface-400 hover:text-white px-2 py-1"
               >
-                <option value="">All Durations</option>
-                {FIGHT_DURATIONS_MINUTES.map((d) => (
-                  <option key={d} value={d}>{d}m</option>
-                ))}
-              </select>
-
-              {/* Max Size Filter */}
-              <select
-                value={filterMaxSize ?? ''}
-                onChange={(e) => setFilterMaxSize(e.target.value ? Number(e.target.value) : null)}
-                className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
-              >
-                <option value="">All Sizes</option>
-                {FIGHT_STAKES_USDC.map((s) => (
-                  <option key={s} value={s}>${s.toLocaleString()}</option>
-                ))}
-              </select>
-
-              {/* Clear Filters */}
-              {hasActiveFilters && (
-                <button
-                  onClick={clearFilters}
-                  className="text-xs text-surface-400 hover:text-white px-2 py-1"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
@@ -680,6 +697,7 @@ export default function LobbyPage() {
           </div>
         </div>
       )}
+      </div>{/* end z-10 content layer */}
       </div>
     </AppShell>
     </BetaGate>

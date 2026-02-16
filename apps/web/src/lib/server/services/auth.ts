@@ -7,6 +7,7 @@ import * as Pacifica from '../pacifica';
 import { generateToken } from '../auth';
 import { generateReferralCode } from '../referral-utils';
 import { processReferralRegistration } from './referral';
+import { broadcastUserCreated, broadcastUserUpdated } from '../admin-realtime';
 import * as ed from '@noble/ed25519';
 import { base58 } from '@scure/base';
 
@@ -182,6 +183,7 @@ export async function authenticateWallet(
   token: string;
   user: { id: string; handle: string; avatarUrl: string | null; role: 'USER' | 'ADMIN' };
   pacificaConnected: boolean;
+  pacificaFailReason: 'not_found' | 'beta_required' | null;
 }> {
   console.log('Wallet authentication attempt', {
     walletAddress: walletAddress.slice(0, 8) + '...',
@@ -253,22 +255,35 @@ export async function authenticateWallet(
         referralCode: userReferralCode,
       });
 
+      // Broadcast user creation to admin panel
+      await broadcastUserCreated({
+        id: user.id,
+        handle: user.handle,
+        walletAddress: user.walletAddress!,
+        role: user.role || 'USER',
+        createdAt: user.createdAt,
+      });
+
       // Process referral registration if referral code was provided
       if (referralCode) {
         await processReferralRegistration(user.id, referralCode);
       }
     }
 
-    // Check if Pacifica is already connected
-    let pacificaConnected = user.pacificaConnection?.isActive === true;
+    // Track Pacifica connection status and failure reason
+    let pacificaConnected = false;
+    let pacificaFailReason: 'not_found' | 'beta_required' | null = null;
 
-    // If not connected, try to auto-link using the wallet address
-    if (!pacificaConnected) {
+    // ALWAYS verify with Pacifica API on every login to ensure DB is in sync
+    // This handles cases where users created Pacifica accounts after first login
+    const MAX_RETRIES = 2;
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
         const accountInfo = await Pacifica.getAccount(walletAddress);
         // Pacifica returns an object with balance if account exists
         if (accountInfo && accountInfo.balance !== undefined) {
-          // Account exists on Pacifica, link it
+          // Account exists on Pacifica, link/update it in DB
           await prisma.pacificaConnection.upsert({
             where: { userId: user.id },
             create: {
@@ -289,14 +304,72 @@ export async function authenticateWallet(
             walletAddress: walletAddress.slice(0, 8) + '...',
             balance: accountInfo.balance,
           });
+          break; // Success - exit retry loop
         }
-      } catch (pacificaError) {
-        // Pacifica account doesn't exist or error - user needs to deposit first
-        console.log('No Pacifica account found for wallet', {
+      } catch (pacificaError: any) {
+        const isLastAttempt = attempt === MAX_RETRIES;
+        const errorMessage = pacificaError?.message || 'Unknown error';
+        const statusCode = pacificaError?.statusCode;
+
+        // Log the actual error for debugging
+        console.error('Pacifica account check failed', {
           userId: user.id,
           walletAddress: walletAddress.slice(0, 8) + '...',
+          attempt: attempt + 1,
+          maxRetries: MAX_RETRIES + 1,
+          error: errorMessage,
+          statusCode,
         });
+
+        // Don't retry for definitive errors
+        const isNotFoundError = statusCode === 404 ||
+          errorMessage.toLowerCase().includes('not found');
+        const isBetaAccessError = errorMessage.toLowerCase().includes('beta access') ||
+          errorMessage.toLowerCase().includes('beta code');
+
+        if (isNotFoundError || isBetaAccessError) {
+          // Set the failure reason for UI messaging
+          pacificaFailReason = isNotFoundError ? 'not_found' : 'beta_required';
+          // Log specific reason for debugging
+          console.log('Pacifica account check failed (no retry)', {
+            userId: user.id,
+            walletAddress: walletAddress.slice(0, 8) + '...',
+            reason: pacificaFailReason,
+          });
+          // Update DB to mark as inactive (in case it was previously active)
+          await prisma.pacificaConnection.upsert({
+            where: { userId: user.id },
+            create: {
+              userId: user.id,
+              accountAddress: walletAddress,
+              vaultKeyReference: 'read-only',
+              builderCodeApproved: false,
+              isActive: false,
+            },
+            update: {
+              isActive: false,
+            },
+          });
+          break; // Don't retry - account genuinely doesn't exist or needs beta
+        }
+
+        // Retry with exponential backoff for transient errors
+        if (!isLastAttempt) {
+          const delay = 500 * (attempt + 1); // 500ms, 1000ms
+          console.log('Retrying Pacifica account check', {
+            userId: user.id,
+            nextAttempt: attempt + 2,
+            delayMs: delay,
+          });
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
+    }
+
+    // If Pacifica check succeeded but no account found (no error thrown)
+    // This can happen if getAccount returns null/undefined instead of throwing
+    if (!pacificaConnected && !pacificaFailReason) {
+      pacificaFailReason = 'not_found';
     }
 
     // Check if wallet is an admin wallet
@@ -317,6 +390,16 @@ export async function authenticateWallet(
       console.log('User promoted to admin', {
         userId: user.id,
         walletAddress: walletAddress.slice(0, 8) + '...',
+      });
+
+      // Broadcast role update to admin panel
+      await broadcastUserUpdated({
+        id: user.id,
+        handle: user.handle,
+        walletAddress: user.walletAddress,
+        role: 'ADMIN',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
       });
     }
 
@@ -339,6 +422,7 @@ export async function authenticateWallet(
         role: user.role || 'USER',
       },
       pacificaConnected,
+      pacificaFailReason,
     };
   } catch (error) {
     console.error('Wallet authentication failed', error, {

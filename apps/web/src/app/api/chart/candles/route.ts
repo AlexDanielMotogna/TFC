@@ -303,13 +303,24 @@ async function fetchFromPacifica(
       }));
     }
 
-    // Fallback to direct Pacifica calls
-    const rawCandles = await Pacifica.getKlines({
-      symbol: pacificaSymbol,
-      interval,
-      startTime,
-      endTime,
-    });
+    // Fallback to direct Pacifica calls (prefer mark price klines - no gaps)
+    let rawCandles;
+    try {
+      rawCandles = await Pacifica.getMarkPriceKlines({
+        symbol: pacificaSymbol,
+        interval,
+        startTime,
+        endTime,
+      });
+    } catch {
+      // Fall back to regular klines if mark price endpoint fails
+      rawCandles = await Pacifica.getKlines({
+        symbol: pacificaSymbol,
+        interval,
+        startTime,
+        endTime,
+      });
+    }
 
     return rawCandles.map(c => ({
       t: c.t,
@@ -457,6 +468,40 @@ function mergeCandles(historical: Candle[], recent: Candle[]): Candle[] {
   return Array.from(map.values()).sort((a, b) => a.t - b.t);
 }
 
+// Fill gaps in candle data with synthetic candles (OHLC = previous close, volume = 0)
+function fillCandleGaps(candles: Candle[], interval: string): Candle[] {
+  if (candles.length < 2) return candles;
+
+  const intervalMs = getIntervalMs(interval);
+  const filled: Candle[] = [candles[0]];
+
+  for (let i = 1; i < candles.length; i++) {
+    const prev = filled[filled.length - 1];
+    const curr = candles[i];
+
+    const gap = curr.t - prev.t;
+    const missingCount = Math.round(gap / intervalMs) - 1;
+
+    // Fill gaps (cap at 1000 to avoid memory issues on large ranges)
+    if (missingCount > 0 && missingCount <= 1000) {
+      for (let j = 1; j <= missingCount; j++) {
+        filled.push({
+          t: prev.t + j * intervalMs,
+          o: prev.c,
+          h: prev.c,
+          l: prev.c,
+          c: prev.c,
+          v: 0,
+        });
+      }
+    }
+
+    filled.push(curr);
+  }
+
+  return filled;
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -560,15 +605,21 @@ export async function GET(request: Request) {
       }
     }
 
+    // Fill gaps in the final candle data to ensure continuous chart display
+    const filledCandles = fillCandleGaps(candles, interval);
+    if (filledCandles.length !== candles.length) {
+      console.log(`[Chart] Gap fill: ${candles.length} → ${filledCandles.length} candles (+${filledCandles.length - candles.length} synthetic)`);
+    }
+
     return Response.json({
       success: true,
-      data: candles,
+      data: filledCandles,
       meta: {
         symbol,
         interval,
         startTime,
         endTime,
-        count: candles.length,
+        count: filledCandles.length,
       },
     });
   } catch (error) {
