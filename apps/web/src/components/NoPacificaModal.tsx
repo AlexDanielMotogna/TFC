@@ -16,6 +16,7 @@ export function NoPacificaModal() {
   const { token, isAuthenticated, pacificaConnected, setPacificaConnected, _hasHydrated } = useAuthStore();
   const [isVerifying, setIsVerifying] = useState(true);
   const [serverConfirmedDisconnected, setServerConfirmedDisconnected] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   // Verify with server before showing the blocking modal
   useEffect(() => {
@@ -61,15 +62,25 @@ export function NoPacificaModal() {
 
   // Don't show until hydrated and server-verified
   if (!_hasHydrated || !isAuthenticated || pacificaConnected) return null;
-  if (isVerifying || !serverConfirmedDisconnected) return null;
+  if (isVerifying || !serverConfirmedDisconnected || dismissed) return null;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      {/* Backdrop — no onClick, cannot dismiss */}
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-sm" />
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setDismissed(true)} />
 
       {/* Modal */}
-      <div className="relative bg-surface-900 border-t border-surface-700 sm:border sm:rounded-2xl rounded-t-2xl p-6 w-full sm:max-w-sm shadow-2xl">
+      <div className="relative bg-surface-900 rounded-t-2xl sm:rounded-2xl p-6 w-full sm:max-w-sm">
+        {/* Close button */}
+        <button
+          onClick={() => setDismissed(true)}
+          className="absolute top-4 right-4 text-surface-500 hover:text-white transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
         {/* Icon */}
         <div className="w-16 h-16 rounded-full bg-orange-500/20 flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -89,12 +100,12 @@ export function NoPacificaModal() {
           href={PACIFICA_DEPOSIT_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="block w-full py-3 bg-primary-500 hover:bg-primary-400 text-white font-semibold rounded-lg transition-colors text-center text-sm"
+          className="block w-full py-3 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition-colors text-center text-sm"
         >
           Deposit on Pacifica
         </a>
 
-        <p className="text-surface-300 text-xs text-center mt-4">
+        <p className="text-surface-500 text-xs text-center mt-4">
           Once you deposit, your account will be linked automatically.
         </p>
       </div>

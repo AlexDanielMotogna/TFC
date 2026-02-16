@@ -145,14 +145,14 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
   return (
     <Portal>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
         onClick={handleBackdropClick}
       >
-        <div className="bg-surface-800 rounded-xl shadow-xl w-full max-w-md mx-4 border border-surface-800">
+        <div className="bg-surface-900 rounded-2xl w-full max-w-md mx-4">
           {/* Header */}
-        <div className="flex items-center justify-between p-4 border-surface-800">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-white">Limit Close</h2>
+            <h2 className="font-semibold text-sm text-white">Limit Close</h2>
             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
               position.side === 'LONG'
                 ? 'bg-win-500/20 text-win-400'
@@ -164,9 +164,9 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
           </div>
           <button
             onClick={onClose}
-            className="text-surface-400 hover:text-white transition-colors"
+            className="text-surface-500 hover:text-white transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -195,12 +195,12 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 type="text"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                 placeholder="0.00"
               />
               <button
                 onClick={() => setPrice(formatPrice(livePrice))}
-                className="px-3 py-2 text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                className="px-3 py-2 text-sm text-surface-300 hover:text-white transition-colors"
               >
                 Mid
               </button>
@@ -217,7 +217,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 value={amount}
                 onChange={(e) => handleAmountChange(e.target.value)}
                 onBlur={handleAmountBlur}
-                className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                 placeholder="0.00"
               />
               <span className="text-surface-400">{tokenSymbol}</span>
@@ -225,7 +225,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 type="text"
                 value={amount ? (parseFloat(amount) * (parseFloat(price) || position.markPrice)).toFixed(2) : ''}
                 readOnly
-                className="w-24 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
+                className="w-24 bg-surface-800 rounded-lg px-3 py-2 text-surface-400 font-mono text-right"
                 placeholder="0.00"
               />
               <span className="text-surface-400">USD</span>
@@ -253,8 +253,8 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
                 onClick={() => handlePercentageChange(pct)}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                   Math.abs(percentage - pct) < 1
-                    ? 'bg-primary-500 text-white'
-                    : 'bg-surface-700 text-surface-300 hover:bg-surface-600'
+                    ? 'bg-surface-700 text-white'
+                    : 'bg-surface-800 text-surface-400 hover:bg-surface-700'
                 }`}
               >
                 {pct}%
@@ -264,7 +264,7 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
 
           {/* Estimated PnL */}
           <div className="flex justify-end items-center gap-2 text-sm">
-            <span className="text-surface-400">Estimated PnL:</span>
+            <span className="text-surface-500">Est. PnL</span>
             <span className={`font-mono font-semibold ${
               estimatedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
             }`}>
@@ -274,11 +274,11 @@ export function LimitCloseModal({ position, onClose, onConfirm, isSubmitting = f
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-surface-800">
+        <div className="p-4">
           <button
             onClick={handleConfirm}
             disabled={isSubmitting || !price || !amount || parseFloat(amount) <= 0}
-            className="w-full py-3 rounded-lg font-semibold bg-primary-500 hover:bg-primary-400 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-2.5 rounded-lg font-medium bg-white text-black hover:bg-surface-200 transition-colors disabled:bg-surface-700 disabled:text-surface-500 disabled:cursor-not-allowed"
           >
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">

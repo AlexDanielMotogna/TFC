@@ -51,35 +51,26 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        {/* Backdrop */}
-        <div
-          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          onClick={onClose}
-        />
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+        <div className="bg-surface-900 rounded-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-white font-semibold text-sm">Withdraw</h3>
+            <button
+              onClick={onClose}
+              className="text-surface-500 hover:text-white transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-      {/* Modal */}
-      <div className="relative bg-surface-850 border border-surface-800 rounded-lg shadow-xl w-full max-w-md mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
-          <h3 className="text-lg font-semibold text-white">Withdraw</h3>
-          <button
-            onClick={onClose}
-            className="text-surface-400 hover:text-white transition-colors"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-4 space-y-4">
           {/* Available Balance with tooltip */}
-          <div className="flex items-center justify-between text-sm group relative">
-            <span className="text-surface-400 flex items-center gap-1 cursor-help">
-              Available Balance:
-              <svg className="w-3.5 h-3.5 text-surface-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <div className="flex items-center justify-between text-sm group relative mb-4">
+            <span className="text-surface-500 flex items-center gap-1 cursor-help">
+              Available Balance
+              <svg className="w-3.5 h-3.5 text-surface-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
               </svg>
             </span>
@@ -87,36 +78,36 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
               {availableBalance !== null ? `$${availableBalance.toFixed(2)}` : '-'}
             </span>
             {/* Tooltip */}
-            <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-72 p-3 bg-surface-900 border border-surface-600 rounded-lg text-xs text-surface-300 shadow-lg">
+            <div className="absolute left-0 top-full mt-1 hidden group-hover:block z-50 w-72 p-3 bg-surface-800 rounded-lg text-xs text-surface-400 shadow-lg">
               Withdrawable balance equals your account equity minus the required margin, where the required margin is the larger of either the volume-weighted initial margin requirement (IMR) or 10% of your total position value
             </div>
           </div>
 
           {/* Info Box */}
-          <div className="bg-surface-800/50 rounded-lg p-3 text-xs text-surface-200 space-y-1">
+          <div className="bg-surface-800 rounded-xl p-3 text-xs text-surface-400 space-y-1 mb-4">
             <p>Daily withdrawal limit is $250,000, resets at UTC 00:00.</p>
             <p>Withdrawal fee is $1.</p>
           </div>
 
           {/* Amount Input */}
-          <div className="space-y-2">
-            <label className="text-sm text-surface-400">Amount</label>
+          <div className="mb-5">
+            <label className="text-sm text-surface-500 mb-2 block">Amount</label>
             <div className="relative">
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full bg-surface-800 border border-surface-600 rounded-lg px-3 py-2.5 text-white font-mono pr-20 focus:outline-none focus:border-primary-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full bg-surface-800 rounded-lg px-3 py-2.5 text-white font-mono pr-20 focus:outline-none focus:ring-1 focus:ring-surface-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               />
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 <button
                   onClick={handleMaxClick}
-                  className="text-primary-400 hover:text-primary-300 text-sm font-medium transition-colors"
+                  className="text-surface-300 hover:text-white text-sm font-medium transition-colors"
                 >
                   Max
                 </button>
-                <span className="text-surface-400 text-sm">USDC</span>
+                <span className="text-surface-500 text-sm">USDC</span>
               </div>
             </div>
           </div>
@@ -125,13 +116,12 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
           <button
             onClick={handleSubmit}
             disabled={!isValidAmount || withdrawMutation.isPending}
-            className="w-full py-3 bg-primary-500 hover:bg-primary-400 disabled:bg-surface-700 disabled:text-surface-500 text-white font-semibold rounded-lg transition-colors disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-white text-black font-medium rounded-lg transition-colors hover:bg-surface-200 disabled:bg-surface-700 disabled:text-surface-500 disabled:cursor-not-allowed"
           >
             {withdrawMutation.isPending ? 'Processing...' : 'Confirm Withdraw'}
           </button>
         </div>
       </div>
-    </div>
     </Portal>
   );
 }

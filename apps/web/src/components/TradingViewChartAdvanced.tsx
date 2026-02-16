@@ -19,6 +19,9 @@ interface ChartWidget {
   remove: () => void;
   subscribe: (event: string, callback: (...args: unknown[]) => void) => void;
   save: (callback: (state: object) => void) => void;
+  activeChart: () => {
+    createStudy: (name: string, forceOverlay: boolean, lock: boolean, inputs?: unknown[], overrides?: Record<string, unknown>) => Promise<unknown>;
+  };
 }
 
 function TradingViewChartAdvancedComponent({
@@ -140,6 +143,13 @@ function TradingViewChartAdvancedComponent({
         'mainSeriesProperties.candleStyle.wickDownColor': '#EF5350',
       },
 
+      studies_overrides: {
+        'volume.volume.color.0': 'rgba(239, 83, 80, 0.5)',
+        'volume.volume.color.1': 'rgba(38, 166, 154, 0.5)',
+        'volume.volume ma.color': '#FF6D00',
+        'volume.volume ma.visible': false,
+      },
+
       // Custom font
       custom_font_family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
 
@@ -148,13 +158,12 @@ function TradingViewChartAdvancedComponent({
         'header_compare',
         'header_undo_redo',
         'header_screenshot',
-        'header_fullscreen_button',
         'control_bar',
         'timeframes_toolbar',
-        'volume_force_overlay',
         'symbol_info',
         'symbol_search_hot_key',
         'popup_hints',
+        'create_volume_indicator_by_default',
       ],
 
       enabled_features: [
@@ -193,6 +202,32 @@ function TradingViewChartAdvancedComponent({
             onIntervalChange(resolutionToInterval(newResolution));
           }
         });
+
+        // Add default indicators only on first load (no saved state)
+        if (!savedState) {
+          const chart = widget.activeChart();
+
+          // Volume as overlay on main chart (compact, no separate panel)
+          chart.createStudy('Volume', true, false, [], {
+            'volume.color.0': 'rgba(239, 83, 80, 0.35)',
+            'volume.color.1': 'rgba(38, 166, 154, 0.35)',
+            'volume ma.visible': false,
+          });
+
+          // EMA indicators
+          const emas = [
+            { length: 5, color: '#FF6D00' },
+            { length: 10, color: '#2962FF' },
+            { length: 30, color: '#E91E63' },
+            { length: 60, color: '#9C27B0' },
+          ];
+          emas.forEach(({ length, color }) => {
+            chart.createStudy('Moving Average Exponential', true, false, [length], {
+              'Plot.color': color,
+              'Plot.linewidth': 1,
+            });
+          });
+        }
 
         // Auto-save chart state (drawings, studies, etc.) to localStorage
         widget.subscribe('onAutoSaveNeeded', () => {

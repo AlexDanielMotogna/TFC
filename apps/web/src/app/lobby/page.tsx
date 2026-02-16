@@ -14,6 +14,7 @@ import { AppShell } from '@/components/AppShell';
 import { ArenaSkeleton } from '@/components/Skeletons';
 import { BetaGate } from '@/components/BetaGate';
 import { Spinner } from '@/components/Spinner';
+import { Dropdown } from '@/components/Dropdown';
 import Image from 'next/image';
 
 type ArenaTab = 'live' | 'pending' | 'finished' | 'my-fights';
@@ -421,42 +422,38 @@ export default function LobbyPage() {
           <div className="flex items-center gap-2">
             {/* Status Filter - only show on My Fights tab */}
             {activeTab === 'my-fights' && (
-              <select
+              <Dropdown
                 value={filterStatus ?? ''}
-                onChange={(e) => setFilterStatus(e.target.value || null)}
-                className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
-              >
-                <option value="">All Status</option>
-                <option value="WAITING">Waiting</option>
-                <option value="LIVE">Live</option>
-                <option value="FINISHED">Finished</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
+                onChange={(v) => setFilterStatus(v || null)}
+                options={[
+                  { value: '', label: 'All Status' },
+                  { value: 'WAITING', label: 'Waiting' },
+                  { value: 'LIVE', label: 'Live' },
+                  { value: 'FINISHED', label: 'Finished' },
+                  { value: 'CANCELLED', label: 'Cancelled' },
+                ]}
+              />
             )}
 
             {/* Duration Filter */}
-            <select
-              value={filterDuration ?? ''}
-              onChange={(e) => setFilterDuration(e.target.value ? Number(e.target.value) : null)}
-              className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
-            >
-              <option value="">All Durations</option>
-              {FIGHT_DURATIONS_MINUTES.map((d) => (
-                <option key={d} value={d}>{d}m</option>
-              ))}
-            </select>
+            <Dropdown
+              value={filterDuration ?? 0}
+              onChange={(v) => setFilterDuration(v === 0 ? null : v)}
+              options={[
+                { value: 0, label: 'All Durations' },
+                ...FIGHT_DURATIONS_MINUTES.map((d) => ({ value: d, label: `${d}m` })),
+              ]}
+            />
 
             {/* Max Size Filter */}
-            <select
-              value={filterMaxSize ?? ''}
-              onChange={(e) => setFilterMaxSize(e.target.value ? Number(e.target.value) : null)}
-              className="bg-surface-800 border border-surface-800 rounded-lg px-2 py-1.5 text-xs text-surface-300 focus:outline-none focus:border-primary-500"
-            >
-              <option value="">All Sizes</option>
-              {FIGHT_STAKES_USDC.map((s) => (
-                <option key={s} value={s}>${s.toLocaleString()}</option>
-              ))}
-            </select>
+            <Dropdown
+              value={filterMaxSize ?? 0}
+              onChange={(v) => setFilterMaxSize(v === 0 ? null : v)}
+              options={[
+                { value: 0, label: 'All Sizes' },
+                ...FIGHT_STAKES_USDC.map((s) => ({ value: s, label: `$${s.toLocaleString()}` })),
+              ]}
+            />
 
             {/* Clear Filters */}
             {hasActiveFilters && (

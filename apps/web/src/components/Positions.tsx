@@ -309,7 +309,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
     <div className="flex flex-col h-full">
       {/* Info banner for read-only mode */}
       {readOnly && readOnlyMessage && (
-        <div className="mb-3 px-3 py-2 bg-primary-500/10 border border-primary-500/20 rounded-lg text-sm text-primary-300 flex items-center gap-2 flex-shrink-0">
+        <div className="mb-3 px-3 py-2 bg-surface-500/10 border border-surface-500/20 rounded-lg text-sm text-surface-300 flex items-center gap-2 flex-shrink-0">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -438,7 +438,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                         <button
                           onClick={() => handleClose(pos.id, 'flip')}
                           disabled={closingId === pos.id}
-                          className="px-3 py-1.5 text-xs font-medium bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 rounded transition-colors disabled:opacity-50"
+                          className="px-3 py-1.5 text-xs font-medium bg-surface-500/20 text-surface-300 hover:bg-surface-500/30 rounded transition-colors disabled:opacity-50"
                         >
                           {closingId === pos.id && closingType === 'flip' ? '...' : 'Flip'}
                         </button>
@@ -611,7 +611,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                   >
                     {tpSlDisplay}
                     <svg
-                      className="w-3.5 h-3.5 text-surface-500 group-hover:text-primary-400 transition-colors"
+                      className="w-3.5 h-3.5 text-surface-500 group-hover:text-white transition-colors"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -647,7 +647,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                     <button
                       onClick={() => handleClose(pos.id, 'flip')}
                       disabled={closingId === pos.id}
-                      className="px-2 py-1 text-xs font-medium bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 rounded transition-colors disabled:opacity-50"
+                      className="px-2 py-1 text-xs font-medium bg-surface-500/20 text-surface-300 hover:bg-surface-500/30 rounded transition-colors disabled:opacity-50"
                     >
                       {closingId === pos.id && closingType === 'flip' ? '...' : 'Flip'}
                     </button>

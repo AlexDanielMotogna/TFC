@@ -83,14 +83,14 @@ export function BetaAccessDenied({ status, onRefresh }: BetaAccessDeniedProps) {
         ) : status === 'pending' ? (
           <>
             <p className="text-surface-400 mb-2">
-              Your application for <span className="text-primary-400 font-mono">{shortenedAddress}</span> is being reviewed.
+              Your application for <span className="text-white font-mono">{shortenedAddress}</span> is being reviewed.
             </p>
             <p className="text-surface-500 text-sm mb-4">
               We're approving access in batches. Check back soon!
             </p>
 
             {/* Fast-track CTA */}
-            <div className="bg-surface-800/50 rounded-lg p-4 mb-4 max-w-xs mx-auto">
+            <div className="bg-surface-800 rounded-xl p-4 mb-4 max-w-xs mx-auto">
               <p className="text-surface-300 text-xs mb-2">
                 Want to speed up your access? Comment with your Solana wallet, like & retweet our post:
               </p>
@@ -98,7 +98,7 @@ export function BetaAccessDenied({ status, onRefresh }: BetaAccessDeniedProps) {
                 href="https://x.com/T_F_C_official/status/2020309380374085942"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 text-surface-300 hover:text-white text-xs font-semibold transition-colors"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -135,7 +135,7 @@ export function BetaAccessDenied({ status, onRefresh }: BetaAccessDeniedProps) {
         ) : status === 'rejected' ? (
           <>
             <p className="text-surface-400 mb-6">
-              Unfortunately, your wallet <span className="text-primary-400 font-mono">{shortenedAddress}</span> was not approved for beta access.
+              Unfortunately, your wallet <span className="text-white font-mono">{shortenedAddress}</span> was not approved for beta access.
             </p>
           </>
         ) : (
@@ -152,7 +152,7 @@ export function BetaAccessDenied({ status, onRefresh }: BetaAccessDeniedProps) {
             </button>
 
             {/* Fast-track CTA */}
-            <div className="bg-surface-800/50 rounded-lg p-4 mb-4 max-w-xs mx-auto">
+            <div className="bg-surface-800 rounded-xl p-4 mb-4 max-w-xs mx-auto">
               <p className="text-surface-300 text-xs mb-2">
                 Speed up your access! Comment with your Solana wallet, like & retweet:
               </p>
@@ -160,7 +160,7 @@ export function BetaAccessDenied({ status, onRefresh }: BetaAccessDeniedProps) {
                 href="https://x.com/T_F_C_official/status/2020309380374085942"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-primary-400 hover:text-primary-300 text-xs font-semibold transition-colors"
+                className="inline-flex items-center gap-1.5 text-surface-300 hover:text-white text-xs font-semibold transition-colors"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />

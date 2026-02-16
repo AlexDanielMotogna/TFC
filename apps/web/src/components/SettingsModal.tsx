@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import CloseIcon from '@mui/icons-material/Close';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -40,26 +39,26 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100]" onClick={onClose}>
       <div
-        className="bg-surface-850 border border-surface-800 rounded-lg shadow-xl max-w-md w-full mx-4"
+        className="bg-surface-900 rounded-2xl max-w-md w-full mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-surface-800">
-          <h2 className="text-lg font-semibold text-white">Settings</h2>
+        <div className="flex items-center justify-between px-6 py-4">
+          <h2 className="font-semibold text-sm text-white">Settings</h2>
           <button
             onClick={onClose}
-            className="text-surface-400 hover:text-white transition-colors"
+            className="text-surface-500 hover:text-white transition-colors"
           >
-            <CloseIcon sx={{ fontSize: 20 }} />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         {/* Body */}
         <div className="px-6 py-4 space-y-4">
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-surface-300">Navbar Components</h3>
+            <h3 className="text-xs font-medium text-surface-500 uppercase tracking-wider">Navbar Components</h3>
 
             {/* Quick Bar Toggle */}
             <div className="flex items-center justify-between py-2">
@@ -70,7 +69,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <button
                 onClick={() => setShowQuickBar(!showQuickBar)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showQuickBar ? 'bg-primary-500' : 'bg-surface-700'
+                  showQuickBar ? 'bg-surface-400' : 'bg-surface-700'
                 }`}
               >
                 <span
@@ -90,7 +89,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <button
                 onClick={() => setShowWallet(!showWallet)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showWallet ? 'bg-primary-500' : 'bg-surface-700'
+                  showWallet ? 'bg-surface-400' : 'bg-surface-700'
                 }`}
               >
                 <span
@@ -110,7 +109,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  showNotifications ? 'bg-primary-500' : 'bg-surface-700'
+                  showNotifications ? 'bg-surface-400' : 'bg-surface-700'
                 }`}
               >
                 <span
@@ -124,10 +123,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-surface-800 bg-surface-900/30">
+        <div className="px-6 py-4">
           <button
             onClick={onClose}
-            className="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            className="w-full bg-white text-black font-medium hover:bg-surface-200 py-2 px-4 rounded-lg transition-colors"
           >
             Done
           </button>

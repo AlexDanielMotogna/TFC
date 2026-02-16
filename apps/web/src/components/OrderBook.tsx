@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState, useRef, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useOrderBook, type AggLevel } from '@/hooks/useOrderBook';
+import { Dropdown } from '@/components/Dropdown';
 
 interface OrderBookProps {
   symbol: string;
@@ -99,27 +100,6 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
   // Aggregation level (server-side) - valid values: 1, 2, 5, 10, 100, 1000
   const [aggLevel, setAggLevel] = useState<AggLevel>(1);
 
-  // Dropdown open states
-  const [aggDropdownOpen, setAggDropdownOpen] = useState(false);
-  const [sizeModeDropdownOpen, setSizeModeDropdownOpen] = useState(false);
-  const aggDropdownRef = useRef<HTMLDivElement>(null);
-  const sizeModeDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    if (!aggDropdownOpen && !sizeModeDropdownOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (aggDropdownOpen && aggDropdownRef.current && !aggDropdownRef.current.contains(e.target as Node)) {
-        setAggDropdownOpen(false);
-      }
-      if (sizeModeDropdownOpen && sizeModeDropdownRef.current && !sizeModeDropdownRef.current.contains(e.target as Node)) {
-        setSizeModeDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [aggDropdownOpen, sizeModeDropdownOpen]);
-
   // Calculate aggregation options based on tickSize
   // agg_level is a multiplier of tick_size (e.g., tickSize=0.01, agg_level=10 → 0.10)
   const aggOptions = useMemo(() => {
@@ -203,75 +183,23 @@ export function OrderBook({ symbol, currentPrice, tickSize = 0.01, onPriceClick 
     <div className="h-full flex flex-col text-xs overflow-hidden" style={{ contain: 'layout' }}>
       {/* Header with agg level and size mode selector */}
       <div className="flex-shrink-0 flex items-center justify-between px-2 py-1.5 border-surface-800">
-        {/* Aggregation level — custom dropdown */}
-        <div className="relative" ref={aggDropdownRef}>
-          <button
-            onClick={() => setAggDropdownOpen(!aggDropdownOpen)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-xs text-surface-300 hover:text-white hover:bg-surface-800 transition-colors"
-          >
-            {aggOptions.find(o => o.level === aggLevel)?.displayValue ?? String(aggLevel)}
-            <svg className={`w-3 h-3 text-surface-500 transition-transform ${aggDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {aggDropdownOpen && (
-            <div className="absolute left-0 top-full mt-1 min-w-[72px] bg-surface-850 rounded-lg shadow-xl overflow-hidden z-50 py-1">
-              {aggOptions.map((opt) => (
-                <button
-                  key={opt.level}
-                  onClick={() => { setAggLevel(opt.level); setAggDropdownOpen(false); }}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 text-xs transition-colors ${
-                    aggLevel === opt.level
-                      ? 'text-white bg-surface-700/50'
-                      : 'text-surface-400 hover:text-white hover:bg-surface-800'
-                  }`}
-                >
-                  <span>{opt.displayValue}</span>
-                  {aggLevel === opt.level && (
-                    <svg className="w-3 h-3 text-primary-400 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Aggregation level */}
+        <Dropdown
+          value={aggLevel}
+          onChange={(v) => setAggLevel(v as AggLevel)}
+          options={aggOptions.map((opt) => ({ value: opt.level, label: opt.displayValue }))}
+        />
 
-        {/* Size mode (USD/Token) — custom dropdown */}
-        <div className="relative" ref={sizeModeDropdownRef}>
-          <button
-            onClick={() => setSizeModeDropdownOpen(!sizeModeDropdownOpen)}
-            className="flex items-center gap-1  py-0.5 rounded text-xs text-surface-300 hover:text-white hover:bg-surface-800 transition-colors"
-          >
-            {sizeMode === 'USD' ? 'USD' : baseToken}
-            <svg className={`w-3 h-3 text-surface-500 transition-transform ${sizeModeDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {sizeModeDropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 min-w-[72px] bg-surface-850 rounded-lg shadow-xl overflow-hidden z-50 py-1">
-              {([{ value: 'USD' as const, label: 'USD' }, { value: 'TOKEN' as const, label: baseToken }]).map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => { setSizeMode(opt.value); setSizeModeDropdownOpen(false); }}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 text-xs transition-colors ${
-                    sizeMode === opt.value
-                      ? 'text-white bg-surface-700/50'
-                      : 'text-surface-400 hover:text-white hover:bg-surface-800'
-                  }`}
-                >
-                  <span>{opt.label}</span>
-                  {sizeMode === opt.value && (
-                    <svg className="w-3 h-3 text-primary-400 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Size mode (USD/Token) */}
+        <Dropdown
+          value={sizeMode}
+          onChange={(v) => setSizeMode(v as 'USD' | 'TOKEN')}
+          options={[
+            { value: 'USD' as const, label: 'USD' },
+            { value: 'TOKEN' as const, label: baseToken },
+          ]}
+          align="right"
+        />
       </div>
 
       {/* Column headers - responsive: hide Size on narrow screens */}

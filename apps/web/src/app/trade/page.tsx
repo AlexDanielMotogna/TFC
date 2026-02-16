@@ -346,18 +346,24 @@ function TradePageContent() {
 
   // Confirm margin mode change from modal
   const confirmMarginMode = useCallback(() => {
-    if (pendingMarginMode === null) return;
+    const newMode = pendingMarginMode ?? isIsolated;
+    if (newMode === isIsolated) {
+      // No change — just close
+      setShowMarginModeModal(false);
+      setPendingMarginMode(null);
+      return;
+    }
     setMarginModeMutation.mutate(
-      { symbol: selectedMarket, isIsolated: pendingMarginMode },
+      { symbol: selectedMarket, isIsolated: newMode },
       {
         onSuccess: () => {
-          setIsIsolated(pendingMarginMode);
+          setIsIsolated(newMode);
           setShowMarginModeModal(false);
           setPendingMarginMode(null);
         }
       }
     );
-  }, [pendingMarginMode, selectedMarket, setMarginModeMutation]);
+  }, [pendingMarginMode, isIsolated, selectedMarket, setMarginModeMutation]);
 
   // Check if current market has an open position (blocks margin mode change)
   const hasOpenPosition = useMemo(() => {
@@ -1118,7 +1124,7 @@ function TradePageContent() {
                 onClick={() => setMobileSection(tab)}
                 className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors border-b-2 ${
                   mobileSection === tab
-                    ? 'text-primary-400 border-primary-400'
+                    ? 'text-surface-200 border-surface-300'
                     : 'text-surface-400 border-transparent hover:text-white'
                 }`}
               >
@@ -1190,7 +1196,7 @@ function TradePageContent() {
                 <button
                   onClick={() => setBottomTab('positions')}
                   className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'positions'
-                    ? 'text-primary-400 border-primary-400'
+                    ? 'text-surface-200 border-surface-300'
                     : 'text-surface-400 border-transparent hover:text-white'
                     }`}
                 >
@@ -1199,7 +1205,7 @@ function TradePageContent() {
                 <button
                   onClick={() => setBottomTab('orders')}
                   className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'orders'
-                    ? 'text-primary-400 border-primary-400'
+                    ? 'text-surface-200 border-surface-300'
                     : 'text-surface-400 border-transparent hover:text-white'
                     }`}
                 >
@@ -1208,7 +1214,7 @@ function TradePageContent() {
                 <button
                   onClick={() => setBottomTab('trades')}
                   className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'trades'
-                    ? 'text-primary-400 border-primary-400'
+                    ? 'text-surface-200 border-surface-300'
                     : 'text-surface-400 border-transparent hover:text-white'
                     }`}
                 >
@@ -1217,7 +1223,7 @@ function TradePageContent() {
                 <button
                   onClick={() => setBottomTab('history')}
                   className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'history'
-                    ? 'text-primary-400 border-primary-400'
+                    ? 'text-surface-200 border-surface-300'
                     : 'text-surface-400 border-transparent hover:text-white'
                     }`}
                 >
@@ -1239,7 +1245,7 @@ function TradePageContent() {
                   <button
                     onClick={() => setShowFightOnly(true)}
                     className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${showFightOnly
-                      ? 'bg-primary-500/30 text-primary-300'
+                      ? 'bg-surface-500/30 text-white'
                       : 'text-surface-400 hover:text-white'
                       }`}
                   >
@@ -1264,7 +1270,7 @@ function TradePageContent() {
                 activeOpenOrders.length > 0 ? (
                   <div className="px-1">
                     <div className="flex justify-end px-2 py-1.5">
-                      <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50 text-xs">Cancel All</button>
+                      <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs">Cancel All</button>
                     </div>
                     {[...activeOpenOrders].sort((a, b) => {
                       const getValue = (order: any) => {
@@ -1365,7 +1371,7 @@ function TradePageContent() {
                             <button
                               onClick={() => handleCancelOrder(order.id, order.symbol, order.type)}
                               disabled={cancelOrder.isPending || cancelStopOrder.isPending}
-                              className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50 text-xs"
+                              className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs"
                             >
                               {isTpSl ? 'Remove' : 'Cancel'}
                             </button>
@@ -1462,7 +1468,7 @@ function TradePageContent() {
                     })}
                     {!showFightOnly && hasMoreTrades && (
                       <div className="p-3 text-center">
-                        <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">
+                        <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-surface-300 hover:text-white transition-colors disabled:opacity-50">
                           {isLoadingMoreTrades ? 'Loading...' : 'Load More'}
                         </button>
                       </div>
@@ -1537,7 +1543,7 @@ function TradePageContent() {
                             <span className="font-medium text-white text-sm">{order.symbol}</span>
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderSide === 'Long' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>{orderSide}</span>
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-700 text-surface-300">{orderType}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-primary-500/20 text-primary-400'}`}>{status}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
                           </div>
                           {/* Data grid */}
                           <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
@@ -1660,7 +1666,7 @@ function TradePageContent() {
                   <button
                     onClick={() => setBottomTab('positions')}
                     className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'positions'
-                      ? 'text-primary-400 border-primary-400'
+                      ? 'text-surface-200 border-surface-300'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
@@ -1669,7 +1675,7 @@ function TradePageContent() {
                   <button
                     onClick={() => setBottomTab('orders')}
                     className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'orders'
-                      ? 'text-primary-400 border-primary-400'
+                      ? 'text-surface-200 border-surface-300'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
@@ -1679,7 +1685,7 @@ function TradePageContent() {
                   <button
                     onClick={() => setBottomTab('trades')}
                     className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'trades'
-                      ? 'text-primary-400 border-primary-400'
+                      ? 'text-surface-200 border-surface-300'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
@@ -1688,7 +1694,7 @@ function TradePageContent() {
                   <button
                     onClick={() => setBottomTab('history')}
                     className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'history'
-                      ? 'text-primary-400 border-primary-400'
+                      ? 'text-surface-200 border-surface-300'
                       : 'text-surface-400 border-transparent hover:text-white'
                       }`}
                   >
@@ -1711,7 +1717,7 @@ function TradePageContent() {
                     <button
                       onClick={() => setShowFightOnly(true)}
                       className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${showFightOnly
-                        ? 'bg-primary-500 text-white'
+                        ? 'bg-surface-500 text-white'
                         : 'text-surface-400 hover:text-white'
                         }`}
                     >
@@ -1739,7 +1745,7 @@ function TradePageContent() {
                       {/* Mobile card view for orders */}
                       <div className="max-[1199px]:block hidden space-y-2 px-1">
                         <div className="flex justify-end mb-1">
-                          <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50 text-xs">Cancel All</button>
+                          <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs">Cancel All</button>
                         </div>
                         {[...activeOpenOrders].sort((a, b) => {
                           const getValue = (order: any) => {
@@ -1840,7 +1846,7 @@ function TradePageContent() {
                                 <button
                                   onClick={() => handleCancelOrder(order.id, order.symbol, order.type)}
                                   disabled={cancelOrder.isPending || cancelStopOrder.isPending}
-                                  className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50 text-xs"
+                                  className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs"
                                 >
                                   {isTpSl ? 'Remove' : 'Cancel'}
                                 </button>
@@ -1865,7 +1871,7 @@ function TradePageContent() {
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'reduceOnly')}>Reduce Only {ordersSort.col === 'reduceOnly' && (ordersSort.desc ? '↓' : '↑')}</th>
                             <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'trigger')}>Trigger {ordersSort.col === 'trigger' && (ordersSort.desc ? '↓' : '↑')}</th>
                             <th className="text-left py-2 px-2 font-medium">
-                              <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">Cancel All</button>
+                              <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50">Cancel All</button>
                             </th>
                           </tr>
                         </thead>
@@ -1919,7 +1925,7 @@ function TradePageContent() {
                               <tr key={order.id} className="border-surface-800/50 hover:bg-surface-800/30">
                                 <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
                                 <td className="py-2 px-2 text-surface-300">{displayType}</td>
-                                <td className="py-2 px-2"><span className="text-primary-400">{order.symbol}</span></td>
+                                <td className="py-2 px-2"><span className="text-surface-300">{order.symbol}</span></td>
                                 <td className="py-2 px-2"><span className={`font-medium ${order.side === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>{order.side === 'LONG' ? 'Long' : 'Short'}</span></td>
                                 <td className="py-2 px-2 font-mono text-white">{formatSize(originalSize)} {order.symbol}</td>
                                 <td className="py-2 px-2 font-mono text-surface-400">{filledSize}</td>
@@ -1927,9 +1933,9 @@ function TradePageContent() {
                                   {isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : order.type.includes('STOP') ? (
                                     price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })
                                   ) : (
-                                    <button onClick={() => handleEditOrder({ id: order.id, symbol: order.symbol, side: order.side, price: order.price, size: order.size, type: order.type })} className="inline-flex items-center gap-1 hover:text-primary-400 transition-colors group" title="Edit order price">
+                                    <button onClick={() => handleEditOrder({ id: order.id, symbol: order.symbol, side: order.side, price: order.price, size: order.size, type: order.type })} className="inline-flex items-center gap-1 hover:text-white transition-colors group" title="Edit order price">
                                       {price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })}
-                                      <svg className="w-3 h-3 text-surface-500 group-hover:text-primary-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                                      <svg className="w-3 h-3 text-surface-500 group-hover:text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                                     </button>
                                   )}
                                 </td>
@@ -1937,7 +1943,7 @@ function TradePageContent() {
                                 <td className="py-2 px-2 text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</td>
                                 <td className="py-2 px-2 text-surface-400">{stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}</td>
                                 <td className="py-2 px-2">
-                                  <button onClick={() => handleCancelOrder(order.id, order.symbol, order.type)} disabled={cancelOrder.isPending || cancelStopOrder.isPending} className="text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">{isTpSl ? 'Remove' : 'Cancel'}</button>
+                                  <button onClick={() => handleCancelOrder(order.id, order.symbol, order.type)} disabled={cancelOrder.isPending || cancelStopOrder.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50">{isTpSl ? 'Remove' : 'Cancel'}</button>
                                 </td>
                               </tr>
                             );
@@ -2036,7 +2042,7 @@ function TradePageContent() {
                         })}
                         {!showFightOnly && hasMoreTrades && (
                           <div className="p-3 text-center">
-                            <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">
+                            <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-surface-300 hover:text-white transition-colors disabled:opacity-50">
                               {isLoadingMoreTrades ? 'Loading...' : 'Load More'}
                             </button>
                           </div>
@@ -2107,7 +2113,7 @@ function TradePageContent() {
                       </table>
                       {!showFightOnly && hasMoreTrades && (
                         <div className="p-3 border-t border-surface-800 text-center">
-                          <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-primary-400 hover:text-primary-300 transition-colors disabled:opacity-50">{isLoadingMoreTrades ? 'Loading...' : 'Load More'}</button>
+                          <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-surface-300 hover:text-white transition-colors disabled:opacity-50">{isLoadingMoreTrades ? 'Loading...' : 'Load More'}</button>
                         </div>
                       )}
                       </div>
@@ -2183,7 +2189,7 @@ function TradePageContent() {
                                 <span className="font-medium text-white text-sm">{order.symbol}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderSide === 'Long' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>{orderSide}</span>
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-700 text-surface-300">{orderType}</span>
-                                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-primary-500/20 text-primary-400'}`}>{status}</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
                               </div>
                               {/* Data grid */}
                               <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
@@ -2298,7 +2304,7 @@ function TradePageContent() {
                               <td className="py-2 px-2 font-mono text-surface-200">{isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A')}</td>
                               <td className="py-2 px-2 font-mono text-win-400">{isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}</td>
                               <td className="py-2 px-2">
-                                <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Triggered' ? 'bg-primary-500/20 text-primary-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-primary-500/20 text-primary-400'}`}>{status}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Triggered' ? 'bg-surface-500/20 text-surface-300' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
                               </td>
                               <td className="py-2 px-2 font-mono text-surface-400">{order.order_id || '-'}</td>
                             </tr>
@@ -2321,27 +2327,19 @@ function TradePageContent() {
           {/* Right: Order Entry (Desktop only — mobile uses bottom sheet) */}
           <div className="col-span-1 order-2 row-span-2 min-h-[1104px] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
             <div className="px-4 pt-2 pb-2 flex-shrink-0 border-surface-800">
-              <h3 className="font-display font-semibold text-sm uppercase tracking-wide mb-2">
-                Place Order
-              </h3>
-              <div className="flex items-center gap-0.5 bg-surface-800 rounded p-0.5 w-fit">
+              <div className="flex items-center justify-between">
+                <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
+                  Place Order
+                </h3>
                 <button
-                  onClick={() => handleSetMarginMode(false)}
+                  onClick={() => { if (canTrade && !hasOpenPosition) setShowMarginModeModal(true); }}
                   disabled={!canTrade || hasOpenPosition}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                    !isIsolated ? 'bg-surface-600 text-white' : 'text-surface-500 hover:text-surface-300'
-                  } disabled:opacity-40 disabled:cursor-not-allowed`}
+                  className="flex items-center gap-1 px-2.5 py-1 bg-surface-800 rounded text-[10px] font-medium text-surface-300 hover:text-white hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Cross
-                </button>
-                <button
-                  onClick={() => handleSetMarginMode(true)}
-                  disabled={!canTrade || hasOpenPosition}
-                  className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
-                    isIsolated ? 'bg-surface-600 text-white' : 'text-surface-500 hover:text-surface-300'
-                  } disabled:opacity-40 disabled:cursor-not-allowed`}
-                >
-                  Isolated
+                  {isIsolated ? 'Isolated' : 'Cross'}
+                  <svg className="w-2.5 h-2.5 text-surface-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -2377,7 +2375,7 @@ function TradePageContent() {
                     href={PACIFICA_DEPOSIT_URL}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block w-full py-1.5 bg-primary-500 hover:bg-primary-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
+                    className="block w-full py-1.5 bg-surface-500 hover:bg-surface-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                   >
                     Deposit on Pacifica
                   </a>
@@ -2386,18 +2384,18 @@ function TradePageContent() {
 
               {/* Builder Code Authorization Required - One-time approval */}
               {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-xl">
                   <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Authorization Required</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
                     Authorize TFC builder code to trade. One-time approval.
                   </p>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    TFC fee: <span className="text-primary-400 font-semibold">0.05%</span>
+                    TFC fee: <span className="text-surface-300 font-semibold">0.05%</span>
                   </p>
                   <button
                     onClick={() => approveBuilderCode.mutate('0.0005')}
                     disabled={approveBuilderCode.isPending}
-                    className="w-full py-1.5 bg-primary-500 hover:bg-primary-400 text-white text-[10px] font-semibold rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
                   </button>
@@ -2428,7 +2426,7 @@ function TradePageContent() {
                     >
                       <span className="whitespace-nowrap">{type === 'market' ? 'Market' : type === 'limit' ? 'Limit' : type === 'stop-market' ? 'Stop' : 'Stop Limit'}</span>
                       {orderType === type && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-primary-400 rounded-full" />
+                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-surface-300 rounded-full" />
                       )}
                     </button>
                   ))}
@@ -2516,12 +2514,12 @@ function TradePageContent() {
                 <div className="flex justify-between items-center mb-1.5 xl:mb-2">
                   <label className="text-[10px] xl:text-xs font-medium text-surface-400">Leverage</label>
                   <div className="flex items-center gap-1.5 xl:gap-2">
-                    <span className="text-[10px] xl:text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
+                    <span className="text-[10px] xl:text-xs font-semibold text-surface-300">{Math.min(leverage, maxLeverage)}x</span>
                     {leverage !== savedLeverage && (
                       <button
                         onClick={handleSetLeverage}
                         disabled={!canTrade || setLeverageMutation.isPending}
-                        className="px-1.5 xl:px-2 py-0.5 text-[10px] xl:text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-1.5 xl:px-2 py-0.5 text-[10px] xl:text-xs font-medium bg-surface-500 hover:bg-surface-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {setLeverageMutation.isPending ? '...' : 'Set'}
                       </button>
@@ -2555,22 +2553,22 @@ function TradePageContent() {
                       {/* Track bg */}
                       <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
                       {/* Filled portion */}
-                      <div className="absolute left-[9px] h-[3px] bg-primary-500 rounded-full" style={{ width: `calc(${percent / 100} * (100% - 18px))` }} />
+                      <div className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full" style={{ width: `calc(${percent / 100} * (100% - 18px))` }} />
                       {/* Tick dots */}
                       {ticks.map((t) => (
                         <div
                           key={t}
-                          className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-primary-400' : 'bg-surface-600'}`}
+                          className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-surface-400' : 'bg-surface-600'}`}
                           style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
                         />
                       ))}
                       {/* Thumb — ring style */}
                       <div
-                        className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-primary-500 shadow-lg shadow-primary-500/30"
+                        className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
                         style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}
                       >
                         <div className="absolute inset-[3px] rounded-full bg-surface-900" />
-                        <div className="absolute inset-[5px] rounded-full bg-primary-400" />
+                        <div className="absolute inset-[5px] rounded-full bg-surface-300" />
                       </div>
                     </div>
                   );
@@ -2600,7 +2598,7 @@ function TradePageContent() {
                         <button
                           onClick={() => setTriggerPrice(currentPrice.toFixed(2))}
                           disabled={!canTrade}
-                          className="text-[10px] xl:text-xs font-medium text-primary-400 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="text-[10px] xl:text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           Mid
                         </button>
@@ -2636,7 +2634,7 @@ function TradePageContent() {
                         <button
                           onClick={() => setLimitPrice(currentPrice.toFixed(2))}
                           disabled={!canTrade}
-                          className="text-[10px] xl:text-xs font-medium text-primary-400 hover:text-primary-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          className="text-[10px] xl:text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           Mid
                         </button>
@@ -2703,7 +2701,7 @@ function TradePageContent() {
                             placeholder="0.00"
                             disabled={!canTrade}
                           />
-                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-primary-400 font-medium">
+                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-300 font-medium">
                             {selectedMarket.replace('-USD', '')}
                           </span>
                         </div>
@@ -2756,20 +2754,20 @@ function TradePageContent() {
                             }}
                           >
                             <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
-                            <div className="absolute left-[9px] h-[3px] bg-primary-500 rounded-full" style={{ width: `calc(${pct / 100} * (100% - 18px))` }} />
+                            <div className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full" style={{ width: `calc(${pct / 100} * (100% - 18px))` }} />
                             {ticks.map((t) => (
                               <div
                                 key={t}
-                                className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= pct ? 'bg-primary-400' : 'bg-surface-600'}`}
+                                className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= pct ? 'bg-surface-400' : 'bg-surface-600'}`}
                                 style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
                               />
                             ))}
                             <div
-                              className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-primary-500 shadow-lg shadow-primary-500/30"
+                              className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
                               style={{ left: `calc(9px + ${pct / 100} * (100% - 18px))` }}
                             >
                               <div className="absolute inset-[3px] rounded-full bg-surface-900" />
-                              <div className="absolute inset-[5px] rounded-full bg-primary-400" />
+                              <div className="absolute inset-[5px] rounded-full bg-surface-300" />
                             </div>
                           </div>
                         );
@@ -3019,7 +3017,7 @@ function TradePageContent() {
                         <button
                           onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }}
                           disabled={!isAuthenticated}
-                          className={`font-mono ${isAuthenticated ? 'text-primary-400 hover:text-primary-300 underline decoration-dotted cursor-pointer' : 'text-surface-500 cursor-not-allowed'}`}
+                          className={`font-mono ${isAuthenticated ? 'text-surface-300 hover:text-white underline decoration-dotted cursor-pointer' : 'text-surface-500 cursor-not-allowed'}`}
                         >
                           {slippage}%
                         </button>
@@ -3221,7 +3219,7 @@ function TradePageContent() {
                 {isAuthenticated ? (
                   <Link
                     href="/lobby"
-                    className="block text-center py-2.5 xl:py-3 bg-primary-500/10 hover:bg-primary-500/20 rounded-lg text-primary-400 text-xs xl:text-sm font-semibold transition-colors"
+                    className="block text-center py-2.5 xl:py-3 bg-surface-500/10 hover:bg-surface-500/20 rounded-lg text-surface-300 text-xs xl:text-sm font-semibold transition-colors"
                   >
                     Challenge a Trader
                   </Link>
@@ -3274,7 +3272,19 @@ function TradePageContent() {
                 <div className="w-10 h-1 bg-surface-600 rounded-full" />
               </div>
               <div className="flex items-center justify-between px-4">
-                <h3 className="font-display font-semibold text-sm text-white uppercase tracking-wide">Place Order</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="font-display font-semibold text-sm text-white uppercase tracking-wide">Place Order</h3>
+                  <button
+                    onClick={() => { if (canTrade && !hasOpenPosition) setShowMarginModeModal(true); }}
+                    disabled={!canTrade || hasOpenPosition}
+                    className="flex items-center gap-1 px-2.5 py-1 bg-surface-800 rounded text-[10px] font-medium text-surface-300 hover:text-white hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {isIsolated ? 'Isolated' : 'Cross'}
+                    <svg className="w-3 h-3 text-surface-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
                 <button
                   onClick={closeOrderSheet}
                   className="p-1.5 rounded hover:bg-surface-800 text-surface-400 hover:text-white transition-colors"
@@ -3283,29 +3293,6 @@ function TradePageContent() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
-              </div>
-              {/* Margin mode toggle */}
-              <div className="px-4 pt-2">
-                <div className="flex items-center gap-0.5 bg-surface-800 rounded p-0.5 w-fit">
-                  <button
-                    onClick={() => handleSetMarginMode(false)}
-                    disabled={!canTrade || hasOpenPosition}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      !isIsolated ? 'bg-surface-600 text-white' : 'text-surface-500 hover:text-surface-300'
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                  >
-                    Cross
-                  </button>
-                  <button
-                    onClick={() => handleSetMarginMode(true)}
-                    disabled={!canTrade || hasOpenPosition}
-                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                      isIsolated ? 'bg-surface-600 text-white' : 'text-surface-500 hover:text-surface-300'
-                    } disabled:opacity-40 disabled:cursor-not-allowed`}
-                  >
-                    Isolated
-                  </button>
-                </div>
               </div>
             </div>
             {/* Order form content */}
@@ -3322,15 +3309,15 @@ function TradePageContent() {
                 <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
                   <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">No Pacifica Account</div>
                   <p className="text-xs text-surface-400 mb-2">Deposit funds on Pacifica first.</p>
-                  <a href={PACIFICA_DEPOSIT_URL} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-primary-500 hover:bg-primary-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</a>
+                  <a href={PACIFICA_DEPOSIT_URL} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</a>
                 </div>
               )}
               {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
-                <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
+                <div className="mb-3 p-3 bg-surface-800 rounded-xl">
                   <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">Authorization Required</div>
                   <p className="text-xs text-surface-400 mb-1.5">Authorize TFC builder code. One-time approval.</p>
-                  <p className="text-xs text-surface-400 mb-2">TFC fee: <span className="text-primary-400 font-semibold">0.05%</span></p>
-                  <button onClick={() => approveBuilderCode.mutate('0.0005')} disabled={approveBuilderCode.isPending} className="w-full py-2 bg-primary-500 hover:bg-primary-400 text-white text-xs font-semibold rounded transition-colors disabled:opacity-50">
+                  <p className="text-xs text-surface-400 mb-2">TFC fee: <span className="text-surface-300 font-semibold">0.05%</span></p>
+                  <button onClick={() => approveBuilderCode.mutate('0.0005')} disabled={approveBuilderCode.isPending} className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
                     {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
                   </button>
                 </div>
@@ -3354,7 +3341,7 @@ function TradePageContent() {
                       } disabled:opacity-50`}
                     >
                       <span className="whitespace-nowrap">{type === 'market' ? 'Market' : type === 'limit' ? 'Limit' : type === 'stop-market' ? 'Stop' : 'Stop Limit'}</span>
-                      {orderType === type && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-primary-400 rounded-full" />}
+                      {orderType === type && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-surface-300 rounded-full" />}
                     </button>
                   ))}
                 </div>
@@ -3438,12 +3425,12 @@ function TradePageContent() {
                 <div className="flex justify-between items-center mb-2">
                   <label className="text-xs font-medium text-surface-400">Leverage</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-primary-400">{Math.min(leverage, maxLeverage)}x</span>
+                    <span className="text-xs font-semibold text-surface-300">{Math.min(leverage, maxLeverage)}x</span>
                     {leverage !== savedLeverage && (
                       <button
                         onClick={handleSetLeverage}
                         disabled={!canTrade || setLeverageMutation.isPending}
-                        className="px-2 py-0.5 text-xs font-medium bg-primary-500 hover:bg-primary-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="px-2 py-0.5 text-xs font-medium bg-surface-500 hover:bg-surface-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {setLeverageMutation.isPending ? '...' : 'Set'}
                       </button>
@@ -3474,13 +3461,13 @@ function TradePageContent() {
                       }}
                     >
                       <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
-                      <div className="absolute left-[9px] h-[3px] bg-primary-500 rounded-full" style={{ width: `calc(${percent / 100} * (100% - 18px))` }} />
+                      <div className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full" style={{ width: `calc(${percent / 100} * (100% - 18px))` }} />
                       {ticks.map((t) => (
-                        <div key={t} className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-primary-400' : 'bg-surface-600'}`} style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }} />
+                        <div key={t} className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-surface-400' : 'bg-surface-600'}`} style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }} />
                       ))}
-                      <div className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-primary-500 shadow-lg shadow-primary-500/30" style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}>
+                      <div className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30" style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}>
                         <div className="absolute inset-[3px] rounded-full bg-surface-900" />
-                        <div className="absolute inset-[5px] rounded-full bg-primary-400" />
+                        <div className="absolute inset-[5px] rounded-full bg-surface-300" />
                       </div>
                     </div>
                   );
@@ -3502,7 +3489,7 @@ function TradePageContent() {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-surface-400">Trigger Price</label>
-                        <button onClick={() => setTriggerPrice(currentPrice.toFixed(2))} disabled={!canTrade} className="text-xs font-medium text-primary-400 hover:text-primary-300 disabled:opacity-50 transition-colors">Mid</button>
+                        <button onClick={() => setTriggerPrice(currentPrice.toFixed(2))} disabled={!canTrade} className="text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 transition-colors">Mid</button>
                       </div>
                       <div className="relative">
                         <input type="number" value={triggerPrice} onChange={(e) => setTriggerPrice(e.target.value)} placeholder={selectedSide === 'LONG' ? `> ${currentPrice.toFixed(2)}` : `< ${currentPrice.toFixed(2)}`} disabled={!canTrade} className="input text-sm w-full pr-12" />
@@ -3515,7 +3502,7 @@ function TradePageContent() {
                     <div>
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-surface-400">{orderType === 'stop-limit' ? 'Limit Price' : 'Price'}</label>
-                        <button onClick={() => setLimitPrice(currentPrice.toFixed(2))} disabled={!canTrade} className="text-xs font-medium text-primary-400 hover:text-primary-300 disabled:opacity-50 transition-colors">Mid</button>
+                        <button onClick={() => setLimitPrice(currentPrice.toFixed(2))} disabled={!canTrade} className="text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 transition-colors">Mid</button>
                       </div>
                       <div className="relative">
                         <input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder={currentPrice.toFixed(2)} disabled={!canTrade} className="input text-sm w-full pr-12" />
@@ -3543,7 +3530,7 @@ function TradePageContent() {
                       <div className="flex flex-col gap-2 mb-2">
                         <div className="flex-1 relative">
                           <input type="number" value={tokenAmount > 0 ? tokenAmount.toFixed(5) : ''} onChange={(e) => { const n = parseFloat(e.target.value) || 0; setOrderSize(((n * currentPrice) / effectiveLeverage).toFixed(2)); }} className="input text-sm w-full pr-12" placeholder="0.00" disabled={!canTrade} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-primary-400 font-medium">{selectedMarket.replace('-USD', '')}</span>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-300 font-medium">{selectedMarket.replace('-USD', '')}</span>
                         </div>
                         <div className="flex-1 relative">
                           <input type="number" value={positionSize > 0 ? positionSize.toFixed(2) : ''} onChange={(e) => { const n = parseFloat(e.target.value) || 0; setOrderSize((n / effectiveLeverage).toFixed(2)); }} className="input text-sm w-full pr-12" placeholder="0.00" disabled={!canTrade} />
@@ -3618,7 +3605,7 @@ function TradePageContent() {
               {orderType === 'market' && (
                 <div className="mb-4 flex items-center justify-between text-xs">
                   <span className="text-surface-400">Max Slippage</span>
-                  <button onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }} className="text-primary-400 hover:text-primary-300 font-mono font-medium transition-colors">{slippage}%</button>
+                  <button onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }} className="text-surface-300 hover:text-white font-mono font-medium transition-colors">{slippage}%</button>
                 </div>
               )}
 
@@ -3784,58 +3771,98 @@ function TradePageContent() {
       />
 
       {/* Margin Mode Confirmation Modal */}
-      {showMarginModeModal && pendingMarginMode !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }}>
-          <div className="bg-surface-800 border border-surface-600 rounded-xl p-5 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-white font-bold text-sm">{selectedMarket.replace('-USD', '')} Margin Mode</h3>
-              <button onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }} className="text-surface-400 hover:text-white text-lg">&times;</button>
-            </div>
-            {/* Cross / Isolated tab selector */}
-            <div className="flex gap-1 mb-4">
-              <button
-                onClick={() => setPendingMarginMode(false)}
-                className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${!pendingMarginMode ? 'bg-surface-700 text-white border border-surface-500' : 'text-surface-400 hover:text-white'}`}
-              >
-                Cross
+      {showMarginModeModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }}>
+          <div className="bg-surface-900 rounded-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 pt-5 pb-3">
+              <h3 className="text-white font-semibold text-base">Margin Mode</h3>
+              <button onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }} className="text-surface-500 hover:text-white transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
+            </div>
+
+            {/* Radio Options */}
+            <div className="px-6 space-y-3">
+              {/* Isolated */}
               <button
                 onClick={() => setPendingMarginMode(true)}
-                className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${pendingMarginMode ? 'bg-surface-700 text-white border border-surface-500' : 'text-surface-400 hover:text-white'}`}
+                className={`w-full text-left p-4 rounded-xl transition-colors ${
+                  (pendingMarginMode ?? isIsolated)
+                    ? 'bg-surface-800 ring-1 ring-surface-600'
+                    : 'bg-surface-800/50 hover:bg-surface-800'
+                }`}
               >
-                Isolated
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    (pendingMarginMode ?? isIsolated) ? 'border-white' : 'border-surface-600'
+                  }`}>
+                    {(pendingMarginMode ?? isIsolated) && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-white font-semibold text-sm">Isolated</span>
+                </div>
+                <p className="text-surface-400 text-xs leading-relaxed pl-7">
+                  In isolated margin mode, a certain amount of margin will be added to the position. If the margin falls below the maintenance level, liquidation will take place.
+                </p>
+              </button>
+
+              {/* Cross */}
+              <button
+                onClick={() => setPendingMarginMode(false)}
+                className={`w-full text-left p-4 rounded-xl transition-colors ${
+                  pendingMarginMode === false || (pendingMarginMode === null && !isIsolated)
+                    ? 'bg-surface-800 ring-1 ring-surface-600'
+                    : 'bg-surface-800/50 hover:bg-surface-800'
+                }`}
+              >
+                <div className="flex items-center gap-3 mb-2">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                    pendingMarginMode === false || (pendingMarginMode === null && !isIsolated) ? 'border-white' : 'border-surface-600'
+                  }`}>
+                    {(pendingMarginMode === false || (pendingMarginMode === null && !isIsolated)) && <div className="w-2 h-2 rounded-full bg-white" />}
+                  </div>
+                  <span className="text-white font-semibold text-sm">Cross</span>
+                </div>
+                <p className="text-surface-400 text-xs leading-relaxed pl-7">
+                  In cross margin mode, margin will be shared across all positions. In the event of liquidation, traders might lose all the margin and positions settled using this asset.
+                </p>
               </button>
             </div>
-            <p className="text-surface-400 text-xs mb-5">
-              {pendingMarginMode
-                ? 'In isolated margin mode, each position uses its own margin as collateral. Can be adjusted independently per position. One isolated position liquidation does not affect other positions.'
-                : 'In cross margin mode, all positions share the same cross margin as collateral. When liquidation occurs, cross margin balance and all open cross positions may be forfeited.'
-              }
-            </p>
-            <button
-              onClick={confirmMarginMode}
-              disabled={setMarginModeMutation.isPending}
-              className="w-full py-2.5 bg-primary-500 hover:bg-primary-400 text-white font-semibold rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {setMarginModeMutation.isPending ? 'Confirming...' : 'Confirm Margin Mode'}
-            </button>
+
+            {/* Footer Buttons */}
+            <div className="px-6 pt-5 pb-5 flex gap-3">
+              <button
+                onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }}
+                className="flex-1 py-2.5 bg-surface-700 hover:bg-surface-600 text-white font-semibold rounded-lg transition-colors text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmMarginMode}
+                disabled={setMarginModeMutation.isPending || pendingMarginMode === null}
+                className="flex-1 py-2.5 bg-white hover:bg-surface-200 text-black font-semibold rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {setMarginModeMutation.isPending ? 'Confirming...' : 'Confirm'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Slippage Modal */}
       {showSlippageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setShowSlippageModal(false)}>
-          <div className="bg-surface-800 border border-surface-600 rounded-xl p-5 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-white font-bold text-sm">Adjust Max Slippage</h3>
-              <button onClick={() => setShowSlippageModal(false)} className="text-surface-400 hover:text-white text-lg">×</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowSlippageModal(false)}>
+          <div className="bg-surface-900 rounded-2xl p-6 w-80" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-white font-semibold text-sm">Max Slippage</h3>
+              <button onClick={() => setShowSlippageModal(false)} className="text-surface-500 hover:text-white transition-colors">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <p className="text-surface-400 text-xs mb-4">
-              Max slippage only affects market orders submitted from the order form.
-              Position closing uses 8% max slippage and market TP/SL orders use 10% max slippage.
+            <p className="text-surface-500 text-xs mb-4 leading-relaxed">
+              Applies to market orders from the order form. Close orders use 8% and TP/SL use 10%.
             </p>
-            <div className="relative mb-4">
+            <div className="relative mb-5">
               <input
                 type="number"
                 value={slippageInput}
@@ -3843,7 +3870,7 @@ function TradePageContent() {
                 min="0.01"
                 max="10"
                 step="0.1"
-                className="w-full bg-surface-900 border border-surface-600 rounded-lg px-3 py-2 text-white font-mono text-sm focus:outline-none focus:border-primary-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full bg-surface-800 rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:ring-1 focus:ring-surface-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -3855,7 +3882,7 @@ function TradePageContent() {
                   }
                 }}
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 font-mono text-sm">%</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 font-mono text-sm">%</span>
             </div>
             <button
               onClick={() => {
@@ -3865,7 +3892,7 @@ function TradePageContent() {
                   setShowSlippageModal(false);
                 }
               }}
-              className="w-full py-2.5 bg-primary-500 hover:bg-primary-600 text-white font-bold text-sm rounded-lg transition-colors"
+              className="w-full py-2.5 bg-white text-black font-medium text-sm rounded-lg transition-colors hover:bg-surface-200"
             >
               Confirm
             </button>
@@ -3880,7 +3907,7 @@ function TradePageContent() {
 function TradePageLoading() {
   return (
     <div className="min-h-screen bg-surface-900 flex items-center justify-center">
-      <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-surface-400 border-t-transparent rounded-full animate-spin" />
     </div>
   );
 }

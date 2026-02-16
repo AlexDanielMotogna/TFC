@@ -266,11 +266,11 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
       onClick={onClose}
     >
       <div
-        className="bg-surface-850 border border-surface-800 rounded-t-xl sm:rounded-xl shadow-2xl w-full sm:max-w-md sm:mx-4 overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]"
+        className="bg-surface-900 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md sm:mx-4 overflow-hidden flex flex-col max-h-[85vh] sm:max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-surface-800">
+        <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-white font-mono text-lg font-bold">
@@ -287,14 +287,14 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </div>
           <button
             onClick={onClose}
-            className="text-surface-400 hover:text-white transition-colors p-1 hover:bg-surface-800 rounded"
+            className="text-surface-500 hover:text-white transition-colors p-1"
           >
-            <CloseIcon sx={{ fontSize: 20 }} />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
         {/* Position Info - Compact layout for mobile */}
-        <div className="px-4 py-3 bg-surface-900/50 border-b border-surface-800">
+        <div className="mx-4 py-3 bg-surface-800 rounded-xl">
           <div className="grid grid-cols-3 gap-x-3 gap-y-2">
             <div className="text-center">
               <div className="text-[10px] text-surface-500">Entry</div>
@@ -341,12 +341,12 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-surface-800">
+        <div className="flex gap-1 px-4 py-2">
           <button
             onClick={() => setActiveTab('close')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'close'
-                ? 'bg-surface-800 text-white border-b-2 border-primary-500'
+                ? 'bg-surface-700/50 text-white'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
@@ -355,9 +355,9 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </button>
           <button
             onClick={() => setActiveTab('limit')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'limit'
-                ? 'bg-surface-800 text-white border-b-2 border-primary-500'
+                ? 'bg-surface-700/50 text-white'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
@@ -368,9 +368,9 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </button>
           <button
             onClick={() => setActiveTab('tpsl')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'tpsl'
-                ? 'bg-surface-800 text-white border-b-2 border-primary-500'
+                ? 'bg-surface-700/50 text-white'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
@@ -386,9 +386,9 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
           </button>
           <button
             onClick={() => setActiveTab('flip')}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-xs sm:text-sm font-medium transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium rounded-lg transition-colors ${
               activeTab === 'flip'
-                ? 'bg-surface-800 text-white border-b-2 border-primary-500'
+                ? 'bg-surface-700/50 text-white'
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
@@ -419,7 +419,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                       onClick={() => setCloseAmount(pct.toString())}
                       className={`py-1.5 px-3 text-xs font-medium rounded transition-colors ${
                         closePercentage === pct
-                          ? 'bg-primary-500 text-white'
+                          ? 'bg-surface-700 text-white'
                           : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white'
                       }`}
                     >
@@ -452,12 +452,12 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     type="text"
                     value={limitPrice}
                     onChange={(e) => setLimitPrice(e.target.value)}
-                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                     placeholder="0.00"
                   />
                   <button
                     onClick={() => setLimitPrice(formatPrice(currentPrice))}
-                    className="px-3 py-2 text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                    className="px-3 py-2 text-xs text-surface-300 hover:text-white transition-colors"
                   >
                     Mid
                   </button>
@@ -474,7 +474,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     value={limitCloseAmount}
                     onChange={(e) => handleLimitAmountChange(e.target.value)}
                     onBlur={handleLimitAmountBlur}
-                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                     placeholder="0.00"
                   />
                   <span className="text-surface-400 text-sm">{symbolBase}</span>
@@ -492,7 +492,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     onClick={() => handleLimitPercentageChange(pct)}
                     className={`flex-1 py-1.5 rounded text-xs font-medium transition-colors ${
                       Math.abs(limitClosePercentage - pct) < 1
-                        ? 'bg-primary-500 text-white'
+                        ? 'bg-surface-700 text-white'
                         : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white'
                     }`}
                   >
@@ -553,7 +553,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     value={takeProfitPrice}
                     onChange={(e) => setTakeProfitPrice(e.target.value)}
                     placeholder="0.00"
-                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                   />
                   <span className="text-surface-400 text-sm">USD</span>
                 </div>
@@ -604,7 +604,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                     value={stopLossPrice}
                     onChange={(e) => setStopLossPrice(e.target.value)}
                     placeholder="0.00"
-                    className="flex-1 bg-surface-900 border border-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-primary-500"
+                    className="flex-1 bg-surface-800 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:ring-1 focus:ring-surface-600"
                   />
                   <span className="text-surface-400 text-sm">USD</span>
                 </div>
@@ -630,7 +630,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
 
           {activeTab === 'flip' && (
             <div className="space-y-4">
-              <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
+              <div className="bg-surface-800 rounded-lg p-4">
                 <div className="text-sm text-surface-400 mb-2">
                   Flipping will close your current position and open a new position in the opposite direction with the same size.
                 </div>
@@ -653,13 +653,13 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         </div>
 
         {/* Modal Footer - Action Buttons */}
-        <div className="px-4 py-3 border-t border-surface-800 bg-surface-900/30 space-y-2">
+        <div className="px-4 py-3 space-y-2">
           {activeTab === 'close' && (
             <>
               <button
                 onClick={handleClose}
                 disabled={isSubmitting || closeAmountTokens === 0}
-                className="w-full bg-loss-500 hover:bg-loss-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+                className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-surface-700 disabled:text-surface-500 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Closing Position...' : `Close ${closePercentage.toFixed(0)}% at Market`}
               </button>
@@ -667,7 +667,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
@@ -679,7 +679,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <button
                 onClick={handleLimitClose}
                 disabled={isSubmitting || !limitPrice || limitCloseAmountTokens <= 0}
-                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+                className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-surface-700 disabled:text-surface-500 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Submitting...' : 'Limit Close'}
               </button>
@@ -687,7 +687,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
@@ -699,7 +699,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <button
                 onClick={handleSetTpSl}
                 disabled={isSubmitting || (!takeProfitPrice && !stopLossPrice)}
-                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+                className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-surface-700 disabled:text-surface-500 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Setting TP/SL...' : 'Set TP/SL'}
               </button>
@@ -707,7 +707,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
@@ -719,7 +719,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <button
                 onClick={handleFlip}
                 disabled={isSubmitting}
-                className="w-full bg-primary-500 hover:bg-primary-600 disabled:bg-surface-700 disabled:text-surface-500 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+                className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-surface-700 disabled:text-surface-500 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
               >
                 {isSubmitting ? 'Flipping Position...' : `Flip to ${!isLong ? 'LONG' : 'SHORT'}`}
               </button>
@@ -727,7 +727,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 onClick={() => {
                   window.location.href = `/trade?symbol=${symbolBase}`;
                 }}
-                className="w-full bg-surface-800 hover:bg-surface-700 text-surface-300 hover:text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
                 Go to Terminal
               </button>
