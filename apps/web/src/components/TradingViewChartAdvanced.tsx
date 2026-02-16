@@ -18,6 +18,7 @@ interface ChartWidget {
   setSymbol: (symbol: string, resolution: string, callback?: () => void) => void;
   remove: () => void;
   subscribe: (event: string, callback: (...args: unknown[]) => void) => void;
+  save: (callback: (state: object) => void) => void;
 }
 
 function TradingViewChartAdvancedComponent({
@@ -78,6 +79,21 @@ function TradingViewChartAdvancedComponent({
       return;
     }
 
+    // Persist chart drawings/studies to localStorage
+    const CHART_STATE_KEY = 'tfc_tv_chart_state';
+
+    // Restore saved chart state (drawings, indicators, etc.)
+    let savedState: object | undefined;
+    try {
+      const raw = localStorage.getItem(CHART_STATE_KEY);
+      if (raw) {
+        savedState = JSON.parse(raw);
+        console.log('[TradingView] Restoring saved chart state from localStorage', Object.keys(savedState || {}));
+      } else {
+        console.log('[TradingView] No saved chart state found in localStorage');
+      }
+    } catch (e) { console.warn('[TradingView] Failed to parse saved state:', e); }
+
     const widgetOptions = {
       container: containerRef.current,
       library_path: '/charting_library/',
@@ -92,6 +108,8 @@ function TradingViewChartAdvancedComponent({
       debug: false,
       toolbar_bg: '#111113',
       custom_css_url: '/tradingview-custom.css',
+      auto_save_delay: 3,
+      saved_data: savedState,
       loading_screen: {
         backgroundColor: '#111113',
         foregroundColor: '#6366f1',
@@ -174,6 +192,18 @@ function TradingViewChartAdvancedComponent({
           if (newResolution && onIntervalChange) {
             onIntervalChange(resolutionToInterval(newResolution));
           }
+        });
+
+        // Auto-save chart state (drawings, studies, etc.) to localStorage
+        widget.subscribe('onAutoSaveNeeded', () => {
+          console.log('[TradingView] Auto-save triggered');
+          widget.save((state: object) => {
+            try {
+              const json = JSON.stringify(state);
+              localStorage.setItem(CHART_STATE_KEY, json);
+              console.log('[TradingView] Chart state saved to localStorage', (json.length / 1024).toFixed(1) + 'KB');
+            } catch (e) { console.warn('[TradingView] Failed to save chart state:', e); }
+          });
         });
 
       });
