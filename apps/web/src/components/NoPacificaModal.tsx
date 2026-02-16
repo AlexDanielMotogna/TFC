@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/lib/store';
 
-const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi/trade/BTC';
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
 
 /**
  * Modal shown when a user is authenticated but has no Pacifica account.
