@@ -53,7 +53,7 @@ Trading Fight Club gives you access to a full-featured trading terminal powered 
 
 ### Available Markets
 
-Over 40 perpetual futures contracts are available, including:
+Over 56 perpetual futures contracts are available, including:
 
 - **Crypto**: BTC, ETH, SOL, and popular memecoins
 - **Stocks**: TSLA, NVDA, and others
@@ -237,6 +237,132 @@ If you have open positions on Pacifica before a fight starts, those symbols are 
 - Trading fees are included in the PnL calculation.
 - If both players finish with nearly identical ROI% (within 0.0001%), the fight is a draw.
 - If one player did not trade and the other had a loss, the player who did not trade wins.
+
+### Under the Hood -- Fight System Code
+
+**Scoring formula -- ROI% determines the winner, not dollar PnL:**
+
+\`\`\`typescript
+// scoring.ts -- PnL calculation for each fighter
+function calculateScore(input: ScoringInput): ScoringResult {
+  const { stake, realizedPnl, unrealizedPnl, fees, funding } = input;
+
+  // EquityVirtual = Stake + RealizedPnL + UnrealizedPnL - Fees - Funding
+  const equityVirtual = stake + realizedPnl + unrealizedPnl - fees - funding;
+
+  // PnL% = (EquityVirtual / Stake) - 1
+  const pnlPercent = equityVirtual / stake - 1;
+
+  // ScoreUSDC = Stake x PnL%
+  const scoreUsdc = stake * pnlPercent;
+
+  return { equityVirtual, pnlPercent, scoreUsdc };
+}
+\`\`\`
+
+**Capital limit enforcement -- prevents exceeding your stake:**
+
+\`\`\`typescript
+// fight-exposure.ts -- Track capital usage with high-water mark
+function calculateAvailableCapital(
+  stake: number,
+  maxExposureUsed: number,
+  currentExposure: number
+): number {
+  // Capital in open positions can be reused (already counted in maxExposureUsed)
+  // But the high-water mark prevents infinite capital recycling
+  return Math.max(0, stake - maxExposureUsed + currentExposure);
+}
+
+// orders.ts -- Every order is validated before execution
+async function validateStakeLimit(account, symbol, amount, price, type, reduceOnly) {
+  if (reduceOnly) return; // Reduce-only orders always allowed
+
+  const orderNotional = parseFloat(amount) * parseFloat(price);
+  const availableCapital = calculateAvailableCapital(stake, maxExposureUsed, currentExposure);
+
+  if (orderNotional > availableCapital) {
+    throw new Error('Stake limit exceeded. Available: ' + availableCapital);
+  }
+}
+\`\`\`
+
+**Position snapshotting -- fair starts for both fighters:**
+
+\`\`\`typescript
+// fights/join -- When opponent joins, snapshot BOTH players' positions
+const creatorPositions = await getAccountPositions(creatorAccount);
+const joinerPositions = await getAccountPositions(joinerAccount);
+
+// Pre-existing positions become blocked symbols
+const creatorBlockedSymbols = creatorPositions.map(p => p.symbol);
+const joinerBlockedSymbols = joinerPositions.map(p => p.symbol);
+
+// Atomic transaction: fight goes LIVE with both snapshots
+await prisma.$transaction(async (tx) => {
+  await tx.fightParticipant.update({
+    data: { initialPositions: creatorPositions, blockedSymbols: creatorBlockedSymbols }
+  });
+  await tx.fightParticipant.create({
+    data: { slot: 'B', initialPositions: joinerPositions, blockedSymbols: joinerBlockedSymbols }
+  });
+  await tx.fight.update({ data: { status: 'LIVE', startedAt: now, endedAt: now + duration } });
+});
+\`\`\`
+
+**Anti-cheat validation -- 5 rules verified at settlement:**
+
+\`\`\`typescript
+// anti-cheat.ts -- Every fight is validated before results are finalized
+async function validateFightForSettlement(fightId: string) {
+  const results = await Promise.all([
+    validateZeroZeroRule(data),       // Both players idle = NO_CONTEST
+    validateMinVolumeRule(data),      // Minimum $10 notional per player
+    validateRepeatedMatchupRule(data), // Max 10 fights per pair in 24h
+    validateSameIpPattern(data),      // Shared IP detection
+    validateExternalTradesRule(data),  // Trading outside TFC = disqualified
+  ]);
+
+  const violations = results.filter(r => !r.passed);
+  return {
+    shouldCountForRanking: violations.length === 0,
+    recommendedStatus: violations.length > 0 ? 'NO_CONTEST' : 'FINISHED',
+    violations,
+  };
+}
+\`\`\`
+
+**Settlement with distributed locking -- prevents double settlement:**
+
+\`\`\`typescript
+// reconcile-fights.ts -- Automated settlement when fight timer ends
+async function reconcileFights() {
+  const expiredFights = await prisma.fight.findMany({
+    where: { status: 'LIVE', endedAt: { lte: new Date() } }
+  });
+
+  for (const fight of expiredFights) {
+    // Distributed lock prevents race conditions
+    const locked = await acquireSettlementLock(fight.id);
+    if (!locked) continue;
+
+    // Calculate final scores
+    const scoreA = calculateScore({ stake, realizedPnl: pnlA, fees: feesA, ... });
+    const scoreB = calculateScore({ stake, realizedPnl: pnlB, fees: feesB, ... });
+
+    // Determine winner by ROI%
+    const winnerId = scoreA.pnlPercent > scoreB.pnlPercent ? userA : userB;
+
+    // Anti-cheat can override to NO_CONTEST
+    const result = await settleFightWithAntiCheat(fight.id, winnerId, isDraw);
+
+    // Atomic update: scores + status + winner
+    await prisma.$transaction(async (tx) => {
+      await tx.fight.update({ data: { status: result.finalStatus, winnerId: result.winnerId } });
+    });
+  }
+}
+\`\`\`
 
 ### Fight Statuses
 
@@ -432,13 +558,129 @@ Trading Fight Club never holds your funds. All your capital stays in your Pacifi
 
 ### Wallet-Based Authentication
 
-Your Solana wallet is your login. No passwords are stored. Authentication works by signing a message with your wallet, which the platform verifies cryptographically.
+Your Solana wallet is your login. No passwords are stored. Authentication works by signing a message with your wallet, which the platform verifies cryptographically using Ed25519.
+
+**Client side -- Your wallet signs a message (private key never leaves your wallet):**
+
+\`\`\`typescript
+// useAuth.ts -- Client-side authentication
+const AUTH_MESSAGE = 'Sign this message to authenticate with Trading Fight Club';
+
+async function login() {
+  const message = new TextEncoder().encode(AUTH_MESSAGE);
+  const signature = await signMessage(message); // Delegated to wallet extension
+  const signatureBase58 = bs58.encode(signature);
+
+  // Only the public key and signature are sent -- NEVER the private key
+  const response = await connectWallet(publicKey.toBase58(), signatureBase58);
+}
+\`\`\`
+
+**Server side -- Ed25519 cryptographic verification:**
+
+\`\`\`typescript
+// auth.ts -- Server-side signature verification
+import * as ed from '@noble/ed25519';
+
+async function verifyWalletSignature(walletAddress: string, signature: string) {
+  const signatureBytes = bs58.decode(signature);
+  const publicKeyBytes = bs58.decode(walletAddress);
+  const messageBytes = new TextEncoder().encode(AUTH_MESSAGE);
+
+  const isValid = await ed.verifyAsync(signatureBytes, messageBytes, publicKeyBytes);
+  if (!isValid) throw new Error('Invalid signature');
+}
+\`\`\`
+
+**JWT token generation with 7-day expiry:**
+
+\`\`\`typescript
+// auth.ts -- Token generation after successful verification
+function generateToken(userId: string, walletAddress: string, role: string): string {
+  return jwt.sign(
+    { sub: userId, walletAddress, role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+\`\`\`
 
 ### Trading Security
 
-- All trade executions are signed server-side with expiry windows to prevent replay attacks.
-- Your private keys are never exposed to the frontend.
-- The platform proxies all trading requests through its backend, adding an extra layer of security.
+Every trade order is signed with a deterministic message format and includes an expiry window to prevent replay attacks.
+
+**Deterministic key sorting prevents signature manipulation:**
+
+\`\`\`typescript
+// signing.ts -- Pacifica operation signing
+function sortKeysRecursive(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  return Object.keys(obj).sort().reduce((sorted, key) => {
+    sorted[key] = sortKeysRecursive(obj[key]);
+    return sorted;
+  }, {} as any);
+}
+\`\`\`
+
+**5-second expiry window on every signed operation:**
+
+\`\`\`typescript
+// signing.ts -- Trade execution with expiry
+async function signPacificaOperation(wallet, type, data) {
+  const message = JSON.stringify(sortKeysRecursive({
+    data,
+    expiry_window: 5000, // 5 seconds -- prevents replay attacks
+    timestamp: Date.now(),
+    type,
+  }));
+
+  const signature = await wallet.signMessage(new TextEncoder().encode(message));
+  return { signature: bs58.encode(signature), timestamp: Date.now() };
+}
+\`\`\`
+
+**Protected API endpoints -- every request is verified:**
+
+\`\`\`typescript
+// auth.ts -- Route protection middleware
+async function withAuth(request, handler) {
+  const token = extractBearerToken(request);
+  const payload = verifyToken(token);       // JWT verification
+  const user = await findUserById(payload.sub);
+
+  if (user.status === 'BANNED') throw new ForbiddenError(user.bannedReason);
+  if (user.status === 'DELETED') throw new ForbiddenError('Account deleted');
+
+  return handler({ userId: user.id, walletAddress: user.walletAddress });
+}
+\`\`\`
+
+### Account Change Detection
+
+The platform monitors wallet changes in real time to prevent unauthorized access.
+
+\`\`\`typescript
+// useAuth.ts -- Wallet change detection
+useEffect(() => {
+  const provider = window?.phantom?.solana;
+  provider?.on('accountChanged', (newPublicKey) => {
+    if (newPublicKey.toBase58() !== walletAddress) {
+      clearAuth();      // Invalidate current session
+      disconnect();     // Force wallet reconnect
+    }
+  });
+}, [walletAddress]);
+\`\`\`
+
+### Security Summary
+
+- **Private keys never leave your wallet** -- All signing is delegated to your wallet extension (Phantom, Solflare, Backpack).
+- **Ed25519 cryptographic verification** -- Every login signature is verified server-side using the @noble/ed25519 library.
+- **5-second expiry windows** -- Trade operations expire after 5 seconds, preventing replay attacks.
+- **Deterministic serialization** -- JSON keys are recursively sorted before signing, preventing signature manipulation.
+- **JWT-based sessions** -- Authenticated with 7-day expiry tokens, verified on every API request.
+- **Account change detection** -- Switching wallets automatically invalidates your session.
+- **User status enforcement** -- Banned and deleted accounts are blocked at both login and API level.
 
 ### Data Privacy
 

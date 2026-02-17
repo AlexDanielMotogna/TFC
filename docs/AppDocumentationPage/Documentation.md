@@ -70,7 +70,7 @@ Trading Fight Club gives you access to a full-featured trading terminal powered 
 
 ### Available Markets
 
-Over 40 perpetual futures contracts are available, including:
+Over 56 perpetual futures contracts are available, including:
 
 - **Crypto**: BTC, ETH, SOL, and popular memecoins
 - **Stocks**: TSLA, NVDA, and others

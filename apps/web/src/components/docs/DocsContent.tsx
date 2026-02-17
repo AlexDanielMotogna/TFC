@@ -151,6 +151,33 @@ function renderMarkdown(markdown: string): React.ReactNode[] {
       continue;
     }
 
+    // Fenced code block (```language ... ```)
+    if (line.trim().startsWith('```')) {
+      const lang = line.trim().slice(3).trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i]!.trim().startsWith('```')) {
+        codeLines.push(lines[i]!);
+        i++;
+      }
+      i++; // skip closing ```
+      elements.push(
+        <div key={key++} className="mb-6 rounded-lg border border-surface-800 overflow-hidden">
+          {lang && (
+            <div className="bg-surface-800 px-4 py-2 text-xs font-mono text-surface-400 border-b border-surface-700">
+              {lang}
+            </div>
+          )}
+          <pre className="bg-surface-900 p-4 overflow-x-auto">
+            <code className="text-sm font-mono text-surface-200 leading-relaxed">
+              {codeLines.join('\n')}
+            </code>
+          </pre>
+        </div>
+      );
+      continue;
+    }
+
     // Headings
     if (line.startsWith('# ') && !line.startsWith('## ')) {
       const text = line.slice(2).trim();
