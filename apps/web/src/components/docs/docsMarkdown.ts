@@ -4,13 +4,13 @@ export const DOCS_MARKDOWN = `# Trading Fight Club -- User Guide
 
 ## What is Trading Fight Club
 
-Trading Fight Club is a competitive trading platform where you go head-to-head against another trader in real-time. Both players stake the same amount of USDC, trade perpetual futures on 40+ markets, and the one with the best return on investment (ROI%) at the end of the timer wins.
+Trading Fight Club is a competitive trading platform where you go head-to-head against another trader in real-time. Both players stake the same amount of USDC, trade perpetual futures on 56+ markets, and the one with the best return on investment (ROI%) at the end of the timer wins.
 
 All trading happens on Pacifica, a decentralized perpetuals exchange on Solana. Trading Fight Club never holds your funds -- it provides the competitive layer, live scoreboard, leaderboards, prizes, and referral rewards on top of the trading infrastructure.
 
 ### What You Can Do
 
-- Trade 40+ perpetual futures markets (crypto, stocks, forex) with up to 50x leverage
+- Trade 56+ perpetual futures markets (crypto, stocks, forex) with up to 50x leverage
 - Challenge other traders to 1v1 duels with stakes from $100 to $5,000 USDC
 - Watch your fight unfold in real-time with live PnL tracking
 - Climb the weekly leaderboard and earn prizes from the prize pool
@@ -445,6 +445,64 @@ Your Solana wallet is your login. No passwords are stored. Authentication works 
 - Your wallet address is public (as it is on any blockchain).
 - IP addresses are collected only for anti-cheat purposes and are never exposed through the platform.
 - Trading data is not shared with third parties.
+
+---
+
+## Roadmap
+
+Our vision is to build the most competitive trading platform in crypto. Below is our development roadmap organized by phase.
+
+### Phase 1 -- Foundation (Q1 2026)
+
+| Milestone | Status |
+|---|---|
+| Core platform development | Completed |
+| Pacifica DEX integration with 56+ perpetual markets | Completed |
+| 1v1 Fight System with real-time PnL tracking | Completed |
+| Weekly leaderboard with automated prize distribution | Completed |
+| Three-tier referral program | Completed |
+| AI Signal Bot powered by Claude AI | Completed |
+| Anti-cheat and fair play system | Completed |
+| Wallet-based authentication (no email/password) | Completed |
+| **Alpha Testing** -- Live testing with early adopters, gathering feedback and iterating on the platform | **In Progress** |
+| **Trader and Content Creator Partnerships** -- Collaborations with funded trader programs, trading YouTubers, streamers, and influencers | **In Progress** |
+
+### Phase 2 -- Multi-Exchange Expansion (Q2 2026)
+
+| Milestone | Details |
+|---|---|
+| Hyperliquid integration | High-performance perpetuals DEX -- expanding to the largest on-chain derivatives venue |
+| Lighter integration | On-chain order book protocol -- broadening decentralized trading options |
+| Cross-exchange leaderboard | Unified rankings regardless of which exchange a fighter uses |
+| Multi-Fight support | Participate in multiple fights simultaneously |
+
+### Phase 3 -- CEX Integrations and Tournaments (Q3 2026)
+
+| Milestone | Details |
+|---|---|
+| Binance integration | Access to the world's largest crypto exchange and its liquidity |
+| Bybit integration | Leading derivatives platform with deep order books |
+| OKX integration | Global derivatives exchange with advanced trading tools |
+| Tournament system | Organized bracket-style competitions with eliminations and larger prize pools |
+| League tiers | Bronze, Silver, Gold, and Diamond leagues based on skill and track record |
+
+### Phase 4 -- Advanced Platform (Q4 2026)
+
+| Milestone | Details |
+|---|---|
+| Bitfinex integration | Advanced trading infrastructure with institutional-grade liquidity |
+| Kraken integration | Trusted exchange with regulatory compliance and deep liquidity |
+| AI Trader | Autonomous AI trading agent -- evolution of AI Signal Bot that manages and executes trades based on configurable strategies |
+| Advanced tournament formats | Round-robin leagues, seasonal championships, and team-based competitions |
+
+### Phase 5 -- Ecosystem Growth (2027)
+
+| Milestone | Details |
+|---|---|
+| Mobile app | Native iOS and Android app for trading and fighting on the go |
+| API for third-party integrations | Public API for bots, analytics tools, and community-built features |
+
+*This roadmap is subject to change as we adapt to market conditions, community feedback, and new opportunities. Follow us on [X](https://x.com/T_F_C_official) for the latest updates.*
 
 ---
 
