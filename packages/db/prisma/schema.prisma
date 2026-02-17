@@ -650,6 +650,22 @@ model BetaWhitelist {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ALPHA TESTERS
+// Controls app access for alpha testers who have approved beta
+// but should not yet access the platform.
+// ─────────────────────────────────────────────────────────────
+model AlphaTester {
+  id            String   @id @default(uuid())
+  walletAddress String   @unique @map("wallet_address")
+  accessEnabled Boolean  @default(false) @map("access_enabled")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("alpha_testers")
+}
+
+// ─────────────────────────────────────────────────────────────
 // FIGHT AUDIT LOG
 // Diagnostic table to capture ALL fight status/settling changes
 // Used to identify the source of race conditions in settlement

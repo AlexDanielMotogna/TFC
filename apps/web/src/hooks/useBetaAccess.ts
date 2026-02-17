@@ -9,6 +9,8 @@ interface BetaAccessState {
   applied: boolean;
   appliedAt: string | null;
   isLoading: boolean;
+  isAlphaTester: boolean;
+  referralCode: string | null;
 }
 
 // Cache key for sessionStorage
@@ -85,6 +87,8 @@ export function useBetaAccess() {
       applied: false,
       appliedAt: null,
       isLoading: !!walletAddress, // Only loading if we have a wallet to check
+      isAlphaTester: false,
+      referralCode: null,
     };
   });
   const [isApplying, setIsApplying] = useState(false);
@@ -102,6 +106,8 @@ export function useBetaAccess() {
         applied: false,
         appliedAt: null,
         isLoading: false,
+        isAlphaTester: false,
+        referralCode: null,
       });
       hasVerifiedOnce.current = false;
       return;
@@ -155,6 +161,8 @@ export function useBetaAccess() {
           status: data.status,
           applied: data.applied,
           appliedAt: data.appliedAt || null,
+          isAlphaTester: data.isAlphaTester || false,
+          referralCode: data.referralCode || null,
         };
         setState({ ...newState, isLoading: false });
         setCachedState(walletAddress, newState);
@@ -193,6 +201,8 @@ export function useBetaAccess() {
           applied: true,
           appliedAt: data.appliedAt,
           hasAccess: data.status === 'approved',
+          isAlphaTester: false,
+          referralCode: null,
         };
         setState(prev => ({ ...prev, ...newState }));
         // Update cache with new state
@@ -225,6 +235,8 @@ export function useBetaAccess() {
           applied: false,
           appliedAt: null,
           isLoading: true,
+          isAlphaTester: false,
+          referralCode: null,
         });
         checkAccess(true);
       } else {
@@ -243,6 +255,8 @@ export function useBetaAccess() {
         applied: false,
         appliedAt: null,
         isLoading: false,
+        isAlphaTester: false,
+        referralCode: null,
       });
     }
   }, [connected, walletAddress, checkAccess]);

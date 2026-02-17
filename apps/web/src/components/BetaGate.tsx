@@ -23,7 +23,7 @@ interface BetaGateProps {
  */
 export function BetaGate({ children, showLoading = true }: BetaGateProps) {
   const { connected, publicKey } = useWallet();
-  const { hasAccess, status, isLoading, refetch } = useBetaAccess();
+  const { hasAccess, status, isLoading, isAlphaTester, referralCode, refetch } = useBetaAccess();
 
   // Wait for publicKey to be available before checking access
   // This prevents showing denied page during wallet reconnection
@@ -43,7 +43,7 @@ export function BetaGate({ children, showLoading = true }: BetaGateProps) {
 
   // If wallet is ready and doesn't have access, show denied page
   if (walletReady && !hasAccess) {
-    return <BetaAccessDenied status={status} onRefresh={refetch} />;
+    return <BetaAccessDenied status={status} isAlphaTester={isAlphaTester} referralCode={referralCode} onRefresh={refetch} />;
   }
 
   // Has access, not connected, or wallet still initializing

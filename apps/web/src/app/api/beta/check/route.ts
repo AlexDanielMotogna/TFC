@@ -28,13 +28,40 @@ export async function GET(request: Request) {
       });
     }
 
+    const hasAccess = entry.status === 'approved';
+
+    // If beta is approved, check if this wallet is an alpha tester with restricted access
+    if (hasAccess) {
+      const alphaTester = await prisma.alphaTester.findUnique({
+        where: { walletAddress },
+      });
+      if (alphaTester && !alphaTester.accessEnabled) {
+        // Fetch user's referral code so alpha tester page can show it
+        const user = await prisma.user.findUnique({
+          where: { walletAddress },
+          select: { referralCode: true },
+        });
+        return Response.json({
+          success: true,
+          hasAccess: false,
+          status: entry.status,
+          applied: true,
+          appliedAt: entry.appliedAt,
+          approvedAt: entry.approvedAt,
+          isAlphaTester: true,
+          referralCode: user?.referralCode || null,
+        });
+      }
+    }
+
     return Response.json({
       success: true,
-      hasAccess: entry.status === 'approved',
+      hasAccess,
       status: entry.status,
       applied: true,
       appliedAt: entry.appliedAt,
       approvedAt: entry.approvedAt,
+      isAlphaTester: false,
     });
   } catch (error) {
     return errorResponse(error);
