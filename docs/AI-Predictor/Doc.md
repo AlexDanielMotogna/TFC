@@ -12,6 +12,76 @@ A mandatory **legal disclaimer modal** must be accepted before first use, persis
 
 ---
 
+## User Guide
+
+### What is AI Signal?
+
+AI Signal is a built-in trading assistant powered by Claude AI. It analyzes real-time market data across multiple timeframes (1H, 4H, 1D) and provides actionable trading signals directly inside the TFC trading terminal.
+
+### How to use it
+
+1. **Open the widget** — Click the AI Signal orb on the right side of the trade page
+2. **Select your risk profile** — Choose between Safe (conservative), Balanced (moderate), or Aggro (aggressive)
+3. **Click "Analyze"** — The AI analyzes the current market in real time
+4. **Review the signal** — You'll see LONG, SHORT, or STAY OUT with entry, stop loss, and take profit levels
+5. **Execute (optional)** — Click "Execute Signal" to place the order directly with one click. TP and SL are set automatically
+
+### Signal types
+
+| Signal | Meaning |
+|--------|---------|
+| **LONG** | AI suggests buying — expects price to go up |
+| **SHORT** | AI suggests selling — expects price to go down |
+| **STAY OUT** | No clear setup — AI recommends not trading |
+
+### Risk profiles
+
+| Profile | Description | Leverage | Risk per trade |
+|---------|-------------|----------|----------------|
+| **Safe** | Conservative, requires strong confirmation | 1–3x | 1–2% |
+| **Balanced** | Moderate risk, good for most traders | 3–5x | 2–3% |
+| **Aggro** | Aggressive, takes higher-conviction setups | 5–10x | 3–5% |
+
+### Tabs explained
+
+- **SIGNAL** — Shows the trading signal with entry, stop loss, target, leverage, risk, and R:R ratio. This is where you execute orders
+- **FACTORS** — Shows the key factors the AI considered (trend, momentum, volume, etc.) with bullish/bearish/neutral bias for each
+- **POS** — Shows AI advice for your open positions (HOLD, CLOSE, ADD, REDUCE, MOVE SL). Only appears when you have positions in the current market
+
+### Position management
+
+When you have open positions, the AI analyzes them and provides specific advice:
+
+| Action | What it means |
+|--------|---------------|
+| **HOLD** | Keep your position, conditions are still favorable |
+| **CLOSE** | Consider closing the position entirely |
+| **ADD** | Conditions favor adding to your position |
+| **REDUCE** | Consider reducing position size (closes 50%) |
+| **MOVE SL** | Move your stop loss to a new level (e.g., to lock in profits) |
+
+You can execute CLOSE and REDUCE directly from the POS tab with one click.
+
+### Chart lines
+
+When a LONG or SHORT signal is generated, the AI automatically draws three horizontal lines on your TradingView chart:
+- **White line** — Entry price
+- **Green line** — Take profit target
+- **Red line** — Stop loss level
+
+Lines are removed when you close the widget or switch markets.
+
+### Important information
+
+- **Signals expire after 60 seconds.** The market moves fast — after expiry, re-analyze for fresh data
+- **Rate limit: 5 analyses per minute.** If you hit the limit, wait for the countdown before trying again
+- **AI is not financial advice.** The AI analyzes publicly available market data and patterns. It cannot predict the future. All trading decisions are 100% your responsibility
+- **Leverage trading carries significant risk.** You can lose your entire position. Never trade more than you can afford to lose
+- **Past patterns do not guarantee future results.** A high confidence score does not mean a trade will be profitable
+- **Always review before executing.** The one-click execution is a convenience feature — always check the entry, SL, and TP levels make sense to you before confirming
+
+---
+
 ## Architecture
 
 ```

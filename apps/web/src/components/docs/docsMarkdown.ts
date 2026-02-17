@@ -4,13 +4,13 @@ export const DOCS_MARKDOWN = `# Trading Fight Club -- User Guide
 
 ## What is Trading Fight Club
 
-Trading Fight Club is a competitive trading platform where you go head-to-head against another trader in real-time. Both players stake the same amount of USDC, trade perpetual futures on 40+ markets, and the one with the best return on investment (ROI%) at the end of the timer wins.
+Trading Fight Club is a competitive trading platform where you go head-to-head against another trader in real-time. Both players stake the same amount of USDC, trade perpetual futures on 56+ markets, and the one with the best return on investment (ROI%) at the end of the timer wins.
 
 All trading happens on Pacifica, a decentralized perpetuals exchange on Solana. Trading Fight Club never holds your funds -- it provides the competitive layer, live scoreboard, leaderboards, prizes, and referral rewards on top of the trading infrastructure.
 
 ### What You Can Do
 
-- Trade 40+ perpetual futures markets (crypto, stocks, forex) with up to 50x leverage
+- Trade 56+ perpetual futures markets (crypto, stocks, forex) with up to 50x leverage
 - Challenge other traders to 1v1 duels with stakes from $100 to $5,000 USDC
 - Watch your fight unfold in real-time with live PnL tracking
 - Climb the weekly leaderboard and earn prizes from the prize pool
@@ -53,7 +53,7 @@ Trading Fight Club gives you access to a full-featured trading terminal powered 
 
 ### Available Markets
 
-Over 40 perpetual futures contracts are available, including:
+Over 56 perpetual futures contracts are available, including:
 
 - **Crypto**: BTC, ETH, SOL, and popular memecoins
 - **Stocks**: TSLA, NVDA, and others
@@ -116,6 +116,75 @@ You can close positions with a market or limit order, set or modify TP/SL, and a
 
 ---
 
+## AI Signal Bot
+
+AI Signal is a built-in trading assistant powered by Claude AI. It analyzes real-time market data across multiple timeframes (1H, 4H, 1D) and provides actionable trading signals directly inside the trading terminal.
+
+### How to Use
+
+1. **Open the widget** -- Click the AI Signal orb on the right side of the trade page.
+2. **Select your risk profile** -- Choose between Safe, Balanced, or Aggro.
+3. **Click "Analyze"** -- The AI analyzes the current market in real time.
+4. **Review the signal** -- You will see LONG, SHORT, or STAY OUT with entry, stop loss, and take profit levels.
+5. **Execute (optional)** -- Click "Execute Signal" to place the order directly with one click. TP and SL are set automatically.
+
+### Signal Types
+
+| Signal | Meaning |
+|---|---|
+| LONG | AI suggests buying -- expects price to go up |
+| SHORT | AI suggests selling -- expects price to go down |
+| STAY OUT | No clear setup -- AI recommends not trading |
+
+### Risk Profiles
+
+| Profile | Description | Leverage | Risk per Trade |
+|---|---|---|---|
+| Safe | Conservative, requires strong confirmation | 1--3x | 1--2% |
+| Balanced | Moderate risk, good for most traders | 3--5x | 2--3% |
+| Aggro | Aggressive, takes higher-conviction setups | 5--10x | 3--5% |
+
+### Widget Tabs
+
+- **SIGNAL** -- Shows the trading signal with entry, stop loss, target, leverage, risk, and R:R ratio. This is where you execute orders.
+- **FACTORS** -- Shows the key factors the AI considered (trend, momentum, volume, etc.) with bullish, bearish, or neutral bias for each.
+- **POS** -- Shows AI advice for your open positions. Only appears when you have positions in the current market.
+
+### Position Advice
+
+When you have open positions, the AI analyzes them and provides specific advice:
+
+| Action | What It Means |
+|---|---|
+| HOLD | Keep your position, conditions are still favorable |
+| CLOSE | Consider closing the position entirely |
+| ADD | Conditions favor adding to your position |
+| REDUCE | Consider reducing position size (closes 50%) |
+| MOVE SL | Move your stop loss to a new level to lock in profits |
+
+You can execute CLOSE and REDUCE directly from the POS tab with one click.
+
+### Chart Lines
+
+When a LONG or SHORT signal is generated, the AI automatically draws three horizontal lines on your TradingView chart:
+
+- **White line** -- Entry price
+- **Green line** -- Take profit target
+- **Red line** -- Stop loss level
+
+Lines are removed when you close the widget or switch markets.
+
+### Important Information
+
+- **Signals expire after 60 seconds.** The market moves fast -- after expiry, re-analyze for fresh data.
+- **Rate limit: 5 analyses per minute.** If you hit the limit, wait for the countdown before trying again.
+- **AI is not financial advice.** The AI analyzes publicly available market data and patterns. It cannot predict the future. All trading decisions are 100% your responsibility.
+- **Leverage trading carries significant risk.** You can lose your entire position. Never trade more than you can afford to lose.
+- **Past patterns do not guarantee future results.** A high confidence score does not mean a trade will be profitable.
+- **Always review before executing.** The one-click execution is a convenience feature -- always check the entry, SL, and TP levels make sense to you before confirming.
+
+---
+
 ## Fights (1v1 Duels)
 
 Fights are the core of Trading Fight Club. Two traders stake the same amount, trade for a set duration, and the one with the higher ROI% wins.
@@ -168,6 +237,132 @@ If you have open positions on Pacifica before a fight starts, those symbols are 
 - Trading fees are included in the PnL calculation.
 - If both players finish with nearly identical ROI% (within 0.0001%), the fight is a draw.
 - If one player did not trade and the other had a loss, the player who did not trade wins.
+
+### Under the Hood -- Fight System Code
+
+**Scoring formula -- ROI% determines the winner, not dollar PnL:**
+
+\`\`\`typescript
+// scoring.ts -- PnL calculation for each fighter
+function calculateScore(input: ScoringInput): ScoringResult {
+  const { stake, realizedPnl, unrealizedPnl, fees, funding } = input;
+
+  // EquityVirtual = Stake + RealizedPnL + UnrealizedPnL - Fees - Funding
+  const equityVirtual = stake + realizedPnl + unrealizedPnl - fees - funding;
+
+  // PnL% = (EquityVirtual / Stake) - 1
+  const pnlPercent = equityVirtual / stake - 1;
+
+  // ScoreUSDC = Stake x PnL%
+  const scoreUsdc = stake * pnlPercent;
+
+  return { equityVirtual, pnlPercent, scoreUsdc };
+}
+\`\`\`
+
+**Capital limit enforcement -- prevents exceeding your stake:**
+
+\`\`\`typescript
+// fight-exposure.ts -- Track capital usage with high-water mark
+function calculateAvailableCapital(
+  stake: number,
+  maxExposureUsed: number,
+  currentExposure: number
+): number {
+  // Capital in open positions can be reused (already counted in maxExposureUsed)
+  // But the high-water mark prevents infinite capital recycling
+  return Math.max(0, stake - maxExposureUsed + currentExposure);
+}
+
+// orders.ts -- Every order is validated before execution
+async function validateStakeLimit(account, symbol, amount, price, type, reduceOnly) {
+  if (reduceOnly) return; // Reduce-only orders always allowed
+
+  const orderNotional = parseFloat(amount) * parseFloat(price);
+  const availableCapital = calculateAvailableCapital(stake, maxExposureUsed, currentExposure);
+
+  if (orderNotional > availableCapital) {
+    throw new Error('Stake limit exceeded. Available: ' + availableCapital);
+  }
+}
+\`\`\`
+
+**Position snapshotting -- fair starts for both fighters:**
+
+\`\`\`typescript
+// fights/join -- When opponent joins, snapshot BOTH players' positions
+const creatorPositions = await getAccountPositions(creatorAccount);
+const joinerPositions = await getAccountPositions(joinerAccount);
+
+// Pre-existing positions become blocked symbols
+const creatorBlockedSymbols = creatorPositions.map(p => p.symbol);
+const joinerBlockedSymbols = joinerPositions.map(p => p.symbol);
+
+// Atomic transaction: fight goes LIVE with both snapshots
+await prisma.$transaction(async (tx) => {
+  await tx.fightParticipant.update({
+    data: { initialPositions: creatorPositions, blockedSymbols: creatorBlockedSymbols }
+  });
+  await tx.fightParticipant.create({
+    data: { slot: 'B', initialPositions: joinerPositions, blockedSymbols: joinerBlockedSymbols }
+  });
+  await tx.fight.update({ data: { status: 'LIVE', startedAt: now, endedAt: now + duration } });
+});
+\`\`\`
+
+**Anti-cheat validation -- 5 rules verified at settlement:**
+
+\`\`\`typescript
+// anti-cheat.ts -- Every fight is validated before results are finalized
+async function validateFightForSettlement(fightId: string) {
+  const results = await Promise.all([
+    validateZeroZeroRule(data),       // Both players idle = NO_CONTEST
+    validateMinVolumeRule(data),      // Minimum $10 notional per player
+    validateRepeatedMatchupRule(data), // Max 10 fights per pair in 24h
+    validateSameIpPattern(data),      // Shared IP detection
+    validateExternalTradesRule(data),  // Trading outside TFC = disqualified
+  ]);
+
+  const violations = results.filter(r => !r.passed);
+  return {
+    shouldCountForRanking: violations.length === 0,
+    recommendedStatus: violations.length > 0 ? 'NO_CONTEST' : 'FINISHED',
+    violations,
+  };
+}
+\`\`\`
+
+**Settlement with distributed locking -- prevents double settlement:**
+
+\`\`\`typescript
+// reconcile-fights.ts -- Automated settlement when fight timer ends
+async function reconcileFights() {
+  const expiredFights = await prisma.fight.findMany({
+    where: { status: 'LIVE', endedAt: { lte: new Date() } }
+  });
+
+  for (const fight of expiredFights) {
+    // Distributed lock prevents race conditions
+    const locked = await acquireSettlementLock(fight.id);
+    if (!locked) continue;
+
+    // Calculate final scores
+    const scoreA = calculateScore({ stake, realizedPnl: pnlA, fees: feesA, ... });
+    const scoreB = calculateScore({ stake, realizedPnl: pnlB, fees: feesB, ... });
+
+    // Determine winner by ROI%
+    const winnerId = scoreA.pnlPercent > scoreB.pnlPercent ? userA : userB;
+
+    // Anti-cheat can override to NO_CONTEST
+    const result = await settleFightWithAntiCheat(fight.id, winnerId, isDraw);
+
+    // Atomic update: scores + status + winner
+    await prisma.$transaction(async (tx) => {
+      await tx.fight.update({ data: { status: result.finalStatus, winnerId: result.winnerId } });
+    });
+  }
+}
+\`\`\`
 
 ### Fight Statuses
 
@@ -363,19 +558,193 @@ Trading Fight Club never holds your funds. All your capital stays in your Pacifi
 
 ### Wallet-Based Authentication
 
-Your Solana wallet is your login. No passwords are stored. Authentication works by signing a message with your wallet, which the platform verifies cryptographically.
+Your Solana wallet is your login. No passwords are stored. Authentication works by signing a message with your wallet, which the platform verifies cryptographically using Ed25519.
+
+**Client side -- Your wallet signs a message (private key never leaves your wallet):**
+
+\`\`\`typescript
+// useAuth.ts -- Client-side authentication
+const AUTH_MESSAGE = 'Sign this message to authenticate with Trading Fight Club';
+
+async function login() {
+  const message = new TextEncoder().encode(AUTH_MESSAGE);
+  const signature = await signMessage(message); // Delegated to wallet extension
+  const signatureBase58 = bs58.encode(signature);
+
+  // Only the public key and signature are sent -- NEVER the private key
+  const response = await connectWallet(publicKey.toBase58(), signatureBase58);
+}
+\`\`\`
+
+**Server side -- Ed25519 cryptographic verification:**
+
+\`\`\`typescript
+// auth.ts -- Server-side signature verification
+import * as ed from '@noble/ed25519';
+
+async function verifyWalletSignature(walletAddress: string, signature: string) {
+  const signatureBytes = bs58.decode(signature);
+  const publicKeyBytes = bs58.decode(walletAddress);
+  const messageBytes = new TextEncoder().encode(AUTH_MESSAGE);
+
+  const isValid = await ed.verifyAsync(signatureBytes, messageBytes, publicKeyBytes);
+  if (!isValid) throw new Error('Invalid signature');
+}
+\`\`\`
+
+**JWT token generation with 7-day expiry:**
+
+\`\`\`typescript
+// auth.ts -- Token generation after successful verification
+function generateToken(userId: string, walletAddress: string, role: string): string {
+  return jwt.sign(
+    { sub: userId, walletAddress, role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+\`\`\`
 
 ### Trading Security
 
-- All trade executions are signed server-side with expiry windows to prevent replay attacks.
-- Your private keys are never exposed to the frontend.
-- The platform proxies all trading requests through its backend, adding an extra layer of security.
+Every trade order is signed with a deterministic message format and includes an expiry window to prevent replay attacks.
+
+**Deterministic key sorting prevents signature manipulation:**
+
+\`\`\`typescript
+// signing.ts -- Pacifica operation signing
+function sortKeysRecursive(obj: any): any {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  return Object.keys(obj).sort().reduce((sorted, key) => {
+    sorted[key] = sortKeysRecursive(obj[key]);
+    return sorted;
+  }, {} as any);
+}
+\`\`\`
+
+**5-second expiry window on every signed operation:**
+
+\`\`\`typescript
+// signing.ts -- Trade execution with expiry
+async function signPacificaOperation(wallet, type, data) {
+  const message = JSON.stringify(sortKeysRecursive({
+    data,
+    expiry_window: 5000, // 5 seconds -- prevents replay attacks
+    timestamp: Date.now(),
+    type,
+  }));
+
+  const signature = await wallet.signMessage(new TextEncoder().encode(message));
+  return { signature: bs58.encode(signature), timestamp: Date.now() };
+}
+\`\`\`
+
+**Protected API endpoints -- every request is verified:**
+
+\`\`\`typescript
+// auth.ts -- Route protection middleware
+async function withAuth(request, handler) {
+  const token = extractBearerToken(request);
+  const payload = verifyToken(token);       // JWT verification
+  const user = await findUserById(payload.sub);
+
+  if (user.status === 'BANNED') throw new ForbiddenError(user.bannedReason);
+  if (user.status === 'DELETED') throw new ForbiddenError('Account deleted');
+
+  return handler({ userId: user.id, walletAddress: user.walletAddress });
+}
+\`\`\`
+
+### Account Change Detection
+
+The platform monitors wallet changes in real time to prevent unauthorized access.
+
+\`\`\`typescript
+// useAuth.ts -- Wallet change detection
+useEffect(() => {
+  const provider = window?.phantom?.solana;
+  provider?.on('accountChanged', (newPublicKey) => {
+    if (newPublicKey.toBase58() !== walletAddress) {
+      clearAuth();      // Invalidate current session
+      disconnect();     // Force wallet reconnect
+    }
+  });
+}, [walletAddress]);
+\`\`\`
+
+### Security Summary
+
+- **Private keys never leave your wallet** -- All signing is delegated to your wallet extension (Phantom, Solflare, Backpack).
+- **Ed25519 cryptographic verification** -- Every login signature is verified server-side using the @noble/ed25519 library.
+- **5-second expiry windows** -- Trade operations expire after 5 seconds, preventing replay attacks.
+- **Deterministic serialization** -- JSON keys are recursively sorted before signing, preventing signature manipulation.
+- **JWT-based sessions** -- Authenticated with 7-day expiry tokens, verified on every API request.
+- **Account change detection** -- Switching wallets automatically invalidates your session.
+- **User status enforcement** -- Banned and deleted accounts are blocked at both login and API level.
 
 ### Data Privacy
 
 - Your wallet address is public (as it is on any blockchain).
 - IP addresses are collected only for anti-cheat purposes and are never exposed through the platform.
 - Trading data is not shared with third parties.
+
+---
+
+## Roadmap
+
+Our vision is to build the most competitive trading platform in crypto. Below is our development roadmap organized by phase.
+
+### Phase 1 -- Foundation (Q1 2026)
+
+| Milestone | Status |
+|---|---|
+| Core platform development | Completed |
+| Pacifica DEX integration with 56+ perpetual markets | Completed |
+| 1v1 Fight System with real-time PnL tracking | Completed |
+| Weekly leaderboard with automated prize distribution | Completed |
+| Three-tier referral program | Completed |
+| AI Signal Bot powered by Claude AI | Completed |
+| Anti-cheat and fair play system | Completed |
+| Wallet-based authentication (no email/password) | Completed |
+| **Alpha Testing** -- Live testing with early adopters, gathering feedback and iterating on the platform | **In Progress** |
+| **Trader and Content Creator Partnerships** -- Collaborations with funded trader programs, trading YouTubers, streamers, and influencers | **In Progress** |
+
+### Phase 2 -- Multi-Exchange Expansion (Q2 2026)
+
+| Milestone | Details |
+|---|---|
+| Hyperliquid integration | High-performance perpetuals DEX -- expanding to the largest on-chain derivatives venue |
+| Lighter integration | On-chain order book protocol -- broadening decentralized trading options |
+| Cross-exchange leaderboard | Unified rankings regardless of which exchange a fighter uses |
+| Multi-Fight support | Participate in multiple fights simultaneously |
+
+### Phase 3 -- CEX Integrations and Tournaments (Q3 2026)
+
+| Milestone | Details |
+|---|---|
+| Binance integration | Access to the world's largest crypto exchange and its liquidity |
+| Bybit integration | Leading derivatives platform with deep order books |
+| OKX integration | Global derivatives exchange with advanced trading tools |
+| Tournament system | Organized bracket-style competitions with eliminations and larger prize pools |
+| League tiers | Bronze, Silver, Gold, and Diamond leagues based on skill and track record |
+
+### Phase 4 -- Advanced Platform (Q4 2026)
+
+| Milestone | Details |
+|---|---|
+| Bitfinex integration | Advanced trading infrastructure with institutional-grade liquidity |
+| Kraken integration | Trusted exchange with regulatory compliance and deep liquidity |
+| AI Trader | Autonomous AI trading agent -- evolution of AI Signal Bot that manages and executes trades based on configurable strategies |
+| Advanced tournament formats | Round-robin leagues, seasonal championships, and team-based competitions |
+
+### Phase 5 -- Ecosystem Growth (2027)
+
+| Milestone | Details |
+|---|---|
+| Mobile app | Native iOS and Android app for trading and fighting on the go |
+| API for third-party integrations | Public API for bots, analytics tools, and community-built features |
+
+*This roadmap is subject to change as we adapt to market conditions, community feedback, and new opportunities. Follow us on [X](https://x.com/T_F_C_official) for the latest updates.*
 
 ---
 
