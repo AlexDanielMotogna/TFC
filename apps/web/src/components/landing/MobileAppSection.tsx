@@ -12,10 +12,12 @@ import {
   FightOnlyFilterIcon,
   OrderTypesIcon,
   BatchOrdersIcon,
+  AiSignalIcon,
 } from '@/components/icons/FeatureIcons';
 
 // Trading features data - using centralized icons
 const tradingFeatures = [
+  { title: 'AI Signal Bot', icon: <AiSignalIcon className="w-5 h-5" />, color: 'orange' },
   { title: 'Leverage', icon: <LeverageIcon className="w-5 h-5" />, color: 'orange' },
   { title: 'Long & Short', icon: <LongShortIcon className="w-5 h-5" />, color: 'green' },
   { title: 'Order Types', icon: <OrderTypesIcon className="w-5 h-5" />, color: 'primary' },

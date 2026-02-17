@@ -18,6 +18,7 @@
  * - FightBanner: Lightning bolt - represents live fight status (orange)
  * - FightOnly: Filter - represents fight-only filter (violet)
  * - Prize: Trophy - represents prize claims and rewards (yellow/gold)
+ * - AiSignal: Brain/CPU - represents AI-powered trading signals (orange/red)
  *
  * Usage:
  * import { LongShortIcon, TakeProfitIcon } from '@/components/icons/FeatureIcons';
@@ -182,6 +183,19 @@ export function BatchOrdersIcon(props: IconProps) {
   return (
     <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+    </svg>
+  );
+}
+
+/**
+ * AI Signal Icon - Brain/CPU chip
+ * Used for: AI Signal Trading Bot feature
+ * Color theme: Orange/Red
+ */
+export function AiSignalIcon(props: IconProps) {
+  return (
+    <svg {...props} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5m-4.75-11.396c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 00-.659 1.59v1.19a2.25 2.25 0 01-2.25 2.25h-3.242a2.25 2.25 0 01-2.25-2.25v-1.19a2.25 2.25 0 00-.659-1.59L5 14.5m14 0V9a2 2 0 00-2-2M5 14.5V9a2 2 0 012-2" />
     </svg>
   );
 }
