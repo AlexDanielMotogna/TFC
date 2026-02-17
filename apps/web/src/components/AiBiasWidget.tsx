@@ -74,6 +74,48 @@ export function AiBiasWidget({ selectedMarket, tvWidget }: AiBiasWidgetProps) {
   const drawnShapeIdsRef = useRef<unknown[]>([]);
   const lastDrawnTimestampRef = useRef<number | null>(null);
 
+  // Drag state for FAB button (works on both desktop and mobile)
+  const [fabPos, setFabPos] = useState<{ x: number; y: number } | null>(null);
+  const isDragging = useRef(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
+  const fabRef = useRef<HTMLButtonElement>(null);
+
+  const startDrag = useCallback((clientX: number, clientY: number) => {
+    const el = fabRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    isDragging.current = true;
+    hasDragged.current = false;
+    dragOffset.current = { x: clientX - rect.left, y: clientY - rect.top };
+  }, []);
+
+  const moveDrag = useCallback((clientX: number, clientY: number) => {
+    if (!isDragging.current) return;
+    hasDragged.current = true;
+    const x = Math.max(0, Math.min(window.innerWidth - 80, clientX - dragOffset.current.x));
+    const y = Math.max(0, Math.min(window.innerHeight - 40, clientY - dragOffset.current.y));
+    setFabPos({ x, y });
+  }, []);
+
+  const endDrag = useCallback(() => { isDragging.current = false; }, []);
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => moveDrag(e.clientX, e.clientY);
+    const onTouchMove = (e: TouchEvent) => { if (isDragging.current && e.touches[0]) { e.preventDefault(); moveDrag(e.touches[0].clientX, e.touches[0].clientY); } };
+    const onEnd = () => endDrag();
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+  }, [moveDrag, endDrag]);
+
   // Disclaimer state
   const [disclaimerAccepted, setDisclaimerAccepted] = useState(false);
   const [showDisclaimer, setShowDisclaimer] = useState(false);
@@ -397,11 +439,15 @@ export function AiBiasWidget({ selectedMarket, tvWidget }: AiBiasWidgetProps) {
 
   return (
     <>
-      {/* ═══ FAB ═══ */}
+      {/* ═══ FAB (draggable) ═══ */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
-          className="fixed top-[72px] right-3 xl:top-auto xl:bottom-8 xl:right-5 z-50 group"
+          ref={fabRef}
+          onClick={() => { if (!hasDragged.current) setIsOpen(true); }}
+          onMouseDown={(e) => startDrag(e.clientX, e.clientY)}
+          onTouchStart={(e) => { if (e.touches[0]) startDrag(e.touches[0].clientX, e.touches[0].clientY); }}
+          className="fixed top-[72px] right-3 xl:top-auto xl:bottom-8 xl:right-5 z-50 group touch-none"
+          style={fabPos ? { left: fabPos.x, top: fabPos.y, right: 'auto', bottom: 'auto' } : undefined}
         >
           <div className="flex items-center gap-2 px-3 py-2 xl:px-3.5 xl:py-2.5 bg-surface-900/90 backdrop-blur-md border border-surface-700/50 rounded-xl hover:border-surface-500/50 transition-all duration-300 shadow-lg shadow-black/30">
             <div className="relative w-6 h-6 xl:w-7 xl:h-7">
