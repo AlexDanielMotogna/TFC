@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
   HandCoins,
+  Crown,
   X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/admin/prize-pool', label: 'Prize Pool', icon: Gift },
   { href: '/admin/referrals/payouts', label: 'Referrals', icon: HandCoins },
   { href: '/admin/beta', label: 'Beta Access', icon: UserCheck },
+  { href: '/admin/alpha-testers', label: 'Alpha Testers', icon: Crown },
   { href: '/admin/anti-cheat', label: 'Anti-Cheat', icon: ShieldCheck },
   { href: '/admin/jobs', label: 'Jobs', icon: Activity },
   { href: '/admin/system', label: 'System', icon: Settings },
