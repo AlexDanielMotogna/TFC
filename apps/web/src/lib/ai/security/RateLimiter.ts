@@ -39,7 +39,7 @@ export class RateLimiter {
     entry.timestamps = entry.timestamps.filter(t => now - t < this.windowMs);
 
     if (entry.timestamps.length >= this.maxRequests) {
-      const oldestInWindow = entry.timestamps[0];
+      const oldestInWindow = entry.timestamps[0] ?? now;
       const retryAfter = Math.ceil((oldestInWindow + this.windowMs - now) / 1000);
       return { allowed: false, retryAfter, remaining: 0 };
     }

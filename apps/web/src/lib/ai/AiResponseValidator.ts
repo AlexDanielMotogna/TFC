@@ -162,7 +162,7 @@ function extractJson(raw: string): string {
 
   // Try to extract from markdown code block: ```json ... ``` or ``` ... ```
   const codeBlockMatch = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  if (codeBlockMatch) {
+  if (codeBlockMatch?.[1]) {
     return codeBlockMatch[1].trim();
   }
 
