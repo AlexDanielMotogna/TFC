@@ -7,6 +7,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
+import type { ChartWidget } from '@/components/TradingViewChartAdvanced';
 import { OrderBook } from '@/components/OrderBook';
 import { Positions, type Position, type LimitCloseParams, type MarketCloseParams, type TpSlParams } from '@/components/Positions';
 import { FightBanner } from '@/components/FightBanner';
@@ -18,6 +19,7 @@ import { Toggle } from '@/components/Toggle';
 import { WithdrawModal } from '@/components/WithdrawModal';
 import { EditOrderModal } from '@/components/EditOrderModal';
 import { BetaGate } from '@/components/BetaGate';
+import { AiBiasWidget } from '@/components/AiBiasWidget';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { toast } from 'sonner';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -93,6 +95,9 @@ function TradePageContent() {
 
   // Pacifica WebSocket connection status (for real-time updates)
   const pacificaWsConnected = usePacificaWsStore((state) => state.isConnected);
+
+  // TradingView widget instance — shared with AiBiasWidget for chart drawing
+  const [tvWidget, setTvWidget] = useState<ChartWidget | null>(null);
 
   // Trading terminal state - initialize from URL if present
   const [selectedMarket, setSelectedMarket] = useState(() => urlSymbol || 'BTC-USD');
@@ -175,6 +180,13 @@ function TradePageContent() {
   const [showAccountStats, setShowAccountStats] = useState(false);
   const [showMarketInfo, setShowMarketInfo] = useState(false);
   const [slippageInput, setSlippageInput] = useState('0.5');
+
+  // Quick order from chart right-click context menu
+  const [quickOrderPrice, setQuickOrderPrice] = useState<number | null>(null);
+  const [quickOrderSide, setQuickOrderSide] = useState<'LONG' | 'SHORT'>('LONG');
+  const [quickOrderAmount, setQuickOrderAmount] = useState('');
+  const [quickOrderSubmitting, setQuickOrderSubmitting] = useState(false);
+  const [quickOrderClickY, setQuickOrderClickY] = useState<number | null>(null);
 
   // Mobile CEX-style layout state (only used < xl)
   const [mobileSection, setMobileSection] = useState<'chart' | 'orderbook' | 'info'>('chart');
@@ -572,6 +584,55 @@ function TradePageContent() {
     // No opposite position, execute directly
     await executeOrder();
   }, [isAuthenticated, pacificaConnected, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
+
+  // Quick order from chart right-click context menu
+  const handleChartQuickOrder = useCallback((price: number, side: 'LONG' | 'SHORT', clickY?: number) => {
+    setQuickOrderPrice(price);
+    setQuickOrderSide(side);
+    setQuickOrderAmount('');
+    setQuickOrderClickY(clickY ?? null);
+  }, []);
+
+  const handleQuickOrderSubmit = useCallback(async () => {
+    if (!quickOrderPrice || !quickOrderAmount || quickOrderSubmitting) return;
+
+    const symbol = selectedMarket.replace('-USD', '');
+    const usdAmount = parseFloat(quickOrderAmount);
+    if (isNaN(usdAmount) || usdAmount <= 0) return;
+    if (usdAmount < 11) {
+      toast.error('Minimum order size is $11');
+      return;
+    }
+
+    // Convert USD to token amount
+    const tokenAmount = usdAmount / quickOrderPrice;
+    const orderAmount = roundToLotSize(tokenAmount, lotSize);
+    if (parseFloat(orderAmount) <= 0) {
+      toast.error('Amount too small');
+      return;
+    }
+
+    setQuickOrderSubmitting(true);
+    try {
+      await createLimitOrder.mutateAsync({
+        symbol,
+        side: quickOrderSide === 'LONG' ? 'bid' : 'ask',
+        price: roundToTickSize(quickOrderPrice),
+        amount: orderAmount,
+        tif: 'GTC',
+        leverage,
+        fightId: fightId || undefined,
+      });
+      toast.success(`Limit ${quickOrderSide === 'LONG' ? 'Buy' : 'Sell'} at $${roundToTickSize(quickOrderPrice)}`);
+      setQuickOrderPrice(null);
+      setQuickOrderAmount('');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to place order';
+      toast.error(message);
+    } finally {
+      setQuickOrderSubmitting(false);
+    }
+  }, [quickOrderPrice, quickOrderAmount, quickOrderSubmitting, quickOrderSide, selectedMarket, leverage, fightId, createLimitOrder, lotSize, roundToTickSize]);
 
   const handleCancelOrder = useCallback(async (orderId: string, symbol: string, orderType?: string) => {
     try {
@@ -1137,7 +1198,7 @@ function TradePageContent() {
           <div className="card overflow-hidden">
             {mobileSection === 'chart' && (
               <div className="h-[400px]">
-                <TradingViewChartAdvanced symbol={selectedMarket} height={400} />
+                <TradingViewChartAdvanced symbol={selectedMarket} height={400} currentPrice={currentPrice} onQuickOrder={handleChartQuickOrder} onWidgetReady={setTvWidget} />
               </div>
             )}
             {mobileSection === 'orderbook' && (
@@ -1649,11 +1710,73 @@ function TradePageContent() {
 
                 {/* Mobile market info removed — handled by mobile layout above */}
                 {/* Chart */}
-                <div className="h-[650px]">
+                <div className="h-[650px] relative">
                   <TradingViewChartAdvanced
                     symbol={selectedMarket}
                     height={650}
+                    currentPrice={currentPrice}
+                    onQuickOrder={handleChartQuickOrder}
+                    onWidgetReady={setTvWidget}
                   />
+                  {/* Quick Order overlay from right-click context menu */}
+                  {quickOrderPrice !== null && (
+                    <div
+                      className="absolute z-20 flex items-center gap-2 bg-surface-900/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-2xl"
+                      style={{ top: quickOrderClickY != null ? quickOrderClickY : '50%', right: 80, transform: 'translateY(-50%)' }}
+                    >
+                      <button
+                        onClick={() => setQuickOrderPrice(null)}
+                        className="text-surface-500 hover:text-white transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                      <div className="flex flex-col min-w-0">
+                        <span className={`text-[10px] leading-tight ${quickOrderSide === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>
+                          Limit {quickOrderSide === 'LONG' ? 'Buy' : 'Sell'}
+                        </span>
+                        <span className="text-white font-mono text-sm font-medium">
+                          ${quickOrderPrice >= 1000
+                            ? quickOrderPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            : quickOrderPrice >= 1
+                              ? quickOrderPrice.toFixed(2)
+                              : quickOrderPrice.toFixed(4)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={quickOrderAmount}
+                          onChange={(e) => setQuickOrderAmount(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && quickOrderAmount) {
+                              handleQuickOrderSubmit();
+                            }
+                            if (e.key === 'Escape') {
+                              setQuickOrderPrice(null);
+                            }
+                          }}
+                          placeholder="Min $11"
+                          className="w-20 bg-surface-800 rounded px-2 py-1.5 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-surface-600 placeholder:text-surface-600"
+                          autoFocus
+                        />
+                        <span className="text-surface-500 text-[10px]">USD</span>
+                      </div>
+                      <button
+                        onClick={() => handleQuickOrderSubmit()}
+                        disabled={quickOrderSubmitting || !quickOrderAmount}
+                        className={`px-4 py-1.5 text-white text-xs font-bold rounded transition-colors disabled:opacity-40 ${
+                          quickOrderSide === 'LONG'
+                            ? 'bg-win-500 hover:bg-win-400'
+                            : 'bg-loss-500 hover:bg-loss-400'
+                        }`}
+                      >
+                        {quickOrderSubmitting ? '...' : quickOrderSide === 'LONG' ? 'Buy' : 'Sell'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -3899,6 +4022,8 @@ function TradePageContent() {
           </div>
         </div>
       )}
+      {/* AI Market Bias Widget */}
+      <AiBiasWidget selectedMarket={selectedMarket} currentPrice={currentPrice} tvWidget={tvWidget} />
     </AppShell>
     </BetaGate>
   );
