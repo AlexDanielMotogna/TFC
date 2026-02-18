@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminTable, AdminPagination, AdminBadge } from '@/components/admin';
-import { Search, Users, ShieldCheck, ShieldOff, Plus, Power, PowerOff, Pencil, Trash2 } from 'lucide-react';
+import { Search, Users, ShieldCheck, ShieldOff, Plus, Power, PowerOff, Pencil, Trash2, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AlphaTester {
@@ -57,9 +57,76 @@ export default function AdminAlphaTestersPage() {
   const [editNote, setEditNote] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Export state
+  const [isExporting, setIsExporting] = useState(false);
+
   // Delete confirm state
   const [deletingWallet, setDeletingWallet] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const exportTesters = async (format: 'csv' | 'xlsx') => {
+    if (!token) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams({ page: '1', pageSize: '10000' });
+      if (search) params.set('search', search);
+
+      const response = await fetch(`/api/admin/alpha-testers?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!data.success) return;
+
+      const rows = (data.data?.testers || []).map((t: AlphaTester) => ({
+        'Wallet Address': t.walletAddress,
+        Note: t.note || '',
+        Access: t.accessEnabled ? 'Enabled' : 'Disabled',
+        Added: new Date(t.createdAt).toLocaleString(),
+      }));
+
+      if (format === 'csv') {
+        const headers = Object.keys(rows[0] || {});
+        const csvContent = [
+          headers.join(','),
+          ...rows.map((row: Record<string, string | number>) =>
+            headers.map((h) => `"${String(row[h]).replace(/"/g, '""')}"`).join(',')
+          ),
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tfc-alpha-testers-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const headers = Object.keys(rows[0] || {});
+        const xmlRows = rows.map((row: Record<string, string | number>) =>
+          '<Row>' + headers.map((h) => `<Cell><Data ss:Type="${typeof row[h] === 'number' ? 'Number' : 'String'}">${String(row[h]).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>`).join('') + '</Row>'
+        ).join('\n');
+
+        const xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Alpha Testers"><Table>
+<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
+${xmlRows}
+</Table></Worksheet></Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tfc-alpha-testers-${new Date().toISOString().slice(0, 10)}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const fetchTesters = useCallback(async () => {
     if (!token) return;
@@ -257,7 +324,7 @@ export default function AdminAlphaTestersPage() {
       header: 'Added',
       render: (tester: AlphaTester) => (
         <span className="text-surface-400 text-sm">
-          {new Date(tester.createdAt).toLocaleDateString()}
+          {new Date(tester.createdAt).toLocaleString()}
         </span>
       ),
     },
@@ -349,7 +416,7 @@ export default function AdminAlphaTestersPage() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search & Export */}
       <div className="flex gap-4 items-center">
         <form onSubmit={handleSearch} className="flex-1 max-w-md">
           <div className="relative">
@@ -366,6 +433,25 @@ export default function AdminAlphaTestersPage() {
             />
           </div>
         </form>
+
+        <div className="flex gap-2 ml-auto">
+          <button
+            onClick={() => exportTesters('csv')}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-850 border border-surface-700 rounded-lg text-sm text-surface-300 hover:text-white hover:border-surface-500 transition-colors disabled:opacity-50"
+          >
+            <Download size={14} />
+            CSV
+          </button>
+          <button
+            onClick={() => exportTesters('xlsx')}
+            disabled={isExporting}
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-850 border border-surface-700 rounded-lg text-sm text-surface-300 hover:text-white hover:border-surface-500 transition-colors disabled:opacity-50"
+          >
+            <Download size={14} />
+            Excel
+          </button>
+        </div>
       </div>
 
       {/* Table */}

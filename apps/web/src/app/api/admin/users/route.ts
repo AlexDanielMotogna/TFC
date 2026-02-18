@@ -70,6 +70,7 @@ export async function GET(request: Request) {
         walletAddress: user.walletAddress,
         avatarUrl: user.avatarUrl,
         role: user.role,
+        referralCode: user.referralCode,
         createdAt: user.createdAt,
         hasPacifica: user.pacificaConnection?.isActive || false,
         pacificaAddress: user.pacificaConnection?.accountAddress || null,

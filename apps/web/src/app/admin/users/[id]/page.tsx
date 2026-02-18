@@ -279,7 +279,7 @@ export default function AdminUserDetailPage({
           </p>
           {user.bannedAt && (
             <p className="text-sm text-loss-400 mt-1">
-              Banned on {new Date(user.bannedAt).toLocaleDateString()}
+              Banned on {new Date(user.bannedAt).toLocaleString()}
               {user.bannedReason && ` - ${user.bannedReason}`}
             </p>
           )}
@@ -394,7 +394,7 @@ export default function AdminUserDetailPage({
             <div className="flex justify-between">
               <dt className="text-surface-400">Created</dt>
               <dd className="text-white">
-                {new Date(user.createdAt).toLocaleDateString()}
+                {new Date(user.createdAt).toLocaleString()}
               </dd>
             </div>
           </dl>
@@ -442,7 +442,7 @@ export default function AdminUserDetailPage({
               <div className="flex justify-between">
                 <dt className="text-surface-400">Connected</dt>
                 <dd className="text-white">
-                  {new Date(user.pacificaConnection.connectedAt).toLocaleDateString()}
+                  {new Date(user.pacificaConnection.connectedAt).toLocaleString()}
                 </dd>
               </div>
             </dl>
@@ -551,7 +551,7 @@ export default function AdminUserDetailPage({
             <div className="flex justify-between">
               <dt className="text-surface-400">Last Updated</dt>
               <dd className="text-white">
-                {new Date(user.updatedAt).toLocaleDateString()}
+                {new Date(user.updatedAt).toLocaleString()}
               </dd>
             </div>
           </dl>
@@ -629,7 +629,7 @@ export default function AdminUserDetailPage({
                       )}
                     </td>
                     <td className="py-2 text-right text-surface-400">
-                      {new Date(fight.joinedAt).toLocaleDateString()}
+                      {new Date(fight.joinedAt).toLocaleString()}
                     </td>
                   </tr>
                 ))}

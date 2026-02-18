@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { AdminTable, AdminPagination, AdminBadge } from '@/components/admin';
-import { Search, Check, X, Users, AlertTriangle } from 'lucide-react';
+import { Search, Check, X, Users, AlertTriangle, Download } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface BetaApplication {
@@ -74,6 +74,80 @@ export default function AdminBetaPage() {
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [selectedWallets, setSelectedWallets] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const exportApplications = async (format: 'csv' | 'xlsx') => {
+    if (!token) return;
+    setIsExporting(true);
+    try {
+      const params = new URLSearchParams({ page: '1', pageSize: '10000' });
+      if (search) params.set('search', search);
+      if (statusFilter) params.set('status', statusFilter);
+      if (ipFilter) params.set('ip', ipFilter);
+      if (flaggedOnly) params.set('flagged', 'true');
+
+      const response = await fetch(`/api/admin/beta?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!data.success) return;
+
+      const rows = (data.data?.applications || []).map((app: BetaApplication) => ({
+        'Wallet Address': app.walletAddress,
+        Status: app.status.toUpperCase(),
+        'IP Address': app.ipAddress || '',
+        Country: app.country || '',
+        ISP: app.isp || '',
+        'Multi-IP Flag': app.multiIpFlag ? 'Yes' : 'No',
+        'Device Match Flag': app.deviceMatchFlag ? 'Yes' : 'No',
+        'IP Account Count': app.ipAccountCount,
+        Applied: new Date(app.appliedAt).toLocaleString(),
+        Approved: app.approvedAt ? new Date(app.approvedAt).toLocaleString() : '',
+      }));
+
+      if (format === 'csv') {
+        const headers = Object.keys(rows[0] || {});
+        const csvContent = [
+          headers.join(','),
+          ...rows.map((row: Record<string, string | number>) =>
+            headers.map((h) => `"${String(row[h]).replace(/"/g, '""')}"`).join(',')
+          ),
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tfc-beta-applications-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const headers = Object.keys(rows[0] || {});
+        const xmlRows = rows.map((row: Record<string, string | number>) =>
+          '<Row>' + headers.map((h) => `<Cell><Data ss:Type="${typeof row[h] === 'number' ? 'Number' : 'String'}">${String(row[h]).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>`).join('') + '</Row>'
+        ).join('\n');
+
+        const xml = `<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Worksheet ss:Name="Beta Applications"><Table>
+<Row>${headers.map((h) => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>
+${xmlRows}
+</Table></Worksheet></Workbook>`;
+
+        const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tfc-beta-applications-${new Date().toISOString().slice(0, 10)}.xls`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const fetchApplications = useCallback(async () => {
     if (!token) return;
@@ -286,7 +360,7 @@ export default function AdminBetaPage() {
       header: 'Applied',
       render: (app: BetaApplication) => (
         <span className="text-surface-400 text-sm">
-          {new Date(app.appliedAt).toLocaleDateString()}
+          {new Date(app.appliedAt).toLocaleString()}
         </span>
       ),
     },
@@ -295,7 +369,7 @@ export default function AdminBetaPage() {
       header: 'Approved',
       render: (app: BetaApplication) => (
         <span className="text-surface-400 text-sm">
-          {app.approvedAt ? new Date(app.approvedAt).toLocaleDateString() : '-'}
+          {app.approvedAt ? new Date(app.approvedAt).toLocaleString() : '-'}
         </span>
       ),
     },
@@ -484,6 +558,27 @@ export default function AdminBetaPage() {
               className="px-4 py-2 bg-loss-500/20 hover:bg-loss-500/30 text-loss-400 rounded-lg text-sm font-medium disabled:opacity-50 transition-colors"
             >
               Reject All
+            </button>
+          </div>
+        )}
+
+        {selectedWallets.size === 0 && (
+          <div className="flex gap-2 ml-auto">
+            <button
+              onClick={() => exportApplications('csv')}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-2 bg-surface-850 border border-surface-700 rounded-lg text-sm text-surface-300 hover:text-white hover:border-surface-500 transition-colors disabled:opacity-50"
+            >
+              <Download size={14} />
+              CSV
+            </button>
+            <button
+              onClick={() => exportApplications('xlsx')}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-2 bg-surface-850 border border-surface-700 rounded-lg text-sm text-surface-300 hover:text-white hover:border-surface-500 transition-colors disabled:opacity-50"
+            >
+              <Download size={14} />
+              Excel
             </button>
           </div>
         )}

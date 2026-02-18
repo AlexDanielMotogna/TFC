@@ -263,7 +263,7 @@ export default function AdminFightsPage() {
       header: 'Created',
       render: (fight: Fight) => (
         <span className="text-surface-400 text-sm">
-          {new Date(fight.createdAt).toLocaleDateString()}
+          {new Date(fight.createdAt).toLocaleString()}
         </span>
       ),
     },

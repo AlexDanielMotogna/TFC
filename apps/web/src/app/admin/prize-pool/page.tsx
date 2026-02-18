@@ -123,7 +123,7 @@ export default function AdminPrizePoolPage() {
             />
             <AdminCard
               title="Week Ends"
-              value={new Date(currentPool.weekEndDate).toLocaleDateString()}
+              value={new Date(currentPool.weekEndDate).toLocaleString()}
               icon={Calendar}
             />
             <AdminCard
@@ -162,8 +162,8 @@ export default function AdminPrizePoolPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-white font-medium">
-                      {new Date(pool.weekStartDate).toLocaleDateString()} -{' '}
-                      {new Date(pool.weekEndDate).toLocaleDateString()}
+                      {new Date(pool.weekStartDate).toLocaleString()} -{' '}
+                      {new Date(pool.weekEndDate).toLocaleString()}
                     </p>
                     <p className="text-sm text-surface-400">
                       Pool: ${pool.totalPrizePool.toFixed(2)} from $

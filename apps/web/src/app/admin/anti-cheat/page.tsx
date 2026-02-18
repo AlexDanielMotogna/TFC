@@ -466,7 +466,7 @@ export default function AdminAntiCheatPage() {
       header: 'Last Violation',
       render: (u: SuspiciousUser) => (
         <span className="text-surface-400 text-sm whitespace-nowrap">
-          {new Date(u.lastViolation).toLocaleDateString()}
+          {new Date(u.lastViolation).toLocaleString()}
         </span>
       ),
     },
