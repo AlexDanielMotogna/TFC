@@ -99,18 +99,20 @@ export function FeaturesGrid() {
           })}
         </div>
 
-        {/* CTA */}
-        <div className="mt-12 text-center">
-          <Link
-            href="/trade"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold text-white bg-orange-500 hover:bg-orange-400 transition-colors shadow-lg shadow-orange-500/20"
-          >
-            Join Beta
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </Link>
-        </div>
+       {/* CTA
+<div className="mt-12 text-center">
+  <Link
+    href="/trade"
+    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-semibold text-white bg-orange-500 hover:bg-orange-400 transition-colors shadow-lg shadow-orange-500/20"
+  >
+    Join Beta
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+    </svg>
+  </Link>
+</div>
+*/}
+
       </div>
     </section>
   );
