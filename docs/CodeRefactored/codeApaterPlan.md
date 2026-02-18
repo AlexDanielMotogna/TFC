@@ -154,7 +154,9 @@ User's Browser                          Our Backend                    Lighter A
 
 ---
 
-## Phase 2: Signing Abstraction Layer
+## Phase 2: Signing Abstraction Layer ✅ COMPLETE
+
+**Status:** Committed as `d079385`
 
 **Goal:** Abstract signing so hooks don't care which exchange. Must support TWO signing patterns:
 1. **Client-side signing** (Pacifica) — user's wallet signs in the browser
@@ -233,7 +235,9 @@ interface ExchangeSigner {
 
 ---
 
-## Phase 3: Refactor Frontend Trading Hooks
+## Phase 3: Refactor Frontend Trading Hooks ✅ COMPLETE
+
+**Status:** Committed (pending push)
 
 **Goal:** Make `useOrders.ts` (1161 lines, 12 hooks) exchange-agnostic.
 
