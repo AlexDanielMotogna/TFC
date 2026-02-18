@@ -801,7 +801,7 @@ export default function FightResultsPage() {
           </Link>
           <Link
             href="/trade"
-            className="px-6 py-3 bg-primary-500 hover:bg-primary-400 rounded-lg font-semibold text-center transition-colors"
+            className="px-6 py-3 bg-white hover:bg-surface-200 text-black rounded-lg font-semibold text-center transition-colors"
           >
             Trade Now
           </Link>

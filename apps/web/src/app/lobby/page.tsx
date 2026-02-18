@@ -569,7 +569,7 @@ export default function LobbyPage() {
                           onClick={() => setCurrentPage(page)}
                           className={`w-10 h-10 rounded-lg font-medium transition-colors ${
                             currentPage === page
-                              ? 'bg-primary-500 text-white'
+                              ? 'bg-white text-black'
                               : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white'
                           }`}
                         >
@@ -623,7 +623,7 @@ export default function LobbyPage() {
                     onClick={() => setSelectedDuration(duration)}
                     className={`py-2.5 rounded-lg font-semibold text-sm transition-all ${
                       selectedDuration === duration
-                        ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                        ? 'bg-white text-black'
                         : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-surface-800'
                     }`}
                   >
@@ -645,7 +645,7 @@ export default function LobbyPage() {
                     onClick={() => setSelectedStake(stake)}
                     className={`py-2.5 rounded-lg font-semibold text-sm transition-all ${
                       selectedStake === stake
-                        ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-glow-sm'
+                        ? 'bg-white text-black'
                         : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-surface-800'
                     }`}
                   >
