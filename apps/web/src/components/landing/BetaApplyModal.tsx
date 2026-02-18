@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
@@ -8,12 +9,14 @@ import { useBetaAccess } from '@/hooks';
 interface BetaApplyModalProps {
   isOpen: boolean;
   onClose: () => void;
+  isAlphaFlow?: boolean;
 }
 
-export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
+export function BetaApplyModal({ isOpen, onClose, isAlphaFlow }: BetaApplyModalProps) {
   const router = useRouter();
   const { connected, publicKey } = useWallet();
   const { status, applied, isApplying, applyForBeta, hasAccess, isAlphaTester, referralCode, refetch } = useBetaAccess();
+  const [betaApplied, setBetaApplied] = useState(false);
 
   if (!isOpen) return null;
 
@@ -25,7 +28,7 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
   const handleApply = async () => {
     const result = await applyForBeta();
     if (result?.success) {
-      // Refetch to get latest state (including isAlphaTester)
+      setBetaApplied(true);
       refetch();
     }
   };
@@ -36,7 +39,7 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
       <div className="bg-surface-900 rounded-2xl w-full max-w-md mx-4 p-6" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-white font-semibold text-sm">Join Closed Beta</h3>
+          <h3 className="text-white font-semibold text-sm">{isAlphaFlow ? 'Apply for Alpha Testing' : 'Join Closed Beta'}</h3>
           <button
             onClick={onClose}
             className="text-surface-500 hover:text-white transition-colors"
@@ -125,6 +128,42 @@ export function BetaApplyModal({ isOpen, onClose }: BetaApplyModalProps) {
                 className="w-full py-2.5 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition-colors"
               >
                 Start Trading
+              </button>
+            </>
+          ) : isAlphaFlow && (betaApplied || (applied && status === 'pending')) ? (
+            // Alpha flow: beta applied — show Google Form link
+            <>
+              <div className="text-center py-4">
+                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h4 className="text-white font-medium mb-2">Beta Application Submitted!</h4>
+                <p className="text-surface-400 text-sm">
+                  Now complete the alpha testing form below to finish your application.
+                </p>
+              </div>
+
+              <a
+                href="https://forms.gle/9nR9tYmf5imJG8Ck6"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Complete Alpha Testing Form
+              </a>
+              <button
+                onClick={() => refetch()}
+                className="w-full py-3 bg-surface-700 hover:bg-surface-600 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Verify Application
               </button>
             </>
           ) : applied && status === 'pending' ? (
