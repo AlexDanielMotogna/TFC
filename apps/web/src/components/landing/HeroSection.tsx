@@ -70,20 +70,20 @@ export function HeroSection() {
 
             {/* CTAs */}
             <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-10">
+              {/* Join Beta button temporarily hidden
               <button
                 onClick={() => setShowBetaModal(true)}
                 className="btn-glow-orange w-full sm:w-auto text-center"
               >
                 Join Beta
               </button>
-              <a
-                href="https://forms.gle/9nR9tYmf5imJG8Ck6"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto text-center px-6 py-3 bg-white text-surface-900 hover:bg-surface-200 font-semibold rounded-lg transition-colors"
+              */}
+              <button
+                onClick={() => setShowBetaModal(true)}
+                className="btn-glow-orange w-full sm:w-auto text-center"
               >
                 Apply for Alpha Testing
-              </a>
+              </button>
             </div>
 
             {/* Stats Row */}
@@ -170,7 +170,7 @@ export function HeroSection() {
       </div>
 
       {/* Beta Apply Modal */}
-      <BetaApplyModal isOpen={showBetaModal} onClose={() => setShowBetaModal(false)} />
+      <BetaApplyModal isOpen={showBetaModal} onClose={() => setShowBetaModal(false)} isAlphaFlow />
     </section>
   );
 }
