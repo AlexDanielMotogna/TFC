@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { usePositions, useAccountSettings } from '@/hooks/usePositions';
 import { usePrices } from '@/hooks/usePrices';
 import { QuickPositionModal } from './QuickPositionModal';
-import type { Position } from '@/hooks/usePacificaWebSocket';
+import type { Position } from '@/hooks/useExchangeWebSocket';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import { calculatePositionMetrics } from '@/lib/trading/utils';
 

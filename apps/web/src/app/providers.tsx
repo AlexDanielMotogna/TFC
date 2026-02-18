@@ -46,14 +46,14 @@ function GlobalSocketInitializer({ children }: { children: ReactNode }) {
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <WalletProviderComponent>
-        <ExchangeProvider>
+      <ExchangeProvider>
+        <WalletProviderComponent>
           <GlobalSocketInitializer>
             <ReferralTracker />
             {children}
           </GlobalSocketInitializer>
-        </ExchangeProvider>
-      </WalletProviderComponent>
+        </WalletProviderComponent>
+      </ExchangeProvider>
     </QueryClientProvider>
   );
 }
