@@ -5,8 +5,8 @@
 import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
-
-const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
+import { getOrderRouter } from '@/lib/server/exchanges/order-router';
+import type { ExchangeType } from '@tfc/shared';
 
 export async function DELETE(
   request: Request,
@@ -15,60 +15,48 @@ export async function DELETE(
   try {
     const { orderId } = await params;
     const { searchParams } = new URL(request.url);
+    const exchange = searchParams.get('exchange') as ExchangeType | null;
     const account = searchParams.get('account');
     const symbol = searchParams.get('symbol');
     const signature = searchParams.get('signature');
     const timestamp = searchParams.get('timestamp');
 
-    if (!account || !symbol || !signature || !timestamp) {
-      throw new BadRequestError('account, symbol, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+    const exchangeType: ExchangeType = exchange || 'pacifica';
+    const router = getOrderRouter(exchangeType);
+
+    if (!router.signsServerSide) {
+      if (!account || !symbol || !signature || !timestamp) {
+        throw new BadRequestError('account, symbol, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+      }
+    } else {
+      if (!account || !symbol) {
+        throw new BadRequestError('account and symbol are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+      }
     }
 
-    const requestBody = {
-      account,
-      symbol,
-      order_id: parseInt(orderId, 10),
-      signature,
-      timestamp: parseInt(timestamp, 10),
-      expiry_window: 5000,
-    };
-
-    console.log('Cancelling order:', requestBody);
-
-    // Proxy to Pacifica API
-    const response = await fetch(`${PACIFICA_API_URL}/api/v1/orders/cancel`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
+    // Route to the correct exchange
+    const result = await router.cancelOrder({
+      account: account!,
+      order_id: orderId,
+      symbol: symbol!,
+      signature: signature || undefined,
+      timestamp: timestamp ? parseInt(timestamp, 10) : undefined,
     });
 
-    const responseText = await response.text();
-    console.log('Pacifica cancel response:', { status: response.status, body: responseText });
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
-    }
-
-    if (!response.ok || !result.success) {
-      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+    if (!result.success) {
+      throw new ServiceUnavailableError(result.error || 'Exchange API error', ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Order cancelled', {
-      account,
-      symbol,
-      orderId,
+      exchange: exchangeType,
+      account, symbol, orderId,
     });
 
     // Record cancel action (non-blocking)
     recordOrderAction({
-      walletAddress: account,
+      walletAddress: account!,
       actionType: 'CANCEL_ORDER',
-      symbol,
+      symbol: symbol!,
       pacificaOrderId: parseInt(orderId, 10),
       success: true,
     }).catch(err => console.error('Failed to record cancel action:', err));

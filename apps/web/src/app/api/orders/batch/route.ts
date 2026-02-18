@@ -7,13 +7,16 @@
  */
 import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
-
-const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
+import { getOrderRouter } from '@/lib/server/exchanges/order-router';
+import type { ExchangeType } from '@tfc/shared';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { actions } = body;
+    const { exchange, actions } = body;
+
+    const exchangeType: ExchangeType = exchange || 'pacifica';
+    const router = getOrderRouter(exchangeType);
 
     if (!actions || !Array.isArray(actions) || actions.length === 0) {
       throw new BadRequestError('actions array is required and must not be empty', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
@@ -31,43 +34,34 @@ export async function POST(request: Request) {
       if (action.type !== 'Create' && action.type !== 'Cancel') {
         throw new BadRequestError(`Action ${i} has invalid type: ${action.type}`, ErrorCode.ERR_VALIDATION_INVALID_PARAMETER);
       }
-      if (!action.data.account || !action.data.signature || !action.data.timestamp) {
-        throw new BadRequestError(`Action ${i} missing account, signature, or timestamp`, ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+      // For client-signed exchanges, each action needs signature
+      if (!router.signsServerSide) {
+        if (!action.data.account || !action.data.signature || !action.data.timestamp) {
+          throw new BadRequestError(`Action ${i} missing account, signature, or timestamp`, ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+        }
+      } else {
+        if (!action.data.account) {
+          throw new BadRequestError(`Action ${i} missing account`, ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+        }
       }
     }
 
-    console.log('Sending batch to Pacifica:', {
+    console.log('Sending batch order:', {
+      exchange: exchangeType,
       actionCount: actions.length,
       actionTypes: actions.map((a: { type: string }) => a.type),
     });
 
-    const response = await fetch(`${PACIFICA_API_URL}/api/v1/orders/batch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ actions }),
-    });
+    // Route to the correct exchange
+    const result = await router.batchOrders({ account: actions[0].data.account, actions });
 
-    const responseText = await response.text();
-    console.log('Pacifica batch response:', { status: response.status, body: responseText });
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
-    }
-
-    if (!response.ok || !result.success) {
-      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+    if (!result.success) {
+      throw new ServiceUnavailableError(result.error || 'Exchange API error', ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Batch executed successfully', {
-      results: result.data?.results?.map((r: { success: boolean; order_id?: number; error?: string }, i: number) => ({
-        index: i,
-        success: r.success,
-        order_id: r.order_id,
-        error: r.error,
-      })),
+      exchange: exchangeType,
+      results: result.data?.results,
     });
 
     return Response.json({ success: true, data: result.data });

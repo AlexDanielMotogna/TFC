@@ -8,6 +8,7 @@ import { useGlobalSocket } from '@/hooks/useGlobalSocket';
 import { queryClient, cleanupOldReadNotifications } from '@/lib/queryClient';
 import { useNavigationStore } from '@/lib/stores/navigationStore';
 import { ReferralTracker } from '@/components/ReferralTracker';
+import { ExchangeProvider } from '@/contexts/ExchangeContext';
 
 // Dynamically import wallet components to avoid SSR issues
 const WalletProviderComponent = dynamic(
@@ -46,10 +47,12 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <WalletProviderComponent>
-        <GlobalSocketInitializer>
-          <ReferralTracker />
-          {children}
-        </GlobalSocketInitializer>
+        <ExchangeProvider>
+          <GlobalSocketInitializer>
+            <ReferralTracker />
+            {children}
+          </GlobalSocketInitializer>
+        </ExchangeProvider>
       </WalletProviderComponent>
     </QueryClientProvider>
   );
