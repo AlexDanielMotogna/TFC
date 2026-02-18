@@ -100,7 +100,7 @@ export function NoPacificaModal() {
           href={PACIFICA_DEPOSIT_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="block w-full py-3 bg-orange-500 hover:bg-orange-400 text-white font-semibold rounded-lg transition-colors text-center text-sm"
+          className="block w-full py-3 bg-white hover:bg-surface-200 text-black font-semibold rounded-lg transition-colors text-center text-sm"
         >
           Deposit on Pacifica
         </a>
