@@ -41,7 +41,7 @@ export async function POST() {
       try {
         // Check if trade already exists
         const existing = await prisma.trade.findUnique({
-          where: { pacificaHistoryId: ft.pacificaHistoryId },
+          where: { exchangeHistoryId: ft.exchangeHistoryId },
         });
 
         if (existing) {
@@ -53,8 +53,8 @@ export async function POST() {
         await prisma.trade.create({
           data: {
             userId: ft.participantUserId,
-            pacificaHistoryId: ft.pacificaHistoryId,
-            pacificaOrderId: ft.pacificaOrderId,
+            exchangeHistoryId: ft.exchangeHistoryId,
+            exchangeOrderId: ft.exchangeOrderId,
             symbol: ft.symbol,
             side: ft.side,
             amount: ft.amount,

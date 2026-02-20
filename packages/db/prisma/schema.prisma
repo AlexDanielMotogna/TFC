@@ -47,7 +47,7 @@ model User {
   referralCode String? @unique @map("referral_code")
   referredById String? @map("referred_by_id")
 
-  pacificaConnection   PacificaConnection?
+  exchangeConnection   ExchangeConnection?
   fightParticipants    FightParticipant[]
   createdFights        Fight[]               @relation("FightCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
@@ -61,26 +61,46 @@ model User {
 }
 
 // ─────────────────────────────────────────────────────────────
-// PACIFICA CONNECTION (server-side only)
+// EXCHANGE CONNECTION (server-side only)
+// Supports Pacifica, Hyperliquid, Lighter
 // @see Master-doc.md Section 5.1: Never expose keys to frontend
 // ─────────────────────────────────────────────────────────────
-model PacificaConnection {
+model ExchangeConnection {
   id String @id @default(uuid())
 
   userId String @unique @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Pacifica account (public address) - safe to log
+  // Which exchange this connection is for
+  exchangeType String @default("pacifica") @map("exchange_type")
+
+  // Exchange account (public address) - safe to log
   accountAddress String @unique @map("account_address")
 
   // Encrypted private key stored in vault/secret manager reference
-  // This field stores the vault path/reference, NOT the actual key
+  // Pacifica: 'read-only' (client-side signing, no key stored)
+  // Hyperliquid: encrypted agent wallet private key (AES-256-GCM)
+  // Lighter: encrypted API private key (AES-256-GCM)
   vaultKeyReference String @map("vault_key_reference")
 
-  // Builder code approval status
+  // Delegated signing keys (encrypted with AES-256-GCM)
+  // Pacifica: null (client-side signing)
+  // Hyperliquid: agent wallet private key
+  // Lighter: API private key + key index
+  encryptedKeyData String? @map("encrypted_key_data")
+  keyIndex         Int?    @map("key_index") // Lighter API key index (2-254)
+
+  // Setup status for delegated signing
+  agentApproved    Boolean @default(false) @map("agent_approved")    // HL: approveAgent completed
+  builderApproved  Boolean @default(false) @map("builder_approved")  // HL: approveBuilderFee completed
+  apiKeyRegistered Boolean @default(false) @map("api_key_registered") // Lighter: ChangePubKey completed
+
+  // Builder code approval status (Pacifica legacy, kept for backward compat)
   builderCodeApproved Boolean @default(false) @map("builder_code_approved")
 
   isActive    Boolean  @default(true) @map("is_active")
+  isPrimary   Boolean  @default(true) @map("is_primary")
+  metadata    Json?    // Extra exchange-specific data
   connectedAt DateTime @default(now()) @map("connected_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -198,9 +218,10 @@ model FightTrade {
 
   participantUserId String @map("participant_user_id")
 
-  // Pacifica fill data
-  pacificaHistoryId BigInt  @map("pacifica_history_id") // history_id from Pacifica
-  pacificaOrderId   BigInt? @map("pacifica_order_id")
+  // Exchange fill data (exchange-agnostic)
+  exchangeHistoryId BigInt  @map("pacifica_history_id") // history_id from exchange
+  exchangeOrderId   BigInt? @map("pacifica_order_id")
+  exchangeType      String  @default("pacifica") @map("exchange_type")
 
   symbol   String
   side     String // BUY, SELL
@@ -210,10 +231,10 @@ model FightTrade {
   pnl      Decimal? @db.Decimal(18, 8) // Realized PnL from this trade
   leverage Int? // Leverage used for this trade (from frontend)
 
-  executedAt DateTime @map("executed_at") // Pacifica's created_at
+  executedAt DateTime @map("executed_at") // Exchange's created_at
   recordedAt DateTime @default(now()) @map("recorded_at")
 
-  @@unique([fightId, pacificaHistoryId])
+  @@unique([fightId, exchangeHistoryId])
   @@index([fightId, participantUserId])
   @@map("fight_trades")
 }
@@ -229,9 +250,10 @@ model Trade {
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Pacifica fill data
-  pacificaHistoryId BigInt  @unique @map("pacifica_history_id")
-  pacificaOrderId   BigInt? @map("pacifica_order_id")
+  // Exchange fill data (exchange-agnostic)
+  exchangeHistoryId BigInt  @unique @map("pacifica_history_id")
+  exchangeOrderId   BigInt? @map("pacifica_order_id")
+  exchangeType      String  @default("pacifica") @map("exchange_type")
 
   symbol   String
   side     String // BUY, SELL
@@ -484,9 +506,9 @@ model TfcOrderAction {
   takeProfit Decimal? @map("take_profit") @db.Decimal(18, 8)
   stopLoss   Decimal? @map("stop_loss") @db.Decimal(18, 8)
 
-  // Pacifica response data
-  pacificaOrderId   BigInt? @map("pacifica_order_id")
-  pacificaHistoryId BigInt? @map("pacifica_history_id")
+  // Exchange response data
+  exchangeOrderId   BigInt? @map("pacifica_order_id")
+  exchangeHistoryId BigInt? @map("pacifica_history_id")
 
   // Fill information (if applicable)
   filledAmount Decimal? @map("filled_amount") @db.Decimal(18, 8)

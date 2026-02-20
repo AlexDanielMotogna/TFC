@@ -137,7 +137,7 @@ export async function recordAllTrades(
   isPreFightFlip?: boolean
 ) {
   // Find user by Pacifica account address
-  const connection = await prisma.pacificaConnection.findUnique({
+  const connection = await prisma.exchangeConnection.findUnique({
     where: { accountAddress },
     include: { user: true },
   });
@@ -247,8 +247,8 @@ export async function recordAllTrades(
     const trade = await prisma.trade.create({
       data: {
         userId: connection.userId,
-        pacificaHistoryId: historyId,
-        pacificaOrderId: BigInt(orderId),
+        exchangeHistoryId: historyId,
+        exchangeOrderId: BigInt(orderId),
         symbol,
         side: tradeSide,
         amount,
@@ -351,7 +351,7 @@ export async function recordAllTradesWithDetails(
   isPreFightFlip?: boolean
 ) {
   // Find user by Pacifica account address
-  const connection = await prisma.pacificaConnection.findUnique({
+  const connection = await prisma.exchangeConnection.findUnique({
     where: { accountAddress },
     include: { user: true },
   });
@@ -394,8 +394,8 @@ export async function recordAllTradesWithDetails(
     const trade = await prisma.trade.create({
       data: {
         userId: connection.userId,
-        pacificaHistoryId: execDetails.historyId,
-        pacificaOrderId: BigInt(orderId),
+        exchangeHistoryId: execDetails.historyId,
+        exchangeOrderId: BigInt(orderId),
         symbol,
         side: tradeSide,
         amount,
@@ -498,7 +498,7 @@ export async function recordFightTradeWithDetails(
   execDetails?: ExecutionDetails
 ) {
   // Find user by Pacifica account address
-  const connection = await prisma.pacificaConnection.findUnique({
+  const connection = await prisma.exchangeConnection.findUnique({
     where: { accountAddress },
     include: { user: true },
   });
@@ -799,8 +799,8 @@ export async function recordFightTradeWithDetails(
     data: {
       fightId: fight.id,
       participantUserId: connection.userId,
-      pacificaHistoryId: historyId,
-      pacificaOrderId: BigInt(orderId),
+      exchangeHistoryId: historyId,
+      exchangeOrderId: BigInt(orderId),
       symbol,
       side: tradeSide,
       amount: tradeAmount.toString(),

@@ -31,9 +31,9 @@ export async function GET(request: Request) {
 
       // Filter by Pacifica connection
       if (hasPacifica === 'true') {
-        where.pacificaConnection = { isActive: true };
+        where.exchangeConnection = { isActive: true };
       } else if (hasPacifica === 'false') {
-        where.pacificaConnection = null;
+        where.exchangeConnection = null;
       }
 
       // Filter by role
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         prisma.user.findMany({
           where,
           include: {
-            pacificaConnection: {
+            exchangeConnection: {
               select: { isActive: true, accountAddress: true },
             },
             _count: {
@@ -71,8 +71,8 @@ export async function GET(request: Request) {
         avatarUrl: user.avatarUrl,
         role: user.role,
         createdAt: user.createdAt,
-        hasPacifica: user.pacificaConnection?.isActive || false,
-        pacificaAddress: user.pacificaConnection?.accountAddress || null,
+        hasPacifica: user.exchangeConnection?.isActive || false,
+        pacificaAddress: user.exchangeConnection?.accountAddress || null,
         fightsCount: user._count.fightParticipants,
         tradesCount: user._count.trades,
       }));

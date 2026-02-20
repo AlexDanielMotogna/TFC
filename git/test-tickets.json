@@ -1,0 +1,232 @@
+{
+  "tickets": [
+    {
+      "id": "F-001",
+      "title": "[TEST] F-001: Create fight with valid stake",
+      "labels": ["test", "staging", "prio", "fight-system", "critical"],
+      "body": "## Test Case\n**ID:** F-001\n**Category:** Fight System - Creation\n**Risk:** HIGH\n\n## Steps\n1. Connect wallet\n2. Authenticate\n3. Click \"Create Fight\"\n4. Enter valid stake (within balance)\n5. Confirm\n\n## Expected Result\nFight created with status PENDING, creator as participantA\n\n## Acceptance Criteria\n- [ ] Fight appears in database with status PENDING\n- [ ] Creator is set as participantA\n- [ ] Stake amount is correctly recorded\n- [ ] initialPositions snapshot is saved"
+    },
+    {
+      "id": "F-002",
+      "title": "[TEST] F-002: Create fight with stake > balance",
+      "labels": ["test", "staging", "prio", "fight-system", "medium"],
+      "body": "## Test Case\n**ID:** F-002\n**Category:** Fight System - Creation\n**Risk:** MEDIUM\n\n## Steps\n1. Authenticate\n2. Create fight with stake exceeding USDC balance\n\n## Expected Result\nError: \"Insufficient balance\"\n\n## Acceptance Criteria\n- [ ] Error message displayed\n- [ ] Fight is NOT created\n- [ ] No database entry"
+    },
+    {
+      "id": "F-003",
+      "title": "[TEST] F-003: Create fight with stake below minimum",
+      "labels": ["test", "staging", "prio", "fight-system", "low"],
+      "body": "## Test Case\n**ID:** F-003\n**Category:** Fight System - Creation\n**Risk:** LOW\n\n## Steps\n1. Authenticate\n2. Create fight with stake < $1\n\n## Expected Result\nError: \"Minimum stake is $1\"\n\n## Acceptance Criteria\n- [ ] Error message displayed\n- [ ] Fight is NOT created"
+    },
+    {
+      "id": "F-004",
+      "title": "[TEST] F-004: Create fight without Pacifica connection",
+      "labels": ["test", "staging", "prio", "fight-system", "medium"],
+      "body": "## Test Case\n**ID:** F-004\n**Category:** Fight System - Creation\n**Risk:** MEDIUM\n\n## Steps\n1. Authenticate without Pacifica linked\n2. Try to create fight\n\n## Expected Result\nError: \"Please connect Pacifica account first\"\n\n## Acceptance Criteria\n- [ ] Error message displayed\n- [ ] User prompted to connect Pacifica"
+    },
+    {
+      "id": "F-010",
+      "title": "[TEST] F-010: Join pending fight",
+      "labels": ["test", "staging", "prio", "fight-system", "critical"],
+      "body": "## Test Case\n**ID:** F-010\n**Category:** Fight System - Joining\n**Risk:** HIGH\n\n## Steps\n1. Authenticate as User B\n2. Find PENDING fight\n3. Click Join\n\n## Expected Result\nFight status → READY, participantB set, countdown starts\n\n## Acceptance Criteria\n- [ ] Fight status changes to READY\n- [ ] participantB is set correctly\n- [ ] Countdown timer starts\n- [ ] initialPositions snapshot saved for joiner"
+    },
+    {
+      "id": "F-011",
+      "title": "[TEST] F-011: Join own fight",
+      "labels": ["test", "staging", "prio", "fight-system", "medium"],
+      "body": "## Test Case\n**ID:** F-011\n**Category:** Fight System - Joining\n**Risk:** MEDIUM\n\n## Steps\n1. Authenticate\n2. Create fight\n3. Try to join own fight\n\n## Expected Result\nError: \"Cannot join your own fight\"\n\n## Acceptance Criteria\n- [ ] Join button not visible or disabled for own fights\n- [ ] API rejects join attempt"
+    },
+    {
+      "id": "F-014",
+      "title": "[TEST] F-014: Creator notification on join",
+      "labels": ["test", "staging", "prio", "fight-system", "medium"],
+      "body": "## Test Case\n**ID:** F-014\n**Category:** Fight System - Joining\n**Risk:** MEDIUM\n\n## Steps\n1. Create fight as User A\n2. Join as User B\n\n## Expected Result\nUser A receives notification that opponent joined\n\n## Acceptance Criteria\n- [ ] Creator receives real-time notification\n- [ ] Notification shows opponent handle"
+    },
+    {
+      "id": "F-020",
+      "title": "[TEST] F-020: Fight countdown to start",
+      "labels": ["test", "staging", "prio", "fight-system", "critical"],
+      "body": "## Test Case\n**ID:** F-020\n**Category:** Fight System - Lifecycle\n**Risk:** HIGH\n\n## Steps\n1. Create & join fight\n2. Wait for countdown\n\n## Expected Result\nAfter countdown (30s default), status → LIVE\n\n## Acceptance Criteria\n- [ ] Countdown displays correctly\n- [ ] Status changes to LIVE after countdown\n- [ ] WebSocket connection established"
+    },
+    {
+      "id": "F-022",
+      "title": "[TEST] F-022: Fight end - clear winner",
+      "labels": ["test", "staging", "prio", "fight-system", "critical"],
+      "body": "## Test Case\n**ID:** F-022\n**Category:** Fight System - Lifecycle\n**Risk:** HIGH\n\n## Steps\n1. Complete fight\n2. One user has higher PnL%\n\n## Expected Result\nWinner determined, fight status → COMPLETED\n\n## Acceptance Criteria\n- [ ] Winner correctly identified by PnL%\n- [ ] Fight status is COMPLETED\n- [ ] winnerId set in database\n- [ ] Both users notified of result"
+    },
+    {
+      "id": "F-023",
+      "title": "[TEST] F-023: Fight end - draw (EPSILON)",
+      "labels": ["test", "staging", "prio", "fight-system", "critical"],
+      "body": "## Test Case\n**ID:** F-023\n**Category:** Fight System - Lifecycle\n**Risk:** HIGH\n\n## Steps\n1. Complete fight\n2. Both users within 0.0001% PnL\n\n## Expected Result\nDraw declared, stakes returned\n\n## Acceptance Criteria\n- [ ] Draw detected when PnL difference <= EPSILON (0.0001%)\n- [ ] isDraw flag set to true\n- [ ] Stakes returned to both users"
+    },
+    {
+      "id": "F-030",
+      "title": "[TEST] F-030: Snapshot on fight create",
+      "labels": ["test", "staging", "prio", "fight-system", "critical", "pre-fight"],
+      "body": "## Test Case\n**ID:** F-030\n**Category:** Fight System - Initial Position Snapshot\n**Risk:** CRITICAL\n\n## Steps\n1. Have open positions\n2. Create fight\n\n## Expected Result\n`initialPositions` JSON saved for creator\n\n## Acceptance Criteria\n- [ ] initialPositions field populated in FightParticipant\n- [ ] All current positions captured\n- [ ] Position details accurate (symbol, size, side, entryPrice)"
+    },
+    {
+      "id": "F-031",
+      "title": "[TEST] F-031: Snapshot on fight join",
+      "labels": ["test", "staging", "prio", "fight-system", "critical", "pre-fight"],
+      "body": "## Test Case\n**ID:** F-031\n**Category:** Fight System - Initial Position Snapshot\n**Risk:** CRITICAL\n\n## Steps\n1. Have open positions\n2. Join fight\n\n## Expected Result\n`initialPositions` JSON saved for joiner\n\n## Acceptance Criteria\n- [ ] initialPositions field populated for joining participant\n- [ ] All current positions captured accurately"
+    },
+    {
+      "id": "T-001",
+      "title": "[TEST] T-001: Long market order",
+      "labels": ["test", "staging", "prio", "trading-system", "critical"],
+      "body": "## Test Case\n**ID:** T-001\n**Category:** Trading System - Market Orders\n**Risk:** HIGH\n\n## Steps\n1. Select symbol\n2. Enter amount\n3. Click Long\n\n## Expected Result\nPosition opened, order recorded in TfcOrderAction\n\n## Acceptance Criteria\n- [ ] Position appears in positions list\n- [ ] TfcOrderAction record created\n- [ ] Correct symbol, side, amount"
+    },
+    {
+      "id": "T-002",
+      "title": "[TEST] T-002: Short market order",
+      "labels": ["test", "staging", "prio", "trading-system", "critical"],
+      "body": "## Test Case\n**ID:** T-002\n**Category:** Trading System - Market Orders\n**Risk:** HIGH\n\n## Steps\n1. Select symbol\n2. Enter amount\n3. Click Short\n\n## Expected Result\nPosition opened, order recorded\n\n## Acceptance Criteria\n- [ ] Position appears in positions list\n- [ ] TfcOrderAction record created\n- [ ] Side is correctly 'ask'"
+    },
+    {
+      "id": "T-003",
+      "title": "[TEST] T-003: Market order during fight",
+      "labels": ["test", "staging", "prio", "trading-system", "critical", "fight-integration"],
+      "body": "## Test Case\n**ID:** T-003\n**Category:** Trading System - Market Orders\n**Risk:** CRITICAL\n\n## Steps\n1. Be in LIVE fight\n2. Place market order\n\n## Expected Result\nOrder has fightId, recorded in FightTrade if not closing pre-fight\n\n## Acceptance Criteria\n- [ ] TfcOrderAction has fightId\n- [ ] FightTrade record created for NEW positions\n- [ ] Pre-fight position closes NOT recorded in FightTrade"
+    },
+    {
+      "id": "T-020",
+      "title": "[TEST] T-020: Order within stake limit",
+      "labels": ["test", "staging", "prio", "trading-system", "critical", "stake-limit"],
+      "body": "## Test Case\n**ID:** T-020\n**Category:** Trading System - Stake Limit Enforcement\n**Risk:** HIGH\n\n## Steps\n1. In $100 stake fight\n2. Place $50 order\n\n## Expected Result\nOrder succeeds\n\n## Acceptance Criteria\n- [ ] Order executes successfully\n- [ ] Position opened"
+    },
+    {
+      "id": "T-021",
+      "title": "[TEST] T-021: Order exceeds stake limit",
+      "labels": ["test", "staging", "prio", "trading-system", "critical", "stake-limit"],
+      "body": "## Test Case\n**ID:** T-021\n**Category:** Trading System - Stake Limit Enforcement\n**Risk:** CRITICAL\n\n## Steps\n1. In $100 stake fight\n2. Place $150 order\n\n## Expected Result\nOrder rejected: \"Order exceeds fight stake limit\"\n\n## Acceptance Criteria\n- [ ] Order rejected with clear error message\n- [ ] No position opened\n- [ ] No partial fill"
+    },
+    {
+      "id": "T-022",
+      "title": "[TEST] T-022: Cumulative orders at limit",
+      "labels": ["test", "staging", "prio", "trading-system", "critical", "stake-limit"],
+      "body": "## Test Case\n**ID:** T-022\n**Category:** Trading System - Stake Limit Enforcement\n**Risk:** CRITICAL\n\n## Steps\n1. In $100 fight\n2. Place $60 order\n3. Place another $60 order\n\n## Expected Result\nSecond order rejected (total would exceed $100)\n\n## Acceptance Criteria\n- [ ] First order succeeds\n- [ ] Second order rejected\n- [ ] Error explains cumulative limit exceeded"
+    },
+    {
+      "id": "PF-001",
+      "title": "[TEST] PF-001: Close pre-fight long during fight",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical"],
+      "body": "## Test Case\n**ID:** PF-001\n**Category:** Pre-Fight Position Exclusion\n**Risk:** CRITICAL\n\n## Steps\n1. Have 100 BTC long\n2. Create/join fight\n3. Close the 100 BTC\n\n## Expected Result\nTrade NOT recorded in FightTrade, PnL excluded from fight\n\n## Acceptance Criteria\n- [ ] Trade recorded in Trade table (general)\n- [ ] Trade NOT recorded in FightTrade\n- [ ] Fight PnL calculation excludes this trade\n- [ ] Winner determination unaffected by pre-fight close"
+    },
+    {
+      "id": "PF-002",
+      "title": "[TEST] PF-002: Close pre-fight short during fight",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical"],
+      "body": "## Test Case\n**ID:** PF-002\n**Category:** Pre-Fight Position Exclusion\n**Risk:** CRITICAL\n\n## Steps\n1. Have 50 ETH short\n2. Create/join fight\n3. Close the 50 ETH\n\n## Expected Result\nTrade NOT recorded in FightTrade\n\n## Acceptance Criteria\n- [ ] Pre-fight short close excluded from fight records\n- [ ] PnL from close not counted in fight"
+    },
+    {
+      "id": "PF-003",
+      "title": "[TEST] PF-003: Partial close of pre-fight position",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical"],
+      "body": "## Test Case\n**ID:** PF-003\n**Category:** Pre-Fight Position Exclusion\n**Risk:** CRITICAL\n\n## Steps\n1. Have 100 BTC long (pre-fight)\n2. Start fight\n3. Close 60\n\n## Expected Result\n60 excluded from fight, position now 40\n\n## Acceptance Criteria\n- [ ] 60 BTC close excluded from FightTrade\n- [ ] Remaining 40 BTC still tracked\n- [ ] Partial close correctly identified as pre-fight"
+    },
+    {
+      "id": "PF-004",
+      "title": "[TEST] PF-004: New position same symbol as pre-fight",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical"],
+      "body": "## Test Case\n**ID:** PF-004\n**Category:** Pre-Fight Position Exclusion\n**Risk:** CRITICAL\n\n## Steps\n1. Have 100 BTC long (pre-fight)\n2. Start fight\n3. Open 50 BTC short\n\n## Expected Result\nThe 50 short IS a fight trade (new position)\n\n## Acceptance Criteria\n- [ ] 50 BTC short recorded in FightTrade\n- [ ] Opposite side correctly identified as new trade\n- [ ] PnL from short position counted in fight"
+    },
+    {
+      "id": "PF-005",
+      "title": "[TEST] PF-005: Close pre-fight then reopen",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical"],
+      "body": "## Test Case\n**ID:** PF-005\n**Category:** Pre-Fight Position Exclusion\n**Risk:** CRITICAL\n\n## Steps\n1. Pre-fight: 100 BTC long\n2. Start fight\n3. Close 100\n4. Open 100 BTC long\n\n## Expected Result\nClose excluded, new open IS fight trade\n\n## Acceptance Criteria\n- [ ] Close of 100 NOT in FightTrade\n- [ ] New open of 100 IS in FightTrade\n- [ ] PnL calculation only includes new position"
+    },
+    {
+      "id": "PF-010",
+      "title": "[TEST] PF-010: Pre-fight + fight position same symbol",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical"],
+      "body": "## Test Case\n**ID:** PF-010\n**Category:** Pre-Fight Position - Mixed Positions\n**Risk:** CRITICAL\n\n## Steps\n1. Pre-fight: 100 BTC long\n2. Start fight\n3. Open 50 more BTC long\n\n## Expected Result\nTotal: 150 BTC, but only 50 counts for fight PnL\n\n## Acceptance Criteria\n- [ ] Total position shows 150 BTC\n- [ ] Fight PnL calculated only on 50 BTC\n- [ ] UI correctly shows fight-relevant portion"
+    },
+    {
+      "id": "PF-020",
+      "title": "[TEST] PF-020: Fight PnL excludes pre-fight",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical", "pnl"],
+      "body": "## Test Case\n**ID:** PF-020\n**Category:** Pre-Fight Position - PnL Calculation\n**Risk:** CRITICAL\n\n## Steps\n1. Pre-fight: +$50 unrealized\n2. Start fight\n3. Market moves +$20\n\n## Expected Result\nFight PnL = $20 (from fight trades only)\n\n## Acceptance Criteria\n- [ ] Fight PnL shows $20, not $70\n- [ ] Pre-fight unrealized gain excluded\n- [ ] WebSocket PNL_TICK reflects correct fight PnL"
+    },
+    {
+      "id": "PF-022",
+      "title": "[TEST] PF-022: Winner determined by fight PnL only",
+      "labels": ["test", "staging", "prio", "pre-fight", "critical", "pnl"],
+      "body": "## Test Case\n**ID:** PF-022\n**Category:** Pre-Fight Position - PnL Calculation\n**Risk:** CRITICAL\n\n## Steps\n1. User A: pre-fight +$100, fight -$10\n2. User B: no pre-fight, fight +$5\n\n## Expected Result\nUser B wins (fight PnL: +5% vs -10%)\n\n## Acceptance Criteria\n- [ ] User B declared winner\n- [ ] Pre-fight gains do NOT influence result\n- [ ] Winner determination uses fight PnL % only"
+    },
+    {
+      "id": "A-001",
+      "title": "[TEST] A-001: Connect Phantom wallet",
+      "labels": ["test", "staging", "prio", "auth", "critical"],
+      "body": "## Test Case\n**ID:** A-001\n**Category:** Authentication - Wallet Connection\n**Risk:** HIGH\n\n## Steps\n1. Click Connect\n2. Select Phantom\n3. Approve\n\n## Expected Result\nWallet connected, sign prompt appears\n\n## Acceptance Criteria\n- [ ] Wallet connection modal shows\n- [ ] Phantom option available\n- [ ] After approval, signature request appears"
+    },
+    {
+      "id": "A-002",
+      "title": "[TEST] A-002: Sign authentication message",
+      "labels": ["test", "staging", "prio", "auth", "critical"],
+      "body": "## Test Case\n**ID:** A-002\n**Category:** Authentication - Wallet Connection\n**Risk:** HIGH\n\n## Steps\n1. Connect wallet\n2. Sign message\n\n## Expected Result\nJWT token received, user authenticated\n\n## Acceptance Criteria\n- [ ] JWT token stored in localStorage\n- [ ] User state updated to authenticated\n- [ ] Pacifica connection status checked"
+    },
+    {
+      "id": "A-010",
+      "title": "[TEST] A-010: Refresh with same wallet",
+      "labels": ["test", "staging", "prio", "auth", "critical", "persistence"],
+      "body": "## Test Case\n**ID:** A-010\n**Category:** Authentication - Session Persistence\n**Risk:** HIGH\n\n## Steps\n1. Authenticate\n2. Refresh page\n\n## Expected Result\nShould restore session (localStorage)\n\n## Acceptance Criteria\n- [ ] Session restored without re-signing\n- [ ] Token validated\n- [ ] User data loaded"
+    },
+    {
+      "id": "A-011",
+      "title": "[TEST] A-011: Switch wallet in extension",
+      "labels": ["test", "staging", "prio", "auth", "critical", "persistence"],
+      "body": "## Test Case\n**ID:** A-011\n**Category:** Authentication - Session Persistence\n**Risk:** HIGH\n\n## Steps\n1. Authenticate with Wallet A\n2. Switch to Wallet B in Phantom\n\n## Expected Result\nDetect change, clear auth, prompt new sign\n\n## Acceptance Criteria\n- [ ] Wallet change detected\n- [ ] Old session cleared\n- [ ] New signature prompted\n- [ ] No data mismatch"
+    },
+    {
+      "id": "RT-001",
+      "title": "[TEST] RT-001: WebSocket connect on fight start",
+      "labels": ["test", "staging", "prio", "realtime", "critical"],
+      "body": "## Test Case\n**ID:** RT-001\n**Category:** Real-Time Updates - WebSocket\n**Risk:** HIGH\n\n## Steps\n1. Join fight\n2. Countdown ends\n\n## Expected Result\nWebSocket connects to fight room\n\n## Acceptance Criteria\n- [ ] WS connection established\n- [ ] Joined correct fight room\n- [ ] Ready to receive PNL_TICK"
+    },
+    {
+      "id": "RT-002",
+      "title": "[TEST] RT-002: WebSocket reconnect on disconnect",
+      "labels": ["test", "staging", "prio", "realtime", "critical"],
+      "body": "## Test Case\n**ID:** RT-002\n**Category:** Real-Time Updates - WebSocket\n**Risk:** HIGH\n\n## Steps\n1. In fight\n2. Network blip\n3. Reconnect\n\n## Expected Result\nAuto-reconnect, resume updates\n\n## Acceptance Criteria\n- [ ] Automatic reconnection\n- [ ] Rejoin fight room\n- [ ] Resume receiving updates\n- [ ] No data loss"
+    },
+    {
+      "id": "RT-010",
+      "title": "[TEST] RT-010: PNL_TICK every second",
+      "labels": ["test", "staging", "prio", "realtime", "critical"],
+      "body": "## Test Case\n**ID:** RT-010\n**Category:** Real-Time Updates - PnL\n**Risk:** HIGH\n\n## Steps\n1. In LIVE fight\n2. Monitor updates\n\n## Expected Result\nReceive PnL update every ~1 second\n\n## Acceptance Criteria\n- [ ] PNL_TICK received ~1/second\n- [ ] Both participant scores updated\n- [ ] Leader indicator accurate"
+    },
+    {
+      "id": "E-001",
+      "title": "[TEST] E-001: Two users join same fight simultaneously",
+      "labels": ["test", "staging", "prio", "edge-case", "critical"],
+      "body": "## Test Case\n**ID:** E-001\n**Category:** Edge Cases - Concurrent Actions\n**Risk:** HIGH\n\n## Steps\n1. Fight PENDING\n2. User B & C click join simultaneously\n\n## Expected Result\nOnly one succeeds, other gets error\n\n## Acceptance Criteria\n- [ ] Race condition handled\n- [ ] Only one participant added\n- [ ] Losing user gets clear error\n- [ ] Database integrity maintained"
+    },
+    {
+      "id": "E-002",
+      "title": "[TEST] E-002: Order during fight end",
+      "labels": ["test", "staging", "prio", "edge-case", "critical"],
+      "body": "## Test Case\n**ID:** E-002\n**Category:** Edge Cases - Concurrent Actions\n**Risk:** HIGH\n\n## Steps\n1. Place order as fight timer hits 0\n\n## Expected Result\nOrder rejected or handled gracefully\n\n## Acceptance Criteria\n- [ ] Order either completes or rejects cleanly\n- [ ] No partial state\n- [ ] Fight result not corrupted"
+    },
+    {
+      "id": "E-010",
+      "title": "[TEST] E-010: Fight data matches DB",
+      "labels": ["test", "staging", "prio", "edge-case", "data-integrity"],
+      "body": "## Test Case\n**ID:** E-010\n**Category:** Edge Cases - Data Consistency\n**Risk:** HIGH\n\n## Steps\n1. Complete fight\n2. Check UI vs DB\n\n## Expected Result\nWinner, scores, timestamps match\n\n## Acceptance Criteria\n- [ ] winnerId matches UI display\n- [ ] Final scores match\n- [ ] Timestamps accurate"
+    },
+    {
+      "id": "L-001",
+      "title": "[TEST] L-001: Top 10 leaderboard display",
+      "labels": ["test", "staging", "prio", "leaderboard", "medium"],
+      "body": "## Test Case\n**ID:** L-001\n**Category:** Leaderboard\n**Risk:** MEDIUM\n\n## Steps\n1. View leaderboard\n\n## Expected Result\nShows top 10 by total winnings\n\n## Acceptance Criteria\n- [ ] Top 10 users displayed\n- [ ] Sorted by total PnL\n- [ ] Stats accurate (wins, losses)"
+    },
+    {
+      "id": "L-004",
+      "title": "[TEST] L-004: Prize pool display",
+      "labels": ["test", "staging", "prio", "leaderboard", "medium"],
+      "body": "## Test Case\n**ID:** L-004\n**Category:** Leaderboard\n**Risk:** MEDIUM\n\n## Steps\n1. View leaderboard\n\n## Expected Result\nShows total prize pool from all fights\n\n## Acceptance Criteria\n- [ ] Prize pool amount displayed\n- [ ] Weekly fees shown\n- [ ] Countdown to week end"
+    }
+  ]
+}

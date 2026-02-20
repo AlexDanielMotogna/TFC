@@ -29,8 +29,8 @@ interface RecordOrderActionParams {
   takeProfit?: string;
   stopLoss?: string;
   reduceOnly?: boolean;
-  pacificaOrderId?: number | bigint;
-  pacificaHistoryId?: number | bigint;
+  exchangeOrderId?: number | bigint;
+  exchangeHistoryId?: number | bigint;
   filledAmount?: string;
   filledPrice?: string;
   fee?: string;
@@ -68,8 +68,8 @@ export async function recordOrderAction(params: RecordOrderActionParams): Promis
         price: params.price ? parseFloat(params.price) : null,
         takeProfit: params.takeProfit ? parseFloat(params.takeProfit) : null,
         stopLoss: params.stopLoss ? parseFloat(params.stopLoss) : null,
-        pacificaOrderId: params.pacificaOrderId ? BigInt(params.pacificaOrderId) : null,
-        pacificaHistoryId: params.pacificaHistoryId ? BigInt(params.pacificaHistoryId) : null,
+        exchangeOrderId: params.exchangeOrderId ? BigInt(params.exchangeOrderId) : null,
+        exchangeHistoryId: params.exchangeHistoryId ? BigInt(params.exchangeHistoryId) : null,
         filledAmount: params.filledAmount ? parseFloat(params.filledAmount) : null,
         filledPrice: params.filledPrice ? parseFloat(params.filledPrice) : null,
         fee: params.fee ? parseFloat(params.fee) : null,

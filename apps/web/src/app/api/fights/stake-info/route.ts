@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     }
 
     // Get user from account
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { accountAddress: account },
     });
 

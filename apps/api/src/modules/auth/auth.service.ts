@@ -39,7 +39,7 @@ export class AuthService {
       const isApproved = approvals.some((a) => a.builder_code === builderCode);
 
       // Upsert the connection
-      await prisma.pacificaConnection.upsert({
+      await prisma.exchangeConnection.upsert({
         where: { userId: params.userId },
         create: {
           userId: params.userId,
@@ -75,7 +75,7 @@ export class AuthService {
    * Get a user's Pacifica connection
    */
   async getConnection(userId: string) {
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { userId },
       include: { user: true },
     });
@@ -95,7 +95,7 @@ export class AuthService {
    * Check if a user has an active Pacifica connection
    */
   async hasActiveConnection(userId: string): Promise<boolean> {
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { userId },
       select: { isActive: true, builderCodeApproved: true },
     });
@@ -124,7 +124,7 @@ export class AuthService {
   async getUserById(userId: string) {
     return prisma.user.findUnique({
       where: { id: userId },
-      include: { pacificaConnection: true },
+      include: { exchangeConnection: true },
     });
   }
 
@@ -149,7 +149,7 @@ export class AuthService {
       }
 
       // Upsert the connection (without vault key for read-only)
-      await prisma.pacificaConnection.upsert({
+      await prisma.exchangeConnection.upsert({
         where: { userId },
         create: {
           userId,
@@ -212,7 +212,7 @@ export class AuthService {
       // Find or create user by wallet address
       let user = await prisma.user.findUnique({
         where: { walletAddress },
-        include: { pacificaConnection: true },
+        include: { exchangeConnection: true },
       });
 
       if (!user) {
@@ -223,7 +223,7 @@ export class AuthService {
             handle: shortAddress,
             walletAddress,
           },
-          include: { pacificaConnection: true },
+          include: { exchangeConnection: true },
         });
         logger.info(LOG_EVENTS.AUTH_CONNECT_SUCCESS, 'New user created via wallet', {
           userId: user.id,
@@ -232,7 +232,7 @@ export class AuthService {
       }
 
       // Check if Pacifica is already connected
-      let pacificaConnected = user.pacificaConnection?.isActive === true;
+      let pacificaConnected = user.exchangeConnection?.isActive === true;
 
       // If not connected, try to auto-link using the wallet address
       if (!pacificaConnected) {
@@ -241,7 +241,7 @@ export class AuthService {
           // Pacifica returns an object with balance if account exists
           if (accountInfo && accountInfo.balance !== undefined) {
             // Account exists on Pacifica, link it
-            await prisma.pacificaConnection.upsert({
+            await prisma.exchangeConnection.upsert({
               where: { userId: user.id },
               create: {
                 userId: user.id,

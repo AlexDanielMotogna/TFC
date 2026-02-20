@@ -361,7 +361,7 @@ export async function updateMaxExposureIfHigher(
 export async function getUserIdFromAccount(
   accountAddress: string
 ): Promise<string | null> {
-  const connection = await prisma.pacificaConnection.findUnique({
+  const connection = await prisma.exchangeConnection.findUnique({
     where: { accountAddress },
   });
 

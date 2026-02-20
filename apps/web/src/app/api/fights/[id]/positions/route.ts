@@ -144,7 +144,7 @@ export async function GET(
       }
 
       // Get Pacifica connection for this user to fetch real position data
-      const pacificaConnection = await prisma.pacificaConnection.findUnique({
+      const exchangeConnection = await prisma.exchangeConnection.findUnique({
         where: { userId: user.userId },
         select: { accountAddress: true },
       });
@@ -158,8 +158,8 @@ export async function GET(
         const adapter = await ExchangeProvider.getUserAdapter(user.userId);
         [prices, realPositions] = await Promise.all([
           adapter.getPrices(),
-          pacificaConnection?.accountAddress
-            ? adapter.getPositions(pacificaConnection.accountAddress)
+          exchangeConnection?.accountAddress
+            ? adapter.getPositions(exchangeConnection.accountAddress)
             : Promise.resolve([]),
         ]);
       } else {
@@ -167,8 +167,8 @@ export async function GET(
         const Pacifica = await import('@/lib/server/pacifica');
         [prices, realPositions] = await Promise.all([
           Pacifica.getPrices(),
-          pacificaConnection?.accountAddress
-            ? Pacifica.getPositions(pacificaConnection.accountAddress)
+          exchangeConnection?.accountAddress
+            ? Pacifica.getPositions(exchangeConnection.accountAddress)
             : Promise.resolve([]),
         ]);
       }

@@ -54,8 +54,8 @@ export async function GET(
         },
         select: {
           id: true,
-          pacificaHistoryId: true,
-          pacificaOrderId: true,
+          exchangeHistoryId: true,
+          exchangeOrderId: true,
           participantUserId: true,
           symbol: true,
           side: true,
@@ -84,15 +84,15 @@ export async function GET(
 
         return {
           // UI expected fields
-          id: trade.pacificaHistoryId.toString(),
+          id: trade.exchangeHistoryId.toString(),
           participantUserId: trade.participantUserId,
           executedAt: trade.executedAt.toISOString(),
           created_at: trade.executedAt.getTime(), // Unix timestamp (ms) for UI compatibility
           notional,
           side: trade.side, // Already BUY/SELL in fight_trades
           // Trade details
-          history_id: trade.pacificaHistoryId.toString(),
-          order_id: trade.pacificaOrderId?.toString() || null,
+          history_id: trade.exchangeHistoryId.toString(),
+          order_id: trade.exchangeOrderId?.toString() || null,
           symbol: trade.symbol,
           amount: trade.amount.toString(),
           price: trade.price.toString(),

@@ -28,7 +28,7 @@ export class OrdersService {
   ) {}
 
   private async getUserKeypair(userId: string): Promise<import('tweetnacl').SignKeyPair> {
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { userId },
       select: { accountAddress: true, vaultKeyReference: true, isActive: true },
     });
@@ -118,7 +118,7 @@ export class OrdersService {
       logger.info(LOG_EVENTS.ORDER_PLACE_ACCEPTED, 'Order placed successfully', {
         userId: params.userId,
         symbol: params.symbol,
-        pacificaOrderId: result.order_id,
+        exchangeOrderId: result.order_id,
         clientOrderId,
       });
 

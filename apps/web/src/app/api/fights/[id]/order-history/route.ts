@@ -42,12 +42,12 @@ export async function GET(
       });
 
       // Get Pacifica connection for this user
-      const pacificaConnection = await prisma.pacificaConnection.findUnique({
+      const exchangeConnection = await prisma.exchangeConnection.findUnique({
         where: { userId: user.userId },
         select: { accountAddress: true },
       });
 
-      if (!pacificaConnection?.accountAddress) {
+      if (!exchangeConnection?.accountAddress) {
         return Response.json({ success: true, data: [] });
       }
 
@@ -73,7 +73,7 @@ export async function GET(
         id: row.id,
         actionType: row.action_type,
         symbol: row.symbol,
-        pacificaOrderId: row.pacifica_order_id,
+        exchangeOrderId: row.pacifica_order_id,
         createdAt: row.created_at,
       }));
 
@@ -86,11 +86,11 @@ export async function GET(
       // Order IDs for MARKET_ORDER, LIMIT_ORDER, and CREATE_STOP
       const fightOrderIds = new Set(
         orderActions
-          .filter(oa => oa.pacificaOrderId && (oa.actionType === 'MARKET_ORDER' || oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP'))
-          .map(oa => oa.pacificaOrderId!.toString())
+          .filter(oa => oa.exchangeOrderId && (oa.actionType === 'MARKET_ORDER' || oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP'))
+          .map(oa => oa.exchangeOrderId!.toString())
       );
 
-      // Symbols for SET_TPSL (TP/SL don't have pacificaOrderId at creation)
+      // Symbols for SET_TPSL (TP/SL don't have exchangeOrderId at creation)
       const tpslSymbols = new Set(
         orderActions.filter(oa => oa.actionType === 'SET_TPSL').map(oa => oa.symbol)
       );
@@ -105,7 +105,7 @@ export async function GET(
 
       // Fetch order history from Pacifica (without time filter - we'll filter locally)
       // This ensures we get all recent orders and filter precisely
-      const url = `${PACIFICA_API_URL}/api/v1/orders/history?account=${pacificaConnection.accountAddress}&limit=200`;
+      const url = `${PACIFICA_API_URL}/api/v1/orders/history?account=${exchangeConnection.accountAddress}&limit=200`;
 
       const response = await fetch(url);
       if (!response.ok) {

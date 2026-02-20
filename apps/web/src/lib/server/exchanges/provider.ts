@@ -5,6 +5,7 @@
 
 import { ExchangeAdapter } from './adapter';
 import { PacificaAdapter } from './pacifica-adapter';
+import { HyperliquidAdapter } from './hyperliquid-adapter';
 import { CachedExchangeAdapter } from './cached-adapter';
 
 /**
@@ -16,7 +17,7 @@ export class ExchangeProvider {
   /**
    * Get exchange adapter (cached singleton per exchange)
    */
-  static getAdapter(exchangeName: 'pacifica' | 'hyperliquid' | 'binance'): ExchangeAdapter {
+  static getAdapter(exchangeName: 'pacifica' | 'hyperliquid' | 'lighter'): ExchangeAdapter {
     if (this.adapters.has(exchangeName)) {
       return this.adapters.get(exchangeName)!;
     }
@@ -29,10 +30,11 @@ export class ExchangeProvider {
         break;
 
       case 'hyperliquid':
-        throw new Error('Hyperliquid adapter not implemented yet');
+        adapter = new HyperliquidAdapter();
+        break;
 
-      case 'binance':
-        throw new Error('Binance adapter not implemented yet');
+      case 'lighter':
+        throw new Error('Lighter adapter not implemented yet');
 
       default:
         throw new Error(`Unknown exchange: ${exchangeName}`);
@@ -59,7 +61,7 @@ export class ExchangeProvider {
     //   select: { exchangeType: true },
     // });
     //
-    // return this.getAdapter(connection.exchangeType as 'pacifica' | 'hyperliquid' | 'binance');
+    // return this.getAdapter(connection.exchangeType as 'pacifica' | 'hyperliquid' | 'lighter');
 
     // For now, default to Pacifica
     return this.getAdapter('pacifica');

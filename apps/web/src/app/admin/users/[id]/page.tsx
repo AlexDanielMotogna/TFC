@@ -23,7 +23,7 @@ interface UserDetail {
   referralCode: string | null;
   createdAt: string;
   updatedAt: string;
-  pacificaConnection: {
+  exchangeConnection: {
     accountAddress: string;
     isActive: boolean;
     builderCodeApproved: boolean;
@@ -279,7 +279,7 @@ export default function AdminUserDetailPage({
           </p>
           {user.bannedAt && (
             <p className="text-sm text-loss-400 mt-1">
-              Banned on {new Date(user.bannedAt).toLocaleDateString()}
+              Banned on {new Date(user.bannedAt).toLocaleString()}
               {user.bannedReason && ` - ${user.bannedReason}`}
             </p>
           )}
@@ -394,7 +394,7 @@ export default function AdminUserDetailPage({
             <div className="flex justify-between">
               <dt className="text-surface-400">Created</dt>
               <dd className="text-white">
-                {new Date(user.createdAt).toLocaleDateString()}
+                {new Date(user.createdAt).toLocaleString()}
               </dd>
             </div>
           </dl>
@@ -406,23 +406,23 @@ export default function AdminUserDetailPage({
             <Link2 size={18} />
             Pacifica Connection
           </h3>
-          {user.pacificaConnection ? (
+          {user.exchangeConnection ? (
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <dt className="text-surface-400">Status</dt>
                 <dd>
                   <AdminBadge
-                    variant={user.pacificaConnection.isActive ? 'success' : 'default'}
+                    variant={user.exchangeConnection.isActive ? 'success' : 'default'}
                   >
-                    {user.pacificaConnection.isActive ? 'Active' : 'Inactive'}
+                    {user.exchangeConnection.isActive ? 'Active' : 'Inactive'}
                   </AdminBadge>
                 </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-surface-400">Account</dt>
                 <dd className="text-white font-mono text-xs">
-                  {user.pacificaConnection.accountAddress.slice(0, 8)}...
-                  {user.pacificaConnection.accountAddress.slice(-6)}
+                  {user.exchangeConnection.accountAddress.slice(0, 8)}...
+                  {user.exchangeConnection.accountAddress.slice(-6)}
                 </dd>
               </div>
               <div className="flex justify-between">
@@ -430,10 +430,10 @@ export default function AdminUserDetailPage({
                 <dd>
                   <AdminBadge
                     variant={
-                      user.pacificaConnection.builderCodeApproved ? 'success' : 'warning'
+                      user.exchangeConnection.builderCodeApproved ? 'success' : 'warning'
                     }
                   >
-                    {user.pacificaConnection.builderCodeApproved
+                    {user.exchangeConnection.builderCodeApproved
                       ? 'Approved'
                       : 'Pending'}
                   </AdminBadge>
@@ -442,7 +442,7 @@ export default function AdminUserDetailPage({
               <div className="flex justify-between">
                 <dt className="text-surface-400">Connected</dt>
                 <dd className="text-white">
-                  {new Date(user.pacificaConnection.connectedAt).toLocaleDateString()}
+                  {new Date(user.exchangeConnection.connectedAt).toLocaleString()}
                 </dd>
               </div>
             </dl>
@@ -551,7 +551,7 @@ export default function AdminUserDetailPage({
             <div className="flex justify-between">
               <dt className="text-surface-400">Last Updated</dt>
               <dd className="text-white">
-                {new Date(user.updatedAt).toLocaleDateString()}
+                {new Date(user.updatedAt).toLocaleString()}
               </dd>
             </div>
           </dl>
@@ -629,7 +629,7 @@ export default function AdminUserDetailPage({
                       )}
                     </td>
                     <td className="py-2 text-right text-surface-400">
-                      {new Date(fight.joinedAt).toLocaleDateString()}
+                      {new Date(fight.joinedAt).toLocaleString()}
                     </td>
                   </tr>
                 ))}

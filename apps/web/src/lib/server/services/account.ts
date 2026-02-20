@@ -11,7 +11,7 @@ import { UnauthorizedError } from '../errors';
 const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
 
 async function getAccountAddress(userId: string): Promise<string> {
-  const connection = await prisma.pacificaConnection.findUnique({
+  const connection = await prisma.exchangeConnection.findUnique({
     where: { userId },
     select: { accountAddress: true, isActive: true },
   });

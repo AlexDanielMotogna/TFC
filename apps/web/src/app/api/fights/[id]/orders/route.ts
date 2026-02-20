@@ -53,12 +53,12 @@ export async function GET(
       }
 
       // Get Pacifica connection for this user
-      const pacificaConnection = await prisma.pacificaConnection.findUnique({
+      const exchangeConnection = await prisma.exchangeConnection.findUnique({
         where: { userId: user.userId },
         select: { accountAddress: true },
       });
 
-      if (!pacificaConnection?.accountAddress) {
+      if (!exchangeConnection?.accountAddress) {
         return Response.json({ success: true, data: [] });
       }
 
@@ -89,7 +89,7 @@ export async function GET(
         actionType: row.action_type,
         symbol: row.symbol,
         side: row.side,
-        pacificaOrderId: row.pacifica_order_id,
+        exchangeOrderId: row.pacifica_order_id,
         createdAt: row.created_at,
       }));
 
@@ -105,15 +105,15 @@ export async function GET(
         // Use Exchange Adapter (with caching if Redis configured)
         const adapter = await ExchangeProvider.getUserAdapter(user.userId);
         [pacificaOrders, pacificaPositions] = await Promise.all([
-          adapter.getOpenOrders(pacificaConnection.accountAddress),
-          adapter.getPositions(pacificaConnection.accountAddress),
+          adapter.getOpenOrders(exchangeConnection.accountAddress),
+          adapter.getPositions(exchangeConnection.accountAddress),
         ]);
       } else {
         // Fallback to direct Pacifica calls
         const Pacifica = await import('@/lib/server/pacifica');
         [pacificaOrders, pacificaPositions] = await Promise.all([
-          Pacifica.getOpenOrders(pacificaConnection.accountAddress),
-          Pacifica.getPositions(pacificaConnection.accountAddress),
+          Pacifica.getOpenOrders(exchangeConnection.accountAddress),
+          Pacifica.getPositions(exchangeConnection.accountAddress),
         ]);
       }
 
@@ -124,18 +124,18 @@ export async function GET(
         positionMap.set(`${pos.symbol}-${pos.side}`, pos.amount || '0');
       });
 
-      // Separate order types: LIMIT_ORDER/CREATE_STOP (matched by pacificaOrderId) vs SET_TPSL (matched by symbol)
+      // Separate order types: LIMIT_ORDER/CREATE_STOP (matched by exchangeOrderId) vs SET_TPSL (matched by symbol)
       const orderByIdActions = orderActions.filter(oa => oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP');
       const tpslActions = orderActions.filter(oa => oa.actionType === 'SET_TPSL');
 
-      // For LIMIT_ORDER and CREATE_STOP: cross-reference by pacificaOrderId
+      // For LIMIT_ORDER and CREATE_STOP: cross-reference by exchangeOrderId
       const fightOrderIds = new Set(
         orderByIdActions
-          .filter(oa => oa.pacificaOrderId)
-          .map(oa => oa.pacificaOrderId!.toString())
+          .filter(oa => oa.exchangeOrderId)
+          .map(oa => oa.exchangeOrderId!.toString())
       );
 
-      // For SET_TPSL: match by symbol (TP/SL don't have pacificaOrderId)
+      // For SET_TPSL: match by symbol (TP/SL don't have exchangeOrderId)
       // TP/SL orders in Pacifica have types: sl_market, tp_market, sl_limit, tp_limit
       const tpslSymbols = new Set(
         tpslActions.map(oa => oa.symbol)

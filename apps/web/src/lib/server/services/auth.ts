@@ -34,7 +34,7 @@ export async function connectPacifica(params: {
     const isApproved = approvals.some((a) => a.builder_code === builderCode);
 
     // Upsert the connection
-    await prisma.pacificaConnection.upsert({
+    await prisma.exchangeConnection.upsert({
       where: { userId: params.userId },
       create: {
         userId: params.userId,
@@ -70,7 +70,7 @@ export async function connectPacifica(params: {
  * Get a user's Pacifica connection
  */
 export async function getConnection(userId: string) {
-  return prisma.pacificaConnection.findUnique({
+  return prisma.exchangeConnection.findUnique({
     where: { userId },
     include: { user: true },
   });
@@ -80,7 +80,7 @@ export async function getConnection(userId: string) {
  * Check if a user has an active Pacifica connection
  */
 export async function hasActiveConnection(userId: string): Promise<boolean> {
-  const connection = await prisma.pacificaConnection.findUnique({
+  const connection = await prisma.exchangeConnection.findUnique({
     where: { userId },
     select: { isActive: true, builderCodeApproved: true },
   });
@@ -117,7 +117,7 @@ export async function getOrCreateUser(handle: string, avatarUrl?: string) {
 export async function getUserById(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
-    include: { pacificaConnection: true },
+    include: { exchangeConnection: true },
   });
 }
 
@@ -142,7 +142,7 @@ export async function linkPacificaAccount(
     }
 
     // Upsert the connection (without vault key for read-only)
-    await prisma.pacificaConnection.upsert({
+    await prisma.exchangeConnection.upsert({
       where: { userId },
       create: {
         userId,
@@ -207,7 +207,7 @@ export async function authenticateWallet(
     // Find or create user by wallet address
     let user = await prisma.user.findUnique({
       where: { walletAddress },
-      include: { pacificaConnection: true },
+      include: { exchangeConnection: true },
     });
 
     // Check if user is banned or deleted
@@ -238,7 +238,7 @@ export async function authenticateWallet(
           handle: shortAddress,
           walletAddress,
         },
-        include: { pacificaConnection: true },
+        include: { exchangeConnection: true },
       });
 
       // Generate and set referral code
@@ -246,7 +246,7 @@ export async function authenticateWallet(
       user = await prisma.user.update({
         where: { id: user.id },
         data: { referralCode: userReferralCode },
-        include: { pacificaConnection: true },
+        include: { exchangeConnection: true },
       });
 
       console.log('New user created via wallet', {
@@ -284,7 +284,7 @@ export async function authenticateWallet(
         // Pacifica returns an object with balance if account exists
         if (accountInfo && accountInfo.balance !== undefined) {
           // Account exists on Pacifica, link/update it in DB
-          await prisma.pacificaConnection.upsert({
+          await prisma.exchangeConnection.upsert({
             where: { userId: user.id },
             create: {
               userId: user.id,
@@ -337,7 +337,7 @@ export async function authenticateWallet(
             reason: pacificaFailReason,
           });
           // Update DB to mark as inactive (in case it was previously active)
-          await prisma.pacificaConnection.upsert({
+          await prisma.exchangeConnection.upsert({
             where: { userId: user.id },
             create: {
               userId: user.id,
@@ -385,7 +385,7 @@ export async function authenticateWallet(
       user = await prisma.user.update({
         where: { id: user.id },
         data: { role: 'ADMIN' },
-        include: { pacificaConnection: true },
+        include: { exchangeConnection: true },
       });
       console.log('User promoted to admin', {
         userId: user.id,

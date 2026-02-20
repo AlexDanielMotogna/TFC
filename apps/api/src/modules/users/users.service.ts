@@ -7,7 +7,7 @@ export class UsersService {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
-        pacificaConnection: {
+        exchangeConnection: {
           select: {
             isActive: true,
             builderCodeApproved: true,
@@ -69,7 +69,7 @@ export class UsersService {
       handle: user.handle,
       avatarUrl: user.avatarUrl,
       createdAt: user.createdAt,
-      pacificaConnected: user.pacificaConnection?.isActive || false,
+      pacificaConnected: user.exchangeConnection?.isActive || false,
       stats: {
         totalFights: finishedFights.length,
         wins,

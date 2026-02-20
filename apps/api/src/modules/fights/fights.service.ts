@@ -92,7 +92,7 @@ export class FightsService {
     }
 
     // Check if user has Pacifica connection
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { userId: params.creatorId },
       select: { isActive: true },
     });
@@ -235,7 +235,7 @@ export class FightsService {
     }
 
     // Validation: user has Pacifica connection
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { userId },
       select: { isActive: true },
     });

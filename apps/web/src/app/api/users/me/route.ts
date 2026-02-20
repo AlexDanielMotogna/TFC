@@ -12,7 +12,7 @@ export async function GET(request: Request) {
       const profile = await prisma.user.findUnique({
         where: { id: user.userId },
         include: {
-          pacificaConnection: true,
+          exchangeConnection: true,
         },
       });
 
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
         handle: profile.handle,
         avatarUrl: profile.avatarUrl,
         createdAt: profile.createdAt.toISOString(),
-        pacificaConnected: profile.pacificaConnection?.isActive === true,
+        pacificaConnected: profile.exchangeConnection?.isActive === true,
         stats: {
           ...stats,
           avgPnlPercent,

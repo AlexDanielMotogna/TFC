@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       }
 
       // Check if user has active Pacifica connection
-      const connection = await prisma.pacificaConnection.findUnique({
+      const connection = await prisma.exchangeConnection.findUnique({
         where: { userId: user.userId },
         select: { isActive: true, accountAddress: true },
       });

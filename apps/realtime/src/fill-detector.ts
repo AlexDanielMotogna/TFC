@@ -5,7 +5,7 @@
  * Runs every 5 seconds from the fight engine tick loop.
  *
  * Architecture:
- * 1. Query TfcOrderAction for pending LIMIT_ORDER/CREATE_STOP with pacificaOrderId
+ * 1. Query TfcOrderAction for pending LIMIT_ORDER/CREATE_STOP with exchangeOrderId
  * 2. Fetch Pacifica trade history for participants with pending orders
  * 3. Match fills by order_id
  * 4. POST to /api/internal/record-fill (web app) to reuse all existing trade recording logic
@@ -13,7 +13,7 @@
  * Deduplication (3 layers):
  * - In-memory processedHistoryIds set
  * - FightTrade table check before calling API
- * - Trade table @@unique([pacificaHistoryId]) constraint
+ * - Trade table @@unique([exchangeHistoryId]) constraint
  *
  * @see Fight.md - Fill Detector architecture
  */
@@ -80,7 +80,7 @@ export class FillDetector {
         fightId: row.fight_id,
         symbol: row.symbol,
         side: row.side,
-        pacificaOrderId: row.pacifica_order_id,
+        exchangeOrderId: row.pacifica_order_id,
         leverage: row.leverage,
         actionType: row.action_type,
       }));
@@ -144,7 +144,7 @@ export class FillDetector {
     fight: { startedAt: Date | null; durationMinutes: number };
     actions: Array<{
       id: string;
-      pacificaOrderId: bigint | null;
+      exchangeOrderId: bigint | null;
       symbol: string;
       side: string | null;
       leverage: number | null;
@@ -157,7 +157,7 @@ export class FillDetector {
       if (!fight.startedAt) return;
 
       // Get account address from wallet address -> PacificaConnection
-      const connection = await prisma.pacificaConnection.findFirst({
+      const connection = await prisma.exchangeConnection.findFirst({
         where: { userId },
         select: { accountAddress: true },
       });
@@ -178,8 +178,8 @@ export class FillDetector {
       // Build lookup of pending order IDs
       const actionsByOrderId = new Map<string, typeof actions[0]>();
       for (const action of actions) {
-        if (action.pacificaOrderId) {
-          actionsByOrderId.set(action.pacificaOrderId.toString(), action);
+        if (action.exchangeOrderId) {
+          actionsByOrderId.set(action.exchangeOrderId.toString(), action);
         }
       }
 
@@ -211,9 +211,9 @@ export class FillDetector {
         // Layer 2: DB dedup - check if FightTrade already exists
         const existingFightTrade = await prisma.fightTrade.findUnique({
           where: {
-            fightId_pacificaHistoryId: {
+            fightId_exchangeHistoryId: {
               fightId,
-              pacificaHistoryId: BigInt(trade.history_id),
+              exchangeHistoryId: BigInt(trade.history_id),
             },
           },
           select: { id: true },

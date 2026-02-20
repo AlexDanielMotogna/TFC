@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       walletAddress: account,
       actionType: 'CANCEL_STOP',
       symbol,
-      pacificaOrderId: order_id,
+      exchangeOrderId: order_id,
       success: true,
     }).catch(err => console.error('Failed to record cancel stop action:', err));
 

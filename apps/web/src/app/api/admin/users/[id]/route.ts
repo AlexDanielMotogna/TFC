@@ -21,7 +21,7 @@ export async function GET(
       const user = await prisma.user.findUnique({
         where: { id },
         include: {
-          pacificaConnection: true,
+          exchangeConnection: true,
           leaderboardSnapshots: {
             where: { range: { in: ['weekly', 'all_time'] } },
             orderBy: { calculatedAt: 'desc' },
@@ -90,12 +90,12 @@ export async function GET(
         referralCode: user.referralCode,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        pacificaConnection: user.pacificaConnection
+        exchangeConnection: user.exchangeConnection
           ? {
-              accountAddress: user.pacificaConnection.accountAddress,
-              isActive: user.pacificaConnection.isActive,
-              builderCodeApproved: user.pacificaConnection.builderCodeApproved,
-              connectedAt: user.pacificaConnection.connectedAt,
+              accountAddress: user.exchangeConnection.accountAddress,
+              isActive: user.exchangeConnection.isActive,
+              builderCodeApproved: user.exchangeConnection.builderCodeApproved,
+              connectedAt: user.exchangeConnection.connectedAt,
             }
           : null,
         stats: {
@@ -298,7 +298,7 @@ export async function DELETE(
           prisma.trade.deleteMany({ where: { userId: id } }),
           prisma.fightParticipant.deleteMany({ where: { userId: id } }),
           prisma.leaderboardSnapshot.deleteMany({ where: { userId: id } }),
-          prisma.pacificaConnection.deleteMany({ where: { userId: id } }),
+          prisma.exchangeConnection.deleteMany({ where: { userId: id } }),
           prisma.user.delete({ where: { id } }),
         ]);
 

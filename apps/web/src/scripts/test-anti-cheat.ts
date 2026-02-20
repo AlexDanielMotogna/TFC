@@ -54,7 +54,7 @@ async function setupTestData() {
   });
 
   // Create Pacifica connections
-  await prisma.pacificaConnection.createMany({
+  await prisma.exchangeConnection.createMany({
     data: [
       {
         userId: TEST_USER_A_ID,
@@ -167,7 +167,7 @@ async function testMinVolumeRule() {
       {
         fightId,
         participantUserId: TEST_USER_A_ID,
-        pacificaHistoryId: BigInt(1000001),
+        exchangeHistoryId: BigInt(1000001),
         symbol: 'BTC-PERP',
         side: 'bid',
         amount: '0.0001', // Very small
@@ -179,7 +179,7 @@ async function testMinVolumeRule() {
       {
         fightId,
         participantUserId: TEST_USER_B_ID,
-        pacificaHistoryId: BigInt(1000002),
+        exchangeHistoryId: BigInt(1000002),
         symbol: 'ETH-PERP',
         side: 'ask',
         amount: '0.001',
@@ -610,7 +610,7 @@ async function cleanupTestData() {
   console.log(`   Deleted ${deletedFights.count} fights`);
 
   // 6. Delete Pacifica connections
-  const deletedConnections = await prisma.pacificaConnection.deleteMany({
+  const deletedConnections = await prisma.exchangeConnection.deleteMany({
     where: { userId: { startsWith: TEST_PREFIX } },
   });
   console.log(`   Deleted ${deletedConnections.count} Pacifica connections`);

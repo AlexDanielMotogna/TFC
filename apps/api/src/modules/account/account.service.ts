@@ -7,7 +7,7 @@ export class AccountService {
   constructor(private readonly pacifica: PacificaService) {}
 
   private async getAccountAddress(userId: string): Promise<string> {
-    const connection = await prisma.pacificaConnection.findUnique({
+    const connection = await prisma.exchangeConnection.findUnique({
       where: { userId },
       select: { accountAddress: true, isActive: true },
     });

@@ -104,7 +104,7 @@ export async function POST(
       }
 
       // Check if user has active Pacifica connection
-      const connection = await prisma.pacificaConnection.findUnique({
+      const connection = await prisma.exchangeConnection.findUnique({
         where: { userId: user.userId },
         select: { isActive: true },
       });
@@ -115,11 +115,11 @@ export async function POST(
 
       // Get Pacifica connections for both participants to snapshot positions
       const [creatorConnection, joinerConnection] = await Promise.all([
-        prisma.pacificaConnection.findUnique({
+        prisma.exchangeConnection.findUnique({
           where: { userId: fight.creatorId },
           select: { accountAddress: true },
         }),
-        prisma.pacificaConnection.findUnique({
+        prisma.exchangeConnection.findUnique({
           where: { userId: user.userId },
           select: { accountAddress: true },
         }),
