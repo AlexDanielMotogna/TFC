@@ -414,8 +414,8 @@ export default function TermsPage() {
               <p className="mb-2"><strong>Entity:</strong> TFC Technologies Ltd.</p>
               <p className="mb-2">
                 <strong>Email:</strong>{' '}
-                <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">
-                  legal@tfc.gg
+                <a href="mailto:office@tfc.gg" className="text-primary hover:underline">
+                  office@tfc.gg
                 </a>
               </p>
               <p>

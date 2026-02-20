@@ -37,7 +37,7 @@ export default function PrivacyPage() {
             </p>
             <p className="text-surface-300 mb-6">
               The data controller for the purposes of this Privacy Policy is TFC Technologies Ltd. You may contact us at{' '}
-              <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">legal@tfc.gg</a> for any data
+              <a href="mailto:office@tfc.gg" className="text-primary hover:underline">office@tfc.gg</a> for any data
               protection inquiries.
             </p>
             <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6 mb-6">
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
               <p className="text-surface-300 mb-3">
                 To exercise your rights to access, review, update, delete, or otherwise limit TFC's use of the personal
                 information you have provided, you may contact TFC at{' '}
-                <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">legal@tfc.gg</a>. Please include
+                <a href="mailto:office@tfc.gg" className="text-primary hover:underline">office@tfc.gg</a>. Please include
                 the details of your request.
               </p>
               <p className="text-surface-300">
@@ -279,7 +279,7 @@ export default function PrivacyPage() {
             <p className="mb-4">
               If you believe personal information has been collected from an individual who does not meet the age requirement or
               from a child under the age of 13, please contact TFC at{' '}
-              <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">legal@tfc.gg</a> to have such personal
+              <a href="mailto:office@tfc.gg" className="text-primary hover:underline">office@tfc.gg</a> to have such personal
               information deleted and any associated account(s) closed.
             </p>
           </section>
@@ -335,8 +335,8 @@ export default function PrivacyPage() {
               <p className="mb-2"><strong>Entity:</strong> TFC Technologies Ltd.</p>
               <p className="mb-2">
                 <strong>Email:</strong>{' '}
-                <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">
-                  legal@tfc.gg
+                <a href="mailto:office@tfc.gg" className="text-primary hover:underline">
+                  office@tfc.gg
                 </a>
               </p>
               <p>
