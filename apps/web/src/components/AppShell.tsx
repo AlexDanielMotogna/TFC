@@ -13,7 +13,6 @@ import { PrizesBanner } from '@/components/PrizesBanner';
 import { WithdrawModal } from '@/components/WithdrawModal';
 import { MobilePhantomRedirect } from '@/components/MobilePhantomRedirect';
 import { NoPacificaModal } from '@/components/NoPacificaModal';
-import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { QuickPositionsBar, QuickPositionsDropdown } from '@/components/QuickPositionsBar';
 import { SettingsModal } from '@/components/SettingsModal';
 import { api } from '@/lib/api';
@@ -28,7 +27,7 @@ import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
 
-// Deposit URL now comes from exchangeConfig
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
 
 // Wallet icon for balance
 function WalletIcon({ className }: { className?: string }) {
@@ -58,14 +57,13 @@ export function AppShell({ children }: AppShellProps) {
   const { account } = useAccount();
   const { claimablePrizes } = useMyPrizes();
   const settings = useSettings();
-  const { exchangeConfig } = useExchangeContext();
 
   // Global arena socket for real-time fight notifications
   useArenaSocket();
   const queryClient = useQueryClient();
 
-  // Get exchange balance
-  const exchangeBalance = account?.accountEquity ? parseFloat(account.accountEquity) : null;
+  // Get Pacifica balance
+  const pacificaBalance = account?.accountEquity ? parseFloat(account.accountEquity) : null;
   const withdrawableBalance = account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null;
 
   // Sidebar state: 'hidden' | 'icons' | 'full' (desktop only)
@@ -106,7 +104,7 @@ export function AppShell({ children }: AppShellProps) {
     e.stopPropagation();
     e.preventDefault();
     setShowWalletDropdown(false);
-    window.open(exchangeConfig.depositUrl, '_blank');
+    window.open(PACIFICA_DEPOSIT_URL, '_blank');
   };
 
   const handleWithdrawClick = (e: React.MouseEvent) => {
@@ -325,7 +323,7 @@ export function AppShell({ children }: AppShellProps) {
                     >
                       <WalletIcon className="w-4 h-4 text-surface-400" />
                       <span className="text-surface-200 font-mono">
-                        {exchangeBalance !== null ? `$${exchangeBalance.toFixed(2)}` : '-'}
+                        {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
                       </span>
                     </button>
 
@@ -392,7 +390,7 @@ export function AppShell({ children }: AppShellProps) {
             >
               <WalletIcon className="w-4 h-4 text-surface-400" />
               <span className="text-[10px] text-surface-200 font-mono mt-0.5">
-                {exchangeBalance !== null ? `$${exchangeBalance.toFixed(2)}` : '-'}
+                {pacificaBalance !== null ? `$${pacificaBalance.toFixed(2)}` : '-'}
               </span>
             </button>
 

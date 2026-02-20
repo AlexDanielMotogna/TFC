@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCreateMarketOrder, useCreateLimitOrder, useSetPositionTpSl } from '@/hooks/useOrders';
 import { usePrices } from '@/hooks/usePrices';
-import type { Position } from '@/hooks/useExchangeWebSocket';
+import type { Position } from '@/hooks/usePacificaWebSocket';
 import { Slider } from './Slider';
 import CloseIcon from '@mui/icons-material/Close';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';

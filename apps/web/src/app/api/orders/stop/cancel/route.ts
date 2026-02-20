@@ -5,39 +5,56 @@
 import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
-import { getOrderRouter } from '@/lib/server/exchanges/order-router';
-import type { ExchangeType } from '@tfc/shared';
+
+const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { exchange, account, symbol, order_id, signature, timestamp } = body;
+    const { account, symbol, order_id, signature, timestamp } = body;
 
-    const exchangeType: ExchangeType = exchange || 'pacifica';
-    const router = getOrderRouter(exchangeType);
-
-    if (!router.signsServerSide) {
-      if (!account || !symbol || !order_id || !signature || !timestamp) {
-        throw new BadRequestError('account, symbol, order_id, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
-      }
-    } else {
-      if (!account || !symbol || !order_id) {
-        throw new BadRequestError('account, symbol, and order_id are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
-      }
+    if (!account || !symbol || !order_id || !signature || !timestamp) {
+      throw new BadRequestError('account, symbol, order_id, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
-    // Route to the correct exchange
-    const result = await router.cancelStopOrder({
-      account, symbol, order_id, signature, timestamp,
+    const requestBody = {
+      account,
+      symbol,
+      order_id,
+      signature,
+      timestamp,
+      expiry_window: 5000,
+    };
+
+    console.log('Cancelling stop order:', requestBody);
+
+    // Proxy to Pacifica API - use stop/cancel endpoint
+    const response = await fetch(`${PACIFICA_API_URL}/api/v1/orders/stop/cancel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    if (!result.success) {
-      throw new ServiceUnavailableError(result.error || 'Exchange API error', ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+    const responseText = await response.text();
+    console.log('Pacifica cancel stop order response:', { status: response.status, body: responseText });
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+    }
+
+    if (!response.ok || !result.success) {
+      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
     console.log('Stop order cancelled', {
-      exchange: exchangeType,
-      account, symbol, order_id,
+      account,
+      symbol,
+      order_id,
     });
 
     // Record cancel stop action (non-blocking)

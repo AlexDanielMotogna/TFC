@@ -4,8 +4,7 @@ import { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, useExchangeWsStore } from '@/hooks';
-import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
 import type { ChartWidget } from '@/components/TradingViewChartAdvanced';
@@ -29,13 +28,17 @@ import FileUploadIcon from '@mui/icons-material/FileUpload';
 // Default market shown while loading from API
 const DEFAULT_MARKET = { symbol: 'BTC-USD', name: 'Bitcoin', maxLeverage: 50 };
 
+const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
+
 // TradeFightClub platform fee (fixed)
 const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
+
+// NOTE: Pacifica fees (maker_fee, taker_fee) are now fetched dynamically from the API
+// They change monthly, so we no longer use hardcoded fee tiers
 
 function TradePageContent() {
   const { connected } = useWallet();
   const { isAuthenticated, pacificaConnected, pacificaFailReason } = useAuth();
-  const { exchangeConfig, isExchangeConnected } = useExchangeContext();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -90,8 +93,8 @@ function TradePageContent() {
   const { orders: fightOpenOrders } = useFightOrders(fightId);
   const { orderHistory: fightOrderHistory } = useFightOrderHistory(fightId);
 
-  // Exchange WebSocket connection status (for real-time updates)
-  const exchangeWsConnected = useExchangeWsStore((state) => state.isConnected);
+  // Pacifica WebSocket connection status (for real-time updates)
+  const pacificaWsConnected = usePacificaWsStore((state) => state.isConnected);
 
   // TradingView widget instance — shared with AiBiasWidget for chart drawing
   const [tvWidget, setTvWidget] = useState<ChartWidget | null>(null);
@@ -264,7 +267,7 @@ function TradePageContent() {
   // Fight capital limit accordion (collapsed by default)
   const [showFightCapital, setShowFightCapital] = useState(true);
 
-  // Markets and prices from exchange API (dynamic, not hardcoded)
+  // Markets and prices from Pacifica API (dynamic, not hardcoded)
   const { markets, getPrice } = usePrices({
   });
 
@@ -302,7 +305,7 @@ function TradePageContent() {
     return rounded.toFixed(precision);
   };
 
-  // Helper to round price to tick size (exchanges require prices to be multiples of tick size)
+  // Helper to round price to tick size (Pacifica requires prices to be multiples of tick size)
   const roundToTickSize = useCallback((price: number): string => {
     const rounded = Math.round(price / tickSize) * tickSize;
     const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
@@ -318,7 +321,7 @@ function TradePageContent() {
 
     if (openPosition) {
       const positionLeverage = openPosition.leverage || 1;
-      // Exchange only allows INCREASING leverage on open positions
+      // Pacifica only allows INCREASING leverage on open positions
       if (lev < positionLeverage) {
         return {
           valid: false,
@@ -407,7 +410,7 @@ function TradePageContent() {
 
     try {
       // Calculate amount in tokens (position size with leverage, divided by price)
-      // Round down to lot size to avoid exchange API rejection
+      // Round down to lot size to avoid Pacifica API rejection
       // For limit orders, use limit price; for market, use current price
       const priceForCalc = orderType === 'limit' || orderType === 'stop-limit'
         ? parseFloat(limitPrice) || currentPrice
@@ -416,7 +419,7 @@ function TradePageContent() {
       const orderAmount = roundToLotSize(rawAmount, lotSize);
 
       // Build TP/SL params if enabled (for market and limit orders)
-      // Round to tick size to avoid "Invalid stop tick" errors from exchange
+      // Round to tick size to avoid "Invalid stop tick" errors from Pacifica
       const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit
         ? { stop_price: roundToTickSize(parseFloat(takeProfit)) }
         : undefined;
@@ -424,11 +427,10 @@ function TradePageContent() {
         ? { stop_price: roundToTickSize(parseFloat(stopLoss)) }
         : undefined;
 
-      // Minimum order size check (per-exchange config)
+      // Minimum order size: $11 (Pacifica minimum)
       // Use effectivePositionSize (margin × leverage) which matches the USD display in the UI
-      const minOrder = exchangeConfig.minOrderValue;
-      if (minOrder > 0 && effectivePositionSize < minOrder) {
-        toast.error(`Minimum order size is $${minOrder} (current: $${effectivePositionSize.toFixed(2)})`);
+      if (effectivePositionSize < 11) {
+        toast.error(`Minimum order size is $11 (current: $${effectivePositionSize.toFixed(2)})`);
         return;
       }
 
@@ -524,8 +526,8 @@ function TradePageContent() {
       return;
     }
 
-    if (!isExchangeConnected) {
-      alert(`Please connect your ${exchangeConfig.name} account first`);
+    if (!pacificaConnected) {
+      alert('Please connect your Pacifica account first');
       return;
     }
 
@@ -581,7 +583,7 @@ function TradePageContent() {
 
     // No opposite position, execute directly
     await executeOrder();
-  }, [isAuthenticated, isExchangeConnected, exchangeConfig.name, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
+  }, [isAuthenticated, pacificaConnected, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
 
   // Quick order from chart right-click context menu
   const handleChartQuickOrder = useCallback((price: number, side: 'LONG' | 'SHORT', clickY?: number) => {
@@ -597,8 +599,8 @@ function TradePageContent() {
     const symbol = selectedMarket.replace('-USD', '');
     const usdAmount = parseFloat(quickOrderAmount);
     if (isNaN(usdAmount) || usdAmount <= 0) return;
-    if (exchangeConfig.minOrderValue > 0 && usdAmount < exchangeConfig.minOrderValue) {
-      toast.error(`Minimum order size is $${exchangeConfig.minOrderValue}`);
+    if (usdAmount < 11) {
+      toast.error('Minimum order size is $11');
       return;
     }
 
@@ -904,15 +906,15 @@ function TradePageContent() {
     // ROI% = (PnL / margin) * 100
     const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
-    // Use liquidation price from exchange WebSocket when available (most accurate)
+    // Use liquidation price from Pacifica WebSocket when available (most accurate)
     const apiLiqPrice = parseFloat(pos.liquidationPrice) || 0;
     let liquidationPrice: number;
 
     if (apiLiqPrice > 0) {
-      // Real liq price from exchange WebSocket
+      // Real liq price from Pacifica WebSocket
       liquidationPrice = apiLiqPrice;
     } else {
-      // Fallback: calculate liquidation price
+      // Fallback: calculate using Pacifica's official formula
       // liquidation_price = [price - (side * position_margin) / position_size] / (1 - side / max_leverage / 2)
       const side = pos.side === 'LONG' ? 1 : -1;
       const mktMaxLeverage = leverage;
@@ -930,7 +932,7 @@ function TradePageContent() {
 
     // Find ALL Take Profit orders for this position
     // TP orders can be:
-    // 1. Native TP: order.type includes 'TP' or 'take_profit'
+    // 1. Native Pacifica TP: order.type includes 'TP' or 'take_profit'
     // 2. Hybrid approach: reduce_only LIMIT orders on opposite side at profit-taking price
     //    - For LONG position: TP price is ABOVE entry price
     //    - For SHORT position: TP price is BELOW entry price
@@ -938,7 +940,7 @@ function TradePageContent() {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
       if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
 
-      // Check for native TP orders
+      // Check for native Pacifica TP orders
       const isNativeTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
       if (isNativeTP) return true;
 
@@ -964,7 +966,7 @@ function TradePageContent() {
 
     // Find ALL Stop Loss orders for this position
     // SL orders can be:
-    // 1. Native SL: order.type includes 'SL' or 'stop_loss'
+    // 1. Native Pacifica SL: order.type includes 'SL' or 'stop_loss'
     // 2. Hybrid approach: reduce_only STOP orders on opposite side at loss-limiting price
     //    - For LONG position: SL price is BELOW entry price
     //    - For SHORT position: SL price is ABOVE entry price
@@ -972,7 +974,7 @@ function TradePageContent() {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
       if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
 
-      // Check for native SL orders
+      // Check for native Pacifica SL orders
       const isNativeSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
       if (isNativeSL) return true;
 
@@ -1070,7 +1072,7 @@ function TradePageContent() {
   });
 
   // Choose which positions/trades/orders to display based on toggle
-  // For Fight Only: use exchange positions (instant WebSocket) filtered by blockedSymbols
+  // For Fight Only: use Pacifica positions (instant WebSocket) filtered by blockedSymbols
   // Since pre-fight symbols are blocked, all remaining positions are fight positions
   // This gives instant updates vs slow REST polling from displayFightPositions
   const fightFilteredPositions = displayPositions.filter(
@@ -1082,10 +1084,10 @@ function TradePageContent() {
   const activeOrderHistory = showFightOnly && fightId ? fightOrderHistory : orderHistoryData;
 
   // Fee percentages (used in mobile info tab + order form)
-  const exchangeTakerFee = parseFloat(account?.takerFee || '0.0007');
-  const exchangeMakerFee = parseFloat(account?.makerFee || '0.000575');
-  const takerFeePercent = ((exchangeTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-  const makerFeePercent = ((exchangeMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+  const pacificaTakerFee = parseFloat(account?.takerFee || '0.0007');
+  const pacificaMakerFee = parseFloat(account?.makerFee || '0.000575');
+  const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+  const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
 
   // Calculate real-time unrealized PnL from positions (updates with WebSocket prices)
   const realtimeUnrealizedPnl = displayPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
@@ -1097,7 +1099,7 @@ function TradePageContent() {
   const fightRoi = fightMargin > 0 ? (fightPnl / fightMargin) * 100 : 0;
 
   const builderCodeApproved = builderCodeStatus?.approved ?? false;
-  const canTrade = connected && isAuthenticated && isExchangeConnected && (builderCodeApproved || !exchangeConfig.hasBuilderCode);
+  const canTrade = connected && isAuthenticated && pacificaConnected && builderCodeApproved;
 
   return (
     <BetaGate>
@@ -1756,7 +1758,7 @@ function TradePageContent() {
                               setQuickOrderPrice(null);
                             }
                           }}
-                          placeholder={exchangeConfig.minOrderValue > 0 ? `Min $${exchangeConfig.minOrderValue}` : 'Amount'}
+                          placeholder="Min $11"
                           className="w-20 bg-surface-800 rounded px-2 py-1.5 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-surface-600 placeholder:text-surface-600"
                           autoFocus
                         />
@@ -2468,43 +2470,43 @@ function TradePageContent() {
 
               {/* ═══ Warning Banners (top, block trading) ═══ */}
 
-              {/* Beta Access Required Warning (Pacifica-specific) */}
-              {isAuthenticated && !isExchangeConnected && pacificaFailReason === 'beta_required' && (
+              {/* Pacifica Beta Access Required Warning */}
+              {isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-orange-500/10 rounded border border-orange-500/30">
                   <div className="text-[10px] xl:text-xs text-orange-400 font-semibold mb-1.5 xl:mb-2 uppercase">Beta Access Required</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    Your wallet needs {exchangeConfig.name} beta access.
+                    Your wallet needs Pacifica beta access. Request a code from Pacifica.
                   </p>
                   <a
-                    href={exchangeConfig.depositUrl}
+                    href="https://pacifica.fi"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                   >
-                    Visit {exchangeConfig.name}
+                    Visit Pacifica
                   </a>
                 </div>
               )}
-              {/* No Exchange Account Warning */}
-              {isAuthenticated && !isExchangeConnected && pacificaFailReason !== 'beta_required' && (
+              {/* No Pacifica Account Warning */}
+              {isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No {exchangeConfig.name} Account</div>
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No Pacifica Account</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    Deposit funds on {exchangeConfig.name} first to start trading.
+                    Deposit funds on Pacifica first to start trading.
                   </p>
                   <a
-                    href={exchangeConfig.depositUrl}
+                    href={PACIFICA_DEPOSIT_URL}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block w-full py-1.5 bg-surface-500 hover:bg-surface-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                   >
-                    Deposit on {exchangeConfig.name}
+                    Deposit on Pacifica
                   </a>
                 </div>
               )}
 
-              {/* Builder Code Authorization Required - One-time approval (exchanges with builder codes only) */}
-              {isAuthenticated && isExchangeConnected && exchangeConfig.hasBuilderCode && !isLoadingBuilderCode && !builderCodeApproved && (
+              {/* Builder Code Authorization Required - One-time approval */}
+              {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-xl">
                   <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Authorization Required</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
@@ -2963,7 +2965,7 @@ function TradePageContent() {
                     const refPrice = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
                     const effectiveLev = Math.min(leverage, maxLeverage);
 
-                    // Round price to tick size (exchanges require prices to be multiples of tick size)
+                    // Round price to tick size (Pacifica requires prices to be multiples of tick size)
                     const roundToTickSize = (price: number) => {
                       const rounded = Math.round(price / tickSize) * tickSize;
                       // Determine decimal places from tick size
@@ -3209,10 +3211,10 @@ function TradePageContent() {
               {/* ═══ Section B: Account Info (below submit) ═══ */}
 
               {/* Deposit/Withdraw buttons */}
-              {isAuthenticated && isExchangeConnected && account && (
+              {isAuthenticated && pacificaConnected && account && (
                 <div className="flex gap-1.5 xl:gap-2 mt-3 xl:mt-4">
                   <a
-                    href={exchangeConfig.depositUrl}
+                    href="https://app.pacifica.fi?referral=TFC"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
@@ -3231,12 +3233,12 @@ function TradePageContent() {
               )}
 
               {/* Account Stats — collapsible */}
-              {isAuthenticated && isExchangeConnected && account && (() => {
-                // Dynamic fees from exchange API
-                const exchangeTakerFee = parseFloat(account.takerFee || '0.0007'); // Default fallback
-                const exchangeMakerFee = parseFloat(account.makerFee || '0.000575'); // Default fallback
-                const takerFeePercent = ((exchangeTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-                const makerFeePercent = ((exchangeMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+              {isAuthenticated && pacificaConnected && account && (() => {
+                // Dynamic fees from Pacifica API (change monthly, not hardcoded)
+                const pacificaTakerFee = parseFloat(account.takerFee || '0.0007'); // Default fallback
+                const pacificaMakerFee = parseFloat(account.makerFee || '0.000575'); // Default fallback
+                const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+                const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
 
                 const equity = parseFloat(account.accountEquity) || 0;
                 const marginUsed = parseFloat(account.totalMarginUsed) || 0;
@@ -3319,13 +3321,13 @@ function TradePageContent() {
                         </div>
                         <div className="flex justify-between group relative">
                           <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Real-time Updates</span>
-                          <span className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
-                            {exchangeWsConnected ? 'Live' : 'Polling'}
+                          <span className={`font-mono flex items-center gap-1.5 ${pacificaWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${pacificaWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
+                            {pacificaWsConnected ? 'Live' : 'Polling'}
                           </span>
                           <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            {exchangeWsConnected
-                              ? `Connected to ${exchangeConfig.name} WebSocket for instant position and order updates`
+                            {pacificaWsConnected
+                              ? 'Connected to Pacifica WebSocket for instant position and order updates'
                               : 'Using HTTP polling for updates (every 10 seconds). WebSocket connection not available.'}
                           </div>
                         </div>
@@ -3419,21 +3421,21 @@ function TradePageContent() {
             {/* Order form content */}
             <div className="px-4 pb-8">
               {/* Warning Banners */}
-              {isAuthenticated && !isExchangeConnected && pacificaFailReason === 'beta_required' && (
+              {isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
                 <div className="mb-3 p-3 bg-orange-500/10 rounded border border-orange-500/30">
                   <div className="text-xs text-orange-400 font-semibold mb-2 uppercase">Beta Access Required</div>
-                  <p className="text-xs text-surface-400 mb-2">Your wallet needs {exchangeConfig.name} beta access.</p>
-                  <a href={exchangeConfig.depositUrl} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded transition-colors text-center">Visit {exchangeConfig.name}</a>
+                  <p className="text-xs text-surface-400 mb-2">Your wallet needs Pacifica beta access.</p>
+                  <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded transition-colors text-center">Visit Pacifica</a>
                 </div>
               )}
-              {isAuthenticated && !isExchangeConnected && pacificaFailReason !== 'beta_required' && (
+              {isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
                 <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">No {exchangeConfig.name} Account</div>
-                  <p className="text-xs text-surface-400 mb-2">Deposit funds on {exchangeConfig.name} first.</p>
-                  <a href={exchangeConfig.depositUrl} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on {exchangeConfig.name}</a>
+                  <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">No Pacifica Account</div>
+                  <p className="text-xs text-surface-400 mb-2">Deposit funds on Pacifica first.</p>
+                  <a href={PACIFICA_DEPOSIT_URL} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</a>
                 </div>
               )}
-              {isAuthenticated && isExchangeConnected && exchangeConfig.hasBuilderCode && !isLoadingBuilderCode && !builderCodeApproved && (
+              {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
                 <div className="mb-3 p-3 bg-surface-800 rounded-xl">
                   <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">Authorization Required</div>
                   <p className="text-xs text-surface-400 mb-1.5">Authorize TFC builder code. One-time approval.</p>
@@ -3775,10 +3777,10 @@ function TradePageContent() {
               </button>
 
               {/* Deposit/Withdraw buttons */}
-              {isAuthenticated && isExchangeConnected && account && (
+              {isAuthenticated && pacificaConnected && account && (
                 <div className="flex gap-2 mt-4">
                   <a
-                    href={exchangeConfig.depositUrl}
+                    href="https://app.pacifica.fi?referral=TFC"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
@@ -3797,11 +3799,11 @@ function TradePageContent() {
               )}
 
               {/* Account Stats — collapsible */}
-              {isAuthenticated && isExchangeConnected && account && (() => {
-                const exchangeTakerFee = parseFloat(account.takerFee || '0.0007');
-                const exchangeMakerFee = parseFloat(account.makerFee || '0.000575');
-                const takerFeePercent = ((exchangeTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-                const makerFeePercent = ((exchangeMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+              {isAuthenticated && pacificaConnected && account && (() => {
+                const pacificaTakerFee = parseFloat(account.takerFee || '0.0007');
+                const pacificaMakerFee = parseFloat(account.makerFee || '0.000575');
+                const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+                const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
                 const equity = parseFloat(account.accountEquity) || 0;
                 const marginUsed = parseFloat(account.totalMarginUsed) || 0;
                 const available = parseFloat(account.availableToSpend) || 0;
@@ -3840,9 +3842,9 @@ function TradePageContent() {
                         <div className="flex justify-between"><span className="text-surface-400">Maintenance Margin</span><span className="text-white font-mono">${maintenanceMargin.toFixed(2)}</span></div>
                         <div className="flex justify-between">
                           <span className="text-surface-400">Real-time Updates</span>
-                          <span className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
-                            {exchangeWsConnected ? 'Live' : 'Polling'}
+                          <span className={`font-mono flex items-center gap-1.5 ${pacificaWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${pacificaWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
+                            {pacificaWsConnected ? 'Live' : 'Polling'}
                           </span>
                         </div>
                       </div>

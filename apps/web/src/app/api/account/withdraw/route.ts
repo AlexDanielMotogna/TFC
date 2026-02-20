@@ -4,25 +4,16 @@
  */
 import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
-import { getOrderRouter } from '@/lib/server/exchanges/order-router';
-import type { ExchangeType } from '@tfc/shared';
+
+const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { exchange, account, amount, signature, timestamp } = body;
+    const { account, amount, signature, timestamp } = body;
 
-    const exchangeType: ExchangeType = exchange || 'pacifica';
-    const router = getOrderRouter(exchangeType);
-
-    if (!router.signsServerSide) {
-      if (!account || !amount || !signature || !timestamp) {
-        throw new BadRequestError('account, amount, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
-      }
-    } else {
-      if (!account || !amount) {
-        throw new BadRequestError('account and amount are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
-      }
+    if (!account || !amount || !signature || !timestamp) {
+      throw new BadRequestError('account, amount, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
     // Validate amount is a positive number
@@ -31,18 +22,36 @@ export async function POST(request: Request) {
       throw new BadRequestError('amount must be a positive number', ErrorCode.ERR_ORDER_INVALID_AMOUNT);
     }
 
-    console.log('Requesting withdrawal:', { exchange: exchangeType, account, amount });
+    console.log('Requesting withdrawal:', { account, amount });
 
-    // Route to the correct exchange
-    const result = await router.withdraw({
-      account, amount, signature, timestamp,
+    // Proxy to Pacifica API
+    const response = await fetch(`${PACIFICA_API_URL}/api/v1/account/withdraw`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        account,
+        amount,
+        signature,
+        timestamp,
+        expiry_window: 5000,
+      }),
     });
 
-    if (!result.success) {
-      throw new ServiceUnavailableError(result.error || 'Exchange API error', ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+    const responseText = await response.text();
+    console.log('Pacifica withdraw response:', { status: response.status, body: responseText });
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      throw new ServiceUnavailableError(`Failed to parse Pacifica response: ${responseText}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
     }
 
-    console.log('Withdrawal requested successfully', { exchange: exchangeType, account, amount });
+    if (!response.ok || !result.success) {
+      throw new ServiceUnavailableError(result.error || `Pacifica API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+    }
+
+    console.log('Withdrawal requested successfully', { account, amount });
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

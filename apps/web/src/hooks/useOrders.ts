@@ -1,71 +1,39 @@
 /**
  * Trading hooks for placing and managing orders
- *
- * Exchange-agnostic: uses useSigner() to get the correct signer
- * for the active exchange (Pacifica, Hyperliquid, Lighter).
- *
- * For Pacifica: client-side signing (user signs each action with Solana wallet)
- * For Hyperliquid/Lighter: server-side signing (backend signs with delegated keys)
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useSigner } from '@/hooks/useSigner';
-import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { useWallet } from '@solana/wallet-adapter-react';
+import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
-import type { NormalizedSide, NormalizedTif } from '@/lib/signing/types';
 
-// ─── Side normalization (backward compat) ───
-// Accept old Pacifica format ('bid'/'ask'), UI format ('LONG'/'SHORT'), and normalized ('BUY'/'SELL')
-type AcceptedSide = NormalizedSide | 'bid' | 'ask' | 'LONG' | 'SHORT';
-
-function normalizeSide(side: AcceptedSide): NormalizedSide {
-  switch (side) {
-    case 'BUY': case 'bid': case 'LONG': return 'BUY';
-    case 'SELL': case 'ask': case 'SHORT': return 'SELL';
-    default: return side;
-  }
-}
-
-// ─── TP/SL param normalization ───
-// Accept both old format { stop_price } and new format { stopPrice }
-interface TpSlParam {
-  stopPrice?: string;
-  stop_price?: string;
-  limitPrice?: string;
-  limit_price?: string;
-}
-
-function normalizeTpSl(param: TpSlParam | null | undefined): { stopPrice: string; limitPrice?: string } | null | undefined {
-  if (param === null) return null;
-  if (param === undefined) return undefined;
-  return {
-    stopPrice: param.stopPrice || param.stop_price || '',
-    limitPrice: param.limitPrice || param.limit_price,
-  };
-}
+const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
 
 interface CreateMarketOrderParams {
-  symbol: string;          // 'BTC-USD' or 'BTC' (both accepted)
-  side: AcceptedSide;      // 'BUY'|'SELL' or 'bid'|'ask' or 'LONG'|'SHORT'
+  symbol: string;
+  side: 'bid' | 'ask'; // bid = LONG, ask = SHORT
   amount: string;
   reduceOnly?: boolean;
   slippage_percent?: string;
-  take_profit?: TpSlParam;
-  stop_loss?: TpSlParam;
-  fightId?: string;
-  leverage?: number;
-  isPreFightFlip?: boolean;
+  builder_code?: string;
+  take_profit?: { stop_price: string };
+  stop_loss?: { stop_price: string };
+  fightId?: string; // Optional: specific fight to apply this trade to
+  leverage?: number; // Leverage used for this trade (stored in FightTrade for accurate ROI calculation)
+  isPreFightFlip?: boolean; // When true, this is a flip of a pre-fight position (don't record as fight trade)
 }
 
 interface CreateLimitOrderParams {
   symbol: string;
-  side: AcceptedSide;
+  side: 'bid' | 'ask';
   price: string;
   amount: string;
   reduceOnly?: boolean;
-  tif?: NormalizedTif | string;
-  take_profit?: TpSlParam;
-  stop_loss?: TpSlParam;
+  postOnly?: boolean;
+  tif?: 'GTC' | 'IOC' | 'ALO' | 'TOB';
+  builder_code?: string;
+  take_profit?: { stop_price: string };
+  stop_loss?: { stop_price: string };
   fightId?: string;
   leverage?: number;
 }
@@ -81,11 +49,11 @@ interface CancelAllOrdersParams {
 
 interface SetPositionTpSlParams {
   symbol: string;
-  side: AcceptedSide;      // Position side: 'BUY'|'LONG' or 'SELL'|'SHORT'
-  size: string;
-  take_profit?: TpSlParam | null;
-  stop_loss?: TpSlParam | null;
-  fightId?: string;
+  side: 'LONG' | 'SHORT';
+  size: string; // Size in token units (e.g., "0.00123" for BTC)
+  take_profit?: { stop_price: string; limit_price?: string } | null; // null to remove
+  stop_loss?: { stop_price: string; limit_price?: string } | null; // null to remove
+  fightId?: string; // Optional: track TP/SL as fight order
 }
 
 interface SetLeverageParams {
@@ -95,10 +63,10 @@ interface SetLeverageParams {
 
 interface CreateStopOrderParams {
   symbol: string;
-  side: AcceptedSide;      // Position side
+  side: 'LONG' | 'SHORT'; // Position side (order will be opposite to close)
   stopPrice: string;
-  amount: string;
-  limitPrice?: string;
+  amount: string; // Partial amount in token units
+  limitPrice?: string; // Optional limit price for stop-limit orders
   type: 'TAKE_PROFIT' | 'STOP_LOSS';
   fightId?: string;
 }
@@ -114,52 +82,54 @@ interface EditOrderParams {
  * Hook to create market orders
  */
 export function useCreateMarketOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: CreateMarketOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const side = normalizeSide(params.side);
-      const takeProfit = normalizeTpSl(params.take_profit);
-      const stopLoss = normalizeTpSl(params.stop_loss);
+      const account = wallet.publicKey.toBase58();
 
-      const operation = await signer.signMarketOrder({
+      const slippagePercent = params.slippage_percent || '0.5';
+      const builderCode = params.builder_code || BUILDER_CODE;
+
+      // Sign the operation with wallet - must include builder_code and TP/SL in signed data
+      const { signature, timestamp } = await createSignedMarketOrder(wallet, {
         symbol: params.symbol,
-        side,
+        side: params.side,
         amount: params.amount,
-        slippagePercent: params.slippage_percent || '0.5',
-        reduceOnly: params.reduceOnly,
-        takeProfit: takeProfit || undefined,
-        stopLoss: stopLoss || undefined,
+        slippage_percent: slippagePercent,
+        reduce_only: params.reduceOnly || false,
+        builder_code: builderCode,
+        take_profit: params.take_profit,
+        stop_loss: params.stop_loss,
       });
 
+      // Send to backend proxy
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
+          account,
           symbol: params.symbol,
-          side,
+          side: params.side,
           type: 'MARKET',
           amount: params.amount,
           reduce_only: params.reduceOnly || false,
-          slippage_percent: params.slippage_percent || '0.5',
-          take_profit: takeProfit ? { stop_price: takeProfit.stopPrice } : undefined,
-          stop_loss: stopLoss ? { stop_price: stopLoss.stopPrice } : undefined,
-          // Client-signed fields (Pacifica only)
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          // Exchange-specific params (server-signed exchanges)
-          ...operation.params,
-          fight_id: params.fightId,
-          leverage: params.leverage,
-          is_pre_fight_flip: params.isPreFightFlip,
+          slippage_percent: slippagePercent,
+          builder_code: builderCode,
+          take_profit: params.take_profit,
+          stop_loss: params.stop_loss,
+          signature,
+          timestamp,
+          fight_id: params.fightId, // Pass specific fight for stake validation
+          leverage: params.leverage, // Leverage for FightTrade ROI calculation
+          is_pre_fight_flip: params.isPreFightFlip, // Skip recording if flipping pre-fight position
         }),
       });
 
@@ -176,6 +146,8 @@ export function useCreateMarketOrder() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['account'] });
 
+      // If TP/SL was included, refetch orders after a delay
+      // Pacifica creates TP/SL stop orders after the main order, so we need to wait
       if (variables.take_profit || variables.stop_loss) {
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -185,7 +157,11 @@ export function useCreateMarketOrder() {
         }, 2500);
       }
 
+      // Invalidate fight-related queries if in a fight
+      // Backend takes 500-1500ms+ to fetch execution details from Pacifica
+      // Reduced invalidations to avoid 429 rate limits (was 4 sets, now 2)
       if (variables.fightId) {
+        // First invalidation after backend has time to process
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
@@ -193,6 +169,7 @@ export function useCreateMarketOrder() {
           queryClient.invalidateQueries({ queryKey: ['stake-info'] });
         }, 1000);
 
+        // Second invalidation as backup
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
@@ -201,9 +178,9 @@ export function useCreateMarketOrder() {
         }, 3000);
       }
 
+      // Format like Pacifica: "0.00082 BTC filled at 93300"
       const avgPrice = data.avg_price || data.price || 'market';
-      const symbolDisplay = variables.symbol.replace('-USD', '');
-      notify('TRADE', 'Order Filled', `${variables.amount} ${symbolDisplay} filled at ${avgPrice}`, { variant: 'success' });
+      notify('TRADE', 'Order Filled', `${variables.amount} ${variables.symbol} filled at ${avgPrice}`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to create market order:', error);
@@ -216,52 +193,57 @@ export function useCreateMarketOrder() {
  * Hook to create limit orders
  */
 export function useCreateLimitOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: CreateLimitOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const side = normalizeSide(params.side);
-      const tif = (params.tif || 'GTC') as NormalizedTif;
-      const takeProfit = normalizeTpSl(params.take_profit);
-      const stopLoss = normalizeTpSl(params.stop_loss);
+      const account = wallet.publicKey.toBase58();
 
-      const operation = await signer.signLimitOrder({
+      const builderCode = params.builder_code || BUILDER_CODE;
+
+      // Sign the operation with wallet - must include builder_code, tif, and TP/SL in signed data
+      // Note: post_only is NOT a valid Pacifica parameter for limit orders
+      const tif = params.tif || 'GTC';
+      const { signature, timestamp } = await createSignedLimitOrder(wallet, {
         symbol: params.symbol,
-        side,
+        side: params.side,
         price: params.price,
         amount: params.amount,
-        reduceOnly: params.reduceOnly,
+        reduce_only: params.reduceOnly || false,
+        builder_code: builderCode,
         tif,
-        takeProfit: takeProfit || undefined,
-        stopLoss: stopLoss || undefined,
+        take_profit: params.take_profit,
+        stop_loss: params.stop_loss,
       });
 
+      // Send to backend proxy
       const response = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
+          account,
           symbol: params.symbol,
-          side,
+          side: params.side,
           type: 'LIMIT',
           price: params.price,
           amount: params.amount,
           reduce_only: params.reduceOnly || false,
-          tif,
-          take_profit: takeProfit ? { stop_price: takeProfit.stopPrice } : undefined,
-          stop_loss: stopLoss ? { stop_price: stopLoss.stopPrice } : undefined,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          ...operation.params,
+          post_only: params.postOnly || false,
+          tif: params.tif || 'GTC',
+          builder_code: builderCode,
+          take_profit: params.take_profit,
+          stop_loss: params.stop_loss,
           fight_id: params.fightId,
           leverage: params.leverage,
+          signature,
+          timestamp,
         }),
       });
 
@@ -276,6 +258,8 @@ export function useCreateLimitOrder() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
+      // If TP/SL was included, refetch orders after a delay
+      // Pacifica creates TP/SL stop orders after the main order, so we need to wait
       if (variables.take_profit || variables.stop_loss) {
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -285,8 +269,8 @@ export function useCreateLimitOrder() {
         }, 2500);
       }
 
-      const symbolDisplay = variables.symbol.replace('-USD', '');
-      notify('ORDER', 'Limit Order', `Limit order: ${variables.amount} ${symbolDisplay} at ${variables.price}`, { variant: 'success' });
+      // Format: "Limit order: 0.001 BTC at 93000"
+      notify('ORDER', 'Limit Order', `Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to create limit order:', error);
@@ -299,24 +283,29 @@ export function useCreateLimitOrder() {
  * Hook to cancel a specific order
  */
 export function useCancelOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: CancelOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signCancelOrder({
-        orderId: params.orderId,
+      const account = wallet.publicKey.toBase58();
+
+      // Sign the cancellation with wallet - symbol must be included in signed data
+      const { signature, timestamp } = await createSignedCancelOrder(wallet, {
+        order_id: params.orderId,
         symbol: params.symbol,
       });
 
+      // Send to backend proxy
       const response = await fetch(
-        `/api/orders/${params.orderId}?exchange=${exchangeType}&account=${operation.account}&symbol=${params.symbol}&signature=${operation.signature || ''}&timestamp=${operation.timestamp || ''}`,
-        { method: 'DELETE' }
+        `/api/orders/${params.orderId}?account=${account}&symbol=${params.symbol}&signature=${signature}&timestamp=${timestamp}`,
+        {
+          method: 'DELETE',
+        }
       );
 
       if (!response.ok) {
@@ -329,6 +318,7 @@ export function useCancelOrder() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+
       notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
     },
     onError: (error: Error) => {
@@ -342,31 +332,35 @@ export function useCancelOrder() {
  * Hook to cancel a stop order (TP/SL)
  */
 export function useCancelStopOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: CancelOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signCancelOrder({
-        orderId: params.orderId,
+      const account = wallet.publicKey.toBase58();
+
+      // Sign the cancellation with wallet - use cancel_stop_order type
+      const { signature, timestamp } = await createSignedCancelStopOrder(wallet, {
+        order_id: params.orderId,
         symbol: params.symbol,
       });
 
+      // Send to backend proxy for stop order cancellation
       const response = await fetch('/api/orders/stop/cancel', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
+          account,
           symbol: params.symbol,
           order_id: params.orderId,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
+          signature,
+          timestamp,
         }),
       });
 
@@ -379,9 +373,12 @@ export function useCancelStopOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
+      // Invalidate immediately
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['positions'] });
 
+      // Force refetch after a delay to ensure Pacifica has processed the cancellation
+      // This helps when WebSocket data might be stale
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         queryClient.invalidateQueries({ queryKey: ['positions'] });
@@ -404,28 +401,36 @@ export function useCancelStopOrder() {
  * Hook to cancel all orders
  */
 export function useCancelAllOrders() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params?: CancelAllOrdersParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signCancelAllOrders({
+      const account = wallet.publicKey.toBase58();
+
+      // Sign the cancellation with wallet
+      const { signature, timestamp } = await createSignedCancelAllOrders(wallet, {
+        all_symbols: !params?.symbol,
+        exclude_reduce_only: false,
         symbol: params?.symbol,
       });
 
+      // Send to backend proxy
       const url = new URL('/api/orders', window.location.origin);
-      url.searchParams.set('exchange', exchangeType);
-      url.searchParams.set('account', operation.account);
-      if (operation.signature) url.searchParams.set('signature', operation.signature);
-      if (operation.timestamp) url.searchParams.set('timestamp', operation.timestamp.toString());
-      if (params?.symbol) url.searchParams.set('symbol', params.symbol);
+      url.searchParams.set('account', account);
+      url.searchParams.set('signature', signature);
+      url.searchParams.set('timestamp', timestamp.toString());
+      if (params?.symbol) {
+        url.searchParams.set('symbol', params.symbol);
+      }
 
-      const response = await fetch(url.toString(), { method: 'DELETE' });
+      const response = await fetch(url.toString(), {
+        method: 'DELETE',
+      });
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -439,7 +444,7 @@ export function useCancelAllOrders() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
       const msg = params?.symbol
-        ? `All ${params.symbol.replace('-USD', '')} orders cancelled`
+        ? `All ${params.symbol} orders cancelled`
         : 'All orders cancelled';
       notify('ORDER', 'Orders Cancelled', msg, { variant: 'success' });
     },
@@ -454,64 +459,104 @@ export function useCancelAllOrders() {
  * Hook to set TP/SL on existing position
  */
 export function useSetPositionTpSl() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: SetPositionTpSlParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const side = normalizeSide(params.side);
-      const takeProfit = normalizeTpSl(params.take_profit);
-      const stopLoss = normalizeTpSl(params.stop_loss);
+      const account = wallet.publicKey.toBase58();
 
-      const operation = await signer.signSetTpSl({
-        symbol: params.symbol,
+      // Convert LONG/SHORT to CLOSING order side (opposite of position)
+      // TP/SL orders close the position, so they need the opposite side:
+      // - LONG position → need to SELL (ask) to close
+      // - SHORT position → need to BUY (bid) to close
+      const side = params.side === 'LONG' ? 'ask' : 'bid';
+
+      // Build params for signing - account is NOT in signed data (same as market orders)
+      // NOTE: size is NOT included in signed data - Pacifica's set_position_tpsl
+      // operation type doesn't support it in the signature verification.
+      // Size is sent in the request body separately (if Pacifica supports it there).
+      const signParams: {
+        symbol: string;
+        side: 'bid' | 'ask';
+        take_profit?: { stop_price: string; limit_price?: string } | null;
+        stop_loss?: { stop_price: string; limit_price?: string } | null;
+      } = {
+        symbol: params.symbol.replace('-USD', ''),
         side,
-        size: params.size,
-        takeProfit,
-        stopLoss,
-      });
-
-      const requestBody: Record<string, unknown> = {
-        exchange: exchangeType,
-        account: operation.account,
-        signature: operation.signature,
-        timestamp: operation.timestamp,
-        ...operation.params,
-        fight_id: params.fightId,
       };
 
-      // Include size for partial TP/SL
+      // Handle take_profit: null means remove, undefined means don't change, object means set
+      if (params.take_profit === null) {
+        signParams.take_profit = null; // Explicitly null to remove
+      } else if (params.take_profit) {
+        signParams.take_profit = { stop_price: params.take_profit.stop_price };
+        if (params.take_profit.limit_price) {
+          signParams.take_profit.limit_price = params.take_profit.limit_price;
+        }
+      }
+
+      // Handle stop_loss: null means remove, undefined means don't change, object means set
+      if (params.stop_loss === null) {
+        signParams.stop_loss = null; // Explicitly null to remove
+      } else if (params.stop_loss) {
+        signParams.stop_loss = { stop_price: params.stop_loss.stop_price };
+        if (params.stop_loss.limit_price) {
+          signParams.stop_loss.limit_price = params.stop_loss.limit_price;
+        }
+      }
+
+      // Sign the operation
+      console.log('TP/SL signParams:', JSON.stringify(signParams, null, 2));
+      const { signature, timestamp } = await createSignedSetPositionTpsl(wallet, signParams);
+      console.log('TP/SL signed with timestamp:', timestamp);
+
+      // Build request body - must match exactly what was signed
+      // NOTE: builder_code is NOT a valid field for TP/SL endpoint per Pacifica docs
+      const requestBody: Record<string, any> = {
+        account,
+        symbol: params.symbol.replace('-USD', ''),
+        side,
+        signature,
+        timestamp,
+        fight_id: params.fightId, // Track as fight order if in fight
+      };
+
+      // Include size for partial TP/SL orders
       if (params.size) {
         requestBody.size = params.size;
       }
 
-      // Include TP/SL in request body
-      if (takeProfit === null) {
+      // Use the same take_profit/stop_loss structure as what was signed
+      // null = remove, undefined = don't include, object = set
+      if (params.take_profit === null) {
         requestBody.take_profit = null;
-      } else if (takeProfit) {
-        requestBody.take_profit = { stop_price: takeProfit.stopPrice };
-        if (takeProfit.limitPrice) {
-          (requestBody.take_profit as Record<string, string>).limit_price = takeProfit.limitPrice;
+      } else if (params.take_profit) {
+        requestBody.take_profit = { stop_price: params.take_profit.stop_price };
+        if (params.take_profit.limit_price) {
+          requestBody.take_profit.limit_price = params.take_profit.limit_price;
         }
       }
 
-      if (stopLoss === null) {
+      if (params.stop_loss === null) {
         requestBody.stop_loss = null;
-      } else if (stopLoss) {
-        requestBody.stop_loss = { stop_price: stopLoss.stopPrice };
-        if (stopLoss.limitPrice) {
-          (requestBody.stop_loss as Record<string, string>).limit_price = stopLoss.limitPrice;
+      } else if (params.stop_loss) {
+        requestBody.stop_loss = { stop_price: params.stop_loss.stop_price };
+        if (params.stop_loss.limit_price) {
+          requestBody.stop_loss.limit_price = params.stop_loss.limit_price;
         }
       }
 
+      // Send to backend proxy
       const response = await fetch('/api/positions/tpsl', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(requestBody),
       });
 
@@ -524,9 +569,12 @@ export function useSetPositionTpSl() {
       return result.data;
     },
     onSuccess: (_, variables) => {
+      // Force immediate refetch (not just invalidate) to show TP/SL faster
+      // refetchQueries actually triggers a fetch, unlike invalidateQueries which just marks stale
       queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       queryClient.refetchQueries({ queryKey: ['positions'], type: 'active' });
 
+      // Also refetch after short delays to catch any propagation delay from Pacifica
       setTimeout(() => {
         queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       }, 300);
@@ -536,13 +584,11 @@ export function useSetPositionTpSl() {
       }, 800);
 
       const parts = [];
-      const tp = normalizeTpSl(variables.take_profit);
-      const sl = normalizeTpSl(variables.stop_loss);
-      if (tp) {
-        parts.push(`TP: $${tp.stopPrice}`);
+      if (variables.take_profit) {
+        parts.push(`TP: $${variables.take_profit.stop_price}`);
       }
-      if (sl) {
-        parts.push(`SL: $${sl.stopPrice}`);
+      if (variables.stop_loss) {
+        parts.push(`SL: $${variables.stop_loss.stop_price}`);
       }
       notify('ORDER', 'TP/SL Set', `${variables.symbol} ${parts.join(', ')} set`, { variant: 'success' });
     },
@@ -556,50 +602,64 @@ export function useSetPositionTpSl() {
 /**
  * Hook to create partial TP/SL orders
  *
- * For TP: uses limit order with reduce_only (price moving in your favor)
- * For SL: uses stop order (price moving against you)
+ * Due to how Pacifica's create_stop_order works (triggers based on price direction):
+ * - Stop orders only work for SL (price moving against you)
+ * - For TP (price moving in your favor), we use limit orders with reduce_only
+ *
+ * This creates separate orders without overwriting existing TP/SL
  */
 export function useCreateStopOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: CreateStopOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const positionSide = normalizeSide(params.side);
-      const closingSide: NormalizedSide = positionSide === 'BUY' ? 'SELL' : 'BUY';
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Determine order side for closing position
+      // - LONG position: need to SELL (ask) to close
+      // - SHORT position: need to BUY (bid) to close
+      const closingSide: 'bid' | 'ask' = params.side === 'LONG' ? 'ask' : 'bid';
 
       // For TAKE PROFIT: Use limit order with reduce_only
+      // (Limit orders execute when price reaches the level)
       if (params.type === 'TAKE_PROFIT') {
-        const operation = await signer.signLimitOrder({
-          symbol: params.symbol,
+        console.log('Creating TP as limit order reduce_only');
+
+        const limitParams = {
+          symbol,
           side: closingSide,
           price: params.stopPrice,
           amount: params.amount,
-          reduceOnly: true,
-          tif: 'GTC',
-        });
+          reduce_only: true,
+          tif: 'GTC' as const,
+        };
 
+        // Sign as limit order
+        const { signature, timestamp } = await createSignedLimitOrder(wallet, limitParams);
+
+        // Send to backend
         const response = await fetch('/api/orders', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({
-            exchange: exchangeType,
-            account: operation.account,
-            symbol: params.symbol,
+            account,
+            symbol,
             side: closingSide,
             type: 'LIMIT',
             price: params.stopPrice,
             amount: params.amount,
             reduce_only: true,
             tif: 'GTC',
-            signature: operation.signature,
-            timestamp: operation.timestamp,
-            ...operation.params,
+            signature,
+            timestamp,
           }),
         });
 
@@ -613,24 +673,34 @@ export function useCreateStopOrder() {
       }
 
       // For STOP LOSS: Use stop order
-      const operation = await signer.signStopOrder({
-        symbol: params.symbol,
-        side: positionSide,
-        reduceOnly: true,
-        stopPrice: params.stopPrice,
-        amount: params.amount,
-        limitPrice: params.limitPrice,
-      });
+      // Stop orders trigger when price moves against you
+      const stopOrderParams = {
+        symbol,
+        side: closingSide as 'bid' | 'ask',
+        reduce_only: true,
+        stop_order: {
+          stop_price: params.stopPrice,
+          amount: params.amount,
+          ...(params.limitPrice && { limit_price: params.limitPrice }),
+        },
+      };
 
+      console.log('Creating SL as stop order:', stopOrderParams);
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedStopOrder(wallet, stopOrderParams);
+
+      // Send to backend
       const response = await fetch('/api/orders/stop/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          ...operation.params,
+          account,
+          ...stopOrderParams,
+          signature,
+          timestamp,
           fight_id: params.fightId,
         }),
       });
@@ -644,9 +714,11 @@ export function useCreateStopOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
+      // Force immediate refetch to show new order
       queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       queryClient.refetchQueries({ queryKey: ['positions'], type: 'active' });
 
+      // Also refetch after delays
       setTimeout(() => {
         queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       }, 300);
@@ -657,8 +729,7 @@ export function useCreateStopOrder() {
 
       const typeLabel = variables.type === 'TAKE_PROFIT' ? 'TP' : 'SL';
       const orderType = variables.type === 'TAKE_PROFIT' ? 'Limit' : 'Stop';
-      const symbolDisplay = variables.symbol.replace('-USD', '');
-      notify('ORDER', `${typeLabel} Order Created`, `${symbolDisplay} ${typeLabel} (${orderType}): $${variables.stopPrice} (${variables.amount})`, { variant: 'success' });
+      notify('ORDER', `${typeLabel} Order Created`, `${variables.symbol} ${typeLabel} (${orderType}): $${variables.stopPrice} (${variables.amount})`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to create partial TP/SL:', error);
@@ -669,49 +740,58 @@ export function useCreateStopOrder() {
 
 /**
  * Hook to create standalone stop orders from the order form
+ * Unlike useCreateStopOrder (which is for TP/SL on existing positions),
+ * this creates stop-market or stop-limit orders as new entries.
  */
 interface CreateStandaloneStopOrderParams {
-  symbol: string;
-  side: AcceptedSide;
-  stopPrice: string;
-  amount: string;
-  limitPrice?: string;
-  reduceOnly?: boolean;
+  symbol: string;          // 'BTC-USD'
+  side: 'bid' | 'ask';    // bid=LONG, ask=SHORT
+  stopPrice: string;       // trigger price
+  amount: string;          // token amount (string)
+  limitPrice?: string;     // for stop-limit only
+  reduceOnly?: boolean;    // default false
   fightId?: string;
   leverage?: number;
 }
 
 export function useCreateStandaloneStopOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: CreateStandaloneStopOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const side = normalizeSide(params.side);
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
 
-      const operation = await signer.signStopOrder({
-        symbol: params.symbol,
-        side,
-        reduceOnly: params.reduceOnly || false,
-        stopPrice: params.stopPrice,
-        amount: params.amount,
-        limitPrice: params.limitPrice,
-      });
+      const stopOrderParams = {
+        symbol,
+        side: params.side,
+        reduce_only: params.reduceOnly || false,
+        stop_order: {
+          stop_price: params.stopPrice,
+          amount: params.amount,
+          ...(params.limitPrice && { limit_price: params.limitPrice }),
+        },
+      };
 
+      // Sign the operation
+      const { signature, timestamp } = await createSignedStopOrder(wallet, stopOrderParams);
+
+      // Send to backend proxy
       const response = await fetch('/api/orders/stop/create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          ...operation.params,
+          account,
+          ...stopOrderParams,
+          signature,
+          timestamp,
           fight_id: params.fightId,
         }),
       });
@@ -737,10 +817,8 @@ export function useCreateStandaloneStopOrder() {
       }
 
       const typeLabel = variables.limitPrice ? 'Stop Limit' : 'Stop Market';
-      const normalizedSide = normalizeSide(variables.side);
-      const sideLabel = normalizedSide === 'BUY' ? 'Long' : 'Short';
-      const symbolDisplay = variables.symbol.replace('-USD', '');
-      notify('ORDER', `${typeLabel} Order`, `${sideLabel} ${typeLabel}: trigger $${variables.stopPrice}${variables.limitPrice ? ` limit $${variables.limitPrice}` : ''} (${variables.amount} ${symbolDisplay})`, { variant: 'success' });
+      const sideLabel = variables.side === 'bid' ? 'Long' : 'Short';
+      notify('ORDER', `${typeLabel} Order`, `${sideLabel} ${typeLabel}: trigger $${variables.stopPrice}${variables.limitPrice ? ` limit $${variables.limitPrice}` : ''} (${variables.amount} ${variables.symbol.replace('-USD', '')})`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to create stop order:', error);
@@ -753,30 +831,34 @@ export function useCreateStandaloneStopOrder() {
  * Hook to set leverage for a trading pair
  */
 export function useSetLeverage() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: SetLeverageParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signSetLeverage({
-        symbol: params.symbol,
-        leverage: params.leverage,
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedUpdateLeverage(wallet, {
+        symbol,
+        leverage: params.leverage.toString(),
       });
 
+      // Send to backend proxy
       const response = await fetch('/api/account/leverage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          ...operation.params,
+          account,
+          symbol,
+          leverage: params.leverage.toString(),
+          signature,
+          timestamp,
         }),
       });
 
@@ -789,11 +871,12 @@ export function useSetLeverage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['account-settings'] });
-      const symbolDisplay = variables.symbol.replace('-USD', '');
-      notify('ORDER', 'Leverage Set', `Leverage set to ${variables.leverage}x for ${symbolDisplay}`, { variant: 'success' });
+      const symbol = variables.symbol.replace('-USD', '');
+      notify('ORDER', 'Leverage Set', `Leverage set to ${variables.leverage}x for ${symbol}`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to set leverage:', error);
+      // Provide friendlier error messages for common cases
       if (error.message.includes('InvalidLeverage')) {
         notify('ORDER', 'Leverage Failed', 'Cannot decrease leverage while position is open', { variant: 'error' });
       } else {
@@ -807,30 +890,34 @@ export function useSetLeverage() {
  * Hook to set margin mode (cross/isolated) for a trading pair
  */
 export function useSetMarginMode() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: { symbol: string; isIsolated: boolean }) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signSetMarginMode({
-        symbol: params.symbol,
-        isIsolated: params.isIsolated,
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation with wallet
+      const { signature, timestamp } = await createSignedUpdateMarginMode(wallet, {
+        symbol,
+        is_isolated: params.isIsolated,
       });
 
+      // Send to backend proxy
       const response = await fetch('/api/account/margin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          ...operation.params,
+          account,
+          symbol,
+          is_isolated: params.isIsolated,
+          signature,
+          timestamp,
         }),
       });
 
@@ -843,9 +930,9 @@ export function useSetMarginMode() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['account-settings'] });
-      const symbolDisplay = variables.symbol.replace('-USD', '');
+      const symbol = variables.symbol.replace('-USD', '');
       const mode = variables.isIsolated ? 'Isolated' : 'Cross';
-      notify('ORDER', 'Margin Mode', `${symbolDisplay} set to ${mode} margin`, { variant: 'success' });
+      notify('ORDER', 'Margin Mode', `${symbol} set to ${mode} margin`, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to set margin mode:', error);
@@ -860,34 +947,43 @@ export function useSetMarginMode() {
 
 /**
  * Hook to edit an existing limit order (modify price and/or size)
+ * Note: Editing cancels the original order and creates a new one with TIF=ALO
  */
 export function useEditOrder() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: EditOrderParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signEditOrder({
-        orderId: params.orderId,
-        symbol: params.symbol,
+      const account = wallet.publicKey.toBase58();
+      const symbol = params.symbol.replace('-USD', '');
+
+      // Sign the operation with wallet
+      const { signature, timestamp } = await createSignedEditOrder(wallet, {
+        symbol,
         price: params.price,
         amount: params.amount,
+        order_id: params.orderId,
       });
 
+      // Send to backend proxy
       const response = await fetch('/api/orders/edit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
-          ...operation.params,
+          account,
+          symbol,
+          price: params.price,
+          amount: params.amount,
+          order_id: params.orderId,
+          signature,
+          timestamp,
         }),
       });
 
@@ -901,6 +997,7 @@ export function useEditOrder() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+
       notify('ORDER', 'Order Edited', `Order price updated to $${variables.price}`, { variant: 'success' });
     },
     onError: (error: Error) => {
@@ -915,15 +1012,14 @@ export function useEditOrder() {
 export interface BatchCreateAction {
   type: 'Create';
   data: {
-    exchange: string;
     account: string;
-    signature?: string;
-    timestamp?: number;
+    signature: string;
+    timestamp: number;
     expiry_window: number;
     symbol: string;
     price: string;
     amount: string;
-    side: AcceptedSide;
+    side: 'bid' | 'ask';
     tif: string;
     reduce_only: boolean;
     builder_code?: string;
@@ -934,10 +1030,9 @@ export interface BatchCreateAction {
 export interface BatchCancelAction {
   type: 'Cancel';
   data: {
-    exchange: string;
     account: string;
-    signature?: string;
-    timestamp?: number;
+    signature: string;
+    timestamp: number;
     expiry_window: number;
     symbol: string;
     order_id: number;
@@ -959,9 +1054,9 @@ interface BatchOrdersResponse {
 /**
  * Hook to execute a batch of order actions atomically.
  * Each action must be pre-signed by the caller using existing signing functions.
+ * Max 10 actions per batch (enforced by Pacifica).
  */
 export function useBatchOrders() {
-  const { exchangeType, exchangeConfig } = useExchangeContext();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -969,14 +1064,14 @@ export function useBatchOrders() {
       if (!params.actions.length) {
         throw new Error('Batch must contain at least one action');
       }
-      if (params.actions.length > exchangeConfig.maxBatchSize) {
-        throw new Error(`Batch cannot exceed ${exchangeConfig.maxBatchSize} actions`);
+      if (params.actions.length > 10) {
+        throw new Error('Batch cannot exceed 10 actions');
       }
 
       const response = await fetch('/api/orders/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exchange: exchangeType, actions: params.actions }),
+        body: JSON.stringify({ actions: params.actions }),
       });
 
       if (!response.ok) {
@@ -1013,32 +1108,34 @@ interface WithdrawParams {
 }
 
 /**
- * Hook to withdraw funds from exchange
+ * Hook to withdraw funds from Pacifica
  */
 export function useWithdraw() {
-  const signer = useSigner();
-  const { exchangeType } = useExchangeContext();
+  const wallet = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (params: WithdrawParams) => {
-      if (!signer) {
+      if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
-      const operation = await signer.signWithdraw({
+      const account = wallet.publicKey.toBase58();
+
+      // Sign the operation
+      const { signature, timestamp } = await createSignedWithdraw(wallet, {
         amount: params.amount,
       });
 
+      // Send to backend proxy
       const response = await fetch('/api/account/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          exchange: exchangeType,
-          account: operation.account,
+          account,
           amount: params.amount,
-          signature: operation.signature,
-          timestamp: operation.timestamp,
+          signature,
+          timestamp,
         }),
       });
 
@@ -1050,6 +1147,7 @@ export function useWithdraw() {
       return response.json();
     },
     onSuccess: (_, variables) => {
+      // Refresh account data after withdrawal
       queryClient.invalidateQueries({ queryKey: ['account'] });
       queryClient.invalidateQueries({ queryKey: ['pacifica-account'] });
       notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, { variant: 'success' });

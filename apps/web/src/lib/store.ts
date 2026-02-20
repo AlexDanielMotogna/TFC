@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PacificaFailReason } from './api';
-import { type ExchangeType, DEFAULT_EXCHANGE } from '@tfc/shared';
 
 export interface User {
   id: string;
@@ -18,12 +17,10 @@ interface AuthState {
   isAdmin: boolean;
   pacificaConnected: boolean;
   pacificaFailReason: PacificaFailReason;
-  exchangeType: ExchangeType;
   _hasHydrated: boolean;
 
   setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string, pacificaFailReason?: PacificaFailReason) => void;
   setPacificaConnected: (connected: boolean) => void;
-  setExchangeType: (type: ExchangeType) => void;
   clearAuth: () => void;
   setHasHydrated: (state: boolean) => void;
 }
@@ -38,7 +35,6 @@ export const useAuthStore = create<AuthState>()(
       isAdmin: false,
       pacificaConnected: false,
       pacificaFailReason: null,
-      exchangeType: DEFAULT_EXCHANGE,
       _hasHydrated: false,
 
       setAuth: (token, user, pacificaConnected, walletAddress, pacificaFailReason = null) =>
@@ -55,8 +51,6 @@ export const useAuthStore = create<AuthState>()(
       setPacificaConnected: (connected) =>
         set({ pacificaConnected: connected, pacificaFailReason: connected ? null : undefined }),
 
-      setExchangeType: (type) => set({ exchangeType: type }),
-
       clearAuth: () =>
         set({
           token: null,
@@ -66,7 +60,6 @@ export const useAuthStore = create<AuthState>()(
           isAdmin: false,
           pacificaConnected: false,
           pacificaFailReason: null,
-          exchangeType: DEFAULT_EXCHANGE,
         }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -81,7 +74,6 @@ export const useAuthStore = create<AuthState>()(
         isAdmin: state.isAdmin,
         pacificaConnected: state.pacificaConnected,
         pacificaFailReason: state.pacificaFailReason,
-        exchangeType: state.exchangeType,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

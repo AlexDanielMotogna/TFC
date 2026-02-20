@@ -1,15 +1,16 @@
 'use client';
 
 /**
- * Initializes the Exchange WebSocket connection when wallet is connected.
- * This component doesn't render anything - it just manages the WebSocket lifecycle.
- *
- * Name kept as PacificaWebSocketInit for backward compat (imported in trade page).
+ * Initializes the Pacifica WebSocket connection when wallet is connected
+ * This component doesn't render anything - it just manages the WebSocket lifecycle
  */
 
-import { useExchangeWebSocket } from '@/hooks/useExchangeWebSocket';
+import { usePacificaWebSocket } from '@/hooks/usePacificaWebSocket';
 
 export function PacificaWebSocketInit() {
-  useExchangeWebSocket();
+  // This hook handles all the WebSocket connection logic
+  // It automatically connects when wallet is connected and disconnects when wallet disconnects
+  usePacificaWebSocket();
+
   return null;
 }
