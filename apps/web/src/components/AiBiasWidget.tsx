@@ -11,6 +11,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { useAiBias } from '@/hooks/useAiBias';
 import { useAccount } from '@/hooks/useAccount';
 import { usePrices } from '@/hooks/usePrices';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { useCreateMarketOrder, useCreateLimitOrder } from '@/hooks/useOrders';
 import { roundToTickSize, calculateOrderAmount } from '@/lib/trading/utils';
 import { AiDisclaimerModal } from '@/components/AiDisclaimerModal';
@@ -67,6 +68,7 @@ export function AiBiasWidget({ selectedMarket, tvWidget }: AiBiasWidgetProps) {
   const { data, isLoading, error, analyze, clear, isExpired } = useAiBias();
   const { connected } = useWallet();
   const { account, positions: accountPositions } = useAccount();
+  const { exchangeConfig } = useExchangeContext();
   const { getPrice } = usePrices();
   const createMarketOrder = useCreateMarketOrder();
   const createLimitOrder = useCreateLimitOrder();
@@ -186,7 +188,7 @@ export function AiBiasWidget({ selectedMarket, tvWidget }: AiBiasWidgetProps) {
     const maxLeverage = priceData?.maxLeverage ?? 10;
 
     const effectiveLeverage = Math.min(data.suggestedLeverage, maxLeverage);
-    const MIN_POSITION_VALUE = 11;
+    const MIN_POSITION_VALUE = exchangeConfig.minOrderValue || 11;
 
     // If user has entered a custom position value, use it; otherwise auto-calculate
     const customVal = parseFloat(customPositionValue);
@@ -716,7 +718,7 @@ export function AiBiasWidget({ selectedMarket, tvWidget }: AiBiasWidgetProps) {
                                 <div className="space-y-1.5 text-[11px] font-mono">
                                   {orderCalc.isClamped && (
                                     <div className="px-2 py-1.5 bg-yellow-400/5 border border-yellow-400/20 rounded-lg">
-                                      <span className="text-[10px] text-yellow-400/80">Min. order size applied ($11)</span>
+                                      <span className="text-[10px] text-yellow-400/80">Min. order size applied (${exchangeConfig.minOrderValue || 11})</span>
                                     </div>
                                   )}
                                   {/* Position value — editable */}

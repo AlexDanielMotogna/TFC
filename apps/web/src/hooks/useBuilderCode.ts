@@ -7,7 +7,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { createSignedApproveBuilderCode } from '@/lib/pacifica/signing';
+import { useSigner } from '@/hooks/useSigner';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { toast } from 'sonner';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
@@ -57,21 +58,19 @@ export function useBuilderCodeStatus() {
  * Approve the builder code for trading
  */
 export function useApproveBuilderCode() {
-  const wallet = useWallet();
+  const signer = useSigner();
+  const { exchangeType } = useExchangeContext();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (maxFeeRate: string = '0.0005') => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      if (!signer || !signer.signApproveBuilderCode) {
+        throw new Error('Wallet not connected or exchange does not support builder codes');
       }
 
-      const account = wallet.publicKey.toBase58();
-
-      // Sign the approval with wallet
-      const { signature, timestamp } = await createSignedApproveBuilderCode(wallet, {
-        builder_code: BUILDER_CODE,
-        max_fee_rate: maxFeeRate,
+      const operation = await signer.signApproveBuilderCode({
+        builderCode: BUILDER_CODE,
+        maxFeeRate: maxFeeRate,
       });
 
       // Send to backend proxy
@@ -81,9 +80,10 @@ export function useApproveBuilderCode() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          account,
-          signature,
-          timestamp,
+          exchange: exchangeType,
+          account: operation.account,
+          signature: operation.signature,
+          timestamp: operation.timestamp,
           max_fee_rate: maxFeeRate,
         }),
       });
