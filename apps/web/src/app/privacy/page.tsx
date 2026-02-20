@@ -28,302 +28,308 @@ export default function PrivacyPage() {
         <div className="prose prose-invert prose-orange max-w-none">
           <section className="mb-12">
             <p className="text-lg text-surface-300 mb-6">
-              This Privacy Policy explains how TFC Technologies Ltd. and its affiliates (collectively, "TFC", "we", "our", or "us")
-              collect, use, and disclose information when you access or use our websites, applications, and services (collectively,
-              the "Services").
+              This privacy policy (this "Privacy Policy") applies to your use of any websites, applications, or services
+              provided, owned, or operated by TFC Technologies Ltd. or any of its affiliates (collectively, "TFC"). TFC
+              values your privacy and the privacy of its other users (collectively, the "Users") and wants you to be familiar
+              with how TFC collects, uses, stores, and protects personal information from and about you. By accessing or using
+              TFC's websites, applications, or services and disclosing personal information, you are accepting the practices
+              described in this Privacy Policy, to the extent permitted by law.
+            </p>
+            <p className="text-surface-300 mb-6">
+              The data controller for the purposes of this Privacy Policy is TFC Technologies Ltd. You may contact us at{' '}
+              <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">legal@tfc.gg</a> for any data
+              protection inquiries.
             </p>
             <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6 mb-6">
               <p className="font-semibold text-primary mb-3">Important Notice:</p>
               <p className="text-surface-300">
-                TFC is a non-custodial technology interface. We do not custody user funds, operate a trading venue, or execute trades.
-                All trading functionality is provided by third-party blockchain protocols. This Privacy Policy covers only data
-                collected by TFC through the interface layer we provide.
+                TFC is a non-custodial technology interface that provides software tools for interacting with third-party
+                blockchain protocols. TFC does not operate an exchange, broker, intermediary, or trading venue and does not
+                custody user funds. When you use TFC's websites, applications, or services, TFC may collect certain information,
+                such as your IP address, browser type, device information, and usage data. This information is used to maintain
+                the security and performance of our websites, applications, and services, to detect unauthorized access, and
+                to determine your eligibility to use TFC's offerings in compliance with applicable law.
               </p>
             </div>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">1. INFORMATION WE COLLECT</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">1. INFORMATION ABOUT YOU</h2>
+            <p className="mb-4">
+              TFC obtains information about you through the means discussed below. TFC requires certain information to provide
+              its services and fulfill contractual or legal obligations. If you choose not to provide TFC with such information,
+              or request the deletion of such information, you may no longer be able to access or use some or all of TFC's
+              websites, applications, or services.
+            </p>
 
             <div className="mb-6">
-              <h3 className="text-xl font-semibold text-primary mb-3">1.1 Information You Provide:</h3>
-              <ul className="list-disc pl-6 space-y-2 text-surface-300">
-                <li><strong>Wallet Address:</strong> Your public blockchain wallet address when you connect to the Services</li>
-                <li><strong>Transaction Data:</strong> On-chain transaction data associated with your wallet address (publicly available on the blockchain)</li>
-              </ul>
+              <h3 className="text-xl font-semibold text-primary mb-3">User-Provided Information</h3>
+              <p className="text-surface-300 mb-3">
+                You may provide TFC with certain personal information when using our websites, applications, or services.
+                This may include your digital asset wallet address, or any other information that you choose to provide us.
+              </p>
+              <p className="text-surface-300 mb-3">
+                To exercise your rights to access, review, update, delete, or otherwise limit TFC's use of the personal
+                information you have provided, you may contact TFC at{' '}
+                <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">legal@tfc.gg</a>. Please include
+                the details of your request.
+              </p>
+              <p className="text-surface-300">
+                To protect your privacy and security, TFC may take steps to verify your identity before processing your request.
+                TFC may also use trusted third-party verification providers to assist in this process and will ensure that any
+                such provider handles personal information solely for the purpose of identity verification.
+              </p>
             </div>
 
             <div className="mb-6">
-              <h3 className="text-xl font-semibold text-primary mb-3">1.2 Automatically Collected Information:</h3>
-              <ul className="list-disc pl-6 space-y-2 text-surface-300">
-                <li><strong>Usage Data:</strong> Information about your interactions with the Services, including pages visited, features used, and actions taken</li>
-                <li><strong>Device Information:</strong> Browser type, operating system, device identifiers, and similar technical information</li>
-                <li><strong>Log Data:</strong> IP address, access times, and error logs</li>
-              </ul>
+              <h3 className="text-xl font-semibold text-primary mb-3">Automatically Collected Information</h3>
+              <p className="text-surface-300">
+                When you access or use TFC's websites, applications, or services, TFC may automatically collect information
+                about your system and activity using cookies or other types of data collection technologies. This information
+                may include your IP address, device and browser type and identifiers, referring and exit page addresses,
+                software and system type, and information about your access and use of TFC's websites, applications, and services.
+              </p>
             </div>
+          </section>
 
-            <div className="mb-6">
-              <h3 className="text-xl font-semibold text-primary mb-3">1.3 Competition and Gaming Data:</h3>
-              <ul className="list-disc pl-6 space-y-2 text-surface-300">
-                <li>Competition participation records and results</li>
-                <li>Leaderboard rankings and statistics</li>
-                <li>Prize distribution records</li>
-                <li>Referral program activity</li>
-              </ul>
-            </div>
+          <section className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-4">2. USE OF PERSONAL INFORMATION</h2>
+            <p className="mb-4">TFC uses the personal information it collects to:</p>
+            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
+              <li>Operate, maintain, enhance, provide, create, and develop TFC's websites, applications, and services;</li>
+              <li>Provide security for TFC's websites, applications, and services;</li>
+              <li>Manage relationships and communications with Users;</li>
+              <li>Improve Users' experience when they access or use TFC's websites, applications, and services;</li>
+              <li>Prevent, detect, and address fraud, abuse, or other harmful activity;</li>
+              <li>Analyze and understand the usage trends of its Users.</li>
+            </ul>
+            <p className="mb-4">
+              TFC processes personal information only when it has a lawful basis to do so under applicable data protection laws.
+              These bases include: (a) when you have given TFC consent; (b) to perform TFC's contractual obligations or to take
+              steps prior to entering into a contract; (c) to comply with applicable laws or lawful requests from public or law
+              enforcement authorities; and (d) to pursue TFC's reasonable business interests, provided that such processing does
+              not override your fundamental rights and freedoms.
+            </p>
+          </section>
+
+          <section className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-4">3. SHARING OF PERSONAL INFORMATION</h2>
+            <p className="mb-4">
+              TFC may share certain personal information with third-party service providers acting on TFC's behalf. Such
+              disclosures may occur for the following purposes:
+            </p>
+            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
+              <li>To provide website hosting, maintenance, and security services;</li>
+              <li>To conduct data analysis and create reports;</li>
+              <li>To offer certain functionality;</li>
+              <li>To assist TFC in improving TFC's websites, applications, and services.</li>
+            </ul>
+            <p className="mb-4">
+              TFC ensures that such service providers process personal information in accordance with TFC's instruction and this
+              Privacy Policy. Such service providers are not permitted to use personal information for any other purpose and are
+              required to implement reasonable confidentiality measures to protect personal information.
+            </p>
+            <p className="mb-4">
+              In certain cases, TFC may be required by law to collect, use, or disclose personal information, such as to comply
+              with lawful requests from public or law enforcement authorities. TFC may also disclose personal information if TFC
+              believes, in good faith, that such disclosure is necessary to comply with applicable laws or regulations, or to
+              respond to a court order, subpoena, warrant, or other lawful request from a competent authority, and only to the
+              extent required by such obligation.
+            </p>
+            <p className="mb-4">
+              TFC may disclose personal information that TFC believes, in good faith, is appropriate or necessary to: (a) protect
+              TFC from potential liability or prevent fraudulent, abusive, or unlawful uses; (b) investigate and defend TFC against
+              third-party claims or allegations; (c) protect the security and integrity of TFC and its websites, applications, and
+              services; or (d) protect the rights, property, or safety of TFC, its Users, or others, in each case only as permitted
+              by applicable law.
+            </p>
+            <p className="mb-4">
+              Other than as set out in this Privacy Policy, TFC will provide notice when personal information about you may be
+              shared with third parties and, where reasonably possible, offer you an opportunity to choose not to share such
+              personal information.
+            </p>
 
             <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-6 mb-4">
-              <p className="font-semibold text-blue-400 mb-2">What We Do NOT Collect:</p>
-              <ul className="list-disc pl-6 space-y-1 text-surface-300">
-                <li>Private keys, seed phrases, or wallet passwords</li>
-                <li>Trading fund balances or custody (handled by third-party protocols)</li>
-                <li>Personal identity information (name, address, phone, email)</li>
-                <li>Payment card or banking information</li>
-              </ul>
+              <h3 className="font-semibold text-blue-400 mb-3">Non-Personal Information</h3>
+              <p className="text-surface-300 text-sm">
+                TFC may share or disclose non-personal data, such as aggregated or anonymized information. This information does
+                not identify any individual User.
+              </p>
             </div>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">2. HOW WE USE YOUR INFORMATION</h2>
-            <p className="mb-4">2.1 We use the information we collect to:</p>
-            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
-              <li>Provide and maintain the Services</li>
-              <li>Process competition entries and distribute prizes</li>
-              <li>Display leaderboards and user statistics</li>
-              <li>Detect and prevent fraud, abuse, and security incidents</li>
-              <li>Analyze usage patterns and improve the Services</li>
-              <li>Comply with applicable legal obligations</li>
-            </ul>
-            <p className="mb-4">2.2 We do NOT:</p>
-            <ul className="list-disc pl-6 space-y-2 text-surface-300">
-              <li>Sell or rent your personal information to third parties</li>
-              <li>Use your information for targeted advertising</li>
-              <li>Access or control your private keys or wallet funds</li>
-            </ul>
+            <h2 className="text-2xl font-bold text-white mb-4">4. GLOBAL OPERATIONS AND PRIVACY</h2>
+            <p className="mb-4">
+              As TFC operates globally, personal information may be transferred, stored, used, and processed in countries other
+              than your own. Where required by applicable law, you consent to the transfer of your personal information to
+              jurisdictions in which TFC conducts business or provides services. TFC takes appropriate measures, consistent with
+              applicable law, to ensure that any international transfers of personal information are subject to suitable safeguards
+              designed to protect your privacy and the security of your data.
+            </p>
+            <p className="mb-4">
+              Some of these countries may have privacy and data protection laws that differ from those of your jurisdiction,
+              including with respect to when government authorities may access personal information.
+            </p>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">3. INFORMATION SHARING AND DISCLOSURE</h2>
-            <p className="mb-4">3.1 We may share your information in the following circumstances:</p>
-
-            <div className="space-y-4 mb-4">
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Service Providers:</h3>
-                <p className="text-surface-300 text-sm">
-                  We may share information with third-party service providers who perform services on our behalf, such as hosting,
-                  analytics, and technical infrastructure. These providers are contractually obligated to use information only as
-                  necessary to provide services to us.
-                </p>
-              </div>
-
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Legal Requirements:</h3>
-                <p className="text-surface-300 text-sm">
-                  We may disclose information if required to do so by law or in response to valid requests by public authorities
-                  (e.g., law enforcement, regulatory agencies, courts).
-                </p>
-              </div>
-
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Business Transfers:</h3>
-                <p className="text-surface-300 text-sm">
-                  In connection with any merger, sale of company assets, financing, or acquisition, your information may be
-                  transferred to the acquiring entity.
-                </p>
-              </div>
-
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Public Information:</h3>
-                <p className="text-surface-300 text-sm">
-                  Certain information is publicly displayed by design, including leaderboard rankings, competition results, and
-                  on-chain transaction data (which is publicly available on the blockchain).
-                </p>
-              </div>
+            <h2 className="text-2xl font-bold text-white mb-4">5. RETENTION OF YOUR INFORMATION</h2>
+            <p className="mb-4">
+              TFC retains personal information related to your access and use of TFC's websites, applications, and services:
+              (a) for as long as necessary to fulfill the purposes described in this Privacy Policy; (b) for the period required
+              or permitted by applicable law, such as for tax, accounting, or compliance purposes; or (c) as otherwise communicated
+              to you.
+            </p>
+            <p className="mb-4">
+              When you request that TFC delete your personal information, all data that is not required or permitted to be retained
+              by law will be deleted or anonymized in accordance with applicable data-protection requirements.
+            </p>
+            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 mb-4">
+              <p className="font-semibold text-yellow-400 mb-2">Blockchain Data Notice:</p>
+              <p className="text-surface-300 text-sm">
+                Please note that information recorded on public blockchains (such as wallet addresses and transaction data) is
+                permanent, publicly accessible, and cannot be deleted or modified. TFC has no control over blockchain data.
+              </p>
             </div>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">4. THIRD-PARTY SERVICES</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">6. THIRD-PARTY SERVICES AND WEBSITES</h2>
             <p className="mb-4">
-              4.1 The Services integrate with third-party blockchain protocols, infrastructure providers, and analytics tools.
-              These third parties may collect information independently when you use their services:
+              TFC's websites, applications, and services may link to third-party websites, applications, or services. The privacy
+              practices of those third parties are not governed by this Privacy Policy. TFC is not responsible for the content,
+              security, or privacy practices of those third parties. TFC encourages you to review the privacy policies of any
+              third-party websites, applications, and services to understand their privacy practices.
             </p>
 
-            <div className="space-y-4 mb-4">
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Blockchain Networks:</h3>
-                <p className="text-surface-300 text-sm">
-                  When you interact with blockchain networks (e.g., Solana), your wallet address and transaction data are recorded
-                  on the public blockchain. This information is permanent, publicly accessible, and cannot be deleted or modified.
-                </p>
-              </div>
-
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Wallet Providers:</h3>
-                <p className="text-surface-300 text-sm">
-                  Third-party wallet providers (e.g., Phantom, Solflare) have their own privacy policies and data collection practices.
-                  We do not control and are not responsible for their data handling.
-                </p>
-              </div>
-
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Analytics and Data Providers:</h3>
-                <p className="text-surface-300 text-sm">
-                  We use third-party analytics services (e.g., TradingView for charting) that may collect anonymized usage data,
-                  technical information, and interaction patterns. These providers operate under their own privacy policies.
-                </p>
-              </div>
-
-              <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-4">
-                <h3 className="font-semibold text-primary mb-2">Third-Party Trading Protocols:</h3>
-                <p className="text-surface-300 text-sm">
-                  All trading execution, order routing, and fund custody is handled by third-party decentralized protocols.
-                  These protocols collect and process data independently. You should review their privacy policies separately.
-                </p>
-              </div>
+            <div className="mb-6">
+              <h3 className="text-xl font-semibold text-primary mb-3">Analytics Providers</h3>
+              <p className="text-surface-300 mb-3">
+                TFC may use third-party analytics services in connection with TFC's websites, applications, and services. These
+                providers may use cookies or other data collection technologies to analyze and evaluate your access and use of
+                TFC's websites, applications, and services.
+              </p>
+              <p className="text-surface-300">
+                This Privacy Policy does not govern the use of data by such third parties. TFC encourages you to review the
+                privacy policies of any third parties to understand their privacy practices.
+              </p>
             </div>
-
-            <p className="mb-4 text-sm text-surface-400">
-              4.2 We are not responsible for the privacy practices of third-party services. We encourage you to review their
-              privacy policies before using their services.
-            </p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">5. COOKIES AND TRACKING TECHNOLOGIES</h2>
-            <p className="mb-4">5.1 We use cookies, local storage, and similar technologies to:</p>
-            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
-              <li>Maintain your session and remember your wallet connection</li>
-              <li>Store user preferences and settings</li>
-              <li>Analyze usage patterns and improve the Services</li>
-              <li>Detect and prevent fraud or abuse</li>
-            </ul>
-            <p className="mb-4">
-              5.2 You can control cookies through your browser settings. However, disabling certain cookies may limit your ability
-              to use some features of the Services.
-            </p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">6. DATA RETENTION</h2>
-            <p className="mb-4">
-              6.1 We retain information for as long as necessary to provide the Services, comply with legal obligations, resolve
-              disputes, and enforce our agreements.
-            </p>
-            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
-              <li><strong>Usage and Log Data:</strong> Typically retained for 90 days, unless required for longer periods for security or compliance purposes</li>
-              <li><strong>Competition and Leaderboard Data:</strong> Retained indefinitely to maintain historical records and platform integrity</li>
-              <li><strong>Blockchain Data:</strong> Permanently recorded on public blockchains and cannot be deleted</li>
-            </ul>
-            <p className="mb-4">
-              6.2 Even if you stop using the Services, certain information may be retained as required by law or for legitimate
-              business purposes.
-            </p>
           </section>
 
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-white mb-4">7. DATA SECURITY</h2>
             <p className="mb-4">
-              7.1 We implement reasonable administrative, technical, and physical security measures designed to protect the
-              information we collect. These measures include:
+              TFC uses various measures to protect the integrity, confidentiality, and security of personal information. These
+              measures may vary based on the sensitivity of your information and the risks involved in processing it.
             </p>
-            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
-              <li>Encryption of data in transit using TLS/SSL protocols</li>
-              <li>Secure cloud infrastructure and access controls</li>
-              <li>Regular security assessments and monitoring</li>
-            </ul>
             <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-6 mb-4">
-              <p className="font-semibold text-red-400 mb-2">7.2 Important Security Notice:</p>
+              <p className="font-semibold text-red-400 mb-2">Important Security Notice:</p>
               <p className="text-surface-300 mb-3">
-                <strong>No system is completely secure.</strong> We cannot guarantee the absolute security of your information.
-                You are solely responsible for securing your wallet, private keys, and seed phrases.
+                While TFC continually works to safeguard your information, no security precautions or systems are completely
+                secure. <strong>TFC therefore cannot guarantee the absolute security of any information transmitted to it or
+                stored by it.</strong>
               </p>
               <p className="text-surface-300">
-                <strong>TFC does not have access to your private keys.</strong> Any transaction signed with your wallet is
-                considered authorized by you. Loss of your private keys will result in permanent loss of access to your digital assets.
+                <strong>You are solely responsible for securing your wallet and private keys.</strong> TFC does not have access
+                to your private keys, seed phrases, passwords, or other credentials associated with your blockchain wallets.
+                Losing control of your private key(s) will permanently and irreversibly deny you access to your digital assets.
               </p>
             </div>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">8. INTERNATIONAL DATA TRANSFERS</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">8. YOUR RIGHTS AND CHOICES</h2>
             <p className="mb-4">
-              8.1 TFC operates globally, and information may be transferred to, stored in, and processed in countries other than
-              your country of residence. These countries may have different data protection laws than your jurisdiction.
+              You have certain rights regarding your personal information that TFC collects and processes. You may exercise
+              these rights using the contact information provided in this Policy.
+            </p>
+            <p className="mb-4">Your rights include:</p>
+            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
+              <li>The right to access your personal information and request details about how TFC processes it;</li>
+              <li>The right to request the correction of inaccurate personal information;</li>
+              <li>The right to request the deletion of your personal information, subject to TFC's legal obligations and legitimate business interests;</li>
+              <li>The right to object to or restrict certain processing activities;</li>
+              <li>The right to data portability.</li>
+            </ul>
+            <p className="mb-4">
+              You may opt-out of receiving marketing communications that TFC may send to you at any time. Please note that even
+              if you opt-out of marketing communications, TFC may still send you important notifications and updates with respect
+              to TFC's websites, applications, and services.
             </p>
             <p className="mb-4">
-              8.2 By accessing or using the Services, you consent to the transfer of your information to countries outside your
-              country of residence, including countries that may not provide the same level of data protection as your jurisdiction.
+              If you wish to delete your account, you may do so by contacting us. Please note that some information may be retained
+              in our records to comply with legal obligations, resolve disputes, enforce our agreements, or protect our legitimate
+              business interests.
             </p>
           </section>
 
           <section className="mb-12">
             <h2 className="text-2xl font-bold text-white mb-4">9. CHILDREN'S PRIVACY</h2>
             <p className="mb-4">
-              9.1 The Services are not intended for individuals under the age of 18. We do not knowingly collect information from
-              children under 18.
+              TFC's websites, applications, and services are intended for individuals who have reached the legal age of majority
+              in the jurisdiction in which they reside. By accessing or using TFC's websites, applications, or services, you
+              represent that you meet this age requirement.
             </p>
             <p className="mb-4">
-              9.2 If we become aware that we have collected information from a child under 18, we will take steps to delete such
-              information as soon as possible.
+              TFC does not knowingly collect personal information from individuals who do not meet this age requirement or from
+              children under the age of 13. If TFC learns that personal information of such persons has inadvertently been collected,
+              TFC will take appropriate steps to delete this information in accordance with applicable law.
             </p>
             <p className="mb-4">
-              9.3 If you believe a child has provided information to us, please contact us at{' '}
-              <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">
-                legal@tfc.gg
-              </a>
-            </p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">10. YOUR CHOICES AND RIGHTS</h2>
-            <p className="mb-4">10.1 Depending on your jurisdiction, you may have certain rights regarding your information, including:</p>
-            <ul className="list-disc pl-6 space-y-2 text-surface-300 mb-4">
-              <li><strong>Access:</strong> Request access to the information we hold about you</li>
-              <li><strong>Correction:</strong> Request correction of inaccurate information</li>
-              <li><strong>Deletion:</strong> Request deletion of your information, subject to legal retention requirements</li>
-              <li><strong>Objection:</strong> Object to certain processing activities</li>
-            </ul>
-            <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-6 mb-4">
-              <p className="font-semibold text-yellow-400 mb-2">10.2 Limitations on Data Deletion:</p>
-              <p className="text-surface-300 text-sm">
-                Please note that we cannot delete information that is:
-              </p>
-              <ul className="list-disc pl-6 space-y-1 text-surface-300 text-sm mt-2">
-                <li>Recorded on public blockchains (this data is permanent and immutable)</li>
-                <li>Required to be retained for legal, regulatory, or compliance purposes</li>
-                <li>Necessary to maintain the integrity of leaderboards, competitions, or historical records</li>
-              </ul>
-            </div>
-            <p className="mb-4">
-              10.3 To exercise your rights or request information about our data practices, contact us at{' '}
-              <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">
-                legal@tfc.gg
-              </a>
-            </p>
-            <p className="mb-4">10.4 We will respond to your request within a reasonable timeframe as required by applicable law.</p>
-          </section>
-
-          <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">11. CHANGES TO THIS PRIVACY POLICY</h2>
-            <p className="mb-4">
-              11.1 We may update this Privacy Policy from time to time. When we make changes, we will update the "Last Updated"
-              date at the top of this page.
-            </p>
-            <p className="mb-4">
-              11.2 If we make material changes, we may provide additional notice, such as through the Services or via email
-              (if we have your email address).
-            </p>
-            <p className="mb-4">
-              11.3 Your continued use of the Services after the effective date of any changes constitutes your acceptance of
-              the updated Privacy Policy.
+              If you believe personal information has been collected from an individual who does not meet the age requirement or
+              from a child under the age of 13, please contact TFC at{' '}
+              <a href="mailto:legal@tfc.gg" className="text-primary hover:underline">legal@tfc.gg</a> to have such personal
+              information deleted and any associated account(s) closed.
             </p>
           </section>
 
           <section className="mb-12">
-            <h2 className="text-2xl font-bold text-white mb-4">12. CONTACT INFORMATION</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">10. MERGER OR SALE</h2>
             <p className="mb-4">
-              If you have questions or concerns about this Privacy Policy or our data practices, please contact us:
+              In the event that TFC, or substantially all of its assets, is acquired by, merged with, or transferred to a
+              third-party, or in connection with a contemplated investment or change of ownership transaction, TFC may transfer
+              or assign the personal information collected from Users as part of that transaction, including in the course of
+              any related diligence process.
+            </p>
+          </section>
+
+          <section className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-4">11. CHANGES AND UPDATES TO THIS PRIVACY POLICY</h2>
+            <p className="mb-4">
+              TFC reserves the right, in its sole discretion, to modify this Privacy Policy from time to time. If TFC makes any
+              changes to this Privacy Policy, TFC will provide you with notice of such changes, which notice may be provided by
+              updating the "Last Updated" date at the top of this Privacy Policy.
+            </p>
+            <p className="mb-4">
+              Unless TFC states otherwise in any such notice, any changes made to this Privacy Policy shall be effective immediately,
+              and your continued use of TFC's website, applications, or services after TFC provides such notice will confirm your
+              acceptance of the changes. If you do not agree to the revised Privacy Policy, then you must stop using TFC's website,
+              applications, and services immediately upon receipt of such notice.
+            </p>
+          </section>
+
+          <section className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-4">12. GOVERNING LAW AND DISPUTE RESOLUTION</h2>
+            <p className="mb-4">
+              This Privacy Policy shall be governed by and construed in accordance with the laws of the jurisdiction where TFC
+              Technologies Ltd. is incorporated, without regard to conflict of law provisions.
+            </p>
+            <p className="mb-4">
+              To the extent permitted by applicable law, any dispute, controversy, or claim arising out of or relating to this
+              Privacy Policy, or the breach, termination, or invalidity thereof, shall be resolved through binding arbitration
+              in accordance with internationally recognized arbitration rules.
+            </p>
+            <p className="mb-4">
+              The arbitration shall be conducted in the English language. The award rendered by the arbitrators shall be final
+              and binding on the parties, and judgment upon the award may be entered in any court having jurisdiction thereof.
+            </p>
+          </section>
+
+          <section className="mb-12">
+            <h2 className="text-2xl font-bold text-white mb-4">13. CONTACT INFORMATION</h2>
+            <p className="mb-4">
+              Please contact TFC with any questions or comments about this Privacy Policy:
             </p>
             <div className="bg-surface-800/50 border border-surface-800 rounded-lg p-6">
               <p className="mb-2"><strong>Entity:</strong> TFC Technologies Ltd.</p>
@@ -347,10 +353,10 @@ export default function PrivacyPage() {
               <strong className="text-white">Privacy Notice:</strong>
             </p>
             <p className="text-sm text-surface-400">
-              TFC is a non-custodial technology platform. We do not control, custody, or have access to your digital assets
-              or private keys. All blockchain transactions are permanent and publicly recorded. You are solely responsible
-              for the security of your wallet and private keys. The Services are provided for use only in jurisdictions
-              where such use is legally permitted.
+              TFC is a non-custodial technology platform that provides software tools for interacting with third-party blockchain
+              protocols. TFC does not operate an exchange, broker, intermediary, or trading venue and does not custody user funds.
+              All blockchain transactions are permanent and publicly recorded. You are solely responsible for the security of your
+              wallet and private keys. The Services are provided for use only in jurisdictions where such use is legally permitted.
             </p>
           </div>
         </div>
