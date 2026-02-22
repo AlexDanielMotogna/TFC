@@ -58,6 +58,7 @@ export async function DELETE(
       actionType: 'CANCEL_ORDER',
       symbol: symbol!,
       exchangeOrderId: parseInt(orderId, 10),
+      exchangeType,
       success: true,
     }).catch(err => console.error('Failed to record cancel action:', err));
 

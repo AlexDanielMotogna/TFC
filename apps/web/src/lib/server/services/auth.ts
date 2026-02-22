@@ -10,7 +10,6 @@ import { processReferralRegistration } from './referral';
 import { broadcastUserCreated, broadcastUserUpdated } from '../admin-realtime';
 import * as ed from '@noble/ed25519';
 import { base58 } from '@scure/base';
-
 const AUTH_MESSAGE = 'Sign this message to authenticate with Trading Fight Club';
 
 /**
@@ -35,9 +34,10 @@ export async function connectPacifica(params: {
 
     // Upsert the connection
     await prisma.exchangeConnection.upsert({
-      where: { userId: params.userId },
+      where: { userId_exchangeType: { userId: params.userId, exchangeType: 'pacifica' } },
       create: {
         userId: params.userId,
+        exchangeType: 'pacifica',
         accountAddress: params.accountAddress,
         vaultKeyReference: params.vaultKeyReference,
         builderCodeApproved: isApproved,
@@ -71,7 +71,7 @@ export async function connectPacifica(params: {
  */
 export async function getConnection(userId: string) {
   return prisma.exchangeConnection.findUnique({
-    where: { userId },
+    where: { userId_exchangeType: { userId, exchangeType: 'pacifica' } },
     include: { user: true },
   });
 }
@@ -81,7 +81,7 @@ export async function getConnection(userId: string) {
  */
 export async function hasActiveConnection(userId: string): Promise<boolean> {
   const connection = await prisma.exchangeConnection.findUnique({
-    where: { userId },
+    where: { userId_exchangeType: { userId, exchangeType: 'pacifica' } },
     select: { isActive: true, builderCodeApproved: true },
   });
 
@@ -117,7 +117,7 @@ export async function getOrCreateUser(handle: string, avatarUrl?: string) {
 export async function getUserById(userId: string) {
   return prisma.user.findUnique({
     where: { id: userId },
-    include: { exchangeConnection: true },
+    include: { exchangeConnections: true },
   });
 }
 
@@ -143,9 +143,10 @@ export async function linkPacificaAccount(
 
     // Upsert the connection (without vault key for read-only)
     await prisma.exchangeConnection.upsert({
-      where: { userId },
+      where: { userId_exchangeType: { userId, exchangeType: 'pacifica' } },
       create: {
         userId,
+        exchangeType: 'pacifica',
         accountAddress: pacificaAddress,
         vaultKeyReference: 'read-only', // No vault key for read-only access
         builderCodeApproved: false,
@@ -207,7 +208,7 @@ export async function authenticateWallet(
     // Find or create user by wallet address
     let user = await prisma.user.findUnique({
       where: { walletAddress },
-      include: { exchangeConnection: true },
+      include: { exchangeConnections: true },
     });
 
     // Check if user is banned or deleted
@@ -238,7 +239,7 @@ export async function authenticateWallet(
           handle: shortAddress,
           walletAddress,
         },
-        include: { exchangeConnection: true },
+        include: { exchangeConnections: true },
       });
 
       // Generate and set referral code
@@ -246,7 +247,7 @@ export async function authenticateWallet(
       user = await prisma.user.update({
         where: { id: user.id },
         data: { referralCode: userReferralCode },
-        include: { exchangeConnection: true },
+        include: { exchangeConnections: true },
       });
 
       console.log('New user created via wallet', {
@@ -285,9 +286,10 @@ export async function authenticateWallet(
         if (accountInfo && accountInfo.balance !== undefined) {
           // Account exists on Pacifica, link/update it in DB
           await prisma.exchangeConnection.upsert({
-            where: { userId: user.id },
+            where: { userId_exchangeType: { userId: user.id, exchangeType: 'pacifica' } },
             create: {
               userId: user.id,
+              exchangeType: 'pacifica',
               accountAddress: walletAddress,
               vaultKeyReference: 'read-only',
               builderCodeApproved: false,
@@ -338,9 +340,10 @@ export async function authenticateWallet(
           });
           // Update DB to mark as inactive (in case it was previously active)
           await prisma.exchangeConnection.upsert({
-            where: { userId: user.id },
+            where: { userId_exchangeType: { userId: user.id, exchangeType: 'pacifica' } },
             create: {
               userId: user.id,
+              exchangeType: 'pacifica',
               accountAddress: walletAddress,
               vaultKeyReference: 'read-only',
               builderCodeApproved: false,
@@ -385,7 +388,7 @@ export async function authenticateWallet(
       user = await prisma.user.update({
         where: { id: user.id },
         data: { role: 'ADMIN' },
-        include: { exchangeConnection: true },
+        include: { exchangeConnections: true },
       });
       console.log('User promoted to admin', {
         userId: user.id,

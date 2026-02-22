@@ -21,7 +21,7 @@ export async function GET(
       const user = await prisma.user.findUnique({
         where: { id },
         include: {
-          exchangeConnection: true,
+          exchangeConnections: true,
           leaderboardSnapshots: {
             where: { range: { in: ['weekly', 'all_time'] } },
             orderBy: { calculatedAt: 'desc' },
@@ -90,14 +90,13 @@ export async function GET(
         referralCode: user.referralCode,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        exchangeConnection: user.exchangeConnection
-          ? {
-              accountAddress: user.exchangeConnection.accountAddress,
-              isActive: user.exchangeConnection.isActive,
-              builderCodeApproved: user.exchangeConnection.builderCodeApproved,
-              connectedAt: user.exchangeConnection.connectedAt,
-            }
-          : null,
+        exchangeConnections: user.exchangeConnections.map(c => ({
+              exchangeType: c.exchangeType,
+              accountAddress: c.accountAddress,
+              isActive: c.isActive,
+              builderCodeApproved: c.builderCodeApproved,
+              connectedAt: c.connectedAt,
+            })),
         stats: {
           fightsCount: user._count.fightParticipants,
           tradesCount: user._count.trades,

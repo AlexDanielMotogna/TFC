@@ -1,1 +1,0 @@
-https://hyperliquid.gitbook.io/hyperliquid-docs

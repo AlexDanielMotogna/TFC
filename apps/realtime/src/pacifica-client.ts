@@ -3,7 +3,7 @@
  * Simple HTTP client to fetch positions and prices
  */
 
-const API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
+const API_URL = process.env.PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 const API_KEY = process.env.PACIFICA_API_KEY;
 
 // Cache for prices (shared across all calls)
@@ -136,12 +136,78 @@ export async function getPositions(accountAddress: string): Promise<Position[]> 
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Market Info (max leverage, tick/lot sizes)
+// ─────────────────────────────────────────────────────────────
+
+export interface MarketInfo {
+  symbol: string;
+  max_leverage: number;
+  tick_size: string;
+  lot_size: string;
+}
+
+let marketInfoCache: { data: Record<string, MarketInfo>; timestamp: number } | null = null;
+const MARKET_INFO_CACHE_TTL = 60000; // 1 minute (rarely changes)
+
+/**
+ * Get market info with max leverage per symbol (cached)
+ * GET /api/v1/info
+ */
+export async function getMarketInfo(): Promise<Record<string, MarketInfo>> {
+  const now = Date.now();
+
+  if (marketInfoCache && now - marketInfoCache.timestamp < MARKET_INFO_CACHE_TTL) {
+    return marketInfoCache.data;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/v1/info`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+
+    if (!response.ok) {
+      console.error('Pacifica market info API error:', response.status);
+      return marketInfoCache?.data || {};
+    }
+
+    const json = (await response.json()) as PacificaResponse<MarketInfo[]>;
+
+    if (!json.success) {
+      console.error('Pacifica market info API failed:', json.error);
+      return marketInfoCache?.data || {};
+    }
+
+    const map: Record<string, MarketInfo> = {};
+    json.data.forEach((m) => {
+      map[m.symbol] = m;
+      map[`${m.symbol}-USD`] = m; // Also index by normalized symbol
+    });
+
+    marketInfoCache = { data: map, timestamp: now };
+    return map;
+  } catch (error) {
+    console.error('Pacifica market info fetch error:', error);
+    return marketInfoCache?.data || {};
+  }
+}
+
+/**
+ * Get max leverage for a symbol from Pacifica API
+ */
+export async function getMaxLeverage(symbol: string): Promise<number> {
+  const info = await getMarketInfo();
+  return info[symbol]?.max_leverage || info[symbol.replace('-USD', '')]?.max_leverage || 10;
+}
+
 /**
  * Clear all caches (useful for testing)
  */
 export function clearCache(): void {
   pricesCache = null;
   positionsCache.clear();
+  marketInfoCache = null;
 }
 
 // ─────────────────────────────────────────────────────────────

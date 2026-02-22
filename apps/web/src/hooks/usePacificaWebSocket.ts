@@ -9,7 +9,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { create } from 'zustand';
 
-const PACIFICA_WS_URL = process.env.NEXT_PUBLIC_PACIFICA_WS_URL || 'wss://ws.pacifica.fi/ws';
+const PACIFICA_WS_URL = process.env.NEXT_PUBLIC_PACIFICA_WS_URL || 'wss://test-ws.pacifica.fi/ws';
 const PING_INTERVAL = 30000; // 30 seconds
 const RECONNECT_DELAY = 3000; // 3 seconds
 

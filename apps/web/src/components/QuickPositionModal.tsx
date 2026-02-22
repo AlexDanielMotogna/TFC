@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCreateMarketOrder, useCreateLimitOrder, useSetPositionTpSl } from '@/hooks/useOrders';
 import { usePrices } from '@/hooks/usePrices';
-import type { Position } from '@/hooks/usePacificaWebSocket';
 import { Slider } from './Slider';
 import CloseIcon from '@mui/icons-material/Close';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -16,10 +15,11 @@ import {
   roundToTickSize,
   formatPrice,
   type PositionInfo,
+  type RawPosition,
 } from '@/lib/trading/utils';
 
 interface QuickPositionModalProps {
-  position: Position;
+  position: RawPosition;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -51,7 +51,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   const symbol = position.symbol;
   const symbolBase = symbol.replace('-USD', '');
   const priceData = getPrice(`${symbolBase}-USD`);
-  const markPrice = priceData?.price || parseFloat(position.entry_price);
+  const markPrice = priceData?.price || parseFloat(position.entry_price || position.entryPrice || '0');
   const leverage = priceData?.maxLeverage || 10; // Default leverage
 
   // Use centralized calculation (same as QuickPositionsBar and Terminal)
@@ -314,7 +314,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 Liq
               </div>
               <div className="text-xs text-loss-400 font-mono">
-                ${position.liq_price ? parseFloat(position.liq_price).toLocaleString() : 'N/A'}
+                ${(position.liq_price || position.liquidationPrice) ? parseFloat((position.liq_price || position.liquidationPrice)!).toLocaleString() : 'N/A'}
               </div>
             </div>
             <div className="text-center">

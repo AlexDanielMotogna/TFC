@@ -94,7 +94,10 @@ async function testRawApi() {
   const btcIdx = assets.findIndex(a => a.name === 'BTC');
   if (btcIdx >= 0) {
     const btcCtx = ctxs[btcIdx];
-    console.log(`   BTC: mark=${btcCtx.markPx}, oracle=${btcCtx.oraclePx}, funding=${btcCtx.funding}, maxLev=${assets[btcIdx].maxLeverage}x`);
+    const btcAsset = assets[btcIdx];
+    if (btcCtx && btcAsset) {
+      console.log(`   BTC: mark=${btcCtx.markPx}, oracle=${btcCtx.oraclePx}, funding=${btcCtx.funding}, maxLev=${btcAsset.maxLeverage}x`);
+    }
   }
 
   // Test 2: allMids
@@ -119,8 +122,12 @@ async function testRawApi() {
   const bookData = await bookResp.json() as { levels: [Array<{ px: string; sz: string; n: number }>, Array<{ px: string; sz: string; n: number }>] };
   console.log(`   ✓ Bids: ${bookData.levels[0].length} levels, Asks: ${bookData.levels[1].length} levels`);
   if (bookData.levels[0].length > 0 && bookData.levels[1].length > 0) {
-    console.log(`   Best bid: $${bookData.levels[0][0].px} (${bookData.levels[0][0].sz} BTC)`);
-    console.log(`   Best ask: $${bookData.levels[1][0].px} (${bookData.levels[1][0].sz} BTC)`);
+    const bestBid = bookData.levels[0][0];
+    const bestAsk = bookData.levels[1][0];
+    if (bestBid && bestAsk) {
+      console.log(`   Best bid: $${bestBid.px} (${bestBid.sz} BTC)`);
+      console.log(`   Best ask: $${bestAsk.px} (${bestAsk.sz} BTC)`);
+    }
   }
 
   // Test 4: candleSnapshot

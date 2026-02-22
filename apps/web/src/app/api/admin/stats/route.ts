@@ -28,7 +28,7 @@ export async function GET(request: Request) {
         prisma.user.count(),
 
         // Pacifica connected users
-        prisma.exchangeConnection.count({ where: { isActive: true } }),
+        prisma.exchangeConnection.count({ where: { isActive: true, exchangeType: 'pacifica' } }),
 
         // Fights by status
         prisma.fight.groupBy({

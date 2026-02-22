@@ -13,14 +13,15 @@ const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
  * to avoid false positives when Pacifica auto-link failed during login.
  */
 export function NoPacificaModal() {
-  const { token, isAuthenticated, pacificaConnected, setPacificaConnected, _hasHydrated } = useAuthStore();
+  const { token, isAuthenticated, pacificaConnected, exchangeType, solanaWalletConnected, setPacificaConnected, _hasHydrated } = useAuthStore();
   const [isVerifying, setIsVerifying] = useState(true);
   const [serverConfirmedDisconnected, setServerConfirmedDisconnected] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
   // Verify with server before showing the blocking modal
   useEffect(() => {
-    if (!_hasHydrated || !isAuthenticated || !token || pacificaConnected) {
+    // Only relevant when on Pacifica exchange (or no exchange selected yet)
+    if (!_hasHydrated || !isAuthenticated || !token || pacificaConnected || (exchangeType && exchangeType !== 'pacifica')) {
       setIsVerifying(false);
       return;
     }
@@ -35,8 +36,10 @@ export function NoPacificaModal() {
         if (cancelled) return;
 
         if (res.ok) {
-          const data = await res.json();
-          if (data.connected) {
+          const json = await res.json();
+          // withAuth wraps response in { success, data }, unwrap it
+          const payload = json.data ?? json;
+          if (payload.connected) {
             // Server says connected — update store, don't show modal
             setPacificaConnected(true);
             setServerConfirmedDisconnected(false);
@@ -58,10 +61,14 @@ export function NoPacificaModal() {
 
     verify();
     return () => { cancelled = true; };
-  }, [_hasHydrated, isAuthenticated, token, pacificaConnected, setPacificaConnected]);
+  }, [_hasHydrated, isAuthenticated, token, pacificaConnected, exchangeType, setPacificaConnected]);
 
   // Don't show until hydrated and server-verified
+  // Never show on non-Pacifica exchanges (Hyperliquid has its own setup)
+  // Don't show when wallet is simply disconnected — user just needs to reconnect, not deposit
   if (!_hasHydrated || !isAuthenticated || pacificaConnected) return null;
+  if (!solanaWalletConnected) return null; // Wallet disconnected, not a Pacifica issue
+  if (exchangeType && exchangeType !== 'pacifica') return null;
   if (isVerifying || !serverConfirmedDisconnected || dismissed) return null;
 
   return (

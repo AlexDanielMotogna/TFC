@@ -1,72 +1,66 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { usePositions, useAccountSettings } from '@/hooks/usePositions';
+import { useState, useRef, useEffect } from 'react';
+import { useAccount } from '@/hooks/useAccount';
 import { usePrices } from '@/hooks/usePrices';
 import { QuickPositionModal } from './QuickPositionModal';
-import type { Position } from '@/hooks/usePacificaWebSocket';
 import ViewListIcon from '@mui/icons-material/ViewList';
-import { calculatePositionMetrics } from '@/lib/trading/utils';
+import type { Position } from '@/lib/api';
 
 /**
  * Format price for quick display with fixed width to prevent navbar jumping
- * Rounds to appropriate precision based on price magnitude
  */
 function formatQuickPrice(price: number): string {
   if (price >= 10000) {
-    // For prices >= 10k: show as "12.3K" or "123K"
     const k = price / 1000;
     return k >= 100 ? `${k.toFixed(0)}K` : `${k.toFixed(1)}K`;
   } else if (price >= 1000) {
-    // For prices 1k-10k: show as "1,234" (no decimals)
     return price.toFixed(0);
   } else if (price >= 100) {
-    // For prices 100-1k: show as "123.4" (1 decimal)
     return price.toFixed(1);
   } else if (price >= 10) {
-    // For prices 10-100: show as "12.34" (2 decimals)
     return price.toFixed(2);
   } else if (price >= 1) {
-    // For prices 1-10: show as "1.234" (3 decimals)
     return price.toFixed(3);
   } else {
-    // For prices < 1: show as "0.1234" (4 decimals)
     return price.toFixed(4);
   }
 }
 
-// Max leverage per symbol (from useAccount.ts)
-const MAX_LEVERAGE: Record<string, number> = {
-  BTC: 50, ETH: 50, SOL: 20, HYPE: 20, XRP: 20, DOGE: 20, LINK: 20, AVAX: 20,
-  SUI: 10, BNB: 10, AAVE: 10, ARB: 10, OP: 10, APT: 10, INJ: 10, TIA: 10,
-  SEI: 10, WIF: 10, JUP: 10, PENDLE: 10, RENDER: 10, FET: 10, ZEC: 10,
-  PAXG: 10, ENA: 10, KPEPE: 10, XMR: 10, LTC: 10, LIT: 10, FARTCOIN: 10,
-  XAG: 10, NVDA: 10, BCH: 10, WLFI: 10, XPL: 10, TAO: 10, ADA: 10, CL: 10,
-  UNI: 10, VIRTUAL: 10, ICP: 10, KBONK: 10, ASTER: 10, TRUMP: 10, LDO: 10,
-  PENGU: 10, NEAR: 10, ZK: 10, WLD: 10, PIPPIN: 10, ZZ: 10, STRK: 10,
-  CRV: 10, MON: 10, PUMP: 10, '1000PEPE': 10, '1000BONK': 10,
-};
+/**
+ * Shared position rendering logic for both bar and dropdown
+ */
+function usePositionMetrics(position: Position) {
+  const { getPrice } = usePrices();
+  const priceData = getPrice(position.symbol);
+  const entryPrice = parseFloat(position.entryPrice) || 0;
+  const markPrice = priceData?.price || entryPrice;
+  const sizeInToken = parseFloat(position.size) || 0;
+  const leverage = position.leverage || 10;
+  const margin = parseFloat(position.margin) || (sizeInToken * entryPrice / leverage);
+
+  // Use HL-provided PnL if available, else calculate
+  const apiPnl = parseFloat(position.unrealizedPnl) || 0;
+  let unrealizedPnl: number;
+  if (apiPnl !== 0 || parseFloat(position.unrealizedPnl || '0') !== 0) {
+    unrealizedPnl = parseFloat(position.unrealizedPnl || '0');
+  } else {
+    const priceDiff = position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+    unrealizedPnl = priceDiff * sizeInToken;
+  }
+
+  const apiRoe = parseFloat(position.unrealizedPnlPercent) || 0;
+  const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+
+  return { markPrice, unrealizedPnl, unrealizedPnlPercent, side: position.side };
+}
 
 /**
  * QuickPositionsBar - Shows active positions carousel in navbar
  */
 export function QuickPositionsBar() {
-  const { data: positions, isLoading } = usePositions();
-  const { prices, getPrice } = usePrices();
-  const { data: accountSettings } = useAccountSettings();
-
-  // Build leverage map (same as useAccount.ts)
-  const leverageMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    if (accountSettings && Array.isArray(accountSettings)) {
-      accountSettings.forEach((setting: any) => {
-        if (setting.symbol && setting.leverage) {
-          map[setting.symbol] = setting.leverage;
-        }
-      });
-    }
-    return map;
-  }, [accountSettings]);
+  const { positions, isLoading } = useAccount();
+  const { getPrice } = usePrices();
 
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -75,8 +69,7 @@ export function QuickPositionsBar() {
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
 
-  // Don't show anything if no positions or loading
-  if (isLoading || !positions || positions.length === 0) {
+  if (isLoading || positions.length === 0) {
     return null;
   }
 
@@ -98,17 +91,12 @@ export function QuickPositionsBar() {
     if (!isDragging || !scrollRef.current) return;
     e.preventDefault();
     const x = e.pageX - scrollRef.current.offsetLeft;
-    const walk = (x - startX) * 2; // Scroll speed multiplier
+    const walk = (x - startX) * 2;
     scrollRef.current.scrollLeft = scrollLeft - walk;
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDragging(false);
-  };
+  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseLeave = () => setIsDragging(false);
 
   const handleCloseModal = () => {
     setShowModal(false);
@@ -117,7 +105,6 @@ export function QuickPositionsBar() {
 
   return (
     <>
-      {/* Desktop with slider: Only show carousel on large screens (above 1024x841) */}
       <div
         ref={scrollRef}
         onMouseDown={handleMouseDown}
@@ -126,27 +113,32 @@ export function QuickPositionsBar() {
         onMouseLeave={handleMouseLeave}
         className="hidden lg:flex items-center gap-2 ml-6 mr-6 flex-1 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
       >
-        {positions.map((position: Position) => {
-          const symbol = position.symbol;
-          const symbolBase = symbol.replace('-USD', '');
-          const priceData = getPrice(`${symbolBase}-USD`);
-          const markPrice = priceData?.price || parseFloat(position.entry_price);
+        {positions.map((position) => {
+          const symbolBase = position.symbol.replace('-USD', '');
+          const priceData = getPrice(position.symbol);
+          const entryPrice = parseFloat(position.entryPrice) || 0;
+          const markPrice = priceData?.price || entryPrice;
+          const sizeInToken = parseFloat(position.size) || 0;
+          const leverage = position.leverage || 10;
+          const margin = parseFloat(position.margin) || (sizeInToken * entryPrice / leverage);
 
-          // Get leverage from settings or default
-          const leverage = leverageMap[symbolBase] || MAX_LEVERAGE[symbolBase] || 10;
+          // Use HL-provided PnL if available, else calculate
+          const apiPnl = parseFloat(position.unrealizedPnl) || 0;
+          let unrealizedPnl: number;
+          if (apiPnl !== 0 || parseFloat(position.unrealizedPnl || '0') !== 0) {
+            unrealizedPnl = parseFloat(position.unrealizedPnl || '0');
+          } else {
+            const priceDiff = position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+            unrealizedPnl = priceDiff * sizeInToken;
+          }
 
-          // Use centralized calculation (handles cross margin correctly)
-          const metrics = calculatePositionMetrics({
-            position,
-            markPrice,
-            leverage,
-          });
-
-          const isProfitable = metrics.unrealizedPnl >= 0;
+          const apiRoe = parseFloat(position.unrealizedPnlPercent) || 0;
+          const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+          const isProfitable = unrealizedPnl >= 0;
 
           return (
             <button
-              key={`${symbol}-${position.side}`}
+              key={`${position.symbol}-${position.side}`}
               onClick={() => handlePositionClick(position)}
               className={`flex-shrink-0 flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors ${
                 isProfitable
@@ -155,28 +147,24 @@ export function QuickPositionsBar() {
               }`}
             >
               <div className="flex items-center gap-2">
-                {/* Symbol + Side Badge */}
                 <span className="text-white font-mono text-sm font-medium">
                   {symbolBase}
                 </span>
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                  metrics.side === 'LONG'
+                  position.side === 'LONG'
                     ? 'bg-win-500/30 text-win-400'
                     : 'bg-loss-500/30 text-loss-400'
                 }`}>
-                  {metrics.side}
+                  {position.side}
                 </span>
               </div>
 
               <div className="flex items-center gap-3">
-                {/* PnL */}
                 <span className={`text-xs font-mono font-medium min-w-[55px] text-right ${
                   isProfitable ? 'text-win-400' : 'text-loss-400'
                 }`}>
-                  {isProfitable ? '+' : ''}{metrics.unrealizedPnlPercent.toFixed(2)}%
+                  {isProfitable ? '+' : ''}{unrealizedPnlPercent.toFixed(2)}%
                 </span>
-
-                {/* Current Price */}
                 <span className="text-xs text-surface-200 font-mono min-w-[60px] text-right">
                   ${formatQuickPrice(markPrice)}
                 </span>
@@ -186,10 +174,9 @@ export function QuickPositionsBar() {
         })}
       </div>
 
-      {/* Quick Action Modal */}
       {selectedPosition && (
         <QuickPositionModal
-          position={selectedPosition}
+          position={selectedPosition as any}
           isOpen={showModal}
           onClose={handleCloseModal}
         />
@@ -202,42 +189,25 @@ export function QuickPositionsBar() {
  * QuickPositionsDropdown - Dropdown icon for navbar right section
  */
 export function QuickPositionsDropdown() {
-  const { data: positions, isLoading } = usePositions();
-  const { prices, getPrice } = usePrices();
-  const { data: accountSettings } = useAccountSettings();
-
-  // Build leverage map (same as useAccount.ts)
-  const leverageMap = useMemo(() => {
-    const map: Record<string, number> = {};
-    if (accountSettings && Array.isArray(accountSettings)) {
-      accountSettings.forEach((setting: any) => {
-        if (setting.symbol && setting.leverage) {
-          map[setting.symbol] = setting.leverage;
-        }
-      });
-    }
-    return map;
-  }, [accountSettings]);
+  const { positions, isLoading } = useAccount();
+  const { getPrice } = usePrices();
 
   const [selectedPosition, setSelectedPosition] = useState<Position | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowDropdown(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Don't show anything if no positions or loading
-  if (isLoading || !positions || positions.length === 0) {
+  if (isLoading || positions.length === 0) {
     return null;
   }
 
@@ -254,7 +224,6 @@ export function QuickPositionsDropdown() {
 
   return (
     <>
-      {/* Dropdown button */}
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setShowDropdown(!showDropdown)}
@@ -263,30 +232,33 @@ export function QuickPositionsDropdown() {
           <ViewListIcon className="text-surface-400" sx={{ fontSize: 20 }} />
         </button>
 
-        {/* Dropdown menu */}
         {showDropdown && (
           <div className="fixed sm:absolute left-4 sm:right-0 sm:left-auto top-14 sm:top-full sm:mt-2 w-[calc(100vw-32px)] sm:w-80 bg-surface-850 rounded-lg shadow-xl border border-surface-800 overflow-hidden z-50">
-            {positions.map((position: Position) => {
-              const symbol = position.symbol;
-              const symbolBase = symbol.replace('-USD', '');
-              const priceData = getPrice(`${symbolBase}-USD`);
-              const markPrice = priceData?.price || parseFloat(position.entry_price);
+            {positions.map((position) => {
+              const symbolBase = position.symbol.replace('-USD', '');
+              const priceData = getPrice(position.symbol);
+              const entryPrice = parseFloat(position.entryPrice) || 0;
+              const markPrice = priceData?.price || entryPrice;
+              const sizeInToken = parseFloat(position.size) || 0;
+              const leverage = position.leverage || 10;
+              const margin = parseFloat(position.margin) || (sizeInToken * entryPrice / leverage);
 
-              // Get leverage from settings or default
-              const leverage = leverageMap[symbolBase] || MAX_LEVERAGE[symbolBase] || 10;
+              const apiPnl = parseFloat(position.unrealizedPnl) || 0;
+              let unrealizedPnl: number;
+              if (apiPnl !== 0 || parseFloat(position.unrealizedPnl || '0') !== 0) {
+                unrealizedPnl = parseFloat(position.unrealizedPnl || '0');
+              } else {
+                const priceDiff = position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+                unrealizedPnl = priceDiff * sizeInToken;
+              }
 
-              // Use centralized calculation (handles cross margin correctly)
-              const metrics = calculatePositionMetrics({
-                position,
-                markPrice,
-                leverage,
-              });
-
-              const isProfitable = metrics.unrealizedPnl >= 0;
+              const apiRoe = parseFloat(position.unrealizedPnlPercent) || 0;
+              const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+              const isProfitable = unrealizedPnl >= 0;
 
               return (
                 <button
-                  key={`${symbol}-${position.side}`}
+                  key={`${position.symbol}-${position.side}`}
                   onClick={() => handlePositionClick(position)}
                   className={`w-full flex items-center justify-between px-4 py-3 transition-colors ${
                     isProfitable
@@ -295,28 +267,24 @@ export function QuickPositionsDropdown() {
                   } border-b border-surface-800 last:border-b-0`}
                 >
                   <div className="flex items-center gap-2">
-                    {/* Symbol + Side Badge */}
                     <span className="text-white font-mono text-sm font-medium">
                       {symbolBase}
                     </span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      metrics.side === 'LONG'
+                      position.side === 'LONG'
                         ? 'bg-win-500/30 text-win-400'
                         : 'bg-loss-500/30 text-loss-400'
                     }`}>
-                      {metrics.side}
+                      {position.side}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {/* PnL */}
                     <span className={`text-xs font-mono font-medium min-w-[55px] text-right ${
                       isProfitable ? 'text-win-400' : 'text-loss-400'
                     }`}>
-                      {isProfitable ? '+' : ''}{metrics.unrealizedPnlPercent.toFixed(2)}%
+                      {isProfitable ? '+' : ''}{unrealizedPnlPercent.toFixed(2)}%
                     </span>
-
-                    {/* Current Price */}
                     <span className="text-xs text-surface-200 font-mono min-w-[60px] text-right">
                       ${formatQuickPrice(markPrice)}
                     </span>
@@ -328,10 +296,9 @@ export function QuickPositionsDropdown() {
         )}
       </div>
 
-      {/* Quick Action Modal */}
       {selectedPosition && (
         <QuickPositionModal
-          position={selectedPosition}
+          position={selectedPosition as any}
           isOpen={showModal}
           onClose={handleCloseModal}
         />

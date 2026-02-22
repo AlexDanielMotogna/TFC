@@ -54,7 +54,7 @@ export async function GET(
 
       // Get Pacifica connection for this user
       const exchangeConnection = await prisma.exchangeConnection.findUnique({
-        where: { userId: user.userId },
+        where: { userId_exchangeType: { userId: user.userId, exchangeType: 'pacifica' } },
         select: { accountAddress: true },
       });
 

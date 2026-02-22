@@ -3,7 +3,7 @@
  * Manages connections and subscriptions to Pacifica WebSocket
  */
 
-const PACIFICA_WS_URL = 'wss://ws.pacifica.fi/ws';
+const PACIFICA_WS_URL = process.env.NEXT_PUBLIC_PACIFICA_WS_URL || 'wss://test-ws.pacifica.fi/ws';
 
 export interface Bar {
   time: number;  // Milliseconds

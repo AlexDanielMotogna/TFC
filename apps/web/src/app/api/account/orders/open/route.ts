@@ -1,6 +1,6 @@
 /**
  * Open orders endpoint
- * GET /api/account/orders/open
+ * GET /api/account/orders/open?exchange=pacifica|hyperliquid
  */
 import { withAuth } from '@/lib/server/auth';
 import * as AccountService from '@/lib/server/services/account';
@@ -9,7 +9,9 @@ import { errorResponse } from '@/lib/server/errors';
 export async function GET(request: Request) {
   try {
     return await withAuth(request, async (user) => {
-      const orders = await AccountService.getOpenOrders(user.userId);
+      const { searchParams } = new URL(request.url);
+      const exchange = searchParams.get('exchange') || undefined;
+      const orders = await AccountService.getOpenOrders(user.userId, exchange);
       return orders;
     });
   } catch (error) {

@@ -69,6 +69,7 @@ export async function POST(request: Request) {
       amount,
       price,
       exchangeOrderId: result.data?.order_id as number,
+      exchangeType,
       success: true,
     }).catch(err => console.error('Failed to record edit order action:', err));
 

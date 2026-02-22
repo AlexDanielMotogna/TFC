@@ -8,7 +8,7 @@ import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 
-const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
+const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
 export async function GET(
   request: Request,
@@ -43,7 +43,7 @@ export async function GET(
 
       // Get Pacifica connection for this user
       const exchangeConnection = await prisma.exchangeConnection.findUnique({
-        where: { userId: user.userId },
+        where: { userId_exchangeType: { userId: user.userId, exchangeType: 'pacifica' } },
         select: { accountAddress: true },
       });
 

@@ -8,7 +8,7 @@ import { wsManager, type Bar } from './WebSocketManager';
 // Use our aggregated chart API (Pacifica + Binance/Bybit for historical data)
 const CHART_API_BASE = '';
 // Pacifica API for market info (not candles)
-const PACIFICA_API_BASE = 'https://api.pacifica.fi';
+const PACIFICA_API_BASE = process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
 // TradingView resolution to Pacifica interval mapping
 const RESOLUTION_MAP: Record<string, string> = {

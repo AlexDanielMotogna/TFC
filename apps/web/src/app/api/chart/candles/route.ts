@@ -502,6 +502,33 @@ function fillCandleGaps(candles: Candle[], interval: string): Candle[] {
   return filled;
 }
 
+// Fetch candles using the exchange adapter directly (for non-Pacifica exchanges)
+async function fetchFromExchangeAdapter(
+  exchangeType: string,
+  tfcSymbol: string,
+  interval: string,
+  startTime: number,
+  endTime: number
+): Promise<Candle[]> {
+  const { ExchangeProvider } = await import('@/lib/server/exchanges/provider');
+  const adapter = ExchangeProvider.getAdapter(exchangeType as 'pacifica' | 'hyperliquid' | 'lighter');
+  const rawCandles = await adapter.getKlines({
+    symbol: tfcSymbol,
+    interval,
+    startTime,
+    endTime,
+  });
+
+  return rawCandles.map(c => ({
+    t: c.timestamp,
+    o: parseFloat(c.open),
+    h: parseFloat(c.high),
+    l: parseFloat(c.low),
+    c: parseFloat(c.close),
+    v: parseFloat(c.volume),
+  }));
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -509,6 +536,7 @@ export async function GET(request: Request) {
     const interval = searchParams.get('interval');
     const startStr = searchParams.get('start');
     const endStr = searchParams.get('end');
+    const exchange = searchParams.get('exchange') || 'pacifica';
 
     if (!symbol || !interval || !startStr || !endStr) {
       throw new BadRequestError('symbol, interval, start, and end are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
@@ -525,7 +553,7 @@ export async function GET(request: Request) {
       throw new BadRequestError('start must be before end', ErrorCode.ERR_VALIDATION_INVALID_DATE);
     }
 
-    // Ensure minimum time range to avoid Pacifica API errors
+    // Ensure minimum time range to avoid API errors
     const minRange = getIntervalMs(interval);
     if (endTime - startTime < minRange) {
       console.warn(`[Chart] Time range too small (${endTime - startTime}ms), minimum is ${minRange}ms`);
@@ -538,69 +566,89 @@ export async function GET(request: Request) {
 
     let candles: Candle[];
 
-    // Strategy: Always try Pacifica first, then fill gaps with Binance/Bybit/CoinGecko
-    let pacificaCandles: Candle[] = [];
-
-    try {
-      // Try fetching from Pacifica for the full requested range
-      console.log(`[Chart] Requesting from Pacifica: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
-      pacificaCandles = await fetchFromPacifica(symbol, interval, startTime, endTime);
-      console.log(`[Chart] Pacifica returned ${pacificaCandles.length} candles for ${symbol} ${interval}`);
-
-      if (pacificaCandles.length > 0) {
-        const firstCandle = pacificaCandles[0];
-        const lastCandle = pacificaCandles[pacificaCandles.length - 1];
-        if (firstCandle && lastCandle) {
-          console.log(`[Chart] Pacifica first candle: ${new Date(firstCandle.t).toISOString()} - last candle: ${new Date(lastCandle.t).toISOString()}`);
-        }
+    // For non-Pacifica exchanges, use the exchange adapter directly
+    // then fall back to Binance/Bybit/CoinGecko for older data
+    if (exchange !== 'pacifica') {
+      let exchangeCandles: Candle[] = [];
+      try {
+        console.log(`[Chart] Requesting from ${exchange}: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
+        exchangeCandles = await fetchFromExchangeAdapter(exchange, symbol, interval, startTime, endTime);
+        console.log(`[Chart] ${exchange} returned ${exchangeCandles.length} candles`);
+      } catch (error: any) {
+        console.warn(`[Chart] ${exchange} fetch failed:`, error?.message || error);
       }
-    } catch (error: any) {
-      const isRateLimit = error?.message?.includes('rate limit') ||
-                          error?.name === 'RateLimitError';
 
-      if (isRateLimit) {
-        console.warn(`[Chart] Pacifica rate limited for ${symbol}, will use Binance/Bybit/CoinGecko only`);
+      if (exchangeCandles.length === 0) {
+        // No data from exchange — try Binance/Bybit/CoinGecko
+        candles = await fetchHistorical(symbol, interval, startTime, endTime);
       } else {
-        console.warn(`[Chart] Pacifica fetch failed for ${symbol}:`, error?.message || error);
-      }
-    }
-
-    // Check if we need fallback data
-    if (pacificaCandles.length === 0) {
-      // No Pacifica data at all - use historical sources entirely
-      console.log(`[Chart] No Pacifica data, using Binance/Bybit/CoinGecko for entire range`);
-      candles = await fetchHistorical(symbol, interval, startTime, endTime);
-    } else {
-      // Pacifica has data - check if we need older data from fallback
-      const oldestCandle = pacificaCandles[0];
-
-      if (!oldestCandle) {
-        // Should not happen since we checked length > 0, but TypeScript needs this
-        candles = pacificaCandles;
-      } else {
-        const oldestPacificaTime = oldestCandle.t;
+        const oldestCandle = exchangeCandles[0];
         const intervalMs = getIntervalMs(interval);
 
-        // Need data BEFORE Pacifica's oldest candle?
-        if (startTime < oldestPacificaTime - intervalMs) {
-          const fallbackEnd = oldestPacificaTime - intervalMs;
-          console.log(`[Chart] Need older data: fetching from Binance/Bybit/CoinGecko from ${new Date(startTime).toISOString()} to ${new Date(fallbackEnd).toISOString()}`);
-
+        if (oldestCandle && startTime < oldestCandle.t - intervalMs) {
+          const fallbackEnd = oldestCandle.t - intervalMs;
           const olderCandles = await fetchHistorical(symbol, interval, startTime, fallbackEnd);
+          candles = olderCandles.length > 0 ? mergeCandles(olderCandles, exchangeCandles) : exchangeCandles;
+        } else {
+          candles = exchangeCandles;
+        }
+      }
+    } else {
+      // Pacifica path: existing strategy with Pacifica + Binance/Bybit/CoinGecko fallback
+      let pacificaCandles: Candle[] = [];
 
-          if (olderCandles.length > 0) {
-            // Successfully got older data from fallback sources
-            candles = mergeCandles(olderCandles, pacificaCandles);
-            console.log(`[Chart] Final merged: ${candles.length} total candles (${olderCandles.length} historical + ${pacificaCandles.length} Pacifica)`);
+      try {
+        console.log(`[Chart] Requesting from Pacifica: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
+        pacificaCandles = await fetchFromPacifica(symbol, interval, startTime, endTime);
+        console.log(`[Chart] Pacifica returned ${pacificaCandles.length} candles for ${symbol} ${interval}`);
+
+        if (pacificaCandles.length > 0) {
+          const firstCandle = pacificaCandles[0];
+          const lastCandle = pacificaCandles[pacificaCandles.length - 1];
+          if (firstCandle && lastCandle) {
+            console.log(`[Chart] Pacifica first candle: ${new Date(firstCandle.t).toISOString()} - last candle: ${new Date(lastCandle.t).toISOString()}`);
+          }
+        }
+      } catch (error: any) {
+        const isRateLimit = error?.message?.includes('rate limit') ||
+                            error?.name === 'RateLimitError';
+
+        if (isRateLimit) {
+          console.warn(`[Chart] Pacifica rate limited for ${symbol}, will use Binance/Bybit/CoinGecko only`);
+        } else {
+          console.warn(`[Chart] Pacifica fetch failed for ${symbol}:`, error?.message || error);
+        }
+      }
+
+      if (pacificaCandles.length === 0) {
+        console.log(`[Chart] No Pacifica data, using Binance/Bybit/CoinGecko for entire range`);
+        candles = await fetchHistorical(symbol, interval, startTime, endTime);
+      } else {
+        const oldestCandle = pacificaCandles[0];
+
+        if (!oldestCandle) {
+          candles = pacificaCandles;
+        } else {
+          const oldestPacificaTime = oldestCandle.t;
+          const intervalMs = getIntervalMs(interval);
+
+          if (startTime < oldestPacificaTime - intervalMs) {
+            const fallbackEnd = oldestPacificaTime - intervalMs;
+            console.log(`[Chart] Need older data: fetching from Binance/Bybit/CoinGecko from ${new Date(startTime).toISOString()} to ${new Date(fallbackEnd).toISOString()}`);
+
+            const olderCandles = await fetchHistorical(symbol, interval, startTime, fallbackEnd);
+
+            if (olderCandles.length > 0) {
+              candles = mergeCandles(olderCandles, pacificaCandles);
+              console.log(`[Chart] Final merged: ${candles.length} total candles (${olderCandles.length} historical + ${pacificaCandles.length} Pacifica)`);
+            } else {
+              console.log(`[Chart] Token not available on fallback sources, using only Pacifica data (${pacificaCandles.length} candles)`);
+              candles = pacificaCandles;
+            }
           } else {
-            // Token doesn't exist on any fallback sources - use only Pacifica data
-            console.log(`[Chart] Token not available on fallback sources, using only Pacifica data (${pacificaCandles.length} candles)`);
+            console.log(`[Chart] Pacifica data is complete for requested range`);
             candles = pacificaCandles;
           }
-        } else {
-          // Pacifica data covers the full requested range
-          console.log(`[Chart] Pacifica data is complete for requested range`);
-          candles = pacificaCandles;
         }
       }
     }

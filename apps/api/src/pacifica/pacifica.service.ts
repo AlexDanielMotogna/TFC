@@ -28,7 +28,7 @@ export class PacificaService {
     private readonly config: ConfigService,
     private readonly signing: PacificaSigningService
   ) {
-    this.apiUrl = this.config.get<string>('PACIFICA_API_URL') || 'https://api.pacifica.fi';
+    this.apiUrl = this.config.get<string>('PACIFICA_API_URL') || 'https://test-api.pacifica.fi';
     this.builderCode = this.config.get<string>('PACIFICA_BUILDER_CODE') || '';
     this.apiKey = this.config.get<string>('PACIFICA_API_KEY');
   }

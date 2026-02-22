@@ -26,6 +26,8 @@ import type {
   OrderSide,
   OrderType,
   TradeHistoryItem,
+  OrderHistoryItem,
+  OrderHistoryStatus,
   AccountSetting,
   MarketOrderParams,
   LimitOrderParams,
@@ -110,6 +112,29 @@ interface HlFill {
   tid: number;
 }
 
+interface HlHistoricalOrder {
+  order: {
+    coin: string;
+    side: 'A' | 'B';
+    limitPx: string;
+    sz: string;
+    origSz: string;
+    oid: number;
+    timestamp: number;
+    orderType: string;         // "Limit", "Stop Market", "Take Profit Market", "Stop Limit", "Take Profit Limit"
+    isTrigger: boolean;
+    triggerPx: string;
+    triggerCondition: string;  // "tp" | "sl" | ""
+    isPositionTpsl: boolean;
+    reduceOnly: boolean;
+    tif: string | null;        // "Gtc", "Ioc", "Alo", null
+    cloid: string | null;
+    children?: unknown[];
+  };
+  status: string;             // "filled", "open", "canceled", "triggered", "rejected", "marginCanceled"
+  statusTimestamp: number;
+}
+
 interface HlL2Level {
   px: string;
   sz: string;
@@ -125,23 +150,60 @@ let assetCtxCache: HlAssetCtx[] = [];
 let metaLoaded = false;
 
 // ─────────────────────────────────────────────────────────────
-// Helper: POST to Hyperliquid info endpoint
+// Helper: POST to Hyperliquid info endpoint (with request throttling)
 // ─────────────────────────────────────────────────────────────
 
+// Simple request queue to avoid rate limiting on HL testnet.
+// Ensures minimum 100ms gap between consecutive requests.
+const HL_MIN_REQUEST_GAP_MS = 100;
+let hlLastRequestTime = 0;
+let hlRequestQueue: Promise<void> = Promise.resolve();
+
 async function hlInfo<T>(body: Record<string, unknown>): Promise<T> {
-  const response = await fetch(`${HL_API_URL}/info`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(15000),
+  // Chain onto the queue to serialize requests
+  const result = new Promise<T>((resolve, reject) => {
+    hlRequestQueue = hlRequestQueue.then(async () => {
+      // Wait for minimum gap between requests
+      const now = Date.now();
+      const elapsed = now - hlLastRequestTime;
+      if (elapsed < HL_MIN_REQUEST_GAP_MS) {
+        await new Promise(r => setTimeout(r, HL_MIN_REQUEST_GAP_MS - elapsed));
+      }
+      hlLastRequestTime = Date.now();
+
+      const url = `${HL_API_URL}/info`;
+      try {
+        // Debug-level: only log per-user requests (noisy)
+        if (body.user) console.log(`[HLAdapter] ${body.type} user=${String(body.user).slice(0, 10)}...`);
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          console.error(`[HLAdapter] HTTP ${response.status} from ${url}:`, text.slice(0, 200));
+          if (response.status === 429) {
+            const { RateLimitError } = await import('@/lib/server/errors');
+            reject(new RateLimitError(`Hyperliquid API rate limited`));
+            return;
+          }
+          const { ServiceUnavailableError } = await import('@/lib/server/errors');
+          reject(new ServiceUnavailableError(`Hyperliquid API error (${response.status}): ${text}`));
+          return;
+        }
+
+        resolve(response.json());
+      } catch (err) {
+        console.error(`[HLAdapter] Fetch error for ${url}:`, err);
+        reject(err);
+      }
+    });
   });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Hyperliquid API error (${response.status}): ${text}`);
-  }
-
-  return response.json();
+  return result;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -336,17 +398,24 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       0
     );
 
+    // Available to trade = equity - margin used (can open new positions with remaining equity)
+    // withdrawable is the max you can withdraw (often 0 when positions are open), not trading availability
+    const accountValue = parseFloat(margin.accountValue);
+    const marginUsed = parseFloat(margin.totalMarginUsed);
+    const availableToTrade = Math.max(0, accountValue - marginUsed);
+
     return {
       accountId,
       balance: margin.totalRawUsd,
       accountEquity: margin.accountValue,
-      availableToSpend: state.withdrawable,
+      availableToSpend: availableToTrade.toFixed(6),
       marginUsed: margin.totalMarginUsed,
       unrealizedPnl: unrealizedPnl.toString(),
-      makerFee: '0.0002', // 2 bps maker
-      takerFee: '0.0005', // 5 bps taker
+      makerFee: '0.00015', // 1.5 bps maker (HL base tier)
+      takerFee: '0.00045', // 4.5 bps taker (HL base tier)
       metadata: {
         crossMarginSummary: state.crossMarginSummary,
+        availableToWithdraw: state.withdrawable,
       },
     };
   }
@@ -395,12 +464,14 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     return orders.map((o) => {
       let orderType: OrderType = 'LIMIT';
       if (o.isTrigger) {
-        const isTP = o.orderType?.includes('Take-Profit') || o.triggerCondition === 'tp';
-        const isMarket = o.orderType?.includes('Market');
+        // frontendOpenOrders: orderType = "Take Profit Market" / "Stop Market" / "Stop Limit"
+        const isTP = o.orderType?.toLowerCase().includes('take profit')
+          || o.triggerCondition === 'tp';
+        const isLimit = o.orderType?.toLowerCase().includes('limit');
         if (isTP) {
-          orderType = isMarket ? 'TAKE_PROFIT_MARKET' : 'TAKE_PROFIT_LIMIT';
+          orderType = isLimit ? 'TAKE_PROFIT_LIMIT' : 'TAKE_PROFIT_MARKET';
         } else {
-          orderType = isMarket ? 'STOP_MARKET' : 'STOP_LIMIT';
+          orderType = isLimit ? 'STOP_LOSS_LIMIT' : 'STOP_LOSS_MARKET';
         }
       }
 
@@ -410,7 +481,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         symbol: this.normalizeSymbol(o.coin),
         side: this.normalizeSide(o.side),
         type: orderType,
-        price: o.isTrigger ? (o.triggerPx || o.limitPx) : o.limitPx,
+        price: o.isTrigger ? (o.limitPx || o.triggerPx || '0') : o.limitPx,
         amount: o.origSz || o.sz,
         filled: '0',
         remaining: o.sz,
@@ -423,6 +494,7 @@ export class HyperliquidAdapter implements ExchangeAdapter {
           isTrigger: o.isTrigger || false,
           isPositionTpsl: o.isPositionTpsl || false,
           triggerPx: o.triggerPx,
+          limitPx: o.isTrigger ? o.limitPx : undefined,
         },
       };
     });
@@ -491,6 +563,74 @@ export class HyperliquidAdapter implements ExchangeAdapter {
         maxLeverage: ap.position.maxLeverage,
       },
     }));
+  }
+
+  async getOrderHistory(accountId: string): Promise<OrderHistoryItem[]> {
+    const orders = await hlInfo<HlHistoricalOrder[]>({
+      type: 'historicalOrders',
+      user: accountId,
+    });
+
+    return orders.map((entry) => {
+      const o = entry.order;
+
+      // Map HL order type strings to normalized OrderType
+      let orderType: OrderType = 'LIMIT';
+      if (o.isTrigger) {
+        const lowerType = o.orderType?.toLowerCase() || '';
+        const isTP = lowerType.includes('take profit') || o.triggerCondition === 'tp';
+        const isLimit = lowerType.includes('limit');
+        if (isTP) {
+          orderType = isLimit ? 'TAKE_PROFIT_LIMIT' : 'TAKE_PROFIT_MARKET';
+        } else {
+          orderType = isLimit ? 'STOP_LOSS_LIMIT' : 'STOP_LOSS_MARKET';
+        }
+      } else if (o.orderType?.toLowerCase() === 'market') {
+        orderType = 'MARKET';
+      }
+
+      // Map status
+      const statusMap: Record<string, OrderHistoryStatus> = {
+        open: 'open',
+        filled: 'filled',
+        canceled: 'canceled',
+        triggered: 'triggered',
+        rejected: 'rejected',
+        marginCanceled: 'marginCanceled',
+      };
+      const status: OrderHistoryStatus = statusMap[entry.status] || 'filled';
+
+      // Calculate filled amount: origSz - remaining sz
+      const origSz = parseFloat(o.origSz || o.sz);
+      const remainingSz = parseFloat(o.sz);
+      const filledSz = status === 'filled'
+        ? origSz  // fully filled
+        : Math.max(0, origSz - remainingSz);
+
+      return {
+        orderId: o.oid,
+        clientOrderId: o.cloid || undefined,
+        symbol: this.normalizeSymbol(o.coin),
+        side: this.normalizeSide(o.side),
+        type: orderType,
+        price: o.isTrigger ? (o.triggerPx || o.limitPx) : o.limitPx,
+        amount: o.origSz || o.sz,
+        filled: filledSz.toString(),
+        status,
+        reduceOnly: o.reduceOnly || false,
+        createdAt: o.timestamp,
+        statusTimestamp: entry.statusTimestamp,
+        metadata: {
+          orderType: o.orderType,
+          isTrigger: o.isTrigger,
+          isPositionTpsl: o.isPositionTpsl,
+          triggerPx: o.triggerPx,
+          triggerCondition: o.triggerCondition,
+          limitPx: o.limitPx,
+          tif: o.tif,
+        },
+      };
+    });
   }
 
   // ─── Trading Operations ────────────────────────────────────

@@ -8,7 +8,7 @@ export class AccountService {
 
   private async getAccountAddress(userId: string): Promise<string> {
     const connection = await prisma.exchangeConnection.findUnique({
-      where: { userId },
+      where: { userId_exchangeType: { userId, exchangeType: 'pacifica' } },
       select: { accountAddress: true, isActive: true },
     });
 

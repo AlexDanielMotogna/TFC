@@ -1,13 +1,24 @@
 /**
  * Trading hooks for placing and managing orders
+ *
+ * Exchange-aware: branches on signingScheme:
+ * - ed25519 (Pacifica): client-side signing with Solana wallet
+ * - ecdsa/zk (Hyperliquid, Lighter): server-side signing (just send params + JWT)
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { useAuthStore } from '@/lib/store';
 import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 
-const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
+const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClubTest';
+
+/** Helper to check if current exchange uses client-side signing */
+function isClientSigned(signingScheme: string): boolean {
+  return signingScheme === 'ed25519';
+}
 
 interface CreateMarketOrderParams {
   symbol: string;
@@ -84,37 +95,58 @@ interface EditOrderParams {
 export function useCreateMarketOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateMarketOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
-      }
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
 
-      const account = wallet.publicKey.toBase58();
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        // Pacifica: client-side signing
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+
+        const slippagePercent = params.slippage_percent || '0.5';
+        const builderCode = params.builder_code || BUILDER_CODE;
+
+        const signed = await createSignedMarketOrder(wallet, {
+          symbol: params.symbol,
+          side: params.side,
+          amount: params.amount,
+          slippage_percent: slippagePercent,
+          reduce_only: params.reduceOnly || false,
+          builder_code: builderCode,
+          take_profit: params.take_profit,
+          stop_loss: params.stop_loss,
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        // Server-side signing (HL, Lighter): use wallet address from store
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
+      }
 
       const slippagePercent = params.slippage_percent || '0.5';
       const builderCode = params.builder_code || BUILDER_CODE;
 
-      // Sign the operation with wallet - must include builder_code and TP/SL in signed data
-      const { signature, timestamp } = await createSignedMarketOrder(wallet, {
-        symbol: params.symbol,
-        side: params.side,
-        amount: params.amount,
-        slippage_percent: slippagePercent,
-        reduce_only: params.reduceOnly || false,
-        builder_code: builderCode,
-        take_profit: params.take_profit,
-        stop_loss: params.stop_loss,
-      });
-
-      // Send to backend proxy
+      // Send to backend
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           symbol: params.symbol,
           side: params.side,
@@ -122,14 +154,14 @@ export function useCreateMarketOrder() {
           amount: params.amount,
           reduce_only: params.reduceOnly || false,
           slippage_percent: slippagePercent,
-          builder_code: builderCode,
+          builder_code: exchangeConfig.hasBuilderCode ? builderCode : undefined,
           take_profit: params.take_profit,
           stop_loss: params.stop_loss,
           signature,
           timestamp,
-          fight_id: params.fightId, // Pass specific fight for stake validation
-          leverage: params.leverage, // Leverage for FightTrade ROI calculation
-          is_pre_fight_flip: params.isPreFightFlip, // Skip recording if flipping pre-fight position
+          fight_id: params.fightId,
+          leverage: params.leverage,
+          is_pre_fight_flip: params.isPreFightFlip,
         }),
       });
 
@@ -146,8 +178,6 @@ export function useCreateMarketOrder() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['account'] });
 
-      // If TP/SL was included, refetch orders after a delay
-      // Pacifica creates TP/SL stop orders after the main order, so we need to wait
       if (variables.take_profit || variables.stop_loss) {
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -157,11 +187,7 @@ export function useCreateMarketOrder() {
         }, 2500);
       }
 
-      // Invalidate fight-related queries if in a fight
-      // Backend takes 500-1500ms+ to fetch execution details from Pacifica
-      // Reduced invalidations to avoid 429 rate limits (was 4 sets, now 2)
       if (variables.fightId) {
-        // First invalidation after backend has time to process
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
@@ -169,7 +195,6 @@ export function useCreateMarketOrder() {
           queryClient.invalidateQueries({ queryKey: ['stake-info'] });
         }, 1000);
 
-        // Second invalidation as backup
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['fight-positions', variables.fightId] });
           queryClient.invalidateQueries({ queryKey: ['fight-trades', variables.fightId] });
@@ -178,9 +203,12 @@ export function useCreateMarketOrder() {
         }, 3000);
       }
 
-      // Format like Pacifica: "0.00082 BTC filled at 93300"
-      const avgPrice = data.avg_price || data.price || 'market';
-      notify('TRADE', 'Order Filled', `${variables.amount} ${variables.symbol} filled at ${avgPrice}`, { variant: 'success' });
+      if (data?.status === 'resting') {
+        notify('TRADE', 'Order Placed', `${variables.amount} ${variables.symbol} order resting`, { variant: 'success' });
+      } else {
+        const avgPrice = data?.avg_price || data?.price || 'market';
+        notify('TRADE', 'Order Filled', `${variables.amount} ${variables.symbol} filled at ${avgPrice}`, { variant: 'success' });
+      }
     },
     onError: (error: Error) => {
       console.error('Failed to create market order:', error);
@@ -195,39 +223,55 @@ export function useCreateMarketOrder() {
 export function useCreateLimitOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateLimitOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
-      }
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
 
-      const account = wallet.publicKey.toBase58();
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+
+        const builderCode = params.builder_code || BUILDER_CODE;
+        const tif = params.tif || 'GTC';
+
+        const signed = await createSignedLimitOrder(wallet, {
+          symbol: params.symbol,
+          side: params.side,
+          price: params.price,
+          amount: params.amount,
+          reduce_only: params.reduceOnly || false,
+          builder_code: builderCode,
+          tif,
+          take_profit: params.take_profit,
+          stop_loss: params.stop_loss,
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
+      }
 
       const builderCode = params.builder_code || BUILDER_CODE;
 
-      // Sign the operation with wallet - must include builder_code, tif, and TP/SL in signed data
-      // Note: post_only is NOT a valid Pacifica parameter for limit orders
-      const tif = params.tif || 'GTC';
-      const { signature, timestamp } = await createSignedLimitOrder(wallet, {
-        symbol: params.symbol,
-        side: params.side,
-        price: params.price,
-        amount: params.amount,
-        reduce_only: params.reduceOnly || false,
-        builder_code: builderCode,
-        tif,
-        take_profit: params.take_profit,
-        stop_loss: params.stop_loss,
-      });
-
-      // Send to backend proxy
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           symbol: params.symbol,
           side: params.side,
@@ -237,7 +281,7 @@ export function useCreateLimitOrder() {
           reduce_only: params.reduceOnly || false,
           post_only: params.postOnly || false,
           tif: params.tif || 'GTC',
-          builder_code: builderCode,
+          builder_code: exchangeConfig.hasBuilderCode ? builderCode : undefined,
           take_profit: params.take_profit,
           stop_loss: params.stop_loss,
           fight_id: params.fightId,
@@ -258,8 +302,6 @@ export function useCreateLimitOrder() {
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
-      // If TP/SL was included, refetch orders after a delay
-      // Pacifica creates TP/SL stop orders after the main order, so we need to wait
       if (variables.take_profit || variables.stop_loss) {
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -269,7 +311,6 @@ export function useCreateLimitOrder() {
         }, 2500);
       }
 
-      // Format: "Limit order: 0.001 BTC at 93000"
       notify('ORDER', 'Limit Order', `Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`, { variant: 'success' });
     },
     onError: (error: Error) => {
@@ -285,28 +326,48 @@ export function useCreateLimitOrder() {
 export function useCancelOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: CancelOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+
+        const signed = await createSignedCancelOrder(wallet, {
+          order_id: params.orderId,
+          symbol: params.symbol.replace('-USD', ''),
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
+      const url = new URL(`/api/orders/${params.orderId}`, window.location.origin);
+      url.searchParams.set('exchange', exchangeType);
+      url.searchParams.set('account', account);
+      url.searchParams.set('symbol', params.symbol.replace('-USD', ''));
+      if (signature) url.searchParams.set('signature', signature);
+      if (timestamp) url.searchParams.set('timestamp', timestamp.toString());
 
-      // Sign the cancellation with wallet - symbol must be included in signed data
-      const { signature, timestamp } = await createSignedCancelOrder(wallet, {
-        order_id: params.orderId,
-        symbol: params.symbol,
+      const response = await fetch(url.toString(), {
+        method: 'DELETE',
+        headers: {
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
-
-      // Send to backend proxy
-      const response = await fetch(
-        `/api/orders/${params.orderId}?account=${account}&symbol=${params.symbol}&signature=${signature}&timestamp=${timestamp}`,
-        {
-          method: 'DELETE',
-        }
-      );
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -334,30 +395,45 @@ export function useCancelOrder() {
 export function useCancelStopOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: CancelOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+
+        const signed = await createSignedCancelStopOrder(wallet, {
+          order_id: params.orderId,
+          symbol: params.symbol.replace('-USD', ''),
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
-
-      // Sign the cancellation with wallet - use cancel_stop_order type
-      const { signature, timestamp } = await createSignedCancelStopOrder(wallet, {
-        order_id: params.orderId,
-        symbol: params.symbol,
-      });
-
-      // Send to backend proxy for stop order cancellation
       const response = await fetch('/api/orders/stop/cancel', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
-          symbol: params.symbol,
+          symbol: params.symbol.replace('-USD', ''),
           order_id: params.orderId,
           signature,
           timestamp,
@@ -373,12 +449,9 @@ export function useCancelStopOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
-      // Invalidate immediately
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['positions'] });
 
-      // Force refetch after a delay to ensure Pacifica has processed the cancellation
-      // This helps when WebSocket data might be stale
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         queryClient.invalidateQueries({ queryKey: ['positions'] });
@@ -403,33 +476,48 @@ export function useCancelStopOrder() {
 export function useCancelAllOrders() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params?: CancelAllOrdersParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+
+        const signed = await createSignedCancelAllOrders(wallet, {
+          all_symbols: !params?.symbol,
+          exclude_reduce_only: false,
+          symbol: params?.symbol?.replace('-USD', ''),
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
-
-      // Sign the cancellation with wallet
-      const { signature, timestamp } = await createSignedCancelAllOrders(wallet, {
-        all_symbols: !params?.symbol,
-        exclude_reduce_only: false,
-        symbol: params?.symbol,
-      });
-
-      // Send to backend proxy
       const url = new URL('/api/orders', window.location.origin);
+      url.searchParams.set('exchange', exchangeType);
       url.searchParams.set('account', account);
-      url.searchParams.set('signature', signature);
-      url.searchParams.set('timestamp', timestamp.toString());
-      if (params?.symbol) {
-        url.searchParams.set('symbol', params.symbol);
-      }
+      if (signature) url.searchParams.set('signature', signature);
+      if (timestamp) url.searchParams.set('timestamp', timestamp.toString());
+      if (params?.symbol) url.searchParams.set('symbol', params.symbol.replace('-USD', ''));
 
       const response = await fetch(url.toString(), {
         method: 'DELETE',
+        headers: {
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
+        },
       });
 
       if (!response.ok) {
@@ -461,78 +549,76 @@ export function useCancelAllOrders() {
 export function useSetPositionTpSl() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: SetPositionTpSlParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
-      }
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
 
-      const account = wallet.publicKey.toBase58();
-
-      // Convert LONG/SHORT to CLOSING order side (opposite of position)
-      // TP/SL orders close the position, so they need the opposite side:
-      // - LONG position → need to SELL (ask) to close
-      // - SHORT position → need to BUY (bid) to close
+      // Convert LONG/SHORT to closing order side (opposite of position)
       const side = params.side === 'LONG' ? 'ask' : 'bid';
 
-      // Build params for signing - account is NOT in signed data (same as market orders)
-      // NOTE: size is NOT included in signed data - Pacifica's set_position_tpsl
-      // operation type doesn't support it in the signature verification.
-      // Size is sent in the request body separately (if Pacifica supports it there).
-      const signParams: {
-        symbol: string;
-        side: 'bid' | 'ask';
-        take_profit?: { stop_price: string; limit_price?: string } | null;
-        stop_loss?: { stop_price: string; limit_price?: string } | null;
-      } = {
-        symbol: params.symbol.replace('-USD', ''),
-        side,
-      };
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
 
-      // Handle take_profit: null means remove, undefined means don't change, object means set
-      if (params.take_profit === null) {
-        signParams.take_profit = null; // Explicitly null to remove
-      } else if (params.take_profit) {
-        signParams.take_profit = { stop_price: params.take_profit.stop_price };
-        if (params.take_profit.limit_price) {
-          signParams.take_profit.limit_price = params.take_profit.limit_price;
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
         }
+        account = wallet.publicKey.toBase58();
+
+        const signParams: {
+          symbol: string;
+          side: 'bid' | 'ask';
+          take_profit?: { stop_price: string; limit_price?: string } | null;
+          stop_loss?: { stop_price: string; limit_price?: string } | null;
+        } = {
+          symbol: params.symbol.replace('-USD', ''),
+          side,
+        };
+
+        if (params.take_profit === null) {
+          signParams.take_profit = null;
+        } else if (params.take_profit) {
+          signParams.take_profit = { stop_price: params.take_profit.stop_price };
+          if (params.take_profit.limit_price) {
+            signParams.take_profit.limit_price = params.take_profit.limit_price;
+          }
+        }
+
+        if (params.stop_loss === null) {
+          signParams.stop_loss = null;
+        } else if (params.stop_loss) {
+          signParams.stop_loss = { stop_price: params.stop_loss.stop_price };
+          if (params.stop_loss.limit_price) {
+            signParams.stop_loss.limit_price = params.stop_loss.limit_price;
+          }
+        }
+
+        const signed = await createSignedSetPositionTpsl(wallet, signParams);
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      // Handle stop_loss: null means remove, undefined means don't change, object means set
-      if (params.stop_loss === null) {
-        signParams.stop_loss = null; // Explicitly null to remove
-      } else if (params.stop_loss) {
-        signParams.stop_loss = { stop_price: params.stop_loss.stop_price };
-        if (params.stop_loss.limit_price) {
-          signParams.stop_loss.limit_price = params.stop_loss.limit_price;
-        }
-      }
-
-      // Sign the operation
-      console.log('TP/SL signParams:', JSON.stringify(signParams, null, 2));
-      const { signature, timestamp } = await createSignedSetPositionTpsl(wallet, signParams);
-      console.log('TP/SL signed with timestamp:', timestamp);
-
-      // Build request body - must match exactly what was signed
-      // NOTE: builder_code is NOT a valid field for TP/SL endpoint per Pacifica docs
+      // Build request body
       const requestBody: Record<string, any> = {
+        exchange: exchangeType,
         account,
         symbol: params.symbol.replace('-USD', ''),
         side,
         signature,
         timestamp,
-        fight_id: params.fightId, // Track as fight order if in fight
+        fight_id: params.fightId,
       };
 
-      // Include size for partial TP/SL orders
-      if (params.size) {
-        requestBody.size = params.size;
-      }
+      if (params.size) requestBody.size = params.size;
 
-      // Use the same take_profit/stop_loss structure as what was signed
-      // null = remove, undefined = don't include, object = set
       if (params.take_profit === null) {
         requestBody.take_profit = null;
       } else if (params.take_profit) {
@@ -551,11 +637,11 @@ export function useSetPositionTpSl() {
         }
       }
 
-      // Send to backend proxy
       const response = await fetch('/api/positions/tpsl', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(requestBody),
       });
@@ -569,12 +655,9 @@ export function useSetPositionTpSl() {
       return result.data;
     },
     onSuccess: (_, variables) => {
-      // Force immediate refetch (not just invalidate) to show TP/SL faster
-      // refetchQueries actually triggers a fetch, unlike invalidateQueries which just marks stale
       queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       queryClient.refetchQueries({ queryKey: ['positions'], type: 'active' });
 
-      // Also refetch after short delays to catch any propagation delay from Pacifica
       setTimeout(() => {
         queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       }, 300);
@@ -601,55 +684,60 @@ export function useSetPositionTpSl() {
 
 /**
  * Hook to create partial TP/SL orders
- *
- * Due to how Pacifica's create_stop_order works (triggers based on price direction):
- * - Stop orders only work for SL (price moving against you)
- * - For TP (price moving in your favor), we use limit orders with reduce_only
- *
- * This creates separate orders without overwriting existing TP/SL
  */
 export function useCreateStopOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateStopOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
       const symbol = params.symbol.replace('-USD', '');
-
-      // Determine order side for closing position
-      // - LONG position: need to SELL (ask) to close
-      // - SHORT position: need to BUY (bid) to close
       const closingSide: 'bid' | 'ask' = params.side === 'LONG' ? 'ask' : 'bid';
 
       // For TAKE PROFIT: Use limit order with reduce_only
-      // (Limit orders execute when price reaches the level)
       if (params.type === 'TAKE_PROFIT') {
-        console.log('Creating TP as limit order reduce_only');
+        let signature: string | undefined;
+        let timestamp: number | undefined;
 
-        const limitParams = {
-          symbol,
-          side: closingSide,
-          price: params.stopPrice,
-          amount: params.amount,
-          reduce_only: true,
-          tif: 'GTC' as const,
-        };
+        if (clientSigned) {
+          const limitParams = {
+            symbol,
+            side: closingSide,
+            price: params.stopPrice,
+            amount: params.amount,
+            reduce_only: true,
+            tif: 'GTC' as const,
+          };
+          const signed = await createSignedLimitOrder(wallet, limitParams);
+          signature = signed.signature;
+          timestamp = signed.timestamp;
+        }
 
-        // Sign as limit order
-        const { signature, timestamp } = await createSignedLimitOrder(wallet, limitParams);
-
-        // Send to backend
         const response = await fetch('/api/orders', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({
+            exchange: exchangeType,
             account,
             symbol,
             side: closingSide,
@@ -673,7 +761,6 @@ export function useCreateStopOrder() {
       }
 
       // For STOP LOSS: Use stop order
-      // Stop orders trigger when price moves against you
       const stopOrderParams = {
         symbol,
         side: closingSide as 'bid' | 'ask',
@@ -685,18 +772,23 @@ export function useCreateStopOrder() {
         },
       };
 
-      console.log('Creating SL as stop order:', stopOrderParams);
+      let signature: string | undefined;
+      let timestamp: number | undefined;
 
-      // Sign the operation
-      const { signature, timestamp } = await createSignedStopOrder(wallet, stopOrderParams);
+      if (clientSigned) {
+        const signed = await createSignedStopOrder(wallet, stopOrderParams);
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      }
 
-      // Send to backend
       const response = await fetch('/api/orders/stop/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           ...stopOrderParams,
           signature,
@@ -714,11 +806,9 @@ export function useCreateStopOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
-      // Force immediate refetch to show new order
       queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       queryClient.refetchQueries({ queryKey: ['positions'], type: 'active' });
 
-      // Also refetch after delays
       setTimeout(() => {
         queryClient.refetchQueries({ queryKey: ['orders'], type: 'active' });
       }, 300);
@@ -740,8 +830,6 @@ export function useCreateStopOrder() {
 
 /**
  * Hook to create standalone stop orders from the order form
- * Unlike useCreateStopOrder (which is for TP/SL on existing positions),
- * this creates stop-market or stop-limit orders as new entries.
  */
 interface CreateStandaloneStopOrderParams {
   symbol: string;          // 'BTC-USD'
@@ -757,14 +845,26 @@ interface CreateStandaloneStopOrderParams {
 export function useCreateStandaloneStopOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateStandaloneStopOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
       const symbol = params.symbol.replace('-USD', '');
 
       const stopOrderParams = {
@@ -778,16 +878,23 @@ export function useCreateStandaloneStopOrder() {
         },
       };
 
-      // Sign the operation
-      const { signature, timestamp } = await createSignedStopOrder(wallet, stopOrderParams);
+      let signature: string | undefined;
+      let timestamp: number | undefined;
 
-      // Send to backend proxy
+      if (clientSigned) {
+        const signed = await createSignedStopOrder(wallet, stopOrderParams);
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      }
+
       const response = await fetch('/api/orders/stop/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           ...stopOrderParams,
           signature,
@@ -833,27 +940,46 @@ export function useCreateStandaloneStopOrder() {
 export function useSetLeverage() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: SetLeverageParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+        const symbol = params.symbol.replace('-USD', '');
+
+        const signed = await createSignedUpdateLeverage(wallet, {
+          symbol,
+          leverage: params.leverage.toString(),
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
       const symbol = params.symbol.replace('-USD', '');
 
-      // Sign the operation
-      const { signature, timestamp } = await createSignedUpdateLeverage(wallet, {
-        symbol,
-        leverage: params.leverage.toString(),
-      });
-
-      // Send to backend proxy
       const response = await fetch('/api/account/leverage', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           symbol,
           leverage: params.leverage.toString(),
@@ -876,7 +1002,6 @@ export function useSetLeverage() {
     },
     onError: (error: Error) => {
       console.error('Failed to set leverage:', error);
-      // Provide friendlier error messages for common cases
       if (error.message.includes('InvalidLeverage')) {
         notify('ORDER', 'Leverage Failed', 'Cannot decrease leverage while position is open', { variant: 'error' });
       } else {
@@ -888,31 +1013,51 @@ export function useSetLeverage() {
 
 /**
  * Hook to set margin mode (cross/isolated) for a trading pair
+ * Pacifica-only — Hyperliquid doesn't support margin mode switching
  */
 export function useSetMarginMode() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: { symbol: string; isIsolated: boolean }) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+        const symbol = params.symbol.replace('-USD', '');
+
+        const signed = await createSignedUpdateMarginMode(wallet, {
+          symbol,
+          is_isolated: params.isIsolated,
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
       const symbol = params.symbol.replace('-USD', '');
 
-      // Sign the operation with wallet
-      const { signature, timestamp } = await createSignedUpdateMarginMode(wallet, {
-        symbol,
-        is_isolated: params.isIsolated,
-      });
-
-      // Send to backend proxy
       const response = await fetch('/api/account/margin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           symbol,
           is_isolated: params.isIsolated,
@@ -947,36 +1092,52 @@ export function useSetMarginMode() {
 
 /**
  * Hook to edit an existing limit order (modify price and/or size)
- * Note: Editing cancels the original order and creates a new one with TIF=ALO
  */
 export function useEditOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const token = useAuthStore(s => s.token);
 
   return useMutation({
     mutationFn: async (params: EditOrderParams) => {
-      if (!wallet.connected || !wallet.publicKey) {
-        throw new Error('Wallet not connected');
+      const clientSigned = isClientSigned(exchangeConfig.signingScheme);
+
+      let account: string;
+      let signature: string | undefined;
+      let timestamp: number | undefined;
+
+      if (clientSigned) {
+        if (!wallet.connected || !wallet.publicKey) {
+          throw new Error('Wallet not connected');
+        }
+        account = wallet.publicKey.toBase58();
+        const symbol = params.symbol.replace('-USD', '');
+
+        const signed = await createSignedEditOrder(wallet, {
+          symbol,
+          price: params.price,
+          amount: params.amount,
+          order_id: params.orderId,
+        });
+        signature = signed.signature;
+        timestamp = signed.timestamp;
+      } else {
+        const storeAddress = useAuthStore.getState().evmWalletAddress;
+        if (!storeAddress) throw new Error('EVM wallet not connected');
+        account = storeAddress;
       }
 
-      const account = wallet.publicKey.toBase58();
       const symbol = params.symbol.replace('-USD', '');
 
-      // Sign the operation with wallet
-      const { signature, timestamp } = await createSignedEditOrder(wallet, {
-        symbol,
-        price: params.price,
-        amount: params.amount,
-        order_id: params.orderId,
-      });
-
-      // Send to backend proxy
       const response = await fetch('/api/orders/edit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && !clientSigned ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
+          exchange: exchangeType,
           account,
           symbol,
           price: params.price,
@@ -1053,8 +1214,7 @@ interface BatchOrdersResponse {
 
 /**
  * Hook to execute a batch of order actions atomically.
- * Each action must be pre-signed by the caller using existing signing functions.
- * Max 10 actions per batch (enforced by Pacifica).
+ * Pacifica-only (pre-signed actions).
  */
 export function useBatchOrders() {
   const queryClient = useQueryClient();
@@ -1108,7 +1268,8 @@ interface WithdrawParams {
 }
 
 /**
- * Hook to withdraw funds from Pacifica
+ * Hook to withdraw funds
+ * Pacifica-only — Hyperliquid withdrawals go through their own UI
  */
 export function useWithdraw() {
   const wallet = useWallet();
@@ -1147,7 +1308,6 @@ export function useWithdraw() {
       return response.json();
     },
     onSuccess: (_, variables) => {
-      // Refresh account data after withdrawal
       queryClient.invalidateQueries({ queryKey: ['account'] });
       queryClient.invalidateQueries({ queryKey: ['pacifica-account'] });
       notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, { variant: 'success' });

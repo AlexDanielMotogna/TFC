@@ -70,7 +70,13 @@ function removeProviderListener(
 
 export function useAuth() {
   const { publicKey, signMessage, connected, connecting, disconnect, wallet } = useWallet();
-  const { token, user, walletAddress: storedWalletAddress, isAuthenticated, pacificaConnected, pacificaFailReason, setAuth, setPacificaConnected, clearAuth, _hasHydrated } = useAuthStore();
+  const {
+    token, user, walletAddress: storedWalletAddress,
+    isAuthenticated, pacificaConnected, pacificaFailReason, exchangeType,
+    solanaWalletConnected, tradingWalletAddress,
+    setAuth, setPacificaConnected, setSolanaWalletConnected, setTradingWalletAddress,
+    disconnectTradingWallet, clearSolanaAuth, clearAuth, _hasHydrated,
+  } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const hasAttemptedAuth = useRef(false);
   const currentWalletAddress = publicKey?.toBase58() || null;
@@ -111,6 +117,10 @@ export function useAuth() {
       // Store auth state including Pacifica connection status, wallet address, and fail reason
       setAuth(response.token, response.user, response.pacificaConnected, publicKey.toBase58(), response.pacificaFailReason);
 
+      // Also sync the trading wallet address
+      setSolanaWalletConnected(true);
+      setTradingWalletAddress(publicKey.toBase58());
+
       return response;
     } catch (error) {
       console.error('Authentication failed:', error);
@@ -119,26 +129,48 @@ export function useAuth() {
       setIsAuthenticating(false);
       globalAuthInProgress = false;
     }
-  }, [publicKey, signMessage, setAuth, isAuthenticating]);
+  }, [publicKey, signMessage, setAuth, setSolanaWalletConnected, setTradingWalletAddress, isAuthenticating]);
 
-  // Detect wallet account change - if user switches accounts in wallet, clear auth and re-authenticate
+  // Sync live wallet adapter state to store and handle wallet switches
+  // When wallet changes: update trading wallet, invalidate Pacifica connection to re-link
+  // When wallet disconnects: mark trading wallet as disconnected (but KEEP JWT/auth)
   useEffect(() => {
     if (!_hasHydrated) return;
 
-    // If authenticated but wallet address changed, clear auth and trigger re-auth
-    if (isAuthenticated && storedWalletAddress && currentWalletAddress && storedWalletAddress !== currentWalletAddress) {
-      console.log('Wallet account changed, re-authenticating...', { stored: storedWalletAddress, current: currentWalletAddress });
-      clearAuth();
-      // Clear React Query cache to remove stale user data
-      queryClient.clear();
+    setSolanaWalletConnected(connected);
+
+    if (connected && currentWalletAddress) {
+      // Wallet is connected — update trading wallet address
+      const previousTradingWallet = tradingWalletAddress;
+      setTradingWalletAddress(currentWalletAddress);
+
+      // If trading wallet changed, invalidate Pacifica to re-link with new wallet
+      if (previousTradingWallet && previousTradingWallet !== currentWalletAddress) {
+        console.log('Trading wallet changed, re-linking Pacifica...', {
+          previous: previousTradingWallet,
+          current: currentWalletAddress,
+        });
+        // Clear stale data for the old wallet and re-fetch for the new one
+        queryClient.invalidateQueries({ queryKey: ['pacifica-connection'] });
+        queryClient.invalidateQueries({ queryKey: ['positions'] });
+        queryClient.invalidateQueries({ queryKey: ['account'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['trade-history'] });
+        queryClient.invalidateQueries({ queryKey: ['account-settings'] });
+      }
+    } else if (!connected) {
+      // Wallet disconnected — keep JWT alive, just mark trading wallet as disconnected
       hasAttemptedAuth.current = false;
       globalHasAttempted = false;
-      // The auto-login effect below will trigger re-authentication
+      globalAuthInProgress = false;
+      disconnectTradingWallet();
     }
-  }, [_hasHydrated, isAuthenticated, storedWalletAddress, currentWalletAddress, clearAuth]);
+  }, [_hasHydrated, connected, currentWalletAddress, tradingWalletAddress,
+      setSolanaWalletConnected, setTradingWalletAddress, disconnectTradingWallet]);
 
   // Listen to wallet provider's accountChanged event directly (wallet adapter doesn't always emit this)
   // Supports Phantom, Solflare, Backpack, and other Solana wallets
+  // On account change: just update trading wallet (don't kill auth)
   useEffect(() => {
     if (!connected) return;
 
@@ -147,18 +179,23 @@ export function useAuth() {
 
     const handleAccountChanged = (walletName: string) => (newPublicKey: PublicKey | null) => {
       const newAddress = newPublicKey?.toBase58() || null;
-      console.log(`${walletName} accountChanged event:`, { newAddress, storedWalletAddress });
+      console.log(`${walletName} accountChanged event:`, { newAddress, tradingWalletAddress });
 
-      // If we're authenticated and account changed, clear auth
-      if (isAuthenticated && storedWalletAddress && newAddress && storedWalletAddress !== newAddress) {
-        console.log(`Account changed via ${walletName} event, clearing auth...`);
-        clearAuth();
-        // Clear React Query cache to remove stale user data
-        queryClient.clear();
-        hasAttemptedAuth.current = false;
-        globalHasAttempted = false;
-        // Disconnect to force reconnect with new account
-        disconnect();
+      if (newAddress) {
+        // Wallet switched to a different account — update trading wallet
+        if (newAddress !== tradingWalletAddress) {
+          console.log(`Trading wallet changed via ${walletName} event`);
+          setTradingWalletAddress(newAddress);
+          queryClient.invalidateQueries({ queryKey: ['pacifica-connection'] });
+          queryClient.invalidateQueries({ queryKey: ['positions'] });
+          queryClient.invalidateQueries({ queryKey: ['account'] });
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+          queryClient.invalidateQueries({ queryKey: ['trade-history'] });
+          queryClient.invalidateQueries({ queryKey: ['account-settings'] });
+        }
+      } else {
+        // Wallet disconnected via provider event
+        disconnectTradingWallet();
       }
     };
 
@@ -174,23 +211,28 @@ export function useAuth() {
         removeProviderListener(provider, 'accountChanged', callback);
       });
     };
-  }, [connected, isAuthenticated, storedWalletAddress, clearAuth, disconnect]);
+  }, [connected, tradingWalletAddress, setTradingWalletAddress, disconnectTradingWallet]);
 
   // Auto-login when wallet connects (only after hydration and if not already authenticated)
   useEffect(() => {
     // Don't attempt auto-login until Zustand has hydrated from localStorage
     if (!_hasHydrated) return;
 
-    // If already authenticated with the SAME wallet, don't request signature again
-    if (isAuthenticated && storedWalletAddress === currentWalletAddress) {
+    // Skip Solana auto-login when user is on Hyperliquid exchange
+    if (exchangeType === 'hyperliquid') return;
+
+    // Already authenticated — just sync trading wallet, no re-auth needed
+    if (isAuthenticated && connected && currentWalletAddress) {
       hasAttemptedAuth.current = true;
       globalHasAttempted = true;
-      // Force immediate Pacifica status re-check — stored value may be stale
+      setSolanaWalletConnected(true);
+      setTradingWalletAddress(currentWalletAddress);
+      // Force Pacifica status re-check for the current trading wallet
       queryClient.invalidateQueries({ queryKey: ['pacifica-connection'] });
       return;
     }
 
-    // Only attempt login if wallet is connected and we haven't tried yet (globally)
+    // Not authenticated — attempt login (first wallet connection)
     if (connected && publicKey && signMessage && !isAuthenticating && !hasAttemptedAuth.current && !globalHasAttempted && !globalAuthInProgress) {
       hasAttemptedAuth.current = true;
       globalHasAttempted = true;
@@ -202,42 +244,29 @@ export function useAuth() {
         hasAttemptedAuth.current = false;
       });
     }
-  }, [_hasHydrated, connected, publicKey, signMessage, isAuthenticated, storedWalletAddress, currentWalletAddress, isAuthenticating, login]);
-
-  // Reset auth attempt flag when wallet disconnects
-  useEffect(() => {
-    if (!connected) {
-      hasAttemptedAuth.current = false;
-      globalHasAttempted = false;
-      globalAuthInProgress = false;
-      if (isAuthenticated) {
-        clearAuth();
-        // Clear React Query cache to remove stale user data
-        queryClient.clear();
-      }
-    }
-  }, [connected, isAuthenticated, clearAuth]);
+  }, [_hasHydrated, connected, publicKey, signMessage, isAuthenticated, currentWalletAddress, isAuthenticating, login, exchangeType, setSolanaWalletConnected, setTradingWalletAddress]);
 
   // Detect wallet changes when app regains focus (handles mobile wallet switching)
   // On mobile (Phantom dApp browser, Android), users can switch wallets while the app is in background.
   // The accountChanged event doesn't always fire, so we check on visibility/focus.
   useEffect(() => {
-    if (!_hasHydrated || !isAuthenticated || !storedWalletAddress) return;
+    if (!_hasHydrated || !isAuthenticated) return;
 
     const checkWalletChanged = () => {
-      // Check if the injected provider's publicKey differs from our stored address
+      // Check if the injected provider's publicKey differs from our trading wallet
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const phantom = (window as any).phantom?.solana;
       const currentKey = phantom?.publicKey?.toBase58?.() || publicKey?.toBase58() || null;
 
-      if (currentKey && storedWalletAddress && currentKey !== storedWalletAddress) {
-        console.log('Wallet changed detected on focus/visibility:', { stored: storedWalletAddress, current: currentKey });
-        clearAuth();
-        queryClient.clear();
-        hasAttemptedAuth.current = false;
-        globalHasAttempted = false;
-        globalAuthInProgress = false;
-        disconnect();
+      if (currentKey && tradingWalletAddress && currentKey !== tradingWalletAddress) {
+        console.log('Trading wallet changed on focus/visibility:', { stored: tradingWalletAddress, current: currentKey });
+        setTradingWalletAddress(currentKey);
+        queryClient.invalidateQueries({ queryKey: ['pacifica-connection'] });
+        queryClient.invalidateQueries({ queryKey: ['positions'] });
+        queryClient.invalidateQueries({ queryKey: ['account'] });
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        queryClient.invalidateQueries({ queryKey: ['trade-history'] });
+        queryClient.invalidateQueries({ queryKey: ['account-settings'] });
       }
     };
 
@@ -259,8 +288,9 @@ export function useAuth() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [_hasHydrated, isAuthenticated, storedWalletAddress, publicKey, clearAuth, disconnect]);
+  }, [_hasHydrated, isAuthenticated, tradingWalletAddress, publicKey, setTradingWalletAddress]);
 
+  // Explicit logout — full session reset + wallet disconnect
   const logout = useCallback(() => {
     clearAuth();
     // Clear React Query cache to remove stale user data
@@ -280,7 +310,9 @@ export function useAuth() {
     isAuthenticating,
     isConnecting: connecting,
     isWalletConnected: connected,
+    solanaWalletConnected,
     walletAddress: publicKey?.toBase58() || null,
+    tradingWalletAddress,
     login,
     logout,
     setPacificaConnected,

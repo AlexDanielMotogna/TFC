@@ -13,7 +13,7 @@ interface PacificaResponse<T> {
   code: number | null;
 }
 
-const API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
+const API_URL = process.env.PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 const BUILDER_CODE = process.env.PACIFICA_BUILDER_CODE || 'TradeClub';
 const API_KEY = process.env.PACIFICA_API_KEY;
 
@@ -170,6 +170,23 @@ export async function getPositions(accountAddress: string): Promise<Position[]> 
  */
 export async function getOpenOrders(accountAddress: string): Promise<OpenOrder[]> {
   return request<OpenOrder[]>('GET', `/api/v1/orders?account=${accountAddress}`);
+}
+
+/**
+ * Get order history for an account (order-level data, includes cancelled/rejected)
+ * GET /api/v1/orders/history?account=...
+ */
+export async function getOrderHistory(params: {
+  accountAddress: string;
+  limit?: number;
+  cursor?: string;
+}): Promise<OrderHistoryResponse[]> {
+  let url = `/api/v1/orders/history?account=${params.accountAddress}`;
+
+  if (params.limit) url += `&limit=${params.limit}`;
+  if (params.cursor) url += `&cursor=${params.cursor}`;
+
+  return request<OrderHistoryResponse[]>('GET', url);
 }
 
 /**
@@ -509,6 +526,25 @@ export interface AccountSetting {
   symbol: string;
   isolated: boolean;
   leverage: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface OrderHistoryResponse {
+  order_id: number;
+  client_order_id: string | null;
+  symbol: string;
+  side: string;                    // "bid" | "ask"
+  initial_price: string;
+  average_filled_price: string;
+  amount: string;
+  filled_amount: string;
+  order_status: string;            // "open"|"partially_filled"|"filled"|"cancelled"|"rejected"
+  order_type: string;              // "limit"|"market"|"stop_limit"|"stop_market"|"take_profit_limit"|"stop_loss_limit"|"take_profit_market"|"stop_loss_market"
+  stop_price: string | null;
+  stop_parent_order_id: number | null;
+  reduce_only: boolean;
+  reason: string | null;           // "cancel"|"force_cancel"|"expired"|"post_only_rejected"|"self_trade_prevented"
   created_at: number;
   updated_at: number;
 }

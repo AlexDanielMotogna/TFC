@@ -21,6 +21,12 @@ export interface WsPosition {
   isolated: boolean;
   liq_price: string | null;
   updated_at: number;
+  // Optional fields provided by Hyperliquid (not available on Pacifica)
+  leverage?: number;
+  leverage_type?: string;  // 'cross' | 'isolated'
+  unrealized_pnl?: string;
+  return_on_equity?: string;
+  position_value?: string;
 }
 
 export interface WsOrder {
@@ -76,15 +82,48 @@ export interface WsMarket {
   maxLeverage: number;
 }
 
+export interface WsOrderbookLevel {
+  price: number;
+  size: number;
+  orders: number;
+}
+
+export interface WsOrderbookSnapshot {
+  symbol: string;          // "BTC-USD" (normalized)
+  bids: WsOrderbookLevel[];
+  asks: WsOrderbookLevel[];
+  timestamp: number;
+}
+
+export interface WsCandle {
+  symbol: string;          // "BTC-USD" (normalized)
+  interval: string;
+  time: number;            // Unix seconds (for lightweight-charts)
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
 // ─────────────────────────────────────────────────────────────
 // WebSocket Adapter Interface
 // ─────────────────────────────────────────────────────────────
+
+export interface WsAccountLeverage {
+  symbol: string;          // "BTC-USD" (normalized)
+  leverage: number;
+  timestamp: number;
+}
 
 export interface ExchangeWsCallbacks {
   onPositions?: (positions: WsPosition[]) => void;
   onOrders?: (orders: WsOrder[]) => void;
   onTrades?: (trades: WsTrade[]) => void;
   onPrices?: (prices: WsPrice[], markets: WsMarket[]) => void;
+  onOrderbook?: (data: WsOrderbookSnapshot) => void;
+  onCandle?: (data: WsCandle) => void;
+  onAccountLeverage?: (leverage: WsAccountLeverage) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: string) => void;
@@ -113,6 +152,18 @@ export interface ExchangeWsAdapter {
 
   /** Subscribe to price feed (public, no auth needed) */
   subscribePrices(): void;
+
+  /** Subscribe to orderbook for a symbol */
+  subscribeOrderbook(symbol: string, aggLevel?: number): void;
+
+  /** Unsubscribe from orderbook */
+  unsubscribeOrderbook(symbol: string): void;
+
+  /** Subscribe to candle/kline updates for a symbol + interval */
+  subscribeCandles(symbol: string, interval: string): void;
+
+  /** Unsubscribe from candle updates */
+  unsubscribeCandles(symbol: string, interval: string): void;
 
   /** Force refresh subscriptions */
   refresh(): void;

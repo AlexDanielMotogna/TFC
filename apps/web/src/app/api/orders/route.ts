@@ -141,6 +141,7 @@ export async function POST(request: Request) {
       exchangeOrderId: result.data?.order_id as number,
       leverage,
       fightId: fight_id,
+      exchangeType,
       success: true,
     }).catch(err => console.error('Failed to record order action:', err));
 
@@ -154,6 +155,7 @@ export async function POST(request: Request) {
         takeProfit: take_profit?.stop_price,
         stopLoss: stop_loss?.stop_price,
         fightId: fight_id,
+        exchangeType,
         success: true,
       }).catch(err => console.error('Failed to record TP/SL action:', err));
     }
@@ -209,6 +211,7 @@ export async function DELETE(request: Request) {
       walletAddress: account!,
       actionType: 'CANCEL_ALL',
       symbol: symbol || 'ALL',
+      exchangeType,
       success: true,
     }).catch(err => console.error('Failed to record cancel all action:', err));
 

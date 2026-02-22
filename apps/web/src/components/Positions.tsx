@@ -281,7 +281,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
     const hasMultiple = tpCount > 1 || slCount > 1;
 
     const displayContent = hasMultiple ? (
-      <span className="font-mono">
+      <span className="tabular-nums tracking-tight">
         <span className={tpCount > 0 ? 'text-win-400' : 'text-surface-500'}>
           {tpCount > 0 ? `${tpCount} TP${tpCount > 1 ? 's' : ''}` : '-'}
         </span>
@@ -291,7 +291,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
         </span>
       </span>
     ) : (
-      <span className="font-mono">
+      <span className="tabular-nums tracking-tight">
         <span className={pos.takeProfit ? 'text-win-400' : 'text-surface-500'}>
           {pos.takeProfit ? formatPrice(pos.takeProfit) : '-'}
         </span>
@@ -343,7 +343,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                       {pos.leverage}x {pos.side === 'LONG' ? 'Long' : 'Short'}
                     </span>
                     <span
-                      className={`font-mono text-xs font-medium ${
+                      className={`tabular-nums tracking-tight text-xs font-medium ${
                         pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
                       }`}
                     >
@@ -369,35 +369,35 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
                       {/* Row 1 */}
                       <div>
                         <div className="text-surface-500">Size</div>
-                        <div className="font-mono text-white">{formatTokenAmount(pos.sizeInToken, pos.symbol)}</div>
+                        <div className="tabular-nums tracking-tight text-white">{formatTokenAmount(pos.sizeInToken, pos.symbol)}</div>
                       </div>
                       <div>
                         <div className="text-surface-500">Position Value</div>
-                        <div className="font-mono text-surface-300">${pos.size.toFixed(2)}</div>
+                        <div className="tabular-nums tracking-tight text-surface-300">${pos.size.toFixed(2)}</div>
                       </div>
                       <div>
                         <div className="text-surface-500">Entry / Breakeven Price</div>
-                        <div className="font-mono text-surface-300">{formatPrice(pos.entryPrice)}</div>
+                        <div className="tabular-nums tracking-tight text-surface-300">{formatPrice(pos.entryPrice)}</div>
                       </div>
 
                       {/* Row 2 */}
                       <div>
                         <div className="text-surface-500">Mark Price</div>
-                        <div className="font-mono text-surface-300">{formatPrice(pos.markPrice)}</div>
+                        <div className="tabular-nums tracking-tight text-surface-300">{formatPrice(pos.markPrice)}</div>
                       </div>
                       <div>
                         <div className="text-surface-500">Margin</div>
-                        <div className="font-mono text-white">${pos.margin.toFixed(2)} ({pos.marginType})</div>
+                        <div className="tabular-nums tracking-tight text-white">${pos.margin.toFixed(2)} ({pos.marginType})</div>
                       </div>
                       <div>
                         <div className="text-surface-500">Liq Price</div>
-                        <div className="font-mono text-loss-400">{formatPrice(pos.liquidationPrice)}</div>
+                        <div className="tabular-nums tracking-tight text-loss-400">{formatPrice(pos.liquidationPrice)}</div>
                       </div>
 
                       {/* Row 3 */}
                       <div>
                         <div className="text-surface-500">Funding</div>
-                        <div className={`font-mono ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                        <div className={`tabular-nums tracking-tight ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                           {pos.funding >= 0 ? '+' : '-'}${pos.funding < 0.01 && pos.funding > -0.01
                             ? Math.abs(pos.funding).toFixed(4)
                             : Math.abs(pos.funding).toFixed(2)}
@@ -525,7 +525,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               className="border-surface-800/50 hover:bg-surface-800/30"
             >
               {/* Token - Symbol with leverage badge */}
-              <td className="py-3 px-2">
+              <td className="py-px px-2">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-white">{getTokenSymbol(pos.symbol)}</span>
                   <span
@@ -541,29 +541,29 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Size in token */}
-              <td className="py-3 px-2 text-left font-mono text-white">
+              <td className="py-px px-2 text-left tabular-nums tracking-tight text-white">
                 {formatTokenAmount(pos.sizeInToken, pos.symbol)}
               </td>
 
               {/* Position Value in USD */}
-              <td className="py-3 px-2 text-left font-mono text-surface-300">
+              <td className="py-px px-2 text-left tabular-nums tracking-tight text-surface-300">
                 ${pos.size.toFixed(2)}
               </td>
 
               {/* Entry Price */}
-              <td className="py-3 px-2 text-left font-mono text-surface-300 min-w-[85px]">
+              <td className="py-px px-2 text-left tabular-nums tracking-tight text-surface-300 min-w-[85px]">
                 {formatPrice(pos.entryPrice)}
               </td>
 
               {/* Mark Price */}
-              <td className="py-3 px-2 text-left font-mono text-surface-300 min-w-[85px]">
+              <td className="py-px px-2 text-left tabular-nums tracking-tight text-surface-300 min-w-[85px]">
                 {formatPrice(pos.markPrice)}
               </td>
 
               {/* PnL with ROI% */}
-              <td className="py-3 px-2 text-left min-w-[140px]">
+              <td className="py-px px-2 text-left min-w-[140px]">
                 <div
-                  className={`font-mono font-medium ${
+                  className={`tabular-nums tracking-tight font-medium ${
                     pos.unrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
                   }`}
                 >
@@ -578,13 +578,13 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Liquidation Price */}
-              <td className="py-3 px-2 text-left font-mono text-loss-400 min-w-[85px]">
+              <td className="py-px px-2 text-left tabular-nums tracking-tight text-loss-400 min-w-[85px]">
                 {formatPrice(pos.liquidationPrice)}
               </td>
 
               {/* Margin with type */}
-              <td className="py-3 px-2 text-left">
-                <div className="font-mono text-white">
+              <td className="py-px px-2 text-left">
+                <div className="tabular-nums tracking-tight text-white">
                   ${pos.margin.toFixed(2)}
                 </div>
                 <div className="text-xs text-surface-400">
@@ -593,8 +593,8 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* Funding */}
-              <td className="py-3 px-2 text-left">
-                <span className={`font-mono ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+              <td className="py-px px-2 text-left">
+                <span className={`tabular-nums tracking-tight ${pos.funding >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                   {pos.funding >= 0 ? '+' : '-'}${pos.funding < 0.01 && pos.funding > -0.01
                     ? `${Math.abs(pos.funding).toFixed(4)}`
                     : `${Math.abs(pos.funding).toFixed(2)}`}
@@ -602,7 +602,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
               </td>
 
               {/* TP/SL */}
-              <td className="py-3 px-2 text-center">
+              <td className="py-px px-2 text-center">
                 {!readOnly && onSetTpSl ? (
                   <button
                     onClick={() => setTpSlPosition(pos)}
@@ -628,7 +628,7 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
 
               {/* Close actions - hidden in read-only mode */}
               {!readOnly && (
-                <td className="py-3 px-2">
+                <td className="py-px px-2">
                   <div className="flex items-center justify-center gap-1.5">
                     <button
                       onClick={() => handleClose(pos.id, 'market')}
@@ -667,12 +667,12 @@ export function Positions({ positions, onClosePosition, onSetTpSl, onCancelOrder
           Positions: <span className="text-white">{positions.length}</span>
         </div>
         <div className="text-xs text-surface-400">
-          Total Value: <span className="text-white font-mono">${positions.reduce((sum, p) => sum + p.size, 0).toFixed(2)}</span>
+          Total Value: <span className="text-white tabular-nums tracking-tight">${positions.reduce((sum, p) => sum + p.size, 0).toFixed(2)}</span>
         </div>
         <div className="text-xs">
           <span className="text-surface-400">Total PnL: </span>
           <span
-            className={`font-mono font-medium ${
+            className={`tabular-nums tracking-tight font-medium ${
               positions.reduce((sum, p) => sum + p.unrealizedPnl, 0) >= 0
                 ? 'text-win-400'
                 : 'text-loss-400'

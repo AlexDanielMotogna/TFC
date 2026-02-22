@@ -9,8 +9,6 @@ import { ExchangeProvider } from '@/lib/server/exchanges/provider';
 import { canUsersMatch, recordFightSession } from '@/lib/server/anti-cheat';
 import { ErrorCode } from '@/lib/server/error-codes';
 
-const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
-
 // Realtime server notification helper
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
@@ -103,67 +101,52 @@ export async function POST(
         throw new BadRequestError(matchCheck.reason || 'Cannot match with this opponent');
       }
 
-      // Check if user has active Pacifica connection
-      const connection = await prisma.exchangeConnection.findUnique({
-        where: { userId: user.userId },
-        select: { isActive: true },
+      // Check if user has any active exchange connection
+      const connection = await prisma.exchangeConnection.findFirst({
+        where: { userId: user.userId, isActive: true },
+        select: { isActive: true, exchangeType: true },
       });
 
-      if (!connection?.isActive) {
-        throw new BadRequestError('Active Pacifica connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
+      if (!connection) {
+        throw new BadRequestError('Active exchange connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
       }
 
-      // Get Pacifica connections for both participants to snapshot positions
+      // Get active exchange connections for both participants to snapshot positions
       const [creatorConnection, joinerConnection] = await Promise.all([
-        prisma.exchangeConnection.findUnique({
-          where: { userId: fight.creatorId },
-          select: { accountAddress: true },
+        prisma.exchangeConnection.findFirst({
+          where: { userId: fight.creatorId, isActive: true },
+          select: { accountAddress: true, exchangeType: true },
         }),
-        prisma.exchangeConnection.findUnique({
-          where: { userId: user.userId },
-          select: { accountAddress: true },
+        prisma.exchangeConnection.findFirst({
+          where: { userId: user.userId, isActive: true },
+          select: { accountAddress: true, exchangeType: true },
         }),
       ]);
 
-      // Snapshot current positions from Pacifica (to exclude from fight PnL calculation)
+      // Snapshot current positions from exchange (to exclude from fight PnL calculation)
       // IMPORTANT: Log errors instead of silently failing - this caused Bug #2
+      // Use per-user adapters since creator and joiner may use different exchanges
       let creatorPositions, joinerPositions;
 
-      if (USE_EXCHANGE_ADAPTER) {
-        // Use Exchange Adapter (with caching if Redis configured)
-        const adapter = await ExchangeProvider.getUserAdapter(user.userId);
-        [creatorPositions, joinerPositions] = await Promise.all([
-          creatorConnection?.accountAddress
-            ? adapter.getPositions(creatorConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
-                return [];
-              })
-            : Promise.resolve([]),
-          joinerConnection?.accountAddress
-            ? adapter.getPositions(joinerConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
-                return [];
-              })
-            : Promise.resolve([]),
-        ]);
-      } else {
-        // Fallback to direct Pacifica calls
-        const Pacifica = await import('@/lib/server/pacifica');
-        [creatorPositions, joinerPositions] = await Promise.all([
-          creatorConnection?.accountAddress
-            ? Pacifica.getPositions(creatorConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
-                return [];
-              })
-            : Promise.resolve([]),
-          joinerConnection?.accountAddress
-            ? Pacifica.getPositions(joinerConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
-                return [];
-              })
-            : Promise.resolve([]),
-        ]);
-      }
+      const [creatorAdapter, joinerAdapter] = await Promise.all([
+        ExchangeProvider.getUserAdapter(fight.creatorId, creatorConnection?.exchangeType),
+        ExchangeProvider.getUserAdapter(user.userId, joinerConnection?.exchangeType),
+      ]);
+
+      [creatorPositions, joinerPositions] = await Promise.all([
+        creatorConnection?.accountAddress
+          ? creatorAdapter.getPositions(creatorConnection.accountAddress).catch((err) => {
+              console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
+              return [];
+            })
+          : Promise.resolve([]),
+        joinerConnection?.accountAddress
+          ? joinerAdapter.getPositions(joinerConnection.accountAddress).catch((err) => {
+              console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
+              return [];
+            })
+          : Promise.resolve([]),
+      ]);
 
       // Simplify position data for storage
       // IMPORTANT: Include 'side' to distinguish LONG (bid) vs SHORT (ask) positions

@@ -1,8 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+/**
+ * useOrderBook — Exchange-agnostic orderbook hook
+ *
+ * Uses the ExchangeWsAdapter for real-time orderbook data.
+ * Follows the same pattern as usePrices.
+ */
 
-const PACIFICA_WS_URL = 'wss://ws.pacifica.fi/ws';
+import { useState, useEffect, useRef } from 'react';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { createWsAdapter } from '@/lib/ws/ws-factory';
+import type { ExchangeWsAdapter, ExchangeWsCallbacks, WsOrderbookSnapshot } from '@/lib/ws/types';
 
 export interface OrderBookLevel {
   price: number;
@@ -17,162 +25,104 @@ export interface OrderBookData {
   timestamp: number;
 }
 
-interface PacificaBookLevel {
-  p: string; // price
-  a: string; // amount
-  n: number; // number of orders
-}
-
-interface PacificaBookMessage {
-  channel: 'book';
-  data: {
-    s: string;           // symbol
-    l: [PacificaBookLevel[], PacificaBookLevel[]]; // [bids, asks]
-    t: number;           // timestamp
-  };
-}
-
-// Map our symbol format (BTC-USD) to Pacifica format (BTC)
-const symbolToPacifica = (symbol: string): string => {
-  if (symbol === 'KPEPE-USD') return '1000PEPE';
-  return symbol.replace('-USD', '');
-};
-
 // Valid agg_level values - powers of 10 to match Pacifica
 export type AggLevel = 1 | 10 | 100 | 1000 | 10000;
 
 export function useOrderBook(symbol: string, aggLevel: AggLevel = 1) {
+  const { exchangeType } = useExchangeContext();
+
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const adapterRef = useRef<ExchangeWsAdapter | null>(null);
+  const callbacksRef = useRef<ExchangeWsCallbacks | null>(null);
+  const currentExchangeRef = useRef(exchangeType);
+  const currentSymbolRef = useRef(symbol);
+  const currentAggRef = useRef(aggLevel);
+
   useEffect(() => {
-    const pacificaSymbol = symbolToPacifica(symbol);
+    // Remove old callbacks if exchange changed
+    if (adapterRef.current && currentExchangeRef.current !== exchangeType) {
+      if (callbacksRef.current) {
+        adapterRef.current.unsubscribeOrderbook(currentSymbolRef.current);
+        adapterRef.current.removeCallbacks(callbacksRef.current);
+      }
+      adapterRef.current = null;
+      callbacksRef.current = null;
+    }
 
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-    let isCancelled = false;
+    // Unsubscribe from previous symbol if changed on same adapter
+    if (
+      adapterRef.current &&
+      callbacksRef.current &&
+      (currentSymbolRef.current !== symbol || currentAggRef.current !== aggLevel)
+    ) {
+      adapterRef.current.unsubscribeOrderbook(currentSymbolRef.current);
+    }
 
-    // Reset state for new symbol/aggLevel
+    currentExchangeRef.current = exchangeType;
+    currentSymbolRef.current = symbol;
+    currentAggRef.current = aggLevel;
+
+    // Reset state
     setOrderBook(null);
     setIsLoading(true);
-    setIsConnected(false);
     setError(null);
 
-    const connectWebSocket = () => {
-      if (isCancelled) return;
+    const adapter = createWsAdapter(exchangeType);
+    adapterRef.current = adapter;
+    let hasLoggedFirstSnapshot = false;
+    console.log(`[useOrderBook] Creating WS adapter for exchange=${exchangeType}, symbol=${symbol}, aggLevel=${aggLevel}`);
 
-      try {
-        ws = new WebSocket(PACIFICA_WS_URL);
-
-        ws.onopen = () => {
-          if (isCancelled) {
-            ws?.close();
-            return;
+    const callbacks: ExchangeWsCallbacks = {
+      onConnected: () => {
+        console.log(`[useOrderBook] WS connected (${exchangeType}), subscribing to orderbook: ${symbol}`);
+        setIsConnected(true);
+        setError(null);
+        adapter.subscribeOrderbook(symbol, aggLevel);
+      },
+      onDisconnected: () => {
+        console.log(`[useOrderBook] WS disconnected (${exchangeType})`);
+        setIsConnected(false);
+      },
+      onOrderbook: (data: WsOrderbookSnapshot) => {
+        if (data.symbol === symbol) {
+          if (!hasLoggedFirstSnapshot) {
+            console.log(`[useOrderBook] First orderbook snapshot from ${exchangeType}: ${symbol}, bids=${data.bids.length}, asks=${data.asks.length}, bestBid=${data.bids[0]?.price}, bestAsk=${data.asks[0]?.price}`);
+            hasLoggedFirstSnapshot = true;
           }
-
-          setIsConnected(true);
-          setError(null);
-
-          // Subscribe to orderbook stream with aggregation level
-          // Per docs: agg_level is a multiplier of tick_size
-          ws?.send(JSON.stringify({
-            method: 'subscribe',
-            params: {
-              source: 'book',
-              symbol: pacificaSymbol,
-              agg_level: aggLevel
-            }
-          }));
-        };
-
-        ws.onmessage = (event) => {
-          if (isCancelled) return;
-
-          try {
-            const message: PacificaBookMessage = JSON.parse(event.data);
-
-            if (message.channel === 'book' && message.data) {
-              // Verify the message is for the correct symbol
-              if (message.data.s !== pacificaSymbol) return;
-
-              const [bidsRaw, asksRaw] = message.data.l;
-
-              const bids: OrderBookLevel[] = bidsRaw.map((level) => ({
-                price: parseFloat(level.p),
-                size: parseFloat(level.a),
-                orders: level.n,
-              }));
-
-              const asks: OrderBookLevel[] = asksRaw.map((level) => ({
-                price: parseFloat(level.p),
-                size: parseFloat(level.a),
-                orders: level.n,
-              }));
-
-              setOrderBook({
-                symbol: symbol,
-                bids,
-                asks,
-                timestamp: message.data.t,
-              });
-              setIsLoading(false);
-            }
-          } catch (err) {
-            // Silently ignore parse errors
-          }
-        };
-
-        ws.onerror = () => {
-          if (!isCancelled) {
-            setError('Connection error');
-            setIsConnected(false);
-          }
-        };
-
-        ws.onclose = () => {
-          if (!isCancelled) {
-            setIsConnected(false);
-            // Reconnect after 3 seconds
-            reconnectTimeout = setTimeout(() => {
-              if (!isCancelled) {
-                connectWebSocket();
-              }
-            }, 3000);
-          }
-        };
-      } catch (err) {
-        if (!isCancelled) {
-          setError('Failed to connect');
+          setOrderBook({
+            symbol: data.symbol,
+            bids: data.bids,
+            asks: data.asks,
+            timestamp: data.timestamp,
+          });
           setIsLoading(false);
         }
-      }
+      },
+      onError: (err) => {
+        console.error(`[useOrderBook] WS error (${exchangeType}):`, err);
+        setError(err);
+      },
     };
+    callbacksRef.current = callbacks;
 
-    connectWebSocket();
+    adapter.connect(callbacks);
+
+    // If already connected, subscribe immediately
+    if (adapter.isConnected()) {
+      setIsConnected(true);
+      adapter.subscribeOrderbook(symbol, aggLevel);
+    }
 
     return () => {
-      isCancelled = true;
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
-      if (ws) {
-        // Unsubscribe before closing per docs
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({
-            method: 'unsubscribe',
-            params: {
-              source: 'book',
-              symbol: pacificaSymbol,
-              agg_level: aggLevel
-            }
-          }));
-        }
-        ws.close();
-      }
+      adapter.unsubscribeOrderbook(symbol);
+      adapter.removeCallbacks(callbacks);
     };
-  }, [symbol, aggLevel]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, aggLevel, exchangeType]);
 
   return {
     orderBook,

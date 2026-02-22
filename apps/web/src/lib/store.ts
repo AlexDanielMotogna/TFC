@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PacificaFailReason } from './api';
+import type { ExchangeType } from '@tfc/shared';
 
 export interface User {
   id: string;
@@ -12,15 +13,37 @@ export interface User {
 interface AuthState {
   token: string | null;
   user: User | null;
-  walletAddress: string | null; // Store wallet address to detect account changes
+  walletAddress: string | null; // Solana wallet used for initial auth (persisted)
   isAuthenticated: boolean;
   isAdmin: boolean;
   pacificaConnected: boolean;
   pacificaFailReason: PacificaFailReason;
+  exchangeType: ExchangeType | null;
   _hasHydrated: boolean;
+
+  // Live trading wallet state (NOT persisted — derived from wallet adapter)
+  solanaWalletConnected: boolean;       // Is a Solana wallet currently connected?
+  tradingWalletAddress: string | null;  // Address of the currently connected Solana wallet
+
+  // EVM / Hyperliquid auth state
+  evmWalletAddress: string | null;
+  hyperliquidConnected: boolean;
+  agentApproved: boolean;
 
   setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string, pacificaFailReason?: PacificaFailReason) => void;
   setPacificaConnected: (connected: boolean) => void;
+  setExchangeType: (exchange: ExchangeType) => void;
+  setSolanaWalletConnected: (connected: boolean) => void;
+  setTradingWalletAddress: (address: string | null) => void;
+  /** Disconnect trading wallet only — preserves JWT auth session */
+  disconnectTradingWallet: () => void;
+  setEvmWalletAddress: (address: string | null) => void;
+  setHyperliquidStatus: (connected: boolean, approved: boolean) => void;
+  /** Clear only Solana-side auth (preserves exchangeType + EVM state) */
+  clearSolanaAuth: () => void;
+  /** Clear only EVM-side auth (preserves exchangeType + Solana state) */
+  clearEvmAuth: () => void;
+  /** Full reset — clears everything (used for explicit logout) */
   clearAuth: () => void;
   setHasHydrated: (state: boolean) => void;
 }
@@ -35,7 +58,17 @@ export const useAuthStore = create<AuthState>()(
       isAdmin: false,
       pacificaConnected: false,
       pacificaFailReason: null,
+      exchangeType: null,
       _hasHydrated: false,
+
+      // Live trading wallet state (ephemeral, not persisted)
+      solanaWalletConnected: false,
+      tradingWalletAddress: null,
+
+      // EVM / Hyperliquid
+      evmWalletAddress: null,
+      hyperliquidConnected: false,
+      agentApproved: false,
 
       setAuth: (token, user, pacificaConnected, walletAddress, pacificaFailReason = null) =>
         set({
@@ -51,6 +84,47 @@ export const useAuthStore = create<AuthState>()(
       setPacificaConnected: (connected) =>
         set({ pacificaConnected: connected, pacificaFailReason: connected ? null : undefined }),
 
+      setExchangeType: (exchange) =>
+        set({ exchangeType: exchange }),
+
+      setSolanaWalletConnected: (connected) =>
+        set({ solanaWalletConnected: connected }),
+
+      setTradingWalletAddress: (address) =>
+        set({ tradingWalletAddress: address }),
+
+      disconnectTradingWallet: () =>
+        set({
+          solanaWalletConnected: false,
+          tradingWalletAddress: null,
+          pacificaConnected: false,
+          pacificaFailReason: null,
+        }),
+
+      setEvmWalletAddress: (address) =>
+        set({ evmWalletAddress: address }),
+
+      setHyperliquidStatus: (connected, approved) =>
+        set({ hyperliquidConnected: connected, agentApproved: approved }),
+
+      clearSolanaAuth: () =>
+        set({
+          token: null,
+          user: null,
+          walletAddress: null,
+          isAuthenticated: false,
+          isAdmin: false,
+          pacificaConnected: false,
+          pacificaFailReason: null,
+        }),
+
+      clearEvmAuth: () =>
+        set({
+          evmWalletAddress: null,
+          hyperliquidConnected: false,
+          agentApproved: false,
+        }),
+
       clearAuth: () =>
         set({
           token: null,
@@ -60,6 +134,12 @@ export const useAuthStore = create<AuthState>()(
           isAdmin: false,
           pacificaConnected: false,
           pacificaFailReason: null,
+          exchangeType: null,
+          solanaWalletConnected: false,
+          tradingWalletAddress: null,
+          evmWalletAddress: null,
+          hyperliquidConnected: false,
+          agentApproved: false,
         }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -74,6 +154,10 @@ export const useAuthStore = create<AuthState>()(
         isAdmin: state.isAdmin,
         pacificaConnected: state.pacificaConnected,
         pacificaFailReason: state.pacificaFailReason,
+        exchangeType: state.exchangeType,
+        evmWalletAddress: state.evmWalletAddress,
+        hyperliquidConnected: state.hyperliquidConnected,
+        agentApproved: state.agentApproved,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

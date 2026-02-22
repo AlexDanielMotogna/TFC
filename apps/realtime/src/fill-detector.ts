@@ -158,7 +158,7 @@ export class FillDetector {
 
       // Get account address from wallet address -> PacificaConnection
       const connection = await prisma.exchangeConnection.findFirst({
-        where: { userId },
+        where: { userId, exchangeType: 'pacifica' },
         select: { accountAddress: true },
       });
 

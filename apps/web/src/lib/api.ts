@@ -63,6 +63,11 @@ export async function connectWallet(
   });
 }
 
+export async function getHyperliquidStatus(token: string, evmAddress?: string): Promise<{ connected: boolean; agentApproved: boolean; accountAddress: string | null }> {
+  const params = evmAddress ? `?evmAddress=${encodeURIComponent(evmAddress)}` : '';
+  return fetchApi(`/auth/hyperliquid/me${params}`, { token });
+}
+
 export interface PacificaConnectionStatus {
   connected: boolean;
   pacificaAddress: string | null;
@@ -642,6 +647,7 @@ export const api = {
   // Auth
   connectWallet,
   getPacificaStatus,
+  getHyperliquidStatus,
   linkPacificaAccount,
   // Fights
   getFights,

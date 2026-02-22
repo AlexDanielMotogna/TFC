@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth, useAccount, useArenaSocket, useSettings } from '@/hooks';
 import { useMyPrizes } from '@/hooks/useMyPrizes';
 import { WalletButton } from '@/components/WalletButton';
+import { ExchangeSwitcher } from '@/components/ExchangeSwitcher';
 import { NotificationBell } from '@/components/NotificationBell';
 import { PrizesBanner } from '@/components/PrizesBanner';
 import { WithdrawModal } from '@/components/WithdrawModal';
@@ -26,6 +27,7 @@ import FileUploadIcon from '@mui/icons-material/FileUpload';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
 
@@ -53,7 +55,7 @@ interface AppShellProps {
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, logout } = useAuth();
   const { account } = useAccount();
   const { claimablePrizes } = useMyPrizes();
   const settings = useSettings();
@@ -230,7 +232,7 @@ export function AppShell({ children }: AppShellProps) {
           ))}
         </nav>
 
-        {/* Settings Button */}
+        {/* Settings & Logout */}
         <div className="border-t border-surface-800 p-2">
           <button
             onClick={() => setShowSettings(true)}
@@ -242,6 +244,18 @@ export function AppShell({ children }: AppShellProps) {
             <SettingsIcon sx={{ fontSize: 20 }} />
             {sidebarState === 'full' && <span className="text-sm">Settings</span>}
           </button>
+          {isAuthenticated && (
+            <button
+              onClick={logout}
+              className={`w-full flex items-center gap-3 px-2 py-2 text-surface-400 hover:text-red-400 hover:bg-surface-800 rounded-lg transition-colors mt-1 ${
+                sidebarState === 'icons' ? 'justify-center' : ''
+              }`}
+              title="Logout"
+            >
+              <LogoutIcon sx={{ fontSize: 20 }} />
+              {sidebarState === 'full' && <span className="text-sm">Logout</span>}
+            </button>
+          )}
         </div>
 
         {/* Toggle Buttons */}
@@ -344,6 +358,15 @@ export function AppShell({ children }: AppShellProps) {
                           <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
                           Withdraw
                         </button>
+                        {isAuthenticated && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setShowWalletDropdown(false); logout(); }}
+                            className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:text-red-400 hover:bg-surface-700 transition-colors border-t border-surface-800"
+                          >
+                            <LogoutIcon sx={{ fontSize: 18 }} className="text-red-400" />
+                            Logout
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -352,7 +375,8 @@ export function AppShell({ children }: AppShellProps) {
                 {/* Notifications Bell */}
                 {settings.showNotifications && <NotificationBell />}
 
-                {/* Wallet Connect Button - visible on all screen sizes */}
+                {/* Exchange Switcher + Wallet Connect */}
+                <ExchangeSwitcher />
                 <div className="wallet-compact min-w-0 relative z-50">
                   <WalletButton />
                 </div>
@@ -411,6 +435,15 @@ export function AppShell({ children }: AppShellProps) {
                   <FileUploadIcon sx={{ fontSize: 18 }} className="text-primary-400" />
                   Withdraw
                 </button>
+                {isAuthenticated && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowWalletDropdown(false); logout(); }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-surface-200 hover:text-red-400 hover:bg-surface-700 transition-colors border-t border-surface-800"
+                  >
+                    <LogoutIcon sx={{ fontSize: 18 }} className="text-red-400" />
+                    Logout
+                  </button>
+                )}
               </div>
             )}
           </div>

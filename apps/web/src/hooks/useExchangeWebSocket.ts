@@ -14,8 +14,9 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { create } from 'zustand';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { useAuthStore } from '@/lib/store';
 import { createWsAdapter } from '@/lib/ws/ws-factory';
-import type { ExchangeWsAdapter, ExchangeWsCallbacks, WsPosition, WsOrder, WsTrade } from '@/lib/ws/types';
+import type { ExchangeWsAdapter, ExchangeWsCallbacks, WsPosition, WsOrder, WsTrade, WsAccountLeverage } from '@/lib/ws/types';
 
 // Re-export types for backward compatibility
 export type Position = WsPosition;
@@ -31,12 +32,14 @@ interface ExchangeWsState {
   positions: WsPosition[];
   orders: WsOrder[];
   trades: WsTrade[];
+  leverageMap: Record<string, number>; // symbol → account leverage (from WS)
   lastUpdate: number;
 
   setConnected: (connected: boolean) => void;
   setPositions: (positions: WsPosition[]) => void;
   setOrders: (orders: WsOrder[]) => void;
   addTrades: (trades: WsTrade[]) => void;
+  updateLeverage: (data: WsAccountLeverage) => void;
   clearAll: () => void;
 }
 
@@ -45,6 +48,7 @@ export const useExchangeWsStore = create<ExchangeWsState>((set, get) => ({
   positions: [],
   orders: [],
   trades: [],
+  leverageMap: {},
   lastUpdate: Date.now(),
 
   setConnected: (connected) => set({ isConnected: connected }),
@@ -64,10 +68,16 @@ export const useExchangeWsStore = create<ExchangeWsState>((set, get) => ({
     set({ trades: allTrades, lastUpdate: Date.now() });
   },
 
+  updateLeverage: (data) => {
+    const current = get().leverageMap;
+    set({ leverageMap: { ...current, [data.symbol]: data.leverage }, lastUpdate: Date.now() });
+  },
+
   clearAll: () => set({
     positions: [],
     orders: [],
     trades: [],
+    leverageMap: {},
     lastUpdate: Date.now(),
   }),
 }));
@@ -82,6 +92,7 @@ export const usePacificaWsStore = useExchangeWsStore;
 export function useExchangeWebSocket() {
   const { exchangeType } = useExchangeContext();
   const { publicKey, connected: walletConnected } = useWallet();
+  const evmWalletAddress = useAuthStore((s) => s.evmWalletAddress);
   const adapterRef = useRef<ExchangeWsAdapter | null>(null);
   const callbacksRef = useRef<ExchangeWsCallbacks | null>(null);
   const currentExchangeRef = useRef(exchangeType);
@@ -91,10 +102,12 @@ export function useExchangeWebSocket() {
     positions,
     orders,
     trades,
+    leverageMap,
     setConnected,
     setPositions,
     setOrders,
     addTrades,
+    updateLeverage,
     clearAll,
   } = useExchangeWsStore();
 
@@ -121,6 +134,7 @@ export function useExchangeWebSocket() {
       onPositions: (pos) => setPositions(pos),
       onOrders: (ord) => setOrders(ord),
       onTrades: (trd) => addTrades(trd),
+      onAccountLeverage: (lev) => updateLeverage(lev),
       onError: (err) => console.error(`[ExchangeWS:${exchangeType}] Error:`, err),
     };
     callbacksRef.current = callbacks;
@@ -135,19 +149,26 @@ export function useExchangeWebSocket() {
   }, [exchangeType]);
 
   // Subscribe/unsubscribe account when wallet connects/disconnects
+  // Uses Solana publicKey for Pacifica, EVM address for Hyperliquid
   useEffect(() => {
     const adapter = adapterRef.current;
     if (!adapter) return;
 
-    if (walletConnected && publicKey) {
-      const account = publicKey.toBase58();
-      adapter.subscribeAccount(account);
+    let accountId: string | null = null;
+    if (exchangeType === 'pacifica') {
+      accountId = walletConnected && publicKey ? publicKey.toBase58() : null;
+    } else if (exchangeType === 'hyperliquid') {
+      accountId = evmWalletAddress || null;
+    }
+
+    if (accountId) {
+      adapter.subscribeAccount(accountId);
     } else {
       adapter.unsubscribeAccount();
       clearAll();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [walletConnected, publicKey?.toBase58()]);
+  }, [walletConnected, publicKey?.toBase58(), evmWalletAddress, exchangeType]);
 
   // Force refresh method
   const refresh = useCallback(() => {
@@ -165,21 +186,30 @@ export function useExchangeWebSocket() {
       onPositions: (pos) => setPositions(pos),
       onOrders: (ord) => setOrders(ord),
       onTrades: (trd) => addTrades(trd),
+      onAccountLeverage: (lev) => updateLeverage(lev),
       onError: (err) => console.error(`[ExchangeWS] Error:`, err),
     };
     callbacksRef.current = callbacks;
     adapter.connect(callbacks);
-    if (publicKey && walletConnected) {
-      adapter.subscribeAccount(publicKey.toBase58());
+
+    let accountId: string | null = null;
+    if (exchangeType === 'pacifica') {
+      accountId = publicKey && walletConnected ? publicKey.toBase58() : null;
+    } else if (exchangeType === 'hyperliquid') {
+      accountId = evmWalletAddress || null;
+    }
+    if (accountId) {
+      adapter.subscribeAccount(accountId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicKey, walletConnected]);
+  }, [publicKey, walletConnected, evmWalletAddress, exchangeType]);
 
   return {
     isConnected,
     positions,
     orders,
     trades,
+    leverageMap,
     error: null as string | null,
     refresh,
     reconnect,

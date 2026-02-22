@@ -1,11 +1,20 @@
 'use client';
 
+/**
+ * useCandles — Exchange-agnostic candle/chart hook
+ *
+ * Historical: fetches from /api/chart/candles with exchange param
+ * Real-time: uses ExchangeWsAdapter for live candle updates
+ * Follows the same pattern as usePrices.
+ */
+
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { createWsAdapter } from '@/lib/ws/ws-factory';
+import type { ExchangeWsAdapter, ExchangeWsCallbacks, WsCandle } from '@/lib/ws/types';
 
 // Chart API is served by Next.js on the same server (relative URL)
 const CHART_API_BASE = '';
-// Pacifica WebSocket for real-time updates
-const PACIFICA_WS_URL = 'wss://ws.pacifica.fi/ws';
 
 export interface CandleData {
   time: number;      // Unix timestamp in seconds (for lightweight-charts)
@@ -17,12 +26,6 @@ export interface CandleData {
 }
 
 type CandleInterval = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '8h' | '12h' | '1d';
-
-// Map our symbol format (BTC-USD) to Pacifica format (BTC)
-const symbolToPacifica = (symbol: string): string => {
-  if (symbol === 'KPEPE-USD') return '1000PEPE';
-  return symbol.replace('-USD', '');
-};
 
 // Get interval in milliseconds for calculating historical range
 const intervalToMs = (interval: CandleInterval): number => {
@@ -80,40 +83,6 @@ interface ChartApiResponse {
   };
 }
 
-// Legacy Pacifica response (for WebSocket messages)
-interface PacificaKlineResponse {
-  success: boolean;
-  data: Array<{
-    t: number;   // open time ms
-    T: number;   // close time ms
-    s: string;   // symbol
-    i: string;   // interval
-    o: string;   // open
-    c: string;   // close
-    h: string;   // high
-    l: string;   // low
-    v: string;   // volume
-    n: number;   // number of trades
-  }>;
-  error: string | null;
-}
-
-interface PacificaCandleMessage {
-  channel: 'candle';  // Use 'candle' for last traded price (matches Pacifica UI)
-  data: {
-    t: number;   // start time ms
-    T: number;   // end time ms
-    s: string;   // symbol
-    i: string;   // interval
-    o: string;   // open
-    c: string;   // close
-    h: string;   // high
-    l: string;   // low
-    v: string;   // volume
-    n: number;   // number of trades
-  };
-}
-
 // Parse aggregated API response to CandleData (numbers already parsed)
 const parseChartApiData = (data: ChartApiResponse['data']): CandleData[] => {
   return data.map(c => ({
@@ -126,19 +95,9 @@ const parseChartApiData = (data: ChartApiResponse['data']): CandleData[] => {
   }));
 };
 
-// Parse legacy Pacifica response (for backward compatibility)
-const parseKlineData = (data: PacificaKlineResponse['data']): CandleData[] => {
-  return data.map(c => ({
-    time: Math.floor(c.t / 1000), // Convert to seconds for lightweight-charts
-    open: parseFloat(c.o),
-    high: parseFloat(c.h),
-    low: parseFloat(c.l),
-    close: parseFloat(c.c),
-    volume: parseFloat(c.v),
-  }));
-};
-
 export function useCandles(symbol: string, interval: CandleInterval = '5m') {
+  const { exchangeType } = useExchangeContext();
+
   const [candles, setCandles] = useState<CandleData[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -149,13 +108,17 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
   // Keep refs for loadMoreHistory to access current values
   const currentSymbolRef = useRef(symbol);
   const currentIntervalRef = useRef(interval);
+  const currentExchangeRef = useRef(exchangeType);
   const oldestTimestampRef = useRef(oldestTimestamp);
+  const adapterRef = useRef<ExchangeWsAdapter | null>(null);
+  const callbacksRef = useRef<ExchangeWsCallbacks | null>(null);
 
   // Update refs when values change
   useEffect(() => {
     currentSymbolRef.current = symbol;
     currentIntervalRef.current = interval;
-  }, [symbol, interval]);
+    currentExchangeRef.current = exchangeType;
+  }, [symbol, interval, exchangeType]);
 
   useEffect(() => {
     oldestTimestampRef.current = oldestTimestamp;
@@ -167,6 +130,7 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
 
     const sym = currentSymbolRef.current;
     const int = currentIntervalRef.current;
+    const exch = currentExchangeRef.current;
     const intMs = intervalToMs(int);
 
     // Calculate time range for older candles
@@ -176,13 +140,12 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
 
     try {
       setIsLoadingMore(true);
-      // Use our backend API which aggregates data from multiple sources
       const response = await fetch(
-        `${CHART_API_BASE}/api/chart/candles?symbol=${sym}&interval=${int}&start=${startTime}&end=${endTime}`
+        `${CHART_API_BASE}/api/chart/candles?symbol=${sym}&interval=${int}&start=${startTime}&end=${endTime}&exchange=${exch}`
       );
 
       // Check if symbol changed during fetch
-      if (currentSymbolRef.current !== sym || currentIntervalRef.current !== int) {
+      if (currentSymbolRef.current !== sym || currentIntervalRef.current !== int || currentExchangeRef.current !== exch) {
         setIsLoadingMore(false);
         return;
       }
@@ -194,7 +157,7 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
       const data: ChartApiResponse = await response.json();
 
       // Check again after parsing
-      if (currentSymbolRef.current !== sym || currentIntervalRef.current !== int) {
+      if (currentSymbolRef.current !== sym || currentIntervalRef.current !== int || currentExchangeRef.current !== exch) {
         setIsLoadingMore(false);
         return;
       }
@@ -219,31 +182,34 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
     }
   }, [isLoadingMore, isLoading]);
 
-  // Initial load: fetch historical data and connect WebSocket
+  // Initial load: fetch historical data and connect WebSocket adapter
   useEffect(() => {
-    const pacificaSymbol = symbolToPacifica(symbol);
-
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
     let isCancelled = false;
 
-    // Reset state for new symbol/interval
+    // Remove old callbacks if exchange changed
+    if (adapterRef.current && callbacksRef.current) {
+      adapterRef.current.unsubscribeCandles(currentSymbolRef.current, currentIntervalRef.current);
+      adapterRef.current.removeCallbacks(callbacksRef.current);
+      adapterRef.current = null;
+      callbacksRef.current = null;
+    }
+
+    // Reset state for new symbol/interval/exchange
     setCandles([]);
     setOldestTimestamp(Date.now());
     setIsLoading(true);
     setIsConnected(false);
     setError(null);
 
-    // Fetch historical data from aggregated API (Pacifica + Binance/Bybit)
+    // Fetch historical data from aggregated API with exchange param
     const fetchHistoricalCandles = async () => {
       const now = Date.now();
       const days = getInitialDays(interval);
       const startTime = now - (days * 24 * 60 * 60 * 1000);
 
       try {
-        // Use our backend API which aggregates data from multiple sources
         const response = await fetch(
-          `${CHART_API_BASE}/api/chart/candles?symbol=${symbol}&interval=${interval}&start=${startTime}&end=${now}`
+          `${CHART_API_BASE}/api/chart/candles?symbol=${symbol}&interval=${interval}&start=${startTime}&end=${now}&exchange=${exchangeType}`
         );
 
         if (isCancelled) return;
@@ -278,122 +244,74 @@ export function useCandles(symbol: string, interval: CandleInterval = '5m') {
 
     fetchHistoricalCandles();
 
-    // Connect WebSocket
-    const connectWebSocket = () => {
-      if (isCancelled) return;
+    // Connect WS adapter for real-time candle updates
+    const adapter = createWsAdapter(exchangeType);
+    adapterRef.current = adapter;
 
-      try {
-        ws = new WebSocket(PACIFICA_WS_URL);
+    const callbacks: ExchangeWsCallbacks = {
+      onConnected: () => {
+        setIsConnected(true);
+        setError(null);
+        adapter.subscribeCandles(symbol, interval);
+      },
+      onDisconnected: () => setIsConnected(false),
+      onCandle: (data: WsCandle) => {
+        if (data.symbol !== symbol || data.interval !== interval) return;
 
-        ws.onopen = () => {
-          if (isCancelled) {
-            ws?.close();
-            return;
-          }
-
-          setIsConnected(true);
-          setError(null);
-
-          // Subscribe to candles (last traded price - same as Pacifica UI)
-          ws?.send(JSON.stringify({
-            method: 'subscribe',
-            params: {
-              source: 'candle',
-              symbol: pacificaSymbol,
-              interval: interval
-            }
-          }));
+        const candle: CandleData = {
+          time: data.time,
+          open: data.open,
+          high: data.high,
+          low: data.low,
+          close: data.close,
+          volume: data.volume,
         };
 
-        ws.onmessage = (event) => {
-          if (isCancelled) return;
+        setCandles(prev => {
+          if (prev.length === 0) return [candle];
 
-          try {
-            const message: PacificaCandleMessage = JSON.parse(event.data);
+          const lastCandle = prev[prev.length - 1];
 
-            if (message.channel === 'candle' && message.data) {
-              // Verify the message is for the correct symbol and interval
-              if (message.data.s !== pacificaSymbol || message.data.i !== interval) {
-                return;
-              }
-
-              const candle: CandleData = {
-                time: Math.floor(message.data.t / 1000), // Convert to seconds
-                open: parseFloat(message.data.o),
-                high: parseFloat(message.data.h),
-                low: parseFloat(message.data.l),
-                close: parseFloat(message.data.c),
-                volume: parseFloat(message.data.v),
-              };
-
-              setCandles(prev => {
-                if (prev.length === 0) return [candle];
-
-                const lastCandle = prev[prev.length - 1];
-
-                // If this candle updates the last one (same time)
-                if (lastCandle && candle.time === lastCandle.time) {
-                  return [...prev.slice(0, -1), candle];
-                }
-
-                // If this is a new candle (newer than last)
-                if (lastCandle && candle.time > lastCandle.time) {
-                  return [...prev, candle];
-                }
-
-                // Otherwise find and update existing candle
-                const existingIndex = prev.findIndex(c => c.time === candle.time);
-                if (existingIndex !== -1) {
-                  const updated = [...prev];
-                  updated[existingIndex] = candle;
-                  return updated;
-                }
-
-                return prev;
-              });
-            }
-          } catch (err) {
-            // Silently ignore parse errors
+          // If this candle updates the last one (same time)
+          if (lastCandle && candle.time === lastCandle.time) {
+            return [...prev.slice(0, -1), candle];
           }
-        };
 
-        ws.onerror = () => {
-          if (!isCancelled) {
-            setError('Connection error');
-            setIsConnected(false);
+          // If this is a new candle (newer than last)
+          if (lastCandle && candle.time > lastCandle.time) {
+            return [...prev, candle];
           }
-        };
 
-        ws.onclose = () => {
-          if (!isCancelled) {
-            setIsConnected(false);
-            // Reconnect after 3 seconds
-            reconnectTimeout = setTimeout(() => {
-              if (!isCancelled) {
-                connectWebSocket();
-              }
-            }, 3000);
+          // Otherwise find and update existing candle
+          const existingIndex = prev.findIndex(c => c.time === candle.time);
+          if (existingIndex !== -1) {
+            const updated = [...prev];
+            updated[existingIndex] = candle;
+            return updated;
           }
-        };
-      } catch (err) {
-        if (!isCancelled) {
-          setError('Failed to connect');
-        }
-      }
+
+          return prev;
+        });
+      },
+      onError: (err) => setError(err),
     };
+    callbacksRef.current = callbacks;
 
-    connectWebSocket();
+    adapter.connect(callbacks);
+
+    // If already connected, subscribe immediately
+    if (adapter.isConnected()) {
+      setIsConnected(true);
+      adapter.subscribeCandles(symbol, interval);
+    }
 
     return () => {
       isCancelled = true;
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
-      if (ws) {
-        ws.close();
-      }
+      adapter.unsubscribeCandles(symbol, interval);
+      adapter.removeCallbacks(callbacks);
     };
-  }, [symbol, interval]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, interval, exchangeType]);
 
   return {
     candles,

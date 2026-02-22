@@ -1,6 +1,8 @@
 /**
  * Hook to sync Pacifica connection status
- * Polls the backend to check if user has an active Pacifica connection
+ * Polls the backend to check if user has an active Pacifica connection.
+ * Passes the current trading wallet address so the backend can re-link
+ * if the user switches to a different Solana wallet.
  */
 
 import { useEffect } from 'react';
@@ -8,15 +10,18 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/store';
 
 export function usePacificaConnection() {
-  const { token, isAuthenticated, pacificaConnected, setPacificaConnected } = useAuthStore();
+  const { token, isAuthenticated, pacificaConnected, setPacificaConnected, tradingWalletAddress } = useAuthStore();
 
-  // Query Pacifica connection status
+  // Query Pacifica connection status, passing the current trading wallet
   const { data } = useQuery({
-    queryKey: ['pacifica-connection', token],
+    queryKey: ['pacifica-connection', token, tradingWalletAddress],
     queryFn: async () => {
       if (!token) return null;
 
-      const response = await fetch('/api/auth/pacifica/me', {
+      const params = tradingWalletAddress
+        ? `?tradingWallet=${encodeURIComponent(tradingWalletAddress)}`
+        : '';
+      const response = await fetch(`/api/auth/pacifica/me${params}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -26,7 +31,9 @@ export function usePacificaConnection() {
         throw new Error('Failed to fetch Pacifica connection status');
       }
 
-      return response.json();
+      const json = await response.json();
+      // withAuth wraps response in { success, data }, unwrap it
+      return json.data ?? json;
     },
     enabled: isAuthenticated && !!token,
     refetchInterval: 10000, // Poll every 10 seconds

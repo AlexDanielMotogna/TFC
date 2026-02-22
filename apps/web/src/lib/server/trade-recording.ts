@@ -14,9 +14,8 @@ import {
 } from '@/lib/server/fight-exposure';
 import { calculateReferralCommissions } from '@/lib/server/services/referral';
 import { broadcastAdminTrade } from '@/lib/server/admin-realtime';
+import { ExchangeProvider } from '@/lib/server/exchanges/provider';
 import { prisma, FightStatus } from '@tfc/db';
-
-const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 const REALTIME_URL = process.env.REALTIME_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 
@@ -136,9 +135,12 @@ export async function recordAllTrades(
   leverage?: number,
   isPreFightFlip?: boolean
 ) {
-  // Find user by Pacifica account address
+  // Normalize address for case-insensitive matching (EVM addresses use mixed-case checksums)
+  const normalizedAddress = accountAddress.toLowerCase();
+
+  // Find user by exchange account address
   const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress },
+    where: { accountAddress: normalizedAddress },
     include: { user: true },
   });
 
@@ -189,7 +191,7 @@ export async function recordAllTrades(
 
   const tradeSide = side === 'bid' ? 'BUY' : 'SELL';
 
-  // Fetch trade history to get execution details (price, fee, pnl)
+  // Fetch trade history via exchange adapter to get execution details (price, fee, pnl)
   // Retry up to 3 times with increasing delays since trade may not be immediately available
   let executionPrice = '0';
   let fee = '0';
@@ -199,35 +201,36 @@ export async function recordAllTrades(
   const MAX_RETRIES = 3;
   const RETRY_DELAYS = [500, 1000, 1500];
 
+  const adapter = ExchangeProvider.getAdapter(
+    (connection.exchangeType || 'pacifica') as 'pacifica' | 'hyperliquid' | 'lighter'
+  );
+
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
 
     try {
-      const tradeHistoryResponse = await fetch(
-        `${PACIFICA_API_URL}/api/v1/trades/history?account=${accountAddress}&limit=10`
-      );
+      const trades = await adapter.getTradeHistory({
+        accountId: normalizedAddress,
+        limit: 10,
+      });
 
-      if (tradeHistoryResponse.ok) {
-        const tradeData = await tradeHistoryResponse.json();
-        if (tradeData.success && Array.isArray(tradeData.data)) {
-          const trade = tradeData.data.find((t: any) => t.order_id === orderId);
-          if (trade) {
-            executionPrice = trade.price || '0';
-            fee = trade.fee || '0';
-            pnl = trade.pnl || null;
-            historyId = BigInt(trade.history_id || historyId);
+      const trade = trades.find((t) => String(t.orderId) === String(orderId));
+      if (trade) {
+        executionPrice = trade.price || '0';
+        fee = trade.fee || '0';
+        pnl = trade.pnl || null;
+        historyId = BigInt(trade.historyId || historyId);
 
-            console.log('[recordAllTrades] Found trade execution details:', {
-              orderId,
-              price: executionPrice,
-              fee,
-              pnl,
-              historyId: historyId.toString(),
-              attempt: attempt + 1,
-            });
-            break;
-          }
-        }
+        console.log('[recordAllTrades] Found trade execution details:', {
+          exchange: connection.exchangeType,
+          orderId,
+          price: executionPrice,
+          fee,
+          pnl,
+          historyId: historyId.toString(),
+          attempt: attempt + 1,
+        });
+        break;
       }
 
       if (attempt < MAX_RETRIES - 1) {
@@ -249,6 +252,7 @@ export async function recordAllTrades(
         userId: connection.userId,
         exchangeHistoryId: historyId,
         exchangeOrderId: BigInt(orderId),
+        exchangeType: connection.exchangeType || 'pacifica',
         symbol,
         side: tradeSide,
         amount,
@@ -262,6 +266,7 @@ export async function recordAllTrades(
     });
 
     console.log('[recordAllTrades] Trade saved to Trade table:', {
+      exchange: connection.exchangeType,
       userId: connection.userId,
       symbol,
       side: tradeSide,
@@ -350,9 +355,12 @@ export async function recordAllTradesWithDetails(
   leverage?: number,
   isPreFightFlip?: boolean
 ) {
-  // Find user by Pacifica account address
+  // Normalize address for case-insensitive matching (EVM addresses use mixed-case checksums)
+  const normalizedAddress = accountAddress.toLowerCase();
+
+  // Find user by exchange account address
   const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress },
+    where: { accountAddress: normalizedAddress },
     include: { user: true },
   });
 
@@ -396,6 +404,7 @@ export async function recordAllTradesWithDetails(
         userId: connection.userId,
         exchangeHistoryId: execDetails.historyId,
         exchangeOrderId: BigInt(orderId),
+        exchangeType: connection.exchangeType || 'pacifica',
         symbol,
         side: tradeSide,
         amount,
@@ -409,6 +418,7 @@ export async function recordAllTradesWithDetails(
     });
 
     console.log('[recordAllTradesWithDetails] Trade saved:', {
+      exchange: connection.exchangeType,
       userId: connection.userId,
       symbol,
       side: tradeSide,
@@ -497,9 +507,12 @@ export async function recordFightTradeWithDetails(
   leverage?: number,
   execDetails?: ExecutionDetails
 ) {
-  // Find user by Pacifica account address
+  // Normalize address for case-insensitive matching (EVM addresses use mixed-case checksums)
+  const normalizedAddress = accountAddress.toLowerCase();
+
+  // Find user by exchange account address
   const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress },
+    where: { accountAddress: normalizedAddress },
     include: { user: true },
   });
 
@@ -589,24 +602,31 @@ export async function recordFightTradeWithDetails(
   // - Closing positions bought on Pacifica directly (not via TFC)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  // Get current Pacifica position for this symbol (AFTER this trade executed)
-  let pacificaPositionAfter: number | null = null;
-  let pacificaFetchFailed = false;
+  // Get current exchange position for this symbol (AFTER this trade executed)
+  let exchangePositionAfter: number | null = null;
+  let exchangeFetchFailed = false;
   try {
-    const { getPositions } = await import('@/lib/server/pacifica');
-    const positions = await getPositions(accountAddress);
-    const pos = positions.find((p: any) => p.symbol === symbol);
+    const posAdapter = ExchangeProvider.getAdapter(
+      (connection.exchangeType || 'pacifica') as 'pacifica' | 'hyperliquid' | 'lighter'
+    );
+    const positions = await posAdapter.getPositions(normalizedAddress);
+    // Adapter returns normalized positions with symbol like 'BTC-USD' and side 'LONG'/'SHORT'
+    const normalizedSymbol = symbol.includes('-USD') ? symbol : `${symbol}-USD`;
+    const pos = positions.find((p: any) => {
+      const posSymbol = p.symbol?.includes('-USD') ? p.symbol : `${p.symbol}-USD`;
+      return posSymbol === normalizedSymbol;
+    });
     if (pos) {
       const posAmount = parseFloat(pos.amount || '0');
-      // Positive for LONG (bid), negative for SHORT (ask)
-      pacificaPositionAfter = pos.side === 'ask' ? -posAmount : posAmount;
+      // Positive for LONG, negative for SHORT
+      exchangePositionAfter = pos.side === 'SHORT' ? -posAmount : posAmount;
     } else {
-      pacificaPositionAfter = 0; // No position found = flat
+      exchangePositionAfter = 0; // No position found = flat
     }
-    console.log('[RULE 35] Pacifica position after trade:', { symbol, pacificaPositionAfter });
+    console.log('[RULE 35] Exchange position after trade:', { exchange: connection.exchangeType, symbol, exchangePositionAfter });
   } catch (err) {
-    console.error('[RULE 35] Failed to fetch Pacifica position:', err);
-    pacificaFetchFailed = true;
+    console.error('[RULE 35] Failed to fetch exchange position:', err);
+    exchangeFetchFailed = true;
   }
 
   // Calculate position BEFORE this trade executed
@@ -614,7 +634,7 @@ export async function recordFightTradeWithDetails(
   // For BUY: positionBefore = positionAfter - buyAmount
   let positionBefore: number;
 
-  if (pacificaFetchFailed) {
+  if (exchangeFetchFailed) {
     // FALLBACK: When Pacifica API fails, assume all positions are from TFC
     // This is conservative - it means we record the full trade as fight-relevant
     // rather than incorrectly excluding it
@@ -623,8 +643,8 @@ export async function recordFightTradeWithDetails(
     positionBefore = tfcNet;
   } else {
     positionBefore = tradeSide === 'SELL'
-      ? pacificaPositionAfter! + tradeAmount
-      : pacificaPositionAfter! - tradeAmount;
+      ? exchangePositionAfter! + tradeAmount
+      : exchangePositionAfter! - tradeAmount;
   }
 
   console.log('[RULE 35] Position analysis:', {
@@ -632,7 +652,7 @@ export async function recordFightTradeWithDetails(
     tradeSide,
     tradeAmount,
     positionBefore,
-    pacificaPositionAfter,
+    exchangePositionAfter,
     tfcNet,
     totalBought,
     totalSold,
@@ -726,7 +746,7 @@ export async function recordFightTradeWithDetails(
     }
   }
 
-  // Use pre-fetched execution details if available, otherwise fetch from Pacifica
+  // Use pre-fetched execution details if available, otherwise fetch via adapter
   let executionPrice = execDetails?.executionPrice || '0';
   let fee = execDetails?.fee || '0';
   let pnl: string | null = execDetails?.pnl || null;
@@ -738,41 +758,40 @@ export async function recordFightTradeWithDetails(
     const MAX_RETRIES = 3;
     const RETRY_DELAYS = [500, 1000, 1500]; // ms
 
+    const tradeAdapter = ExchangeProvider.getAdapter(
+      (connection.exchangeType || 'pacifica') as 'pacifica' | 'hyperliquid' | 'lighter'
+    );
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
 
       try {
-        const tradeHistoryResponse = await fetch(
-          `${PACIFICA_API_URL}/api/v1/trades/history?account=${accountAddress}&limit=10`
-        );
+        const trades = await tradeAdapter.getTradeHistory({
+          accountId: normalizedAddress,
+          limit: 10,
+        });
 
-        if (tradeHistoryResponse.ok) {
-          const tradeData = await tradeHistoryResponse.json();
-          if (tradeData.success && Array.isArray(tradeData.data)) {
-            // Find the trade with matching order_id
-            const trade = tradeData.data.find((t: any) => t.order_id === orderId);
-            if (trade) {
-              executionPrice = trade.price || '0';
-              fee = trade.fee || '0';
-              pnl = trade.pnl || null;
-              historyId = BigInt(trade.history_id || historyId);
-              // Use actual execution time from Pacifica (created_at is in milliseconds)
-              if (trade.created_at) {
-                executedAt = new Date(trade.created_at);
-              }
-
-              console.log('Found trade execution details:', {
-                orderId,
-                price: executionPrice,
-                fee,
-                pnl,
-                historyId: historyId.toString(),
-                executedAt: executedAt.toISOString(),
-                attempt: attempt + 1,
-              });
-              break; // Found the trade, exit retry loop
-            }
+        const trade = trades.find((t) => String(t.orderId) === String(orderId));
+        if (trade) {
+          executionPrice = trade.price || '0';
+          fee = trade.fee || '0';
+          pnl = trade.pnl || null;
+          historyId = BigInt(trade.historyId || historyId);
+          if (trade.executedAt) {
+            executedAt = new Date(trade.executedAt);
           }
+
+          console.log('Found trade execution details:', {
+            exchange: connection.exchangeType,
+            orderId,
+            price: executionPrice,
+            fee,
+            pnl,
+            historyId: historyId.toString(),
+            executedAt: executedAt.toISOString(),
+            attempt: attempt + 1,
+          });
+          break;
         }
 
         if (attempt < MAX_RETRIES - 1) {
@@ -801,6 +820,7 @@ export async function recordFightTradeWithDetails(
       participantUserId: connection.userId,
       exchangeHistoryId: historyId,
       exchangeOrderId: BigInt(orderId),
+      exchangeType: connection.exchangeType || 'pacifica',
       symbol,
       side: tradeSide,
       amount: tradeAmount.toString(),
@@ -808,7 +828,7 @@ export async function recordFightTradeWithDetails(
       fee: adjustedFee,
       pnl: adjustedPnl,
       leverage: leverage || null, // Store leverage for accurate ROI calculation
-      executedAt, // Use actual execution time from Pacifica
+      executedAt, // Use actual execution time from exchange
     },
   });
 

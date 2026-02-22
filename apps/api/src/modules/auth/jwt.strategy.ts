@@ -39,7 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     return {
       userId: user.id,
       handle: user.handle,
-      hasPacificaConnection: !!user.exchangeConnection?.isActive,
+      hasPacificaConnection: !!user.exchangeConnections?.some(c => c.exchangeType === 'pacifica' && c.isActive),
     };
   }
 }

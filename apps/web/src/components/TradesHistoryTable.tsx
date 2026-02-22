@@ -223,9 +223,9 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
 
                 return (
                   <tr key={trade.id} className={`transition-colors ${index % 2 === 0 ? 'bg-surface-800/30' : ''} hover:bg-surface-800/50`}>
-                    <td className="py-2.5 px-3 text-surface-400 text-xs whitespace-nowrap">{formatDate(trade.executedAt)}</td>
-                    <td className="py-2.5 px-2 font-mono text-white text-xs">{trade.symbol.replace('-USD', '')}</td>
-                    <td className="py-2.5 px-2">
+                    <td className="py-px px-3 text-surface-400 text-xs whitespace-nowrap">{formatDate(trade.executedAt)}</td>
+                    <td className="py-px px-2 tabular-nums tracking-tight text-white text-xs">{trade.symbol.replace('-USD', '')}</td>
+                    <td className="py-px px-2">
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                         trade.position.includes('long')
                           ? 'bg-win-500/20 text-win-400'
@@ -234,11 +234,11 @@ export default function TradesHistoryTable({ trades, userId }: TradesHistoryTabl
                         {trade.position.replace('_', ' ').toUpperCase()}
                       </span>
                     </td>
-                    <td className="py-2.5 px-2 text-white text-xs whitespace-nowrap">{amount.toFixed(4)}</td>
-                    <td className="py-2.5 px-2 text-white text-xs">${price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
-                    <td className="py-2.5 px-2 text-white text-xs">${tradeValue.toFixed(0)}</td>
-                    <td className="py-2.5 px-2 text-surface-400 text-xs">${fee.toFixed(2)}</td>
-                    <td className="py-2.5 px-3">
+                    <td className="py-px px-2 text-white text-xs whitespace-nowrap">{amount.toFixed(4)}</td>
+                    <td className="py-px px-2 text-white text-xs">${price.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</td>
+                    <td className="py-px px-2 text-white text-xs">${tradeValue.toFixed(0)}</td>
+                    <td className="py-px px-2 text-surface-400 text-xs">${fee.toFixed(2)}</td>
+                    <td className="py-px px-3">
                       {pnlValue !== null ? (
                         <span className={`text-xs font-medium ${pnlIsPositive ? 'text-win-400' : 'text-loss-400'}`}>
                           {pnlIsPositive ? '+' : ''}${pnlValue.toFixed(2)}

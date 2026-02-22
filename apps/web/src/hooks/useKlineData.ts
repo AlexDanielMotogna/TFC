@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-const PACIFICA_API_BASE = 'https://api.pacifica.fi';
+const PACIFICA_API_BASE = process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
 // Map our symbol format (BTC-USD) to Pacifica format (BTC)
 const symbolToPacifica = (symbol: string): string => {

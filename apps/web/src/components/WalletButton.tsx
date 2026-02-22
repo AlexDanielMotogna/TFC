@@ -3,23 +3,32 @@
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useAuth } from '@/hooks';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAccount } from 'wagmi';
+import { useAuthStore } from '@/lib/store';
+import { useEffect } from 'react';
 
 /**
- * Custom wallet button that shows proper connection states:
- * - "Connecting..." while wallet popup is open
- * - "Signing..." while signature is being requested
- * - "Authenticating..." while backend auth is in progress
- * - Wallet address when fully connected and authenticated
- *
- * Mobile users outside a wallet dApp browser are handled by
- * MobilePhantomRedirect (mandatory modal), so no mobile-specific
- * logic is needed here.
+ * Wallet button that shows the correct wallet UI based on exchange type:
+ * - Pacifica → Solana WalletMultiButton
+ * - Hyperliquid → RainbowKit ConnectButton (EVM wallet selector)
  */
 export function WalletButton() {
+  const { exchangeType } = useExchangeContext();
+
+  if (exchangeType === 'hyperliquid') {
+    return <EvmWalletButton />;
+  }
+
+  return <SolanaWalletButton />;
+}
+
+/** Solana wallet button (existing behavior) */
+function SolanaWalletButton() {
   const { connected, connecting } = useWallet();
   const { isAuthenticated, isAuthenticating } = useAuth();
 
-  // Show connecting state while wallet popup is open
   if (connecting) {
     return (
       <button className="wallet-adapter-button" disabled>
@@ -28,7 +37,6 @@ export function WalletButton() {
     );
   }
 
-  // Show signing/authenticating state when connected but not authenticated
   if (connected && !isAuthenticated) {
     return (
       <button className="wallet-adapter-button" disabled>
@@ -37,6 +45,22 @@ export function WalletButton() {
     );
   }
 
-  // Default: use WalletMultiButton for connect/disconnect functionality
   return <WalletMultiButton />;
+}
+
+/** EVM wallet button for Hyperliquid — RainbowKit handles the wallet selection modal */
+function EvmWalletButton() {
+  const { address, isConnected } = useAccount();
+  const { setEvmWalletAddress, clearEvmAuth } = useAuthStore();
+
+  // Sync wagmi address to store
+  useEffect(() => {
+    if (isConnected && address) {
+      setEvmWalletAddress(address);
+    } else {
+      clearEvmAuth();
+    }
+  }, [isConnected, address, setEvmWalletAddress, clearEvmAuth]);
+
+  return <ConnectButton />;
 }

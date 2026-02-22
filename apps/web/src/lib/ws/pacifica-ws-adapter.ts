@@ -18,10 +18,13 @@ import type {
   WsTrade,
   WsPrice,
   WsMarket,
+  WsOrderbookSnapshot,
+  WsCandle,
+  WsAccountLeverage,
 } from './types';
 
-const PACIFICA_WS_URL = process.env.NEXT_PUBLIC_PACIFICA_WS_URL || 'wss://ws.pacifica.fi/ws';
-const PACIFICA_API_BASE = 'https://api.pacifica.fi';
+const PACIFICA_WS_URL = process.env.NEXT_PUBLIC_PACIFICA_WS_URL || 'wss://test-ws.pacifica.fi/ws';
+const PACIFICA_API_BASE = process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 const PING_INTERVAL = 30000;
 const RECONNECT_DELAY = 3000;
 
@@ -74,6 +77,12 @@ const pacificaToSymbol = (pacificaSymbol: string): string => {
   if (pacificaSymbol === '1000PEPE') return 'KPEPE-USD';
   if (pacificaSymbol === '1000BONK') return 'KBONK-USD';
   return `${pacificaSymbol}-USD`;
+};
+
+const symbolToPacifica = (symbol: string): string => {
+  if (symbol === 'KPEPE-USD') return '1000PEPE';
+  if (symbol === 'KBONK-USD') return '1000BONK';
+  return symbol.replace('-USD', '');
 };
 
 const symbolNames: Record<string, string> = {
@@ -186,6 +195,8 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
   private connected = false;
   private subscribedPrices = false;
   private subscribedAccount = false;
+  private orderbookSubs: Map<string, number> = new Map(); // symbol → aggLevel
+  private candleSubs: Map<string, string> = new Map(); // "symbol:interval" → interval
 
   connect(callbacks: ExchangeWsCallbacks): void {
     // Track individual callback sets for removal
@@ -219,6 +230,9 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
       onPositions: (positions) => sets.forEach(s => s.onPositions?.(positions)),
       onOrders: (orders) => sets.forEach(s => s.onOrders?.(orders)),
       onTrades: (trades) => sets.forEach(s => s.onTrades?.(trades)),
+      onOrderbook: (data) => sets.forEach(s => s.onOrderbook?.(data)),
+      onCandle: (data) => sets.forEach(s => s.onCandle?.(data)),
+      onAccountLeverage: (leverage) => sets.forEach(s => s.onAccountLeverage?.(leverage)),
       onError: (error) => sets.forEach(s => s.onError?.(error)),
     };
   }
@@ -233,6 +247,8 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
     this.connected = false;
     this.subscribedPrices = false;
     this.subscribedAccount = false;
+    this.orderbookSubs.clear();
+    this.candleSubs.clear();
     this.callbacks.onDisconnected?.();
     this.callbacks = {};
   }
@@ -260,10 +276,54 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
     }
   }
 
+  subscribeOrderbook(symbol: string, aggLevel: number = 1): void {
+    this.orderbookSubs.set(symbol, aggLevel);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendOrderbookSubscription(symbol, aggLevel);
+    }
+  }
+
+  unsubscribeOrderbook(symbol: string): void {
+    const aggLevel = this.orderbookSubs.get(symbol);
+    this.orderbookSubs.delete(symbol);
+    if (this.ws?.readyState === WebSocket.OPEN && aggLevel !== undefined) {
+      const pacificaSymbol = symbolToPacifica(symbol);
+      this.ws.send(JSON.stringify({
+        method: 'unsubscribe',
+        params: { source: 'book', symbol: pacificaSymbol, agg_level: aggLevel },
+      }));
+    }
+  }
+
+  subscribeCandles(symbol: string, interval: string): void {
+    const key = `${symbol}:${interval}`;
+    this.candleSubs.set(key, interval);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.sendCandleSubscription(symbol, interval);
+    }
+  }
+
+  unsubscribeCandles(symbol: string, interval: string): void {
+    const key = `${symbol}:${interval}`;
+    this.candleSubs.delete(key);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      const pacificaSymbol = symbolToPacifica(symbol);
+      this.ws.send(JSON.stringify({
+        method: 'unsubscribe',
+        params: { source: 'candle', symbol: pacificaSymbol, interval },
+      }));
+    }
+  }
+
   refresh(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       if (this.subscribedPrices) this.sendPriceSubscription();
       if (this.accountId) this.sendAccountSubscriptions(this.accountId);
+      this.orderbookSubs.forEach((aggLevel, symbol) => this.sendOrderbookSubscription(symbol, aggLevel));
+      this.candleSubs.forEach((interval, key) => {
+        const symbol = key.split(':')[0] || key;
+        this.sendCandleSubscription(symbol, interval);
+      });
     }
   }
 
@@ -288,6 +348,11 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
         // Re-subscribe to previously active subscriptions
         if (this.subscribedPrices) this.sendPriceSubscription();
         if (this.accountId) this.sendAccountSubscriptions(this.accountId);
+        this.orderbookSubs.forEach((aggLevel, symbol) => this.sendOrderbookSubscription(symbol, aggLevel));
+        this.candleSubs.forEach((interval, key) => {
+          const symbol = key.split(':')[0] || key;
+          this.sendCandleSubscription(symbol, interval);
+        });
 
         // Start ping interval
         this.pingInterval = setInterval(() => {
@@ -397,6 +462,48 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
       this.callbacks.onTrades?.(raw.map(normalizeTrade));
     }
 
+    if (msg.channel === 'account_leverage' && msg.data) {
+      const data = msg.data as { u: string; s: string; l: string; t: number };
+      this.callbacks.onAccountLeverage?.({
+        symbol: pacificaToSymbol(data.s),
+        leverage: parseInt(data.l, 10),
+        timestamp: data.t,
+      });
+    }
+
+    if (msg.channel === 'book' && msg.data) {
+      const data = msg.data as {
+        s: string;
+        l: [Array<{ p: string; a: string; n: number }>, Array<{ p: string; a: string; n: number }>];
+        t: number;
+      };
+      const symbol = pacificaToSymbol(data.s);
+      const [bidsRaw, asksRaw] = data.l;
+      this.callbacks.onOrderbook?.({
+        symbol,
+        bids: bidsRaw.map(level => ({ price: parseFloat(level.p), size: parseFloat(level.a), orders: level.n })),
+        asks: asksRaw.map(level => ({ price: parseFloat(level.p), size: parseFloat(level.a), orders: level.n })),
+        timestamp: data.t,
+      });
+    }
+
+    if (msg.channel === 'candle' && msg.data) {
+      const data = msg.data as {
+        t: number; s: string; i: string;
+        o: string; h: string; l: string; c: string; v: string;
+      };
+      this.callbacks.onCandle?.({
+        symbol: pacificaToSymbol(data.s),
+        interval: data.i,
+        time: Math.floor(data.t / 1000),
+        open: parseFloat(data.o),
+        high: parseFloat(data.h),
+        low: parseFloat(data.l),
+        close: parseFloat(data.c),
+        volume: parseFloat(data.v),
+      });
+    }
+
     if (msg.channel === 'error') {
       const errorData = msg.data as { message?: string } | undefined;
       this.callbacks.onError?.(errorData?.message || 'WebSocket error');
@@ -426,6 +533,26 @@ export class PacificaWsAdapter implements ExchangeWsAdapter {
     ws.send(JSON.stringify({
       method: 'subscribe',
       params: { source: 'account_trades', account },
+    }));
+    ws.send(JSON.stringify({
+      method: 'subscribe',
+      params: { source: 'account_leverage', account },
+    }));
+  }
+
+  private sendOrderbookSubscription(symbol: string, aggLevel: number): void {
+    const pacificaSymbol = symbolToPacifica(symbol);
+    this.ws?.send(JSON.stringify({
+      method: 'subscribe',
+      params: { source: 'book', symbol: pacificaSymbol, agg_level: aggLevel },
+    }));
+  }
+
+  private sendCandleSubscription(symbol: string, interval: string): void {
+    const pacificaSymbol = symbolToPacifica(symbol);
+    this.ws?.send(JSON.stringify({
+      method: 'subscribe',
+      params: { source: 'candle', symbol: pacificaSymbol, interval },
     }));
   }
 

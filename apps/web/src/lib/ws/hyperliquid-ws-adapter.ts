@@ -23,6 +23,8 @@ import type {
   WsTrade,
   WsPrice,
   WsMarket,
+  WsOrderbookSnapshot,
+  WsCandle,
 } from './types';
 
 const HL_WS_URL = process.env.NEXT_PUBLIC_HYPERLIQUID_WS_URL || 'wss://api.hyperliquid.xyz/ws';
@@ -101,8 +103,14 @@ let assetMeta: HlAssetMeta[] = [];
 let assetCtx: HlAssetCtx[] = [];
 let metaLoaded = false;
 
+/** Fetch metadata + asset contexts from REST. Called once on first connect. */
 async function ensureMeta(): Promise<void> {
   if (metaLoaded) return;
+  await fetchMeta();
+}
+
+/** Refresh metadata + asset contexts (volume, OI, funding) from REST. */
+async function fetchMeta(): Promise<void> {
   try {
     const resp = await fetch(`${HL_API_URL}/info`, {
       method: 'POST',
@@ -110,6 +118,8 @@ async function ensureMeta(): Promise<void> {
       body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
       signal: AbortSignal.timeout(10000),
     });
+    if (!resp.ok) return; // Rate limited — skip, will retry on next refresh cycle
+
     const result = await resp.json() as [{ universe: HlAssetMeta[] }, HlAssetCtx[]];
     assetMeta = result[0].universe;
     assetCtx = result[1];
@@ -151,14 +161,28 @@ function normalizePosition(p: HlWsPosition): WsPosition {
     isolated: p.leverage.type === 'isolated',
     liq_price: p.liquidationPx,
     updated_at: Date.now(),
+    // HL-specific fields
+    leverage: p.leverage.value,
+    leverage_type: p.leverage.type,
+    unrealized_pnl: p.unrealizedPnl,
+    return_on_equity: p.returnOnEquity,
+    position_value: p.positionValue,
   };
 }
 
 function normalizeOrder(o: HlWsOrder): WsOrder {
   let orderType = 'limit';
   if (o.isTrigger) {
-    const isTP = o.triggerCondition === 'tp' || o.orderType?.includes('Take-Profit');
-    orderType = isTP ? 'take_profit_market' : 'stop_loss_market';
+    // frontendOpenOrders: orderType = "Take Profit Market" / "Stop Market" / "Stop Limit"
+    // WS trigger orders: triggerCondition = "tp" / "sl"
+    const isTP = o.orderType?.toLowerCase().includes('take profit')
+      || o.triggerCondition === 'tp';
+    const isLimit = o.orderType?.toLowerCase().includes('limit');
+    if (isTP) {
+      orderType = isLimit ? 'take_profit_limit' : 'take_profit_market';
+    } else {
+      orderType = isLimit ? 'stop_loss_limit' : 'stop_loss_market';
+    }
   }
 
   return {
@@ -209,9 +233,12 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
   private accountId: string | null = null;
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private metaRefreshInterval: ReturnType<typeof setInterval> | null = null;
   private connected = false;
   private subscribedPrices = false;
   private subscribedAccount = false;
+  private orderbookSubs: Set<string> = new Set(); // coin names
+  private candlePollers: Map<string, ReturnType<typeof setInterval>> = new Map(); // "symbol:interval" → timer
 
   // Cache of latest mid prices for building WsPrice snapshots
   private latestMids: Record<string, string> = {};
@@ -221,6 +248,18 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
     this.rebuildCallbacks();
     this.doConnect();
     ensureMeta();
+
+    // Refresh metadata (volume, OI, funding) every 30s to keep data fresh
+    if (!this.metaRefreshInterval) {
+      this.metaRefreshInterval = setInterval(() => {
+        fetchMeta().then(() => {
+          // Re-emit prices with updated ctx data
+          if (this.subscribedPrices && Object.keys(this.latestMids).length > 0) {
+            this.emitPrices();
+          }
+        });
+      }, 30_000);
+    }
   }
 
   removeCallbacks(callbacks: ExchangeWsCallbacks): void {
@@ -237,6 +276,8 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
       onPositions: (positions) => sets.forEach(s => s.onPositions?.(positions)),
       onOrders: (orders) => sets.forEach(s => s.onOrders?.(orders)),
       onTrades: (trades) => sets.forEach(s => s.onTrades?.(trades)),
+      onOrderbook: (data) => sets.forEach(s => s.onOrderbook?.(data)),
+      onCandle: (data) => sets.forEach(s => s.onCandle?.(data)),
       onError: (error) => sets.forEach(s => s.onError?.(error)),
     };
   }
@@ -251,6 +292,7 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
     this.connected = false;
     this.subscribedPrices = false;
     this.subscribedAccount = false;
+    this.orderbookSubs.clear();
     this.callbacks.onDisconnected?.();
     this.callbacks = {};
   }
@@ -284,14 +326,62 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
     }
   }
 
+  subscribeOrderbook(symbol: string, _aggLevel?: number): void {
+    const coin = symbol.replace('-USD', '');
+    this.orderbookSubs.add(coin);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        method: 'subscribe',
+        subscription: { type: 'l2Book', coin },
+      }));
+    }
+  }
+
+  unsubscribeOrderbook(symbol: string): void {
+    const coin = symbol.replace('-USD', '');
+    this.orderbookSubs.delete(coin);
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({
+        method: 'unsubscribe',
+        subscription: { type: 'l2Book', coin },
+      }));
+    }
+  }
+
+  subscribeCandles(symbol: string, interval: string): void {
+    const key = `${symbol}:${interval}`;
+    // HL WS doesn't support candle subscriptions — use REST polling
+    if (this.candlePollers.has(key)) return;
+    const coin = symbol.replace('-USD', '');
+
+    // Fetch immediately, then poll every 5 seconds
+    this.fetchCandle(coin, interval, symbol);
+    const poller = setInterval(() => this.fetchCandle(coin, interval, symbol), 5000);
+    this.candlePollers.set(key, poller);
+  }
+
+  unsubscribeCandles(symbol: string, interval: string): void {
+    const key = `${symbol}:${interval}`;
+    const poller = this.candlePollers.get(key);
+    if (poller) {
+      clearInterval(poller);
+      this.candlePollers.delete(key);
+    }
+  }
+
   refresh(): void {
-    // Re-fetch metadata (clears cache)
-    metaLoaded = false;
-    ensureMeta();
+    // Re-fetch metadata (volume, OI, funding)
+    fetchMeta();
 
     if (this.ws?.readyState === WebSocket.OPEN) {
       if (this.subscribedPrices) this.sendPriceSubscription();
       if (this.accountId) this.sendAccountSubscription(this.accountId);
+      this.orderbookSubs.forEach(coin => {
+        this.ws?.send(JSON.stringify({
+          method: 'subscribe',
+          subscription: { type: 'l2Book', coin },
+        }));
+      });
     }
   }
 
@@ -314,6 +404,12 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
 
         if (this.subscribedPrices) this.sendPriceSubscription();
         if (this.accountId) this.sendAccountSubscription(this.accountId);
+        this.orderbookSubs.forEach(coin => {
+          ws.send(JSON.stringify({
+            method: 'subscribe',
+            subscription: { type: 'l2Book', coin },
+          }));
+        });
 
         // Ping every 30s to keep alive
         this.pingInterval = setInterval(() => {
@@ -376,10 +472,14 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
 
       if (data.fills && data.fills.length > 0) {
         this.callbacks.onTrades?.(data.fills.map(normalizeFill));
+        // Fills mean positions changed — refresh from REST
+        this.fetchAndEmitPositions();
       }
 
       if (data.openOrders) {
-        this.callbacks.onOrders?.(data.openOrders.map(normalizeOrder));
+        // WS openOrders doesn't include trigger orders (TP/SL) or their metadata.
+        // Use REST frontendOpenOrders which has isTrigger, triggerCondition, etc.
+        this.fetchAndEmitOrders();
       }
     }
 
@@ -388,6 +488,8 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
       const fills = msg.data as HlWsFill[];
       if (fills && fills.length > 0) {
         this.callbacks.onTrades?.(fills.map(normalizeFill));
+        // Fills mean positions changed — refresh from REST
+        this.fetchAndEmitPositions();
       }
     }
 
@@ -402,6 +504,24 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
     if (msg.channel === 'notification') {
       // Notifications contain fill events — trigger position refresh
       this.fetchAndEmitPositions();
+    }
+
+    // ─── l2Book: orderbook updates ─────────────────────────────
+    if (msg.channel === 'l2Book') {
+      const data = msg.data as {
+        coin: string;
+        levels: [Array<{ px: string; sz: string; n: number }>, Array<{ px: string; sz: string; n: number }>];
+        time: number;
+      };
+      if (data?.levels) {
+        const [bids, asks] = data.levels;
+        this.callbacks.onOrderbook?.({
+          symbol: normalizeSymbol(data.coin),
+          bids: bids.map(l => ({ price: parseFloat(l.px), size: parseFloat(l.sz), orders: l.n })),
+          asks: asks.map(l => ({ price: parseFloat(l.px), size: parseFloat(l.sz), orders: l.n })),
+          timestamp: data.time || Date.now(),
+        });
+      }
     }
   }
 
@@ -435,7 +555,7 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
         volume24h: ctx ? parseFloat(ctx.dayNtlVlm) : 0,
         openInterest: ctx ? parseFloat(ctx.openInterest) * oraclePx : 0,
         funding: ctx ? parseFloat(ctx.funding) * 100 : 0,
-        nextFunding: 0, // HL doesn't have a separate next funding field
+        nextFunding: ctx ? parseFloat(ctx.funding) * 100 : 0, // HL uses same rate for current/next
         lastUpdate: Date.now(),
         maxLeverage: meta.maxLeverage,
         tickSize: 0.1,
@@ -467,6 +587,8 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
         body: JSON.stringify({ type: 'clearinghouseState', user: this.accountId }),
         signal: AbortSignal.timeout(5000),
       });
+      if (!resp.ok) return; // Rate limited or error — skip silently, will retry on next event
+
       const state = await resp.json() as {
         assetPositions: Array<{ position: HlWsPosition }>;
       };
@@ -478,6 +600,31 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
       this.callbacks.onPositions?.(positions);
     } catch (err) {
       console.error('[HLWsAdapter] Failed to fetch positions:', err);
+    }
+  }
+
+  /**
+   * Fetch open orders via REST (frontendOpenOrders) and emit.
+   * Unlike the WS openOrders channel, this includes trigger orders (TP/SL)
+   * with full metadata: isTrigger, triggerCondition, triggerPx, orderType, etc.
+   */
+  private async fetchAndEmitOrders(): Promise<void> {
+    if (!this.accountId) return;
+
+    try {
+      const resp = await fetch(`${HL_API_URL}/info`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'frontendOpenOrders', user: this.accountId }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) return; // Rate limited or error — skip silently, will retry on next event
+
+      const orders = await resp.json() as HlWsOrder[];
+      const normalized = orders.map(normalizeOrder);
+      this.callbacks.onOrders?.(normalized);
+    } catch (err) {
+      console.error('[HLWsAdapter] Failed to fetch orders:', err);
     }
   }
 
@@ -504,8 +651,53 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
       subscription: { type: 'userFills', user: accountId },
     }));
 
-    // Also fetch initial positions
-    this.fetchAndEmitPositions();
+    // Stagger initial REST fetches to avoid rate limiting
+    setTimeout(() => this.fetchAndEmitPositions(), 500);
+    setTimeout(() => this.fetchAndEmitOrders(), 1000);
+  }
+
+  /**
+   * Fetch the latest candle via REST (HL doesn't support WS candle subscriptions).
+   */
+  private async fetchCandle(coin: string, interval: string, symbol: string): Promise<void> {
+    try {
+      // HL interval format: '1m', '5m', '15m', '1h', '4h', '1d'
+      const now = Date.now();
+      const resp = await fetch(`${HL_API_URL}/info`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'candleSnapshot',
+          req: { coin, interval, startTime: now - 120000, endTime: now },
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) return; // Rate limited — skip this poll cycle
+
+      const candles = await resp.json() as Array<{
+        t: number; T: number; s: string; i: string;
+        o: string; c: string; h: string; l: string; v: string; n: number;
+      }>;
+
+      if (candles && candles.length > 0) {
+        // Emit the latest candle
+        const latest = candles[candles.length - 1];
+        if (latest) {
+          this.callbacks.onCandle?.({
+            symbol,
+            interval,
+            time: Math.floor(latest.t / 1000),
+            open: parseFloat(latest.o),
+            high: parseFloat(latest.h),
+            low: parseFloat(latest.l),
+            close: parseFloat(latest.c),
+            volume: parseFloat(latest.v),
+          });
+        }
+      }
+    } catch {
+      // Silently ignore candle fetch errors
+    }
   }
 
   private clearTimers(): void {
@@ -517,5 +709,12 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+    if (this.metaRefreshInterval) {
+      clearInterval(this.metaRefreshInterval);
+      this.metaRefreshInterval = null;
+    }
+    // Clear candle pollers
+    this.candlePollers.forEach(poller => clearInterval(poller));
+    this.candlePollers.clear();
   }
 }

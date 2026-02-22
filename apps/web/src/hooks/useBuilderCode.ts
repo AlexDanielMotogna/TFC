@@ -10,7 +10,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { createSignedApproveBuilderCode } from '@/lib/pacifica/signing';
 import { toast } from 'sonner';
 
-const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClub';
+const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClubTest';
 
 interface BuilderCodeStatus {
   approved: boolean;

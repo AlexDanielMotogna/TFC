@@ -9,3 +9,6 @@ export * from './events/index.js';
 
 // Utils
 export * from './utils/index.js';
+
+// Exchange Configuration
+export * from './exchanges.js';

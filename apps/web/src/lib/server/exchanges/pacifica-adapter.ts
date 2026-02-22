@@ -19,6 +19,8 @@ import {
   Order,
   OrderSide,
   OrderType,
+  OrderHistoryItem,
+  OrderHistoryStatus,
   TimeInForce,
   TradeHistoryItem,
   AccountSetting,
@@ -250,8 +252,8 @@ export class PacificaAdapter implements ExchangeAdapter {
     });
 
     return trades.map((t) => ({
-      historyId: t.history_id.toString(),
-      orderId: t.order_id.toString(),
+      historyId: (t.history_id ?? '').toString(),
+      orderId: (t.order_id ?? '').toString(),
       symbol: this.normalizeSymbol(t.symbol),
       side: this.normalizeTradeSide(t.side),
       amount: t.amount,
@@ -265,6 +267,31 @@ export class PacificaAdapter implements ExchangeAdapter {
         entryPrice: t.entry_price,
         cause: t.cause,
         clientOrderId: t.client_order_id,
+      },
+    }));
+  }
+
+  async getOrderHistory(accountId: string): Promise<OrderHistoryItem[]> {
+    const orders = await Pacifica.getOrderHistory({ accountAddress: accountId });
+
+    return orders.map((o) => ({
+      orderId: o.order_id,
+      clientOrderId: o.client_order_id || undefined,
+      symbol: this.normalizeSymbol(o.symbol),
+      side: (o.side === 'bid' ? 'BUY' : 'SELL') as OrderSide,
+      type: this.normalizeOrderType(o.order_type),
+      price: o.initial_price,
+      amount: o.amount,
+      filled: o.filled_amount,
+      status: this.normalizeOrderHistoryStatus(o.order_status),
+      reduceOnly: o.reduce_only,
+      createdAt: o.created_at,
+      statusTimestamp: o.updated_at,
+      metadata: {
+        stopPrice: o.stop_price,
+        averageFilledPrice: o.average_filled_price,
+        reason: o.reason,
+        stopParentOrderId: o.stop_parent_order_id,
       },
     }));
   }
@@ -431,8 +458,10 @@ export class PacificaAdapter implements ExchangeAdapter {
   private normalizeOrderType(pacificaType: string): OrderType {
     if (pacificaType === 'market') return 'MARKET';
     if (pacificaType === 'limit') return 'LIMIT';
-    if (pacificaType === 'stop_loss_market') return 'STOP_MARKET';
-    if (pacificaType === 'stop_loss_limit') return 'STOP_LIMIT';
+    if (pacificaType === 'stop_market') return 'STOP_MARKET';
+    if (pacificaType === 'stop_limit') return 'STOP_LIMIT';
+    if (pacificaType === 'stop_loss_market') return 'STOP_LOSS_MARKET';
+    if (pacificaType === 'stop_loss_limit') return 'STOP_LOSS_LIMIT';
     if (pacificaType === 'take_profit_market') return 'TAKE_PROFIT_MARKET';
     if (pacificaType === 'take_profit_limit') return 'TAKE_PROFIT_LIMIT';
     return 'MARKET'; // Fallback
@@ -451,6 +480,17 @@ export class PacificaAdapter implements ExchangeAdapter {
       return 'CANCELLED';
     }
     return 'OPEN';
+  }
+
+  private normalizeOrderHistoryStatus(pacificaStatus: string): OrderHistoryStatus {
+    switch (pacificaStatus) {
+      case 'open': return 'open';
+      case 'partially_filled': return 'open';
+      case 'filled': return 'filled';
+      case 'cancelled': return 'canceled';
+      case 'rejected': return 'rejected';
+      default: return 'filled';
+    }
   }
 
   private normalizeTimeInForce(pacificaTif: string): TimeInForce {

@@ -356,13 +356,14 @@ export async function updateMaxExposureIfHigher(
 }
 
 /**
- * Get user ID from Pacifica account address
+ * Get user ID from exchange account address
  */
 export async function getUserIdFromAccount(
   accountAddress: string
 ): Promise<string | null> {
+  // Normalize to lowercase for case-insensitive matching (EVM addresses use mixed-case checksums)
   const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress },
+    where: { accountAddress: accountAddress.toLowerCase() },
   });
 
   return connection?.userId || null;

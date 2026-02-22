@@ -2,15 +2,8 @@
 
 import { useMemo } from 'react';
 import { useAccountInfo, usePositions, useOpenOrders, useAccountSettings } from './usePositions';
+import { useExchangeWsStore } from './useExchangeWebSocket';
 import type { Position, OpenOrder } from '@/lib/api';
-
-// Max leverage per symbol (from Pacifica /api/v1/info)
-const MAX_LEVERAGE: Record<string, number> = {
-  BTC: 50, ETH: 50, SOL: 20, HYPE: 20, XRP: 20, DOGE: 20, LINK: 20, AVAX: 20,
-  SUI: 10, BNB: 10, AAVE: 10, ARB: 10, OP: 10, APT: 10, INJ: 10, TIA: 10,
-  SEI: 10, WIF: 10, JUP: 10, PENDLE: 10, RENDER: 10, FET: 10, ZEC: 10,
-  PAXG: 10, ENA: 10, KPEPE: 10,
-};
 
 export interface AccountSummary {
   balance: string;
@@ -47,42 +40,51 @@ export function useAccount(): UseAccountReturn {
   const { data: positionsData, isLoading: positionsLoading } = usePositions();
   const { data: ordersData, isLoading: ordersLoading } = useOpenOrders();
   const { data: accountSettings } = useAccountSettings();
+  // Real-time leverage from WS account_leverage channel
+  const wsLeverageMap = useExchangeWsStore((s) => s.leverageMap);
 
   const account = useMemo(() => {
     if (!accountInfo) {
       return null;
     }
 
-    // Pacifica API doesn't return unrealized_pnl directly
-    // Calculate it: unrealized_pnl = account_equity - balance
+    // Calculate unrealized PnL: equity - balance
     const balance = parseFloat(accountInfo.balance || '0');
-    const accountEquity = parseFloat(accountInfo.account_equity || accountInfo.equity || '0');
+    // Backend returns camelCase (accountEquity) from adapter path
+    const equity = accountInfo.accountEquity || accountInfo.account_equity || accountInfo.equity || '0';
+    const accountEquity = parseFloat(equity);
     const unrealizedPnl = accountEquity - balance;
 
     return {
       balance: accountInfo.balance || '0',
-      equity: accountInfo.account_equity || accountInfo.equity || '0',
-      accountEquity: accountInfo.account_equity || accountInfo.equity || '0',
+      equity,
+      accountEquity: equity,
       unrealizedPnl: unrealizedPnl.toString(),
-      marginUsed: accountInfo.total_margin_used || accountInfo.margin_used || '0',
-      availableBalance: accountInfo.available_to_spend || accountInfo.available_balance || '0',
-      totalMarginUsed: accountInfo.total_margin_used || accountInfo.margin_used || '0',
-      availableToSpend: accountInfo.available_to_spend || accountInfo.available_balance || '0',
-      availableToWithdraw: accountInfo.available_to_withdraw || '0',
-      feeLevel: accountInfo.fee_level,
-      crossMmr: accountInfo.cross_mmr,
-      makerFee: accountInfo.maker_fee,
-      takerFee: accountInfo.taker_fee,
+      marginUsed: accountInfo.totalMarginUsed || accountInfo.total_margin_used || '0',
+      availableBalance: accountInfo.availableToSpend || accountInfo.available_to_spend || '0',
+      totalMarginUsed: accountInfo.totalMarginUsed || accountInfo.total_margin_used || '0',
+      availableToSpend: accountInfo.availableToSpend || accountInfo.available_to_spend || '0',
+      availableToWithdraw: accountInfo.availableToWithdraw || accountInfo.available_to_withdraw || '0',
+      feeLevel: accountInfo.feeLevel ?? accountInfo.fee_level,
+      crossMmr: accountInfo.crossMmr || accountInfo.cross_mmr,
+      makerFee: accountInfo.makerFee || accountInfo.maker_fee,
+      takerFee: accountInfo.takerFee || accountInfo.taker_fee,
     };
   }, [accountInfo]);
 
-  // Build a map of symbol -> leverage from account settings
-  const leverageMap = useMemo(() => {
+  // Build a map of symbol -> leverage from account settings (REST)
+  // Index by both formats: 'AVAX-USD' (adapter) and 'AVAX' (raw)
+  const settingsLeverageMap = useMemo(() => {
     const map: Record<string, number> = {};
     if (accountSettings && Array.isArray(accountSettings)) {
       accountSettings.forEach((setting: any) => {
         if (setting.symbol && setting.leverage) {
           map[setting.symbol] = setting.leverage;
+          // Ensure both 'AVAX' and 'AVAX-USD' keys exist
+          const base = setting.symbol.replace('-USD', '');
+          if (base !== setting.symbol) {
+            map[base] = setting.leverage;
+          }
         }
       });
     }
@@ -90,44 +92,70 @@ export function useAccount(): UseAccountReturn {
   }, [accountSettings]);
 
   const positions: Position[] = useMemo(() => {
-    if (!positionsData || positionsData.length === 0) {
+    if (!positionsData || !Array.isArray(positionsData) || positionsData.length === 0) {
       return [];
     }
 
-    // Transform Pacifica positions to our format
-    // Pacifica /positions returns: symbol, side (bid/ask), amount, entry_price, margin, funding, isolated
-    // NOTE: mark_price, liquidation_price, unrealized_pnl are NOT returned by the REST API
-    // NOTE: leverage is NOT returned - must be fetched from /account/settings
-    // If not in settings, default is MAX leverage for that symbol
     return positionsData.map((pos: any) => {
-      // Pacifica returns symbol without -USD suffix (e.g., "BTC" not "BTC-USD")
       const rawSymbol = pos.symbol || '';
       const symbol = rawSymbol.includes('-') ? rawSymbol : `${rawSymbol}-USD`;
+      const coinSymbol = rawSymbol.replace('-USD', '');
 
-      // Get leverage: first check account settings, then use max leverage for symbol
-      const leverage = leverageMap[rawSymbol] || MAX_LEVERAGE[rawSymbol] || 10;
+      // Normalize side: WS uses bid/ask, REST adapter uses LONG/SHORT
+      let side: 'LONG' | 'SHORT';
+      if (pos.side === 'bid' || pos.side === 'LONG') {
+        side = 'LONG';
+      } else {
+        side = 'SHORT';
+      }
 
-      // For now, we don't have real-time mark price from REST API
-      // The trade page will inject current price from usePrices hook
+      // Entry price: WS uses snake_case, REST uses camelCase
+      const entryPrice = pos.entry_price || pos.entryPrice || '0';
+
+      // Leverage priority:
+      // 1. Position data (HL provides directly via WS/REST; Pacifica REST includes leverage)
+      // 2. WS account_leverage (real-time from Pacifica WS)
+      // 3. Account settings (REST /api/v1/account/settings)
+      // 4. Default fallback (10)
+      const posLeverage = pos.leverage ? parseFloat(String(pos.leverage)) : 0;
+      const leverage = posLeverage > 0
+        ? posLeverage
+        : (wsLeverageMap[symbol] || wsLeverageMap[coinSymbol]
+          || settingsLeverageMap[coinSymbol] || settingsLeverageMap[rawSymbol]
+          || 10);
+
+      // Liq price: WS uses snake_case, REST uses camelCase
+      const liqPrice = pos.liq_price || pos.liquidationPrice || '0';
+
+      // Unrealized PnL: HL provides directly via WS and REST
+      const unrealizedPnl = pos.unrealized_pnl || pos.unrealizedPnl || '0';
+
+      // ROE%: HL provides returnOnEquity (WS) or metadata.returnOnEquity (REST)
+      const roe = pos.return_on_equity || pos.metadata?.returnOnEquity;
+      const unrealizedPnlPercent = roe
+        ? (parseFloat(roe) * 100).toString()
+        : '0';
+
       return {
         symbol,
-        side: pos.side === 'bid' ? 'LONG' : 'SHORT',
+        side,
         size: pos.amount || '0',
-        entryPrice: pos.entry_price || '0',
-        markPrice: pos.entry_price || '0', // Will be updated by trade page with live price
-        liquidationPrice: pos.liq_price || '0', // From WebSocket when connected, REST doesn't return it
-        unrealizedPnl: '0', // Will be calculated by trade page
-        unrealizedPnlPercent: '0',
-        leverage: leverage,
-        margin: pos.margin || '0', // For cross margin, this is "0" from API
+        entryPrice,
+        markPrice: entryPrice, // Updated by trade page with live price
+        liquidationPrice: liqPrice,
+        unrealizedPnl,
+        unrealizedPnlPercent,
+        leverage,
+        margin: pos.margin || '0',
         funding: pos.funding || '0',
-        isolated: pos.isolated ?? false,
+        isolated: pos.isolated ?? (pos.metadata?.leverageType === 'isolated' || false),
+        positionValue: pos.position_value || pos.metadata?.positionValue,
       };
     });
-  }, [positionsData, leverageMap]);
+  }, [positionsData, wsLeverageMap, settingsLeverageMap]);
 
   const openOrders: OpenOrder[] = useMemo(() => {
-    if (!ordersData) return [];
+    if (!ordersData || !Array.isArray(ordersData)) return [];
 
     // Transform Pacifica orders to our format
     // Pacifica fields: order_id, symbol, side, price, initial_amount, filled_amount,
@@ -135,15 +163,34 @@ export function useAccount(): UseAccountReturn {
     // stop_price, reduce_only, created_at
     return ordersData.map((order: any) => {
       // Order type display
+      // WS adapter uses order_type (lowercase), REST adapter uses type (UPPERCASE)
+      const rawOrderType = (order.order_type || order.type || 'limit').toLowerCase();
+      const stopType = (order.stop_type || '').toLowerCase();
       let typeDisplay = 'LIMIT';
-      const isTpSlOrder = order.order_type?.includes('take_profit') || order.order_type?.includes('stop_loss');
-      if (order.order_type === 'limit') typeDisplay = 'LIMIT';
-      else if (order.order_type === 'market') typeDisplay = 'MARKET';
-      else if (order.order_type === 'take_profit_market') typeDisplay = 'TP MARKET';
-      else if (order.order_type === 'stop_loss_market') typeDisplay = 'SL MARKET';
-      else if (order.order_type === 'take_profit_limit') typeDisplay = 'TP LIMIT';
-      else if (order.order_type === 'stop_loss_limit') typeDisplay = 'SL LIMIT';
-      else if (order.order_type) typeDisplay = order.order_type.toUpperCase();
+      // Detect order category from order_type and stop_type fields
+      // WS may send order_type='market' + stop_type='stop_market' for stop orders
+      const isTP = rawOrderType.includes('take_profit') || rawOrderType.includes('take profit')
+        || stopType.includes('take_profit');
+      const isSL = rawOrderType.includes('stop_loss') || rawOrderType.includes('stop loss')
+        || stopType.includes('stop_loss');
+      // Standalone stop orders: stop_market/stop_limit but NOT TP/SL
+      const isStopOrder = !isTP && !isSL && (
+        rawOrderType.includes('stop_market') || rawOrderType.includes('stop_limit')
+        || rawOrderType === 'stop market' || rawOrderType === 'stop limit'
+        || stopType === 'stop_market' || stopType === 'stop_limit'
+      );
+      const isTpSlOrder = isTP || isSL;
+      if (isTP) {
+        typeDisplay = (rawOrderType + stopType).includes('limit') ? 'TP_LIMIT' : 'TP_MARKET';
+      } else if (isSL) {
+        typeDisplay = (rawOrderType + stopType).includes('limit') ? 'SL_LIMIT' : 'SL_MARKET';
+      } else if (isStopOrder) {
+        typeDisplay = (rawOrderType + stopType).includes('limit') ? 'STOP_LIMIT' : 'STOP_MARKET';
+      } else if (rawOrderType === 'market') {
+        typeDisplay = 'MARKET';
+      } else if (rawOrderType === 'limit') {
+        typeDisplay = 'LIMIT';
+      } else typeDisplay = rawOrderType.toUpperCase();
 
       // Get size from order data
       let resolvedSize = order.initial_amount || order.amount || order.size || '0';
@@ -167,18 +214,27 @@ export function useAccount(): UseAccountReturn {
         }
       }
 
+      // Normalize side: WS uses bid/ask, REST adapter uses BUY/SELL
+      const rawSide = order.side;
+      const normalizedSide: 'LONG' | 'SHORT' =
+        rawSide === 'bid' || rawSide === 'BUY' || rawSide === 'LONG' ? 'LONG' : 'SHORT';
+
       return {
-        id: order.order_id?.toString() || '',
+        id: (order.order_id ?? order.orderId)?.toString() || '',
         symbol: order.symbol,
-        side: order.side === 'bid' ? 'LONG' : 'SHORT',
+        side: normalizedSide,
         type: typeDisplay,
         size: resolvedSize,
-        price: isTpSlOrder ? (order.stop_price || order.price || '0') : (order.price || '0'), // TP/SL: use stop_price as display price; stop-limit: keep limit price
-        filled: order.filled_amount || '0',
-        status: order.reduce_only ? 'REDUCE_ONLY' : 'OPEN',
-        reduceOnly: order.reduce_only || false,
-        stopPrice: order.stop_price,
-        createdAt: order.created_at || Date.now(),
+        price: (isTpSlOrder || isStopOrder)
+          ? (typeDisplay.includes('LIMIT')
+            ? (order.price || order.metadata?.limitPx || order.stop_price || '0')
+            : (order.stop_price || order.metadata?.stopPrice || order.triggerPx || order.price || '0'))
+          : (order.price || '0'),
+        filled: order.filled_amount || order.filled || '0',
+        status: (order.reduce_only ?? order.reduceOnly) ? 'REDUCE_ONLY' : 'OPEN',
+        reduceOnly: order.reduce_only ?? order.reduceOnly ?? false,
+        stopPrice: order.stop_price ?? order.metadata?.stopPrice ?? order.triggerPx ?? order.metadata?.triggerPx ?? null,
+        createdAt: order.created_at ?? order.createdAt ?? Date.now(),
       };
     });
   }, [ordersData, positionsData]);

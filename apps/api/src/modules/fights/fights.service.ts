@@ -93,7 +93,7 @@ export class FightsService {
 
     // Check if user has Pacifica connection
     const connection = await prisma.exchangeConnection.findUnique({
-      where: { userId: params.creatorId },
+      where: { userId_exchangeType: { userId: params.creatorId, exchangeType: 'pacifica' } },
       select: { isActive: true },
     });
 
@@ -236,7 +236,7 @@ export class FightsService {
 
     // Validation: user has Pacifica connection
     const connection = await prisma.exchangeConnection.findUnique({
-      where: { userId },
+      where: { userId_exchangeType: { userId, exchangeType: 'pacifica' } },
       select: { isActive: true },
     });
 

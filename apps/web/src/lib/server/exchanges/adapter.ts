@@ -107,7 +107,7 @@ export interface Position {
 }
 
 export type OrderSide = 'BUY' | 'SELL';
-export type OrderType = 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT' | 'TAKE_PROFIT_MARKET' | 'TAKE_PROFIT_LIMIT';
+export type OrderType = 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT' | 'STOP_LOSS_MARKET' | 'STOP_LOSS_LIMIT' | 'TAKE_PROFIT_MARKET' | 'TAKE_PROFIT_LIMIT';
 export type TimeInForce = 'GTC' | 'IOC' | 'FOK' | 'POST_ONLY'; // Normalized across exchanges
 
 export interface Order {
@@ -148,6 +148,26 @@ export interface TradeHistoryItem {
 export interface AccountSetting {
   symbol: string;
   leverage: number; // User-configured leverage for this symbol
+
+  // Exchange-specific metadata
+  metadata: Record<string, unknown>;
+}
+
+export type OrderHistoryStatus = 'open' | 'filled' | 'canceled' | 'triggered' | 'rejected' | 'marginCanceled';
+
+export interface OrderHistoryItem {
+  orderId: string | number;
+  clientOrderId?: string;
+  symbol: string;
+  side: OrderSide;
+  type: OrderType;
+  price: string;             // Limit price or trigger price
+  amount: string;            // Original order size
+  filled: string;            // Filled amount
+  status: OrderHistoryStatus;
+  reduceOnly: boolean;
+  createdAt: number;         // Order creation time (epoch ms)
+  statusTimestamp: number;   // Time of last status change (epoch ms)
 
   // Exchange-specific metadata
   metadata: Record<string, unknown>;
@@ -252,6 +272,9 @@ export interface ExchangeAdapter {
   cancelOrder(auth: AuthContext, params: CancelOrderParams): Promise<{ success: boolean }>;
   cancelAllOrders(auth: AuthContext, params: CancelAllOrdersParams): Promise<{ cancelledCount: number }>;
   updateLeverage(auth: AuthContext, symbol: string, leverage: number): Promise<{ success: boolean }>;
+
+  // Order history (completed/cancelled orders — distinct from trade fills)
+  getOrderHistory?(accountId: string): Promise<OrderHistoryItem[]>;
 
   // ─────────────────────────────────────────────────────────────
   // Optional: Exchange-Specific Features

@@ -5,7 +5,7 @@
 import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 
-const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
+const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
 export async function POST(request: Request) {
   try {

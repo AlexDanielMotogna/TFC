@@ -12,7 +12,7 @@ import {
 } from '@tfc/db';
 import { createLogger } from '@tfc/logger';
 import { LOG_EVENTS, WS_EVENTS, PNL_TICK_INTERVAL_MS, type ArenaPnlTickPayload, type PlatformStatsPayload } from '@tfc/shared';
-import { getPrices, MarketPrice } from './pacifica-client.js';
+import { getPrices, getMarketInfo, MarketPrice, MarketInfo } from './pacifica-client.js';
 import { FillDetector } from './fill-detector.js';
 
 // Fill detection interval: check every 5 ticks (5 seconds)
@@ -32,16 +32,8 @@ const SNAPSHOT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 // Snapshot retention period (30 days)
 const SNAPSHOT_RETENTION_DAYS = 30;
 
-// Max leverage per symbol (from Pacifica settings)
-// Used to calculate margin for ROI% calculation
-const MAX_LEVERAGE: Record<string, number> = {
-  'BTC-USD': 50, 'ETH-USD': 50, 'SOL-USD': 20, 'HYPE-USD': 20, 'XRP-USD': 20,
-  'DOGE-USD': 20, 'LINK-USD': 20, 'AVAX-USD': 20, 'SUI-USD': 10, 'BNB-USD': 10,
-  'AAVE-USD': 10, 'ARB-USD': 10, 'OP-USD': 10, 'APT-USD': 10, 'INJ-USD': 10,
-  'TIA-USD': 10, 'SEI-USD': 10, 'WIF-USD': 10, 'JUP-USD': 10, 'PENDLE-USD': 10,
-  'RENDER-USD': 10, 'FET-USD': 10, 'ZEC-USD': 10, 'PAXG-USD': 10, 'ENA-USD': 10,
-  'KPEPE-USD': 10,
-};
+// Market info cache — populated from Pacifica API on first tick
+let marketInfoMap: Record<string, MarketInfo> = {};
 
 // Type for Fight with participants and users
 type FightWithParticipants = Fight & {
@@ -271,8 +263,9 @@ async function calculateUnrealizedPnlFromFightTrades(
       const positionValue = Math.abs(pos.amount) * markPrice;
       totalPositionValue += positionValue;
 
-      // Use leverage from trade if available, otherwise fall back to MAX_LEVERAGE
-      const leverage = pos.leverage || MAX_LEVERAGE[symbol] || 10;
+      // Use leverage from trade if available, otherwise look up from Pacifica market info
+      const maxLev = marketInfoMap[symbol]?.max_leverage || marketInfoMap[symbol.replace('-USD', '')]?.max_leverage || 10;
+      const leverage = pos.leverage || maxLev;
       const margin = positionValue / leverage;
       totalMargin += margin;
     }
@@ -537,6 +530,11 @@ export class FightEngine {
    */
   private async processTick() {
     this.tickCount++;
+
+    // Refresh market info cache (max leverage per symbol) — cached for 1 min in pacifica-client
+    if (this.tickCount === 1 || this.tickCount % 60 === 0) {
+      marketInfoMap = await getMarketInfo();
+    }
 
     // Load active LIVE fights from database
     const liveFights = await prisma.fight.findMany({

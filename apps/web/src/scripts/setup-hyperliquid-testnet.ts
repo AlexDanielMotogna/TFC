@@ -118,7 +118,7 @@ async function main() {
     let mainPrivateKey: string;
 
     if (keyArg) {
-      mainPrivateKey = keyArg.split('=')[1];
+      mainPrivateKey = keyArg.split('=')[1] || keyArg;
     } else {
       console.log('Enter the private key of the wallet you want to use on Hyperliquid testnet.');
       console.log('⚠ This key is only used locally for signing. It is NOT stored anywhere.\n');
@@ -278,7 +278,7 @@ async function main() {
         const testUser = await prisma.user.create({
           data: {
             walletAddress: mainAddress.toLowerCase(),
-            username: 'hl-testnet',
+            handle: 'hl-testnet',
           },
         });
         userId = testUser.id;
@@ -286,9 +286,8 @@ async function main() {
 
       console.log(`Upserting ExchangeConnection for user ${userId}...`);
       await prisma.exchangeConnection.upsert({
-        where: { userId },
+        where: { userId_exchangeType: { userId, exchangeType: 'hyperliquid' } },
         update: {
-          exchangeType: 'hyperliquid',
           accountAddress: mainAddress.toLowerCase(),
           vaultKeyReference: 'agent-wallet',
           encryptedKeyData: encryptedKey,

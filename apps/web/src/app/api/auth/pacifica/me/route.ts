@@ -1,11 +1,13 @@
 /**
  * Get current user's Pacifica connection status
- * GET /api/auth/pacifica/me
+ * GET /api/auth/pacifica/me?tradingWallet=<address>
+ *
+ * If tradingWallet is provided, uses that address to check/link Pacifica.
+ * This allows users to connect a different Solana wallet for trading
+ * than the one they authenticated with.
  *
  * If no connection exists in the database, retries auto-linking
- * by checking the Pacifica API with the user's wallet address.
- * This handles cases where the initial auto-link during login failed
- * (e.g., Pacifica API was temporarily down or rate limited).
+ * by checking the Pacifica API with the trading wallet address.
  */
 import { withAuth } from '@/lib/server/auth';
 import * as AuthService from '@/lib/server/services/auth';
@@ -18,11 +20,17 @@ const RETRY_INTERVAL_MS = 10_000;
 export async function GET(request: Request) {
   try {
     return await withAuth(request, async (user) => {
+      const { searchParams } = new URL(request.url);
+      // Use tradingWallet param if provided, otherwise fall back to JWT wallet
+      const walletToCheck = searchParams.get('tradingWallet') || user.walletAddress;
+
       let connection = await AuthService.getConnection(user.userId);
 
-      // If no connection, try to auto-link by checking the Pacifica API
-      // Rate limited to avoid hammering Pacifica on every poll
-      if (!connection || !connection.isActive) {
+      // Check if we need to re-link: no connection, inactive, or wallet changed
+      const needsRelink = !connection || !connection.isActive ||
+        (walletToCheck && connection.accountAddress !== walletToCheck);
+
+      if (needsRelink) {
         const lastAttempt = lastRetryAttempt.get(user.userId) || 0;
         const now = Date.now();
 
@@ -31,7 +39,7 @@ export async function GET(request: Request) {
           // Try up to 2 attempts to link Pacifica account
           for (let attempt = 1; attempt <= 2; attempt++) {
             try {
-              const result = await AuthService.linkPacificaAccount(user.userId, user.walletAddress);
+              const result = await AuthService.linkPacificaAccount(user.userId, walletToCheck);
               if (result.connected) {
                 connection = await AuthService.getConnection(user.userId);
                 // Clear from retry map on success
@@ -42,6 +50,7 @@ export async function GET(request: Request) {
               const errMsg = err instanceof Error ? err.message : 'Unknown error';
               console.warn('Pacifica auto-link retry failed', {
                 userId: user.userId,
+                tradingWallet: walletToCheck.slice(0, 8) + '...',
                 attempt,
                 error: errMsg,
               });

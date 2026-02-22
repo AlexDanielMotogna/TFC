@@ -84,17 +84,27 @@ export function formatPrice(price: number): string {
 }
 
 /**
- * Raw position from Pacifica API
+ * Raw position from exchange API (Pacifica or Hyperliquid)
+ * Pacifica WS uses: side='bid'|'ask', entry_price (snake_case)
+ * HL REST adapter uses: side='LONG'|'SHORT', entryPrice (camelCase)
  */
 export interface RawPosition {
   symbol: string;
-  side: 'bid' | 'ask';
+  side: 'bid' | 'ask' | 'LONG' | 'SHORT';
   amount: string;
-  entry_price: string;
+  entry_price?: string;
+  entryPrice?: string;
   margin: string;
   funding: string;
   isolated: boolean;
-  liq_price: string | null;
+  liq_price?: string | null;
+  liquidationPrice?: string | null;
+  // HL-specific fields (provided directly by Hyperliquid)
+  leverage?: number;
+  leverage_type?: string;
+  unrealized_pnl?: string;
+  return_on_equity?: string;
+  position_value?: string;
 }
 
 /**
@@ -130,23 +140,36 @@ export interface EnhancedPositionResult {
 export function calculatePositionMetrics(params: EnhancedPositionParams): EnhancedPositionResult {
   const { position, markPrice, leverage } = params;
 
-  const entryPrice = parseFloat(position.entry_price);
+  // Handle both Pacifica (entry_price) and HL (entryPrice) formats
+  const entryPrice = parseFloat(position.entry_price || position.entryPrice || '0');
   const amount = parseFloat(position.amount);
-  const isLong = position.side === 'bid';
+  // Handle both Pacifica (bid/ask) and HL REST (LONG/SHORT) side formats
+  const isLong = position.side === 'bid' || position.side === 'LONG';
   const isolated = position.isolated ?? false;
+
+  // Use HL-provided leverage if available, otherwise use the passed leverage
+  const effectiveLeverage = position.leverage && position.leverage > 0
+    ? position.leverage
+    : leverage;
+
+  // If HL provides unrealized PnL and ROE directly, use them
+  const hlPnl = position.unrealized_pnl ? parseFloat(position.unrealized_pnl) : null;
+  const hlRoe = position.return_on_equity ? parseFloat(position.return_on_equity) : null;
 
   // Calculate margin correctly (terminal logic)
   // For cross margin, API returns margin='0', so we must calculate it
   const apiMargin = parseFloat(position.margin || '0');
   const positionValue = amount * entryPrice;
-  const margin = isolated && apiMargin > 0
+  const margin = apiMargin > 0
     ? apiMargin
-    : positionValue / leverage;
+    : positionValue / effectiveLeverage;
 
   // Calculate PnL using existing centralized functions
   const side = isLong ? 'LONG' : 'SHORT';
-  const pnl = calculatePnl(entryPrice, markPrice, amount, side);
-  const pnlPercent = calculatePnlPercent(pnl, margin);
+
+  // Prefer HL-provided values when available (more accurate)
+  const pnl = hlPnl !== null ? hlPnl : calculatePnl(entryPrice, markPrice, amount, side);
+  const pnlPercent = hlRoe !== null ? hlRoe * 100 : calculatePnlPercent(pnl, margin);
 
   return {
     entryPrice,

@@ -19,7 +19,7 @@ import { ethers } from 'ethers';
 import { encode as msgpackEncode } from '@msgpack/msgpack';
 import { prisma } from '@tfc/db';
 import { decryptKey } from '../key-vault';
-import { getHlAssetIndex } from './hyperliquid-adapter';
+import { getHlAssetIndex, getHlSzDecimals } from './hyperliquid-adapter';
 import type {
   ExchangeOrderRouter,
   OrderResult,
@@ -162,13 +162,40 @@ async function signL1Action(
 // Wire format helpers
 // ─────────────────────────────────────────────────────────────
 
-/** Convert a number to wire-safe string (max 8 decimals, no trailing zeros) */
+/**
+ * Matches Python SDK float_to_wire exactly:
+ *   rounded = f"{x:.8f}"
+ *   normalized = Decimal(rounded).normalize()
+ *   return f"{normalized:f}"
+ *
+ * Round to 8 decimal places, strip trailing zeros.
+ */
 function floatToWire(x: number | string): string {
   const num = typeof x === 'string' ? parseFloat(x) : x;
-  const s = num.toFixed(8);
-  let result = parseFloat(s).toString();
-  if (result === '-0') result = '0';
+  // Round to 8 decimal places (matches Python's f"{x:.8f}")
+  const rounded = parseFloat(num.toFixed(8));
+  if (rounded === 0 || Object.is(rounded, -0)) return '0';
+  // Normalize: strip trailing zeros after decimal point
+  let result = rounded.toFixed(8);
+  if (result.includes('.')) {
+    result = result.replace(/0+$/, '').replace(/\.$/, '');
+  }
   return result;
+}
+
+/**
+ * Calculate the slippage-adjusted price for market orders.
+ * Matches Python SDK _slippage_price exactly:
+ *   px *= (1 + slippage) if is_buy else (1 - slippage)
+ *   return round(float(f"{px:.5g}"), 6 - szDecimals)
+ */
+function slippagePrice(px: number, isBuy: boolean, slippage: number, szDecimals: number): number {
+  const adjusted = isBuy ? px * (1 + slippage) : px * (1 - slippage);
+  // Round to 5 significant figures (matches Python's f"{px:.5g}")
+  const sigFig = parseFloat(adjusted.toPrecision(5));
+  // Round to (6 - szDecimals) decimal places for perps
+  const maxDecimals = Math.max(0, 6 - szDecimals);
+  return parseFloat(sigFig.toFixed(maxDecimals));
 }
 
 /** Denormalize symbol: "BTC-USD" → "BTC" */
@@ -190,6 +217,24 @@ interface OrderWire {
 function getBuilderCode(): { b: string; f: number } | undefined {
   if (!HL_BUILDER_ADDRESS) return undefined;
   return { b: HL_BUILDER_ADDRESS.toLowerCase(), f: HL_BUILDER_FEE };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Price helper
+// ─────────────────────────────────────────────────────────────
+
+/** Fetch the current mid price for a coin from HL */
+async function getMidPrice(coin: string): Promise<number> {
+  const response = await fetch(`${HL_API_URL}/info`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'allMids' }),
+    signal: AbortSignal.timeout(5000),
+  });
+  const mids = await response.json() as Record<string, string>;
+  const mid = mids[coin];
+  if (!mid) throw new Error(`No mid price found for ${coin}`);
+  return parseFloat(mid);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -228,7 +273,45 @@ async function hlExchange(body: Record<string, unknown>): Promise<OrderResult> {
     return { success: false, error: typeof result.response === 'string' ? result.response : JSON.stringify(result.response) };
   }
 
-  return { success: true, data: result.response || result };
+  // For order responses, check individual order statuses
+  const resp = result.response;
+  if (resp?.type === 'order' && resp?.data?.statuses) {
+    const statuses = resp.data.statuses as Array<Record<string, unknown>>;
+    const firstStatus = statuses[0];
+
+    if (firstStatus?.error) {
+      return { success: false, error: firstStatus.error as string };
+    }
+
+    // Extract fill info for the frontend toast
+    if (firstStatus?.filled) {
+      const filled = firstStatus.filled as { totalSz: string; avgPx: string; oid: number };
+      return {
+        success: true,
+        data: {
+          ...resp,
+          order_id: filled.oid,
+          avg_price: filled.avgPx,
+          filled_size: filled.totalSz,
+          status: 'filled',
+        },
+      };
+    }
+
+    if (firstStatus?.resting) {
+      const resting = firstStatus.resting as { oid: number };
+      return {
+        success: true,
+        data: {
+          ...resp,
+          order_id: resting.oid,
+          status: 'resting',
+        },
+      };
+    }
+  }
+
+  return { success: true, data: resp || result };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -337,35 +420,38 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
   async createOrder(params: CreateOrderParams): Promise<OrderResult> {
     try {
       const wallet = await getAgentWallet(params.account);
+      const coin = denormalizeSymbol(params.symbol);
       const assetIndex = await getHlAssetIndex(params.symbol);
+      const szDecimals = getHlSzDecimals(coin);
       const isBuy = params.side === 'BUY' || params.side === 'bid' || params.side === 'LONG';
       const nonce = Date.now();
 
       let orderWire: OrderWire;
 
       if (params.type === 'MARKET') {
-        // Market orders use IOC with a slippage-adjusted price
-        // The caller should pass an appropriate limit price for slippage protection
-        // If no price, use a very high/low price as market sweep
-        const slippagePrice = params.price
-          ? floatToWire(params.price)
-          : (isBuy ? '999999' : '0.01');
+        // Market orders: aggressive IOC limit at slippage price.
+        // Matches Python SDK: market_open → _slippage_price → float_to_wire
+        const px = params.price ? parseFloat(String(params.price)) : null;
+        const midPrice = px || await getMidPrice(coin);
+        const slippagePct = parseFloat(params.slippage_percent || '5') / 100; // Default 5% like Python SDK
+        const limitPx = slippagePrice(midPrice, isBuy, slippagePct, szDecimals);
+
+        console.log('[HLRouter] Market order:', { coin, midPrice, slippagePct, limitPx, wire: floatToWire(limitPx), szDecimals, isBuy, size: floatToWire(params.amount) });
 
         orderWire = {
           a: assetIndex,
           b: isBuy,
-          p: slippagePrice,
+          p: floatToWire(limitPx),
           s: floatToWire(params.amount),
           r: params.reduce_only || false,
           t: { limit: { tif: 'Ioc' } },
         };
       } else {
-        // Limit order
+        // Limit order: price goes through float_to_wire directly
         if (!params.price) {
           return { success: false, error: 'Price required for limit orders' };
         }
         const tif = params.tif || 'Gtc';
-        // Normalize TIF: GTC→Gtc, IOC→Ioc, ALO→Alo
         const hlTif = tif.charAt(0).toUpperCase() + tif.slice(1).toLowerCase();
 
         orderWire = {
@@ -396,7 +482,7 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         if (params.take_profit) {
           groupOrders.push({
             a: assetIndex,
-            b: !isBuy, // TP is opposite side
+            b: !isBuy,
             p: floatToWire(params.take_profit.stop_price),
             s: floatToWire(params.amount),
             r: true,
@@ -407,7 +493,7 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         if (params.stop_loss) {
           groupOrders.push({
             a: assetIndex,
-            b: !isBuy, // SL is opposite side
+            b: !isBuy,
             p: floatToWire(params.stop_loss.stop_price),
             s: floatToWire(params.amount),
             r: true,
@@ -667,10 +753,23 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         const tif = data.tif || 'Gtc';
         const hlTif = tif.charAt(0).toUpperCase() + tif.slice(1).toLowerCase();
 
+        let price: string;
+        if (data.price) {
+          price = floatToWire(data.price);
+        } else if (data.type === 'MARKET') {
+          const coin = denormalizeSymbol(data.symbol);
+          const midPx = await getMidPrice(coin);
+          const szDec = getHlSzDecimals(coin);
+          const limitPx = slippagePrice(midPx, isBuy, 0.05, szDec);
+          price = floatToWire(limitPx);
+        } else {
+          price = isBuy ? '999999' : '0.01'; // Should not reach here — limit orders require price
+        }
+
         orderWires.push({
           a: assetIndex,
           b: isBuy,
-          p: data.price ? floatToWire(data.price) : (isBuy ? '999999' : '0.01'),
+          p: price,
           s: floatToWire(data.amount),
           r: data.reduce_only || false,
           t: data.type === 'MARKET'
@@ -716,7 +815,7 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
       if (params.take_profit) {
         orders.push({
           a: assetIndex,
-          b: !isBuy, // Close direction
+          b: isBuy, // isBuy is already the closing side (frontend sends ask/bid)
           p: floatToWire(params.take_profit.stop_price),
           s: floatToWire(size),
           r: true,
@@ -733,7 +832,7 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
       if (params.stop_loss) {
         orders.push({
           a: assetIndex,
-          b: !isBuy, // Close direction
+          b: isBuy, // isBuy is already the closing side (frontend sends ask/bid)
           p: floatToWire(params.stop_loss.stop_price),
           s: floatToWire(size),
           r: true,

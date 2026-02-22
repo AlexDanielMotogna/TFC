@@ -29,7 +29,7 @@ export class OrdersService {
 
   private async getUserKeypair(userId: string): Promise<import('tweetnacl').SignKeyPair> {
     const connection = await prisma.exchangeConnection.findUnique({
-      where: { userId },
+      where: { userId_exchangeType: { userId, exchangeType: 'pacifica' } },
       select: { accountAddress: true, vaultKeyReference: true, isActive: true },
     });
 

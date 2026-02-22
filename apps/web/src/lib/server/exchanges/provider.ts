@@ -50,21 +50,22 @@ export class ExchangeProvider {
   }
 
   /**
-   * Get user's exchange adapter based on their connection
-   * TODO: Query database to find user's exchange connection
-   * For now, assume Pacifica
+   * Get user's exchange adapter based on exchange type or their active connection.
+   * If exchangeType is provided, use that directly. Otherwise query DB.
    */
-  static async getUserAdapter(userId: string): Promise<ExchangeAdapter> {
-    // TODO: Query database for user's ExchangeConnection
-    // const connection = await prisma.exchangeConnection.findFirst({
-    //   where: { userId, isPrimary: true },
-    //   select: { exchangeType: true },
-    // });
-    //
-    // return this.getAdapter(connection.exchangeType as 'pacifica' | 'hyperliquid' | 'lighter');
+  static async getUserAdapter(userId: string, exchangeType?: string): Promise<ExchangeAdapter> {
+    if (exchangeType) {
+      return this.getAdapter(exchangeType as 'pacifica' | 'hyperliquid' | 'lighter');
+    }
 
-    // For now, default to Pacifica
-    return this.getAdapter('pacifica');
+    // Query database for user's active exchange connection
+    const { prisma } = await import('../db');
+    const connection = await prisma.exchangeConnection.findFirst({
+      where: { userId, isActive: true },
+      select: { exchangeType: true },
+    });
+
+    return this.getAdapter((connection?.exchangeType || 'pacifica') as 'pacifica' | 'hyperliquid' | 'lighter');
   }
 
   /**

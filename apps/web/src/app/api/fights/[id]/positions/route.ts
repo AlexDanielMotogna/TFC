@@ -9,17 +9,27 @@ import { prisma } from '@/lib/server/db';
 import { errorResponse, ForbiddenError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { ExchangeProvider } from '@/lib/server/exchanges/provider';
+import * as Pacifica from '@/lib/server/pacifica';
 
 const USE_EXCHANGE_ADAPTER = process.env.USE_EXCHANGE_ADAPTER !== 'false';
 
-// Default max leverage per symbol (from Pacifica settings)
-// Pacifica REST API doesn't return leverage, so we use these defaults
-const MAX_LEVERAGE: Record<string, number> = {
-  BTC: 50, ETH: 50, SOL: 20, HYPE: 20, XRP: 20, DOGE: 20, LINK: 20, AVAX: 20,
-  SUI: 10, BNB: 10, AAVE: 10, ARB: 10, OP: 10, APT: 10, INJ: 10, TIA: 10,
-  SEI: 10, WIF: 10, JUP: 10, PENDLE: 10, RENDER: 10, FET: 10, ZEC: 10,
-  PAXG: 10, ENA: 10, KPEPE: 10,
-};
+// Dynamic market info cache (max leverage per symbol from Pacifica API)
+let marketInfoCache: { data: Record<string, number>; timestamp: number } | null = null;
+const MARKET_INFO_CACHE_TTL = 60000; // 1 minute
+
+async function getMaxLeverageMap(): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (marketInfoCache && now - marketInfoCache.timestamp < MARKET_INFO_CACHE_TTL) {
+    return marketInfoCache.data;
+  }
+  const markets = await Pacifica.getMarkets();
+  const map: Record<string, number> = {};
+  markets.forEach((m) => {
+    map[m.symbol] = m.max_leverage;
+  });
+  marketInfoCache = { data: map, timestamp: now };
+  return map;
+}
 
 export async function GET(
   request: Request,
@@ -145,12 +155,12 @@ export async function GET(
 
       // Get Pacifica connection for this user to fetch real position data
       const exchangeConnection = await prisma.exchangeConnection.findUnique({
-        where: { userId: user.userId },
+        where: { userId_exchangeType: { userId: user.userId, exchangeType: 'pacifica' } },
         select: { accountAddress: true },
       });
 
-      // Get current prices and real positions from Pacifica
-      // Note: Pacifica REST API doesn't return leverage, so we use MAX_LEVERAGE defaults
+      // Get current prices, real positions, and max leverage from Pacifica
+      const maxLeverageMap = await getMaxLeverageMap();
       let prices, realPositions;
 
       if (USE_EXCHANGE_ADAPTER) {
@@ -206,9 +216,9 @@ export async function GET(
           // avgEntryPrice should always be positive
           const avgEntryPrice = Math.abs(pos.amount) > 0 ? pos.totalCost / Math.abs(pos.amount) : 0;
 
-          // Get leverage: first from FightTrade (if available), then from MAX_LEVERAGE defaults
+          // Get leverage: first from FightTrade (if available), then from Pacifica market info
           // FightTrade.leverage is set when placing the order, so it's the actual leverage used
-          const leverage = pos.leverage || MAX_LEVERAGE[baseSymbol] || 10;
+          const leverage = pos.leverage || maxLeverageMap[baseSymbol] || 10;
 
           // Calculate PnL
           const priceDiff = markPrice - avgEntryPrice;

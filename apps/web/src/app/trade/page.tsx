@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, usePacificaWsStore } from '@/hooks';
+import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, useExchangeWsStore, useExchangeWebSocket } from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
 import type { ChartWidget } from '@/components/TradingViewChartAdvanced';
@@ -20,7 +20,10 @@ import { WithdrawModal } from '@/components/WithdrawModal';
 import { EditOrderModal } from '@/components/EditOrderModal';
 import { BetaGate } from '@/components/BetaGate';
 import { AiBiasWidget } from '@/components/AiBiasWidget';
+import { HyperliquidSetupInline } from '@/components/HyperliquidSetup';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { useAuthStore } from '@/lib/store';
 import { toast } from 'sonner';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
@@ -28,7 +31,7 @@ import FileUploadIcon from '@mui/icons-material/FileUpload';
 // Default market shown while loading from API
 const DEFAULT_MARKET = { symbol: 'BTC-USD', name: 'Bitcoin', maxLeverage: 50 };
 
-const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
+// Deposit URL is now dynamic per exchange — use exchangeConfig.depositUrl
 
 // TradeFightClub platform fee (fixed)
 const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
@@ -36,9 +39,32 @@ const TRADECLUB_FEE = 0.0005; // 0.05% builder fee
 // NOTE: Pacifica fees (maker_fee, taker_fee) are now fetched dynamically from the API
 // They change monthly, so we no longer use hardcoded fee tiers
 
+/** Countdown to next hourly funding (HL funding is every hour on the hour UTC) */
+function useFundingCountdown(): string {
+  const [countdown, setCountdown] = useState('');
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const msLeft = (3600000 - ((now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds()));
+      const totalSec = Math.floor(msLeft / 1000);
+      const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
+      const ss = String(totalSec % 60).padStart(2, '0');
+      setCountdown(`${mm}:${ss}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return countdown;
+}
+
 function TradePageContent() {
   const { connected } = useWallet();
   const { isAuthenticated, pacificaConnected, pacificaFailReason } = useAuth();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const fundingCountdown = useFundingCountdown();
+  const evmWalletAddress = useAuthStore((s) => s.evmWalletAddress);
+  const agentApproved = useAuthStore((s) => s.agentApproved);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -66,12 +92,9 @@ function TradePageContent() {
   // Account settings (for leverage per symbol)
   const { data: accountSettings } = useAccountSettings();
 
-  // History hooks (with pagination)
+  // History hooks
   const {
     data: tradeHistory = [],
-    hasNextPage: hasMoreTrades,
-    fetchNextPage: fetchMoreTrades,
-    isFetchingNextPage: isLoadingMoreTrades,
   } = useTradeHistory();
   const { data: orderHistoryData = [] } = useOrderHistory();
 
@@ -93,8 +116,9 @@ function TradePageContent() {
   const { orders: fightOpenOrders } = useFightOrders(fightId);
   const { orderHistory: fightOrderHistory } = useFightOrderHistory(fightId);
 
-  // Pacifica WebSocket connection status (for real-time updates)
-  const pacificaWsConnected = usePacificaWsStore((state) => state.isConnected);
+  // Exchange WebSocket — initializes connection + updates Zustand store
+  useExchangeWebSocket();
+  const exchangeWsConnected = useExchangeWsStore((state) => state.isConnected);
 
   // TradingView widget instance — shared with AiBiasWidget for chart drawing
   const [tvWidget, setTvWidget] = useState<ChartWidget | null>(null);
@@ -298,6 +322,14 @@ function TradePageContent() {
   const tickSize = currentPriceData?.tickSize || 0.01;
   const lotSize = currentPriceData?.lotSize || 0.00001;
 
+  // Debug: log Market Info data source (once per market/exchange change)
+  useEffect(() => {
+    if (currentPriceData) {
+      console.log(`[MarketInfo] exchange=${exchangeType}, symbol=${selectedMarket}, mark=${markPrice.toFixed(2)}, volume=$${(volume24h / 1e6).toFixed(2)}M, OI=$${(openInterest / 1e6).toFixed(2)}M, funding=${fundingRate.toFixed(4)}%`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exchangeType, selectedMarket, !!currentPriceData]);
+
   // Helper to round amount to lot size
   const roundToLotSize = (amount: number, lotSize: number): string => {
     const precision = Math.max(0, -Math.floor(Math.log10(lotSize)));
@@ -386,15 +418,20 @@ function TradePageContent() {
   }, [selectedMarket, apiPositions]);
 
   // Initialize leverage from account settings when market changes
+  // Always clamp to maxLeverage — account settings may have stale values
+  // that exceed the current exchange max (e.g. AVAX was 20x, now 10x)
   useEffect(() => {
     if (accountSettings && Array.isArray(accountSettings)) {
       const marketSymbol = selectedMarket.replace('-USD', '');
-      const setting = accountSettings.find((s: any) => s.symbol === marketSymbol);
+      // Match both formats: adapter returns 'AVAX-USD', direct Pacifica returns 'AVAX'
+      const setting = accountSettings.find((s: any) =>
+        s.symbol === marketSymbol || s.symbol === selectedMarket
+      );
       if (setting?.leverage) {
-        setLeverage(setting.leverage);
-        setSavedLeverage(setting.leverage);
+        const clamped = Math.min(setting.leverage, maxLeverage);
+        setLeverage(clamped);
+        setSavedLeverage(clamped);
       } else {
-        // Default to max leverage if no setting saved
         setLeverage(maxLeverage);
         setSavedLeverage(maxLeverage);
       }
@@ -427,10 +464,10 @@ function TradePageContent() {
         ? { stop_price: roundToTickSize(parseFloat(stopLoss)) }
         : undefined;
 
-      // Minimum order size: $11 (Pacifica minimum)
-      // Use effectivePositionSize (margin × leverage) which matches the USD display in the UI
-      if (effectivePositionSize < 11) {
-        toast.error(`Minimum order size is $11 (current: $${effectivePositionSize.toFixed(2)})`);
+      // Minimum order size per exchange config
+      const minOrderSize = exchangeConfig.minOrderValue;
+      if (minOrderSize > 0 && effectivePositionSize < minOrderSize) {
+        toast.error(`Minimum order size is $${minOrderSize} (current: $${effectivePositionSize.toFixed(2)})`);
         return;
       }
 
@@ -526,7 +563,16 @@ function TradePageContent() {
       return;
     }
 
-    if (!pacificaConnected) {
+    if (exchangeType === 'hyperliquid') {
+      if (!evmWalletAddress) {
+        alert('Please connect your EVM wallet first');
+        return;
+      }
+      if (!agentApproved) {
+        alert('Please approve agent wallet first');
+        return;
+      }
+    } else if (!pacificaConnected) {
       alert('Please connect your Pacifica account first');
       return;
     }
@@ -583,7 +629,7 @@ function TradePageContent() {
 
     // No opposite position, execute directly
     await executeOrder();
-  }, [isAuthenticated, pacificaConnected, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
+  }, [isAuthenticated, pacificaConnected, exchangeType, exchangeConfig, evmWalletAddress, agentApproved, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
 
   // Quick order from chart right-click context menu
   const handleChartQuickOrder = useCallback((price: number, side: 'LONG' | 'SHORT', clickY?: number) => {
@@ -599,8 +645,8 @@ function TradePageContent() {
     const symbol = selectedMarket.replace('-USD', '');
     const usdAmount = parseFloat(quickOrderAmount);
     if (isNaN(usdAmount) || usdAmount <= 0) return;
-    if (usdAmount < 11) {
-      toast.error('Minimum order size is $11');
+    if (exchangeConfig.minOrderValue > 0 && usdAmount < exchangeConfig.minOrderValue) {
+      toast.error(`Minimum order size is $${exchangeConfig.minOrderValue}`);
       return;
     }
 
@@ -885,37 +931,41 @@ function TradePageContent() {
     const funding = parseFloat(pos.funding || '0') || 0;
     const isolated = pos.isolated ?? false;
 
-    // Position value in USD (at entry price, not mark price)
+    // Position value in USD
     const positionValueAtEntry = sizeInToken * entryPrice;
     const positionValueAtMark = sizeInToken * markPrice;
 
-    // Margin calculation:
-    // For isolated positions: use the margin from API
-    // For cross positions: margin = positionValue / leverage
+    // Margin: prefer API-provided value (HL always provides marginUsed),
+    // fall back to calculation for Pacifica cross-margin
     const apiMargin = parseFloat(pos.margin) || 0;
-    const margin = isolated && apiMargin > 0
+    const margin = apiMargin > 0
       ? apiMargin
       : positionValueAtEntry / leverage;
 
-    // Calculate unrealized PnL
-    // For LONG: PnL = (markPrice - entryPrice) * sizeInToken
-    // For SHORT: PnL = (entryPrice - markPrice) * sizeInToken
-    const priceDiff = pos.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
-    const unrealizedPnl = priceDiff * sizeInToken;
+    // Unrealized PnL: use API-provided value (HL) or calculate (Pacifica)
+    const apiPnl = parseFloat(pos.unrealizedPnl) || 0;
+    let unrealizedPnl: number;
+    if (apiPnl !== 0 || parseFloat(pos.unrealizedPnl || '0') !== 0) {
+      // HL provides unrealizedPnl directly — use it
+      unrealizedPnl = parseFloat(pos.unrealizedPnl || '0');
+    } else {
+      // Pacifica: calculate from price diff
+      const priceDiff = pos.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+      unrealizedPnl = priceDiff * sizeInToken;
+    }
 
-    // ROI% = (PnL / margin) * 100
-    const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
+    // ROI%: use API-provided returnOnEquity (HL) or calculate
+    const apiRoe = parseFloat(pos.unrealizedPnlPercent) || 0;
+    const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
 
-    // Use liquidation price from Pacifica WebSocket when available (most accurate)
+    // Liquidation price: prefer API-provided value
     const apiLiqPrice = parseFloat(pos.liquidationPrice) || 0;
     let liquidationPrice: number;
 
     if (apiLiqPrice > 0) {
-      // Real liq price from Pacifica WebSocket
       liquidationPrice = apiLiqPrice;
-    } else {
-      // Fallback: calculate using Pacifica's official formula
-      // liquidation_price = [price - (side * position_margin) / position_size] / (1 - side / max_leverage / 2)
+    } else if (entryPrice > 0 && sizeInToken > 0) {
+      // Fallback: calculate using Pacifica's formula
       const side = pos.side === 'LONG' ? 1 : -1;
       const mktMaxLeverage = leverage;
       const positionMargin = isolated && apiMargin > 0 ? apiMargin : accountEquity > 0 ? accountEquity : positionValueAtEntry / leverage;
@@ -923,6 +973,8 @@ function TradePageContent() {
       const numerator = entryPrice - (side * positionMargin) / sizeInToken;
       const denominator = 1 - side / mktMaxLeverage / 2;
       liquidationPrice = Math.max(0, numerator / denominator);
+    } else {
+      liquidationPrice = 0;
     }
 
     // Find TP/SL orders for this position
@@ -932,22 +984,23 @@ function TradePageContent() {
 
     // Find ALL Take Profit orders for this position
     // TP orders can be:
-    // 1. Native Pacifica TP: order.type includes 'TP' or 'take_profit'
-    // 2. Hybrid approach: reduce_only LIMIT orders on opposite side at profit-taking price
+    // 1. Native TP: order.type includes 'TP' or 'take_profit'
+    // 2. Reduce-only LIMIT orders on opposite side at profit-taking price
+    // 3. Any opposite-side limit order at profit-taking price (HL / general)
     //    - For LONG position: TP price is ABOVE entry price
     //    - For SHORT position: TP price is BELOW entry price
     const tpOrders = openOrders.filter(order => {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
       if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
 
-      // Check for native Pacifica TP orders
+      // Check for native TP orders (Pacifica / HL trigger orders)
       const isNativeTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
       if (isNativeTP) return true;
 
-      // Check for hybrid TP (limit orders with reduce_only at profit-taking price)
-      // These are limit orders (not stop orders) that are reduce_only
+      // Check for limit orders at profit-taking price on the opposite side
+      // These close the position at a profit — effectively a TP
       const isLimitOrder = order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
-      if (isLimitOrder && order.reduceOnly) {
+      if (isLimitOrder) {
         const orderPrice = parseFloat(order.price) || 0;
         // For LONG: TP is above entry, for SHORT: TP is below entry
         if (pos.side === 'LONG' && orderPrice > entryPrice) return true;
@@ -966,26 +1019,36 @@ function TradePageContent() {
 
     // Find ALL Stop Loss orders for this position
     // SL orders can be:
-    // 1. Native Pacifica SL: order.type includes 'SL' or 'stop_loss'
-    // 2. Hybrid approach: reduce_only STOP orders on opposite side at loss-limiting price
+    // 1. Native SL: order.type includes 'SL' or 'stop_loss'
+    // 2. Reduce-only STOP orders on opposite side at loss-limiting price
+    // 3. Any opposite-side limit order at loss-limiting price (HL / general)
     //    - For LONG position: SL price is BELOW entry price
     //    - For SHORT position: SL price is ABOVE entry price
     const slOrders = openOrders.filter(order => {
       const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
       if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
 
-      // Check for native Pacifica SL orders
+      // Check for native SL orders (Pacifica / HL trigger orders)
       const isNativeSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
       if (isNativeSL) return true;
 
-      // Check for hybrid SL (stop orders with reduce_only at loss-limiting price)
-      // These are stop_market orders that are reduce_only
+      // Check for stop orders at loss-limiting price
       const isStopOrder = order.type?.toUpperCase().includes('STOP') && !order.type?.includes('TP') && !order.type?.includes('SL');
-      if (isStopOrder && order.reduceOnly) {
+      if (isStopOrder) {
         const triggerPrice = parseFloat(order.stopPrice || order.price) || 0;
         // For LONG: SL is below entry, for SHORT: SL is above entry
         if (pos.side === 'LONG' && triggerPrice < entryPrice) return true;
         if (pos.side === 'SHORT' && triggerPrice > entryPrice) return true;
+      }
+
+      // Check for limit orders at loss-limiting price on the opposite side
+      // These close the position at a loss — effectively a SL (limit-style)
+      const isLimitOrder = order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
+      if (isLimitOrder) {
+        const orderPrice = parseFloat(order.price) || 0;
+        // For LONG: SL is below entry, for SHORT: SL is above entry
+        if (pos.side === 'LONG' && orderPrice < entryPrice) return true;
+        if (pos.side === 'SHORT' && orderPrice > entryPrice) return true;
       }
 
       return false;
@@ -1084,10 +1147,13 @@ function TradePageContent() {
   const activeOrderHistory = showFightOnly && fightId ? fightOrderHistory : orderHistoryData;
 
   // Fee percentages (used in mobile info tab + order form)
-  const pacificaTakerFee = parseFloat(account?.takerFee || '0.0007');
-  const pacificaMakerFee = parseFloat(account?.makerFee || '0.000575');
-  const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-  const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+  // Exchange-aware: Pacifica has dynamic fees + builder fee; HL has fixed tier-based fees
+  const takerFeePercent = exchangeType === 'hyperliquid'
+    ? '0.0450' // HL base taker fee (0.045%) — no builder fee
+    : ((parseFloat(account?.takerFee || '0.0007') + TRADECLUB_FEE) * 100).toFixed(4);
+  const makerFeePercent = exchangeType === 'hyperliquid'
+    ? '0.0150' // HL base maker fee (0.015%) — no builder fee
+    : ((parseFloat(account?.makerFee || '0.000575') + TRADECLUB_FEE) * 100).toFixed(4);
 
   // Calculate real-time unrealized PnL from positions (updates with WebSocket prices)
   const realtimeUnrealizedPnl = displayPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
@@ -1099,7 +1165,9 @@ function TradePageContent() {
   const fightRoi = fightMargin > 0 ? (fightPnl / fightMargin) * 100 : 0;
 
   const builderCodeApproved = builderCodeStatus?.approved ?? false;
-  const canTrade = connected && isAuthenticated && pacificaConnected && builderCodeApproved;
+  const canTrade = exchangeType === 'hyperliquid'
+    ? isAuthenticated && !!evmWalletAddress && agentApproved
+    : connected && isAuthenticated && pacificaConnected && builderCodeApproved;
 
   return (
     <BetaGate>
@@ -1167,9 +1235,9 @@ function TradePageContent() {
                     <span className="text-[11px] text-white font-mono">{formatUSD(openInterest)}</span>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-surface-500 mb-0.5">Funding</span>
+                    <span className="text-[10px] text-surface-500 mb-0.5">Funding / Countdown</span>
                     <span className={`text-[11px] font-mono ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                      {formatFundingRate(nextFundingRate)} <span className="text-surface-500">/1h</span>
+                      {formatFundingRate(nextFundingRate)} <span className="text-surface-500">{fundingCountdown}</span>
                     </span>
                   </div>
                 </div>
@@ -1198,7 +1266,7 @@ function TradePageContent() {
           <div className="card overflow-hidden">
             {mobileSection === 'chart' && (
               <div className="h-[400px]">
-                <TradingViewChartAdvanced symbol={selectedMarket} height={400} currentPrice={currentPrice} onQuickOrder={handleChartQuickOrder} onWidgetReady={setTvWidget} />
+                <TradingViewChartAdvanced symbol={selectedMarket} height={400} currentPrice={currentPrice} exchangeType={exchangeType} onQuickOrder={handleChartQuickOrder} onWidgetReady={setTvWidget} />
               </div>
             )}
             {mobileSection === 'orderbook' && (
@@ -1231,9 +1299,9 @@ function TradePageContent() {
                     <span className="text-sm text-white font-mono font-medium">{formatUSD(openInterest)}</span>
                   </div>
                   <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Funding Rate</span>
+                    <span className="text-[10px] text-surface-400 uppercase">Funding / Countdown</span>
                     <span className={`text-sm font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                      {formatFundingRate(nextFundingRate)} <span className="text-surface-500">/1h</span>
+                      {formatFundingRate(nextFundingRate)} <span className="text-surface-500">{fundingCountdown}</span>
                     </span>
                   </div>
                   <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
@@ -1358,32 +1426,37 @@ function TradePageContent() {
                       const originalSize = parseFloat(order.size) || 0;
                       const filledSize = parseFloat(order.filled) || 0;
                       const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                      const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || order.type.toLowerCase().includes('take_profit') || order.type.toLowerCase().includes('stop_loss');
+                      const orderTypeLower = order.type.toLowerCase();
+                      const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('take profit') || orderTypeLower.includes('stop loss');
                       const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
                       const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
                       const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
                       let displayType = order.type;
-                      if (order.type.includes('TP') || order.type.toLowerCase().includes('take_profit')) displayType = 'Take Profit Market';
-                      else if (order.type.includes('SL') || order.type.toLowerCase().includes('stop_loss')) displayType = 'Stop Loss Market';
+                      if (order.type.includes('TP') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('take profit')) displayType = 'Take Profit Market';
+                      else if (order.type.includes('SL') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('stop loss')) displayType = 'Stop Loss Market';
                       else if (isHybridTp) displayType = 'TP (Partial)';
                       else if (isHybridSl) displayType = 'SL (Partial)';
-                      else if (order.type === 'LIMIT') displayType = 'Limit Order';
+                      else if (order.type === 'LIMIT') displayType = 'Limit';
+                      else if (order.type === 'MARKET') displayType = 'Market';
                       else if (order.type === 'STOP_LIMIT') displayType = 'Stop Limit';
                       else if (order.type === 'STOP_MARKET') displayType = 'Stop Market';
+                      else displayType = order.type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                       const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
                       const orderValue = originalSize * (price || stopPrice || 0);
                       const formatSize = (size: number) => {
-                        if (size < 0.0001) return size.toFixed(8);
-                        if (size < 0.01) return size.toFixed(6);
-                        if (size < 1) return size.toFixed(5);
-                        return size.toFixed(4);
+                        if (size === 0) return '0';
+                        if (size >= 1) return size.toFixed(2).replace(/\.?0+$/, '');
+                        // For small numbers, show enough decimals without excessive trailing zeros
+                        const str = size.toPrecision(4);
+                        return parseFloat(str).toString();
                       };
+                      const tokenSymbol = order.symbol.replace('-USD', '');
 
                       return (
                         <div key={order.id} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
                           {/* Header */}
                           <div className="flex items-center gap-2 mb-2.5">
-                            <span className="font-medium text-white text-sm">{order.symbol}</span>
+                            <span className="font-medium text-white text-sm">{tokenSymbol}</span>
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                               isTpSl ? (displayType.includes('Take Profit') || displayType.includes('TP') ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400')
                                 : 'bg-surface-700 text-surface-300'
@@ -1398,23 +1471,23 @@ function TradePageContent() {
                           <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
                             <div>
                               <div className="text-surface-500">Time</div>
-                              <div className="font-mono text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Original Size</div>
-                              <div className="font-mono text-white">{formatSize(originalSize)} {order.symbol}</div>
+                              <div className="tabular-nums tracking-tight text-white">{formatSize(originalSize)}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Filled Size</div>
-                              <div className="font-mono text-surface-300">{filledSize}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">{filledSize}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Price</div>
-                              <div className="font-mono text-surface-300">{isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">{isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Order Value</div>
-                              <div className="font-mono text-surface-300">${orderValue.toFixed(2)}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">${orderValue.toFixed(2)}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Reduce Only</div>
@@ -1423,7 +1496,7 @@ function TradePageContent() {
                             {stopPrice && (
                               <div>
                                 <div className="text-surface-500">Trigger Condition</div>
-                                <div className="font-mono text-surface-300">${stopPrice.toLocaleString()} / Last</div>
+                                <div className="tabular-nums tracking-tight text-surface-300">${stopPrice.toLocaleString()} / Last</div>
                               </div>
                             )}
                           </div>
@@ -1489,7 +1562,7 @@ function TradePageContent() {
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${sideColor} ${isClose ? (realizedPnl >= 0 ? 'bg-win-500/20' : 'bg-loss-500/20') : (isLong ? 'bg-win-500/20' : 'bg-loss-500/20')}`}>
                               {sideFormatted}
                             </span>
-                            <span className={`font-mono text-xs font-medium ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                            <span className={`tabular-nums tracking-tight text-xs font-medium ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                               {realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}
                             </span>
                           </div>
@@ -1497,7 +1570,7 @@ function TradePageContent() {
                           <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
                             <div>
                               <div className="text-surface-500">Time</div>
-                              <div className="font-mono text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Side</div>
@@ -1509,29 +1582,27 @@ function TradePageContent() {
                             </div>
                             <div>
                               <div className="text-surface-500">Size</div>
-                              <div className="font-mono text-white">{amount.toFixed(amount < 0.01 ? 5 : 4)} {token}</div>
+                              <div className="tabular-nums tracking-tight text-white">{amount.toFixed(amount < 0.01 ? 5 : 4)}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Price</div>
-                              <div className="font-mono text-surface-300">{price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">${price >= 1000 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price >= 1 ? price.toFixed(2) : price.toFixed(4)}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Trade Value</div>
-                              <div className="font-mono text-surface-300">${tradeValue.toFixed(2)}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">${tradeValue.toFixed(2)}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Fees</div>
-                              <div className="font-mono text-surface-300">${fee.toFixed(2)}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">${fee.toFixed(2)}</div>
                             </div>
                           </div>
                         </div>
                       );
                     })}
-                    {!showFightOnly && hasMoreTrades && (
+                    {false && (
                       <div className="p-3 text-center">
-                        <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-surface-300 hover:text-white transition-colors disabled:opacity-50">
-                          {isLoadingMoreTrades ? 'Loading...' : 'Load More'}
-                        </button>
+                        {/* Pagination removed — trade history loads in one batch */}
                       </div>
                     )}
                   </div>
@@ -1565,17 +1636,18 @@ function TradePageContent() {
                       const valB = getValue(b);
                       if (typeof valA === 'string') return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
                       return orderHistorySort.desc ? valB - valA : valA - valB;
-                    }).slice(0, 50).map((order: any, index: number) => {
-                      const orderSide = order.side === 'bid' ? 'Long' : 'Short';
+                    }).slice(0, 150).map((order: any, index: number) => {
+                      const orderSide = (order.side === 'bid' || order.side === 'BUY' || order.side === 'LONG' || order.side?.includes('long')) ? 'Long' : 'Short';
                       const rawOrderType = order.order_type || 'limit';
                       const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                       const filledAmount = parseFloat(order.filled_amount || '0');
                       const initialAmount = parseFloat(order.amount || '0');
                       const avgFilledPrice = parseFloat(order.average_filled_price || '0');
                       const stopPrice = parseFloat(order.stop_price || '0');
-                      const initialPrice = parseFloat(order.initial_price || '0');
+                      const initialPrice = parseFloat(order.initial_price || order.price || '0');
                       const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
                       const isRegularMarketOrder = rawOrderType === 'market';
+                      const isStopOrder = rawOrderType.includes('stop') && !isTpSlOrder;
                       const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
                       let status = 'Open';
                       const rawStatus = order.order_status || '';
@@ -1584,8 +1656,10 @@ function TradePageContent() {
                           case 'open': status = 'Open'; break;
                           case 'partially_filled': status = 'Partial'; break;
                           case 'filled': status = 'Filled'; break;
-                          case 'cancelled': status = 'Cancelled'; break;
+                          case 'cancelled': case 'canceled': status = 'Cancelled'; break;
+                          case 'triggered': status = 'Triggered'; break;
                           case 'rejected': status = 'Rejected'; break;
+                          case 'margincanceled': status = 'Margin Cancel'; break;
                           default: status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
                         }
                       }
@@ -1601,36 +1675,36 @@ function TradePageContent() {
                         <div key={order.order_id || index} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
                           {/* Header */}
                           <div className="flex items-center gap-2 mb-2.5">
-                            <span className="font-medium text-white text-sm">{order.symbol}</span>
+                            <span className="font-medium text-white text-sm">{order.symbol?.replace('-USD', '')}</span>
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderSide === 'Long' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>{orderSide}</span>
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-700 text-surface-300">{orderType}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Triggered' ? 'bg-win-500/20 text-win-400' : (status === 'Cancelled' || status === 'Margin Cancel') ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
                           </div>
                           {/* Data grid */}
                           <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
                             <div>
                               <div className="text-surface-500">Time</div>
-                              <div className="font-mono text-surface-300">{timestamp ? `${timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</div>
+                              <div className="tabular-nums tracking-tight text-surface-300">{timestamp ? `${timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Original Size</div>
-                              <div className="font-mono text-surface-200">{isTpSlOrder ? 'N/A' : `${initialAmount.toFixed(5)} ${order.symbol}`}</div>
+                              <div className="tabular-nums tracking-tight text-surface-200">{initialAmount > 0 ? initialAmount.toFixed(5) : 'N/A'}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Filled Size</div>
-                              <div className="font-mono text-surface-200">{isTpSlOrder ? 'N/A' : `${filledAmount.toFixed(5)} ${order.symbol}`}</div>
+                              <div className="tabular-nums tracking-tight text-surface-200">{filledAmount > 0 ? filledAmount.toFixed(5) : 'N/A'}</div>
                             </div>
                             <div>
-                              <div className="text-surface-500">Initial Price</div>
-                              <div className="font-mono text-surface-200">{isTpSlOrder ? formatHistPrice(stopPrice) : (isRegularMarketOrder ? 'Market' : formatHistPrice(initialPrice))}</div>
+                              <div className="text-surface-500">{(isTpSlOrder || isStopOrder) ? 'Trigger Price' : 'Price'}</div>
+                              <div className="tabular-nums tracking-tight text-surface-200">{(isTpSlOrder || isStopOrder) ? (stopPrice > 0 ? formatHistPrice(stopPrice) : formatHistPrice(initialPrice)) : (isRegularMarketOrder ? 'Market' : formatHistPrice(initialPrice))}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Avg Filled Price</div>
-                              <div className="font-mono text-surface-200">{isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatHistPrice(avgFilledPrice) : 'N/A')}</div>
+                              <div className="tabular-nums tracking-tight text-surface-200">{avgFilledPrice > 0 ? formatHistPrice(avgFilledPrice) : 'N/A'}</div>
                             </div>
                             <div>
                               <div className="text-surface-500">Order Value</div>
-                              <div className="font-mono text-win-400">{isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}</div>
+                              <div className="tabular-nums tracking-tight text-win-400">{orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A'}</div>
                             </div>
                           </div>
                         </div>
@@ -1700,9 +1774,9 @@ function TradePageContent() {
                       <span className="text-xs text-white font-mono font-medium">{formatUSD(openInterest)}</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">Next Funding / Countdown</span>
+                      <span className="text-xs text-surface-300">Funding / Countdown</span>
                       <span className={`text-xs font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                        {formatFundingRate(nextFundingRate)} <span className="text-surface-400">/1h</span>
+                        {formatFundingRate(nextFundingRate)} <span className="text-surface-400">{fundingCountdown}</span>
                       </span>
                     </div>
                   </div>
@@ -1715,6 +1789,7 @@ function TradePageContent() {
                     symbol={selectedMarket}
                     height={650}
                     currentPrice={currentPrice}
+                    exchangeType={exchangeType}
                     onQuickOrder={handleChartQuickOrder}
                     onWidgetReady={setTvWidget}
                   />
@@ -1758,7 +1833,7 @@ function TradePageContent() {
                               setQuickOrderPrice(null);
                             }
                           }}
-                          placeholder="Min $11"
+                          placeholder={`Min $${exchangeConfig.minOrderValue}`}
                           className="w-20 bg-surface-800 rounded px-2 py-1.5 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-surface-600 placeholder:text-surface-600"
                           autoFocus
                         />
@@ -1895,32 +1970,36 @@ function TradePageContent() {
                           const originalSize = parseFloat(order.size) || 0;
                           const filledSize = parseFloat(order.filled) || 0;
                           const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                          const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || order.type.toLowerCase().includes('take_profit') || order.type.toLowerCase().includes('stop_loss');
+                          const orderTypeLower = order.type.toLowerCase();
+                          const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('take profit') || orderTypeLower.includes('stop loss');
                           const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
                           const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
                           const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
                           let displayType = order.type;
-                          if (order.type.includes('TP') || order.type.toLowerCase().includes('take_profit')) displayType = 'Take Profit Market';
-                          else if (order.type.includes('SL') || order.type.toLowerCase().includes('stop_loss')) displayType = 'Stop Loss Market';
+                          if (order.type.includes('TP') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('take profit')) displayType = 'Take Profit Market';
+                          else if (order.type.includes('SL') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('stop loss')) displayType = 'Stop Loss Market';
                           else if (isHybridTp) displayType = 'TP (Partial)';
                           else if (isHybridSl) displayType = 'SL (Partial)';
-                          else if (order.type === 'LIMIT') displayType = 'Limit Order';
+                          else if (order.type === 'LIMIT') displayType = 'Limit';
+                          else if (order.type === 'MARKET') displayType = 'Market';
                           else if (order.type === 'STOP_LIMIT') displayType = 'Stop Limit';
                           else if (order.type === 'STOP_MARKET') displayType = 'Stop Market';
+                          else displayType = order.type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                           const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
                           const orderValue = originalSize * (price || stopPrice || 0);
                           const formatSize = (size: number) => {
-                            if (size < 0.0001) return size.toFixed(8);
-                            if (size < 0.01) return size.toFixed(6);
-                            if (size < 1) return size.toFixed(5);
-                            return size.toFixed(4);
+                            if (size === 0) return '0';
+                            if (size >= 1) return size.toFixed(2).replace(/\.?0+$/, '');
+                            const str = size.toPrecision(4);
+                            return parseFloat(str).toString();
                           };
+                          const tokenSymbol = order.symbol.replace('-USD', '');
 
                           return (
                             <div key={order.id} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
                               {/* Header */}
                               <div className="flex items-center gap-2 mb-2.5">
-                                <span className="font-medium text-white text-sm">{order.symbol}</span>
+                                <span className="font-medium text-white text-sm">{order.symbol?.replace('-USD', '')}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                                   isTpSl ? (displayType.includes('Take Profit') || displayType.includes('TP') ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400')
                                     : 'bg-surface-700 text-surface-300'
@@ -1935,23 +2014,23 @@ function TradePageContent() {
                               <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
                                 <div>
                                   <div className="text-surface-500">Time</div>
-                                  <div className="font-mono text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Original Size</div>
-                                  <div className="font-mono text-white">{formatSize(originalSize)} {order.symbol}</div>
+                                  <div className="tabular-nums tracking-tight text-white">{formatSize(originalSize)}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Filled Size</div>
-                                  <div className="font-mono text-surface-300">{filledSize}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">{filledSize}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Price</div>
-                                  <div className="font-mono text-surface-300">{isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">{isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Order Value</div>
-                                  <div className="font-mono text-surface-300">${orderValue.toFixed(2)}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">${orderValue.toFixed(2)}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Reduce Only</div>
@@ -1960,7 +2039,7 @@ function TradePageContent() {
                                 {stopPrice && (
                                   <div>
                                     <div className="text-surface-500">Trigger Condition</div>
-                                    <div className="font-mono text-surface-300">${stopPrice.toLocaleString()} / Last</div>
+                                    <div className="tabular-nums tracking-tight text-surface-300">${stopPrice.toLocaleString()} / Last</div>
                                   </div>
                                 )}
                               </div>
@@ -2024,48 +2103,57 @@ function TradePageContent() {
                             const originalSize = parseFloat(order.size) || 0;
                             const filledSize = parseFloat(order.filled) || 0;
                             const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                            const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || order.type.toLowerCase().includes('take_profit') || order.type.toLowerCase().includes('stop_loss');
+                            const orderTypeLower = order.type.toLowerCase();
+                            const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('take profit') || orderTypeLower.includes('stop loss');
                             const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
                             const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
                             const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
                             let displayType = order.type;
-                            if (order.type.includes('TP') || order.type.toLowerCase().includes('take_profit')) displayType = 'TP MARKET';
-                            else if (order.type.includes('SL') || order.type.toLowerCase().includes('stop_loss')) displayType = 'SL MARKET';
+                            if (order.type === 'TP_MARKET' || (order.type.includes('TP') && !order.type.includes('LIMIT'))) displayType = 'Take Profit Market';
+                            else if (order.type === 'TP_LIMIT' || (order.type.includes('TP') && order.type.includes('LIMIT'))) displayType = 'Take Profit Limit';
+                            else if (order.type === 'SL_MARKET' || (order.type.includes('SL') && !order.type.includes('LIMIT'))) displayType = 'Stop Market';
+                            else if (order.type === 'SL_LIMIT' || (order.type.includes('SL') && order.type.includes('LIMIT'))) displayType = 'Stop Limit';
                             else if (isHybridTp) displayType = 'TP (Partial)';
                             else if (isHybridSl) displayType = 'SL (Partial)';
-                            else if (order.type === 'LIMIT') displayType = 'Limit Order';
+                            else if (order.type === 'LIMIT') displayType = 'Limit';
+                            else if (order.type === 'MARKET') displayType = 'Market';
                             else if (order.type === 'STOP_LIMIT') displayType = 'Stop Limit';
                             else if (order.type === 'STOP_MARKET') displayType = 'Stop Market';
+                            else displayType = order.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                             const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
                             const orderValue = originalSize * (price || stopPrice || 0);
                             const formatSize = (size: number) => {
-                              if (size < 0.0001) return size.toFixed(8);
-                              if (size < 0.01) return size.toFixed(6);
-                              if (size < 1) return size.toFixed(5);
-                              return size.toFixed(4);
+                              if (size === 0) return '0';
+                              if (size >= 1) return size.toFixed(2).replace(/\.?0+$/, '');
+                              const str = size.toPrecision(4);
+                              return parseFloat(str).toString();
                             };
+                            const tokenSymbol = order.symbol.replace('-USD', '');
                             return (
                               <tr key={order.id} className="border-surface-800/50 hover:bg-surface-800/30">
-                                <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
-                                <td className="py-2 px-2 text-surface-300">{displayType}</td>
-                                <td className="py-2 px-2"><span className="text-surface-300">{order.symbol}</span></td>
-                                <td className="py-2 px-2"><span className={`font-medium ${order.side === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>{order.side === 'LONG' ? 'Long' : 'Short'}</span></td>
-                                <td className="py-2 px-2 font-mono text-white">{formatSize(originalSize)} {order.symbol}</td>
-                                <td className="py-2 px-2 font-mono text-surface-400">{filledSize}</td>
-                                <td className="py-2 px-2 font-mono text-surface-300">
-                                  {isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : order.type.includes('STOP') ? (
-                                    price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })
+                                <td className="py-px px-2 text-surface-300 whitespace-nowrap tabular-nums tracking-tight">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
+                                <td className="py-px px-2 text-surface-300">{displayType}</td>
+                                <td className="py-px px-2"><span className="text-surface-300">{tokenSymbol}</span></td>
+                                <td className="py-px px-2"><span className={`font-medium ${order.side === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>{order.side === 'LONG' ? 'Long' : 'Short'}</span></td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-white">{formatSize(originalSize)}</td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-400">{filledSize}</td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">
+                                  {isTpSl && displayType.includes('Market') ? 'Market'
+                                  : isTpSl && displayType.includes('Limit') ? (
+                                    price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })
+                                  ) : order.type.includes('STOP') && !price ? 'Market' : order.type.includes('STOP') ? (
+                                    price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })
                                   ) : (
                                     <button onClick={() => handleEditOrder({ id: order.id, symbol: order.symbol, side: order.side, price: order.price, size: order.size, type: order.type })} className="inline-flex items-center gap-1 hover:text-white transition-colors group" title="Edit order price">
-                                      {price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 0 })}
+                                      {price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })}
                                       <svg className="w-3 h-3 text-surface-500 group-hover:text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
                                     </button>
                                   )}
                                 </td>
-                                <td className="py-2 px-2 font-mono text-surface-300">${orderValue.toFixed(2)}</td>
-                                <td className="py-2 px-2 text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</td>
-                                <td className="py-2 px-2 text-surface-400">{stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}</td>
-                                <td className="py-2 px-2">
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${orderValue.toFixed(2)}</td>
+                                <td className="py-px px-2 text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</td>
+                                <td className="py-px px-2 text-surface-400">{stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}</td>
+                                <td className="py-px px-2">
                                   <button onClick={() => handleCancelOrder(order.id, order.symbol, order.type)} disabled={cancelOrder.isPending || cancelStopOrder.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50">{isTpSl ? 'Remove' : 'Cancel'}</button>
                                 </td>
                               </tr>
@@ -2125,7 +2213,7 @@ function TradePageContent() {
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${sideColor} ${isClose ? (realizedPnl >= 0 ? 'bg-win-500/20' : 'bg-loss-500/20') : (isLong ? 'bg-win-500/20' : 'bg-loss-500/20')}`}>
                                   {sideFormatted}
                                 </span>
-                                <span className={`font-mono text-xs font-medium ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
+                                <span className={`tabular-nums tracking-tight text-xs font-medium ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
                                   {realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}
                                 </span>
                               </div>
@@ -2133,7 +2221,7 @@ function TradePageContent() {
                               <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
                                 <div>
                                   <div className="text-surface-500">Time</div>
-                                  <div className="font-mono text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Side</div>
@@ -2145,31 +2233,25 @@ function TradePageContent() {
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Size</div>
-                                  <div className="font-mono text-white">{amount.toFixed(amount < 0.01 ? 5 : 4)} {token}</div>
+                                  <div className="tabular-nums tracking-tight text-white">{amount.toFixed(amount < 0.01 ? 5 : 4)}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Price</div>
-                                  <div className="font-mono text-surface-300">{price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">${price >= 1000 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price >= 1 ? price.toFixed(2) : price.toFixed(4)}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Trade Value</div>
-                                  <div className="font-mono text-surface-300">${tradeValue.toFixed(2)}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">${tradeValue.toFixed(2)}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Fees</div>
-                                  <div className="font-mono text-surface-300">${fee.toFixed(2)}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">${fee.toFixed(2)}</div>
                                 </div>
                               </div>
                             </div>
                           );
                         })}
-                        {!showFightOnly && hasMoreTrades && (
-                          <div className="p-3 text-center">
-                            <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-surface-300 hover:text-white transition-colors disabled:opacity-50">
-                              {isLoadingMoreTrades ? 'Loading...' : 'Load More'}
-                            </button>
-                          </div>
-                        )}
+                        {/* Pagination removed — trade history loads in one batch */}
                       </div>
                       {/* Desktop table view */}
                       <div className="overflow-x-auto max-[1199px]:hidden">
@@ -2220,25 +2302,21 @@ function TradePageContent() {
                             const token = trade.symbol?.replace('-USD', '') || '';
                             return (
                               <tr key={trade.history_id || index} className="border-surface-800/50 hover:bg-surface-800/30">
-                                <td className="py-2 px-2 text-surface-300 whitespace-nowrap font-mono">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
-                                <td className="py-2 px-2 text-surface-300">{token}</td>
-                                <td className="py-2 px-2"><span className={`font-medium ${sideColor}`}>{sideFormatted}</span></td>
-                                <td className="py-2 px-2 text-surface-300">Fulfill Taker</td>
-                                <td className="py-2 px-2 font-mono text-surface-300 whitespace-nowrap">{amount.toFixed(amount < 0.01 ? 5 : 4)} {token}</td>
-                                <td className="py-2 px-2 font-mono text-surface-300">{price.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                                <td className="py-2 px-2 font-mono text-surface-300">${tradeValue.toFixed(2)}</td>
-                                <td className="py-2 px-2 font-mono text-surface-300">${fee.toFixed(2)}</td>
-                                <td className="py-2 px-2"><span className={`font-mono ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}</span></td>
+                                <td className="py-px px-2 text-surface-300 whitespace-nowrap tabular-nums tracking-tight">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
+                                <td className="py-px px-2 text-surface-300">{token}</td>
+                                <td className="py-px px-2"><span className={`font-medium ${sideColor}`}>{sideFormatted}</span></td>
+                                <td className="py-px px-2 text-surface-300">Fulfill Taker</td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300 whitespace-nowrap">{amount.toFixed(amount < 0.01 ? 5 : 4)}</td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${price >= 1000 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price >= 1 ? price.toFixed(2) : price.toFixed(4)}</td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${tradeValue.toFixed(2)}</td>
+                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${fee.toFixed(2)}</td>
+                                <td className="py-px px-2"><span className={`tabular-nums tracking-tight ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}</span></td>
                               </tr>
                             );
                           })}
                         </tbody>
                       </table>
-                      {!showFightOnly && hasMoreTrades && (
-                        <div className="p-3 border-t border-surface-800 text-center">
-                          <button onClick={() => fetchMoreTrades()} disabled={isLoadingMoreTrades} className="text-xs text-surface-300 hover:text-white transition-colors disabled:opacity-50">{isLoadingMoreTrades ? 'Loading...' : 'Load More'}</button>
-                        </div>
-                      )}
+                      {/* Pagination removed — trade history loads in one batch */}
                       </div>
                     </div>
                   ) : (
@@ -2273,17 +2351,18 @@ function TradePageContent() {
                           const valB = getValue(b);
                           if (typeof valA === 'string') return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
                           return orderHistorySort.desc ? valB - valA : valA - valB;
-                        }).slice(0, 50).map((order: any, index: number) => {
-                          const orderSide = order.side === 'bid' ? 'Long' : 'Short';
+                        }).slice(0, 150).map((order: any, index: number) => {
+                          const orderSide = (order.side === 'bid' || order.side === 'BUY' || order.side === 'LONG' || order.side?.includes('long')) ? 'Long' : 'Short';
                           const rawOrderType = order.order_type || 'limit';
                           const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                           const filledAmount = parseFloat(order.filled_amount || '0');
                           const initialAmount = parseFloat(order.amount || '0');
                           const avgFilledPrice = parseFloat(order.average_filled_price || '0');
                           const stopPrice = parseFloat(order.stop_price || '0');
-                          const initialPrice = parseFloat(order.initial_price || '0');
+                          const initialPrice = parseFloat(order.initial_price || order.price || '0');
                           const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
                           const isRegularMarketOrder = rawOrderType === 'market';
+                      const isStopOrder = rawOrderType.includes('stop') && !isTpSlOrder;
                           const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
                           let status = 'Open';
                           const rawStatus = order.order_status || '';
@@ -2309,36 +2388,36 @@ function TradePageContent() {
                             <div key={order.order_id || index} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
                               {/* Header */}
                               <div className="flex items-center gap-2 mb-2.5">
-                                <span className="font-medium text-white text-sm">{order.symbol}</span>
+                                <span className="font-medium text-white text-sm">{order.symbol?.replace('-USD', '')}</span>
                                 <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderSide === 'Long' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>{orderSide}</span>
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-700 text-surface-300">{orderType}</span>
-                                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
+                                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Triggered' ? 'bg-win-500/20 text-win-400' : (status === 'Cancelled' || status === 'Margin Cancel') ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
                               </div>
                               {/* Data grid */}
                               <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
                                 <div>
                                   <div className="text-surface-500">Time</div>
-                                  <div className="font-mono text-surface-300">{timestamp ? `${timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-300">{timestamp ? `${timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Original Size</div>
-                                  <div className="font-mono text-surface-200">{isTpSlOrder ? 'N/A' : `${initialAmount.toFixed(5)} ${order.symbol}`}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-200">{initialAmount > 0 ? initialAmount.toFixed(5) : 'N/A'}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Filled Size</div>
-                                  <div className="font-mono text-surface-200">{isTpSlOrder ? 'N/A' : `${filledAmount.toFixed(5)} ${order.symbol}`}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-200">{filledAmount > 0 ? filledAmount.toFixed(5) : 'N/A'}</div>
                                 </div>
                                 <div>
-                                  <div className="text-surface-500">Initial Price</div>
-                                  <div className="font-mono text-surface-200">{isTpSlOrder ? formatHistPrice(stopPrice) : (isRegularMarketOrder ? 'Market' : formatHistPrice(initialPrice))}</div>
+                                  <div className="text-surface-500">{(isTpSlOrder || isStopOrder) ? 'Trigger Price' : 'Price'}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-200">{(isTpSlOrder || isStopOrder) ? (stopPrice > 0 ? formatHistPrice(stopPrice) : formatHistPrice(initialPrice)) : (isRegularMarketOrder ? 'Market' : formatHistPrice(initialPrice))}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Avg Filled Price</div>
-                                  <div className="font-mono text-surface-200">{isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatHistPrice(avgFilledPrice) : 'N/A')}</div>
+                                  <div className="tabular-nums tracking-tight text-surface-200">{avgFilledPrice > 0 ? formatHistPrice(avgFilledPrice) : 'N/A'}</div>
                                 </div>
                                 <div>
                                   <div className="text-surface-500">Order Value</div>
-                                  <div className="font-mono text-win-400">{isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}</div>
+                                  <div className="tabular-nums tracking-tight text-win-400">{orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A'}</div>
                                 </div>
                               </div>
                             </div>
@@ -2385,17 +2464,18 @@ function TradePageContent() {
                           const valB = getValue(b);
                           if (typeof valA === 'string') return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
                           return orderHistorySort.desc ? valB - valA : valA - valB;
-                        }).slice(0, 50).map((order: any, index: number) => {
-                          const orderSide = order.side === 'bid' ? 'Long' : 'Short';
+                        }).slice(0, 150).map((order: any, index: number) => {
+                          const orderSide = (order.side === 'bid' || order.side === 'BUY' || order.side === 'LONG' || order.side?.includes('long')) ? 'Long' : 'Short';
                           const rawOrderType = order.order_type || 'limit';
                           const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
                           const filledAmount = parseFloat(order.filled_amount || '0');
                           const initialAmount = parseFloat(order.amount || '0');
                           const avgFilledPrice = parseFloat(order.average_filled_price || '0');
                           const stopPrice = parseFloat(order.stop_price || '0');
-                          const initialPrice = parseFloat(order.initial_price || '0');
+                          const initialPrice = parseFloat(order.initial_price || order.price || '0');
                           const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
                           const isRegularMarketOrder = rawOrderType === 'market';
+                      const isStopOrder = rawOrderType.includes('stop') && !isTpSlOrder;
                           const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
                           let status = 'Open';
                           const rawStatus = order.order_status || '';
@@ -2404,8 +2484,10 @@ function TradePageContent() {
                               case 'open': status = 'Open'; break;
                               case 'partially_filled': status = 'Partial'; break;
                               case 'filled': status = 'Filled'; break;
-                              case 'cancelled': status = 'Cancelled'; break;
+                              case 'cancelled': case 'canceled': status = 'Cancelled'; break;
+                              case 'triggered': status = 'Triggered'; break;
                               case 'rejected': status = 'Rejected'; break;
+                              case 'margincanceled': status = 'Margin Cancel'; break;
                               default: status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
                             }
                           }
@@ -2417,19 +2499,19 @@ function TradePageContent() {
                           };
                           return (
                             <tr key={order.order_id || index} className="border-surface-800/50 hover:bg-surface-800/30">
-                              <td className="py-2 px-2 text-surface-300 font-mono whitespace-nowrap">{order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</td>
-                              <td className="py-2 px-2 font-medium text-white">{order.symbol}</td>
-                              <td className={`py-2 px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>{orderSide}</td>
-                              <td className="py-2 px-2 text-surface-300">{orderType}</td>
-                              <td className="py-2 px-2 font-mono text-surface-200 whitespace-nowrap">{isTpSlOrder ? 'N/A' : `${initialAmount.toFixed(5)} ${order.symbol}`}</td>
-                              <td className="py-2 px-2 font-mono text-surface-200 whitespace-nowrap">{isTpSlOrder ? 'N/A' : `${filledAmount.toFixed(5)} ${order.symbol}`}</td>
-                              <td className="py-2 px-2 font-mono text-surface-200">{isTpSlOrder ? formatPrice(stopPrice) : (isRegularMarketOrder ? 'Market' : formatPrice(initialPrice))}</td>
-                              <td className="py-2 px-2 font-mono text-surface-200">{isTpSlOrder ? 'N/A' : (avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A')}</td>
-                              <td className="py-2 px-2 font-mono text-win-400">{isTpSlOrder ? 'N/A' : (orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A')}</td>
-                              <td className="py-2 px-2">
-                                <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Cancelled' ? 'bg-surface-600/50 text-surface-400' : status === 'Triggered' ? 'bg-surface-500/20 text-surface-300' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
+                              <td className="py-px px-2 text-surface-300 tabular-nums tracking-tight whitespace-nowrap">{order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</td>
+                              <td className="py-px px-2 font-medium text-white">{order.symbol?.replace('-USD', '')}</td>
+                              <td className={`py-px px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>{orderSide}</td>
+                              <td className="py-px px-2 text-surface-300">{orderType}</td>
+                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200 whitespace-nowrap">{initialAmount > 0 ? initialAmount.toFixed(5) : 'N/A'}</td>
+                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200 whitespace-nowrap">{filledAmount > 0 ? filledAmount.toFixed(5) : 'N/A'}</td>
+                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200">{(isTpSlOrder || isStopOrder) ? (stopPrice > 0 ? formatPrice(stopPrice) : formatPrice(initialPrice)) : (isRegularMarketOrder ? 'Market' : formatPrice(initialPrice))}</td>
+                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200">{avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A'}</td>
+                              <td className="py-px px-2 tabular-nums tracking-tight text-win-400">{orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A'}</td>
+                              <td className="py-px px-2">
+                                <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Triggered' ? 'bg-win-500/20 text-win-400' : (status === 'Cancelled' || status === 'Margin Cancel') ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
                               </td>
-                              <td className="py-2 px-2 font-mono text-surface-400">{order.order_id || '-'}</td>
+                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-400">{order.order_id || '-'}</td>
                             </tr>
                           );
                         })}
@@ -2470,8 +2552,8 @@ function TradePageContent() {
 
               {/* ═══ Warning Banners (top, block trading) ═══ */}
 
-              {/* Pacifica Beta Access Required Warning */}
-              {isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
+              {/* ── Pacifica-specific warnings ── */}
+              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-orange-500/10 rounded border border-orange-500/30">
                   <div className="text-[10px] xl:text-xs text-orange-400 font-semibold mb-1.5 xl:mb-2 uppercase">Beta Access Required</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
@@ -2487,15 +2569,14 @@ function TradePageContent() {
                   </a>
                 </div>
               )}
-              {/* No Pacifica Account Warning */}
-              {isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
+              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
                   <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No Pacifica Account</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
                     Deposit funds on Pacifica first to start trading.
                   </p>
                   <a
-                    href={PACIFICA_DEPOSIT_URL}
+                    href={exchangeConfig.depositUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block w-full py-1.5 bg-surface-500 hover:bg-surface-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
@@ -2504,9 +2585,7 @@ function TradePageContent() {
                   </a>
                 </div>
               )}
-
-              {/* Builder Code Authorization Required - One-time approval */}
-              {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
+              {exchangeType === 'pacifica' && isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
                 <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-xl">
                   <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Authorization Required</div>
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
@@ -2523,6 +2602,19 @@ function TradePageContent() {
                     {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
                   </button>
                 </div>
+              )}
+
+              {/* ── Hyperliquid-specific warnings ── */}
+              {exchangeType === 'hyperliquid' && isAuthenticated && !evmWalletAddress && (
+                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Connect EVM Wallet</div>
+                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                    Connect your MetaMask or EVM wallet to trade on Hyperliquid.
+                  </p>
+                </div>
+              )}
+              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress && !agentApproved && (
+                <HyperliquidSetupInline />
               )}
 
               {!canTrade && !isAuthenticated && (
@@ -3214,7 +3306,7 @@ function TradePageContent() {
               {isAuthenticated && pacificaConnected && account && (
                 <div className="flex gap-1.5 xl:gap-2 mt-3 xl:mt-4">
                   <a
-                    href="https://app.pacifica.fi?referral=TFC"
+                    href={exchangeConfig.depositUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
@@ -3260,7 +3352,7 @@ function TradePageContent() {
                     >
                       <span className="font-medium">Account Info</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-white">${equity.toFixed(2)}</span>
+                        <span className="tabular-nums tracking-tight text-white">${equity.toFixed(2)}</span>
                         <svg className={`w-3.5 h-3.5 transition-transform ${showAccountStats ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
@@ -3321,13 +3413,13 @@ function TradePageContent() {
                         </div>
                         <div className="flex justify-between group relative">
                           <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Real-time Updates</span>
-                          <span className={`font-mono flex items-center gap-1.5 ${pacificaWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${pacificaWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
-                            {pacificaWsConnected ? 'Live' : 'Polling'}
+                          <span className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
+                            {exchangeWsConnected ? 'Live' : 'Polling'}
                           </span>
                           <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            {pacificaWsConnected
-                              ? 'Connected to Pacifica WebSocket for instant position and order updates'
+                            {exchangeWsConnected
+                              ? 'Connected to WebSocket for instant position and order updates'
                               : 'Using HTTP polling for updates (every 10 seconds). WebSocket connection not available.'}
                           </div>
                         </div>
@@ -3421,21 +3513,22 @@ function TradePageContent() {
             {/* Order form content */}
             <div className="px-4 pb-8">
               {/* Warning Banners */}
-              {isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
+              {/* ── Pacifica-specific warnings ── */}
+              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
                 <div className="mb-3 p-3 bg-orange-500/10 rounded border border-orange-500/30">
                   <div className="text-xs text-orange-400 font-semibold mb-2 uppercase">Beta Access Required</div>
                   <p className="text-xs text-surface-400 mb-2">Your wallet needs Pacifica beta access.</p>
                   <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded transition-colors text-center">Visit Pacifica</a>
                 </div>
               )}
-              {isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
+              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
                 <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
                   <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">No Pacifica Account</div>
                   <p className="text-xs text-surface-400 mb-2">Deposit funds on Pacifica first.</p>
-                  <a href={PACIFICA_DEPOSIT_URL} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</a>
+                  <a href={exchangeConfig.depositUrl} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</a>
                 </div>
               )}
-              {isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
+              {exchangeType === 'pacifica' && isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
                 <div className="mb-3 p-3 bg-surface-800 rounded-xl">
                   <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">Authorization Required</div>
                   <p className="text-xs text-surface-400 mb-1.5">Authorize TFC builder code. One-time approval.</p>
@@ -3444,6 +3537,16 @@ function TradePageContent() {
                     {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
                   </button>
                 </div>
+              )}
+              {/* ── Hyperliquid-specific warnings ── */}
+              {exchangeType === 'hyperliquid' && isAuthenticated && !evmWalletAddress && (
+                <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
+                  <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">Connect EVM Wallet</div>
+                  <p className="text-xs text-surface-400 mb-2">Connect your MetaMask or EVM wallet to trade on Hyperliquid.</p>
+                </div>
+              )}
+              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress && !agentApproved && (
+                <HyperliquidSetupInline />
               )}
               {!canTrade && !isAuthenticated && (
                 <div className="mb-3 p-3 bg-surface-800 rounded-lg text-center text-sm text-surface-400">
@@ -3780,7 +3883,7 @@ function TradePageContent() {
               {isAuthenticated && pacificaConnected && account && (
                 <div className="flex gap-2 mt-4">
                   <a
-                    href="https://app.pacifica.fi?referral=TFC"
+                    href={exchangeConfig.depositUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
@@ -3820,7 +3923,7 @@ function TradePageContent() {
                     >
                       <span className="font-medium">Account Info</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-white">${equity.toFixed(2)}</span>
+                        <span className="tabular-nums tracking-tight text-white">${equity.toFixed(2)}</span>
                         <svg className={`w-3.5 h-3.5 transition-transform ${showAccountStats ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
@@ -3842,9 +3945,9 @@ function TradePageContent() {
                         <div className="flex justify-between"><span className="text-surface-400">Maintenance Margin</span><span className="text-white font-mono">${maintenanceMargin.toFixed(2)}</span></div>
                         <div className="flex justify-between">
                           <span className="text-surface-400">Real-time Updates</span>
-                          <span className={`font-mono flex items-center gap-1.5 ${pacificaWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${pacificaWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
-                            {pacificaWsConnected ? 'Live' : 'Polling'}
+                          <span className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
+                            {exchangeWsConnected ? 'Live' : 'Polling'}
                           </span>
                         </div>
                       </div>

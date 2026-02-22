@@ -6,6 +6,7 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
 import { PacificaConnectionSync } from './PacificaConnectionSync';
 import { PacificaWebSocketInit } from './PacificaWebSocketInit';
+import { HyperliquidConnectionSync } from './HyperliquidConnectionSync';
 import { getDeviceContext, type DeviceContext } from '@/lib/mobile';
 
 // Import wallet adapter styles
@@ -96,6 +97,7 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
         <WalletModalProvider>
           <PacificaConnectionSync />
           <PacificaWebSocketInit />
+          <HyperliquidConnectionSync />
           {children}
         </WalletModalProvider>
       </WalletProvider>

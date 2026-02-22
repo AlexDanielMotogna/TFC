@@ -108,14 +108,14 @@ export async function POST(request: Request) {
         throw new BadRequestError(`Maximum stake per fight is $${StakeLimits.maxPerFight()} USDC`);
       }
 
-      // Check if user has active Pacifica connection
-      const connection = await prisma.exchangeConnection.findUnique({
-        where: { userId: user.userId },
-        select: { isActive: true, accountAddress: true },
+      // Check if user has any active exchange connection
+      const connection = await prisma.exchangeConnection.findFirst({
+        where: { userId: user.userId, isActive: true },
+        select: { isActive: true, accountAddress: true, exchangeType: true },
       });
 
-      if (!connection?.isActive) {
-        throw new BadRequestError('Active Pacifica connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
+      if (!connection) {
+        throw new BadRequestError('Active exchange connection required', ErrorCode.ERR_PACIFICA_CONNECTION_REQUIRED);
       }
 
       // MVP-1: Check if user already has an active fight (LIVE or WAITING)

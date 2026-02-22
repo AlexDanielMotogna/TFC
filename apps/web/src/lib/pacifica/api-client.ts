@@ -5,7 +5,7 @@
  * All operations require wallet signatures for authentication.
  */
 
-const PACIFICA_API_URL = process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://api.pacifica.fi';
+const PACIFICA_API_URL = process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
 interface PacificaApiResponse<T = any> {
   success: boolean;

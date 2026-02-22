@@ -31,9 +31,9 @@ export async function GET(request: Request) {
 
       // Filter by Pacifica connection
       if (hasPacifica === 'true') {
-        where.exchangeConnection = { isActive: true };
+        where.exchangeConnections = { some: { isActive: true, exchangeType: 'pacifica' } };
       } else if (hasPacifica === 'false') {
-        where.exchangeConnection = null;
+        where.exchangeConnections = { none: { exchangeType: 'pacifica', isActive: true } };
       }
 
       // Filter by role
@@ -46,7 +46,8 @@ export async function GET(request: Request) {
         prisma.user.findMany({
           where,
           include: {
-            exchangeConnection: {
+            exchangeConnections: {
+              where: { exchangeType: 'pacifica' },
               select: { isActive: true, accountAddress: true },
             },
             _count: {
@@ -64,18 +65,21 @@ export async function GET(request: Request) {
       ]);
 
       // Transform for response
-      const transformedUsers = users.map((user) => ({
-        id: user.id,
-        handle: user.handle,
-        walletAddress: user.walletAddress,
-        avatarUrl: user.avatarUrl,
-        role: user.role,
-        createdAt: user.createdAt,
-        hasPacifica: user.exchangeConnection?.isActive || false,
-        pacificaAddress: user.exchangeConnection?.accountAddress || null,
-        fightsCount: user._count.fightParticipants,
-        tradesCount: user._count.trades,
-      }));
+      const transformedUsers = users.map((user) => {
+        const pacifica = user.exchangeConnections?.[0];
+        return {
+          id: user.id,
+          handle: user.handle,
+          walletAddress: user.walletAddress,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
+          createdAt: user.createdAt,
+          hasPacifica: pacifica?.isActive || false,
+          pacificaAddress: pacifica?.accountAddress || null,
+          fightsCount: user._count.fightParticipants,
+          tradesCount: user._count.trades,
+        };
+      });
 
       return Response.json({
         success: true,

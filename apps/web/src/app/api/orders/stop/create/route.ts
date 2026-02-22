@@ -92,6 +92,7 @@ export async function POST(request: Request) {
       reduceOnly: reduce_only,
       exchangeOrderId: result.data?.order_id as number,
       fightId: fight_id,
+      exchangeType,
       success: true,
     }).catch(err => console.error('Failed to record create stop action:', err));
 

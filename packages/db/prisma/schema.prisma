@@ -47,7 +47,7 @@ model User {
   referralCode String? @unique @map("referral_code")
   referredById String? @map("referred_by_id")
 
-  exchangeConnection   ExchangeConnection?
+  exchangeConnections  ExchangeConnection[]
   fightParticipants    FightParticipant[]
   createdFights        Fight[]               @relation("FightCreator")
   leaderboardSnapshots LeaderboardSnapshot[]
@@ -68,7 +68,7 @@ model User {
 model ExchangeConnection {
   id String @id @default(uuid())
 
-  userId String @unique @map("user_id")
+  userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Which exchange this connection is for
@@ -104,6 +104,8 @@ model ExchangeConnection {
   connectedAt DateTime @default(now()) @map("connected_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  @@unique([userId, exchangeType])
+  @@index([userId])
   @@map("pacifica_connections")
 }
 
@@ -491,6 +493,10 @@ model TfcOrderAction {
   // User who performed the action
   userId        String @map("user_id")
   walletAddress String @map("wallet_address")
+
+  // Exchange context (which exchange + signer address)
+  exchangeType  String? @map("exchange_type")   // "pacifica" | "hyperliquid" | "lighter"
+  signerAddress String? @map("signer_address")  // HL agent wallet, Lighter API key, Pacifica auth wallet
 
   // Action details
   actionType OrderActionType @map("action_type")

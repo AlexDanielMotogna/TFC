@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, memo, useState } from 'react';
 import { PacificaDatafeed, intervalToResolution, resolutionToInterval } from '@/lib/tradingview/PacificaDatafeed';
+import { HyperliquidDatafeed } from '@/lib/tradingview/HyperliquidDatafeed';
 import { Spinner } from './Spinner';
+import type { ExchangeType } from '@tfc/shared';
 
 interface TradingViewChartAdvancedProps {
   symbol: string;
   interval?: string;
   height?: number;
   currentPrice?: number;
+  exchangeType?: ExchangeType;
   onSymbolChange?: (symbol: string) => void;
   onIntervalChange?: (interval: string) => void;
   onQuickOrder?: (price: number, side: 'LONG' | 'SHORT', clickY?: number) => void;
@@ -52,6 +55,7 @@ function TradingViewChartAdvancedComponent({
   interval = '5m',
   height = 460,
   currentPrice = 0,
+  exchangeType = 'pacifica',
   onSymbolChange,
   onIntervalChange,
   onQuickOrder,
@@ -247,7 +251,11 @@ function TradingViewChartAdvancedComponent({
     const widgetOptions = {
       container: containerRef.current,
       library_path: '/charting_library/',
-      datafeed: new PacificaDatafeed(),
+      datafeed: (() => {
+        const feed = exchangeType === 'hyperliquid' ? new HyperliquidDatafeed() : new PacificaDatafeed();
+        console.log(`[TradingView] Using datafeed for exchange: ${exchangeType}`, feed.constructor.name);
+        return feed;
+      })(),
       symbol: symbol,
       interval: tvResolution,
       locale: 'en',
@@ -453,7 +461,7 @@ function TradingViewChartAdvancedComponent({
       isReadyRef.current = false;
       setIsChartReady(false);
     };
-  }, [isScriptLoaded]);
+  }, [isScriptLoaded, exchangeType]);
 
   // Update symbol/interval when props change
   useEffect(() => {

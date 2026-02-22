@@ -25,5 +25,9 @@ export class LighterWsAdapter implements ExchangeWsAdapter {
   subscribeAccount(_accountId: string): void {}
   unsubscribeAccount(): void {}
   subscribePrices(): void {}
+  subscribeOrderbook(_symbol: string, _aggLevel?: number): void {}
+  unsubscribeOrderbook(_symbol: string): void {}
+  subscribeCandles(_symbol: string, _interval: string): void {}
+  unsubscribeCandles(_symbol: string, _interval: string): void {}
   refresh(): void {}
 }

@@ -39,6 +39,8 @@ interface RecordOrderActionParams {
   fightId?: string;
   success?: boolean;
   errorMessage?: string;
+  exchangeType?: string;
+  signerAddress?: string;
 }
 
 /**
@@ -46,12 +48,19 @@ interface RecordOrderActionParams {
  */
 export async function recordOrderAction(params: RecordOrderActionParams): Promise<void> {
   try {
-    // Find user by wallet address
-    const user = await prisma.user.findUnique({
-      where: { walletAddress: params.walletAddress },
+    // Normalize address to lowercase for case-insensitive matching
+    // EVM addresses (Hyperliquid) use mixed-case checksums but DB stores lowercase
+    const normalizedAddress = params.walletAddress.toLowerCase();
+
+    // Find user by exchange connection (supports all exchanges: Pacifica, Hyperliquid, etc.)
+    const connection = await prisma.exchangeConnection.findUnique({
+      where: { accountAddress: normalizedAddress },
     });
 
-    const userId = user?.id || 'unknown';
+    // Fallback to User.walletAddress for legacy Pacifica-only lookups
+    const userId = connection?.userId
+      || (await prisma.user.findUnique({ where: { walletAddress: params.walletAddress } }))?.id
+      || 'unknown';
 
     // Use size as alias for amount if amount not provided
     const amountValue = params.amount || params.size;
@@ -60,6 +69,8 @@ export async function recordOrderAction(params: RecordOrderActionParams): Promis
       data: {
         userId,
         walletAddress: params.walletAddress,
+        exchangeType: params.exchangeType || connection?.exchangeType || null,
+        signerAddress: params.signerAddress || null,
         actionType: params.actionType as any,
         symbol: params.symbol,
         side: params.side || null,
