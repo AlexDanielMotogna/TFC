@@ -17,6 +17,7 @@ import { CloseOppositeModal } from '@/components/CloseOppositeModal';
 import { MarketSelector } from '@/components/MarketSelector';
 import { Toggle } from '@/components/Toggle';
 import { WithdrawModal } from '@/components/WithdrawModal';
+import { DepositModal } from '@/components/DepositModal';
 import { EditOrderModal } from '@/components/EditOrderModal';
 import { BetaGate } from '@/components/BetaGate';
 import { AiBiasWidget } from '@/components/AiBiasWidget';
@@ -181,8 +182,9 @@ function TradePageContent() {
     oppositePosition: Position | null;
   } | null>(null);
 
-  // Withdraw modal state
+  // Withdraw/Deposit modal state
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
 
   // Edit order modal state
   const [showEditOrderModal, setShowEditOrderModal] = useState(false);
@@ -1147,13 +1149,11 @@ function TradePageContent() {
   const activeOrderHistory = showFightOnly && fightId ? fightOrderHistory : orderHistoryData;
 
   // Fee percentages (used in mobile info tab + order form)
-  // Exchange-aware: Pacifica has dynamic fees + builder fee; HL has fixed tier-based fees
-  const takerFeePercent = exchangeType === 'hyperliquid'
-    ? '0.0450' // HL base taker fee (0.045%) — no builder fee
-    : ((parseFloat(account?.takerFee || '0.0007') + TRADECLUB_FEE) * 100).toFixed(4);
-  const makerFeePercent = exchangeType === 'hyperliquid'
-    ? '0.0150' // HL base maker fee (0.015%) — no builder fee
-    : ((parseFloat(account?.makerFee || '0.000575') + TRADECLUB_FEE) * 100).toFixed(4);
+  // Both exchanges charge exchange fee + TRADECLUB_FEE (builder fee) on every trade
+  const baseTakerFee = parseFloat(account?.takerFee || '0.0007');
+  const baseMakerFee = parseFloat(account?.makerFee || '0.000575');
+  const takerFeePercent = ((baseTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+  const makerFeePercent = ((baseMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
 
   // Calculate real-time unrealized PnL from positions (updates with WebSocket prices)
   const realtimeUnrealizedPnl = displayPositions.reduce((sum, pos) => sum + pos.unrealizedPnl, 0);
@@ -2575,14 +2575,12 @@ function TradePageContent() {
                   <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
                     Deposit funds on Pacifica first to start trading.
                   </p>
-                  <a
-                    href={exchangeConfig.depositUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setShowDepositModal(true)}
                     className="block w-full py-1.5 bg-surface-500 hover:bg-surface-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                   >
                     Deposit on Pacifica
-                  </a>
+                  </button>
                 </div>
               )}
               {exchangeType === 'pacifica' && isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
@@ -3305,15 +3303,13 @@ function TradePageContent() {
               {/* Deposit/Withdraw buttons */}
               {isAuthenticated && pacificaConnected && account && (
                 <div className="flex gap-1.5 xl:gap-2 mt-3 xl:mt-4">
-                  <a
-                    href={exchangeConfig.depositUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => setShowDepositModal(true)}
                     className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                   >
                     <FileDownloadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
                     Deposit
-                  </a>
+                  </button>
                   <button
                     onClick={() => setShowWithdrawModal(true)}
                     className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
@@ -3525,7 +3521,7 @@ function TradePageContent() {
                 <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
                   <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">No Pacifica Account</div>
                   <p className="text-xs text-surface-400 mb-2">Deposit funds on Pacifica first.</p>
-                  <a href={exchangeConfig.depositUrl} target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</a>
+                  <button onClick={() => setShowDepositModal(true)} className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</button>
                 </div>
               )}
               {exchangeType === 'pacifica' && isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
@@ -3882,15 +3878,13 @@ function TradePageContent() {
               {/* Deposit/Withdraw buttons */}
               {isAuthenticated && pacificaConnected && account && (
                 <div className="flex gap-2 mt-4">
-                  <a
-                    href={exchangeConfig.depositUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => { setShowDepositModal(true); closeOrderSheet(); }}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
                   >
                     <FileDownloadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
                     Deposit
-                  </a>
+                  </button>
                   <button
                     onClick={() => { setShowWithdrawModal(true); closeOrderSheet(); }}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
@@ -3984,6 +3978,12 @@ function TradePageContent() {
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
         availableBalance={account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null}
+      />
+
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
       />
 
       {/* Edit Order Modal */}

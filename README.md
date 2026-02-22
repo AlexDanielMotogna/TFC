@@ -207,36 +207,109 @@ docker-compose up -d
 
 ## Git Workflow
 
-### Branch Workflow
+### Branch Structure
 
-1. **Keep your branch up to date**
+```
+main ──────────────────────────────────── stable (Pacifica-only)
+  │                                         ↑ PRs for hotfixes
+  │                                         ↑ merge develop when multidex ready
+  │
+  ├── staging ─────────────────────────── Railway Staging auto-deploy
+  │     ↑ merge from main (stable) or develop (multidex testing)
+  │
+  └── develop ─────────────────────────── multidex integration
+        ↑ PRs from feature/* branches
+        ├── feature/hl-deposit-withdraw
+        ├── feature/lighter-adapter
+        └── fix/hl-something
+```
+
+### Branch Roles
+
+| Branch | Purpose | Deploys to | Protected |
+|--------|---------|------------|-----------|
+| `main` | Stable release (Pacifica-only) | Production (future) | PR required |
+| `staging` | What's live on Railway | Railway Staging | PR required |
+| `develop` | Multidex integration | Railway Dev (optional) | PR required |
+| `feature/*`, `fix/*` | Individual work | nowhere | No |
+
+### Daily Workflows
+
+**Multidex feature work (most common):**
+```bash
+git checkout develop && git pull
+git checkout -b feature/my-feature
+# ... work ...
+git push -u origin feature/my-feature
+# → PR to develop
+```
+
+**Hotfix on stable version:**
+```bash
+git checkout main && git pull
+git checkout -b fix/urgent-bug
+# ... fix ...
+git push -u origin fix/urgent-bug
+# → PR to main
+# Then: PR main → staging to deploy fix
+```
+
+**Test multidex on Railway staging:**
+```bash
+# PR develop → staging (or merge directly)
+git checkout staging
+git merge develop
+git push origin staging
+# Railway auto-deploys
+```
+
+**Ship multidex to stable (when ready):**
+```bash
+# PR develop → main
+# After merge: PR main → staging
+```
+
+### Keeping Your Branch Up to Date
 
 ```bash
-# Fetch latest changes from main
-git fetch origin main
+# Fetch latest changes
+git fetch origin
 
-# Rebase your branch onto main (DO NOT MERGE use REBASE)
+# Rebase your branch onto its parent (DO NOT MERGE, use REBASE)
+# For feature branches based on develop:
+git pull origin develop --rebase
+
+# For hotfix branches based on main:
 git pull origin main --rebase
 
-# Force push your rebased branch (your branch only, never main)
+# Force push your rebased branch (your branch only, never protected branches)
 git push --force-with-lease
 ```
 
-2. **Creating Pull Requests**
+### Creating & Merging Pull Requests
 
-- Create PR from your feature branch to `main`
+- Create PR from your feature branch to its target (`develop`, `main`, or `staging`)
 - Keep commits focused and atomic
 - Write clear commit messages
+- **Always use "Squash and merge"** when merging PRs to keep history clean
 
-3. **Merging Pull Requests**
+### Environment Variables (Railway per-environment)
 
-- **Always use "Squash and merge"** when merging PRs
-- This keeps the main branch history clean with one commit per feature
-- Write a clear squash commit message summarizing the PR
+| Variable | Staging | Dev | Production (future) |
+|----------|---------|-----|---------------------|
+| `NEXT_PUBLIC_HYPERLIQUID_API_URL` | testnet | testnet | mainnet |
+| `NEXT_PUBLIC_HYPERLIQUID_WS_URL` | testnet | testnet | mainnet |
+| `DATABASE_URL` | staging DB | Dev DB | production DB |
+| `NODE_ENV` | production | production | production |
 
-### Important Rules
+No code changes needed — Railway manages env vars per service.
 
-- **Never use regular merge commits** - always rebase or squash
-- **Never force push to `main`**
-- **Always rebase your feature branch** before creating/updating a PR
-- Use `git push --force-with-lease` (not `--force`) to safely force push
+### Rules
+
+- **Never push directly** to `main`, `staging`, or `develop` — always PR
+- **Never merge `develop` into `main`** until multidex is fully tested
+- **`staging` always reflects what's live** — merge into it deliberately
+- **Never use regular merge commits** on feature branches — always rebase or squash
+- **Never force push** to `main`, `staging`, or `develop`
+- Use `git push --force-with-lease` (not `--force`) to safely force push feature branches
+- Feature branches are short-lived — delete after merge

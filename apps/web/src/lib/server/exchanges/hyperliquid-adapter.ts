@@ -375,22 +375,30 @@ export class HyperliquidAdapter implements ExchangeAdapter {
   // ─── Account Data ──────────────────────────────────────────
 
   async getAccount(accountId: string): Promise<Account> {
-    const state = await hlInfo<{
-      assetPositions: Array<{ position: HlPosition }>;
-      marginSummary: {
-        accountValue: string;
-        totalMarginUsed: string;
-        totalNtlPos: string;
-        totalRawUsd: string;
-      };
-      crossMarginSummary: {
-        accountValue: string;
-        totalMarginUsed: string;
-        totalNtlPos: string;
-        totalRawUsd: string;
-      };
-      withdrawable: string;
-    }>({ type: 'clearinghouseState', user: accountId });
+    // Fetch account state + user fees in parallel
+    const [state, fees] = await Promise.all([
+      hlInfo<{
+        assetPositions: Array<{ position: HlPosition }>;
+        marginSummary: {
+          accountValue: string;
+          totalMarginUsed: string;
+          totalNtlPos: string;
+          totalRawUsd: string;
+        };
+        crossMarginSummary: {
+          accountValue: string;
+          totalMarginUsed: string;
+          totalNtlPos: string;
+          totalRawUsd: string;
+        };
+        withdrawable: string;
+      }>({ type: 'clearinghouseState', user: accountId }),
+      hlInfo<{ userCrossRate: string; userAddRate: string }>({ type: 'userFees', user: accountId })
+        .catch((err) => {
+          console.warn('[HLAdapter] Failed to fetch userFees, using defaults:', err.message);
+          return null;
+        }),
+    ]);
 
     const margin = state.marginSummary;
     const unrealizedPnl = state.assetPositions.reduce(
@@ -411,8 +419,8 @@ export class HyperliquidAdapter implements ExchangeAdapter {
       availableToSpend: availableToTrade.toFixed(6),
       marginUsed: margin.totalMarginUsed,
       unrealizedPnl: unrealizedPnl.toString(),
-      makerFee: '0.00015', // 1.5 bps maker (HL base tier)
-      takerFee: '0.00045', // 4.5 bps taker (HL base tier)
+      makerFee: fees?.userAddRate || '0.00015',   // dynamic maker (add) rate, fallback to base tier
+      takerFee: fees?.userCrossRate || '0.00045', // dynamic taker (cross) rate, fallback to base tier
       metadata: {
         crossMarginSummary: state.crossMarginSummary,
         availableToWithdraw: state.withdrawable,

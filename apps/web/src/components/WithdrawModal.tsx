@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useWithdraw } from '@/hooks';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { Portal } from './Portal';
 
 interface WithdrawModalProps {
@@ -13,6 +14,7 @@ interface WithdrawModalProps {
 export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawModalProps) {
   const [amount, setAmount] = useState('');
   const withdrawMutation = useWithdraw();
+  const { exchangeType } = useExchangeContext();
 
   // Reset amount when modal opens
   useEffect(() => {
@@ -83,10 +85,19 @@ export function WithdrawModal({ isOpen, onClose, availableBalance }: WithdrawMod
             </div>
           </div>
 
-          {/* Info Box */}
+          {/* Info Box — exchange-specific */}
           <div className="bg-surface-800 rounded-xl p-3 text-xs text-surface-400 space-y-1 mb-4">
-            <p>Daily withdrawal limit is $250,000, resets at UTC 00:00.</p>
-            <p>Withdrawal fee is $1.</p>
+            {exchangeType === 'hyperliquid' ? (
+              <>
+                <p>Withdrawal fee is $1. Funds arrive on Arbitrum in ~5 minutes.</p>
+                <p>Signed with your connected EVM wallet (not the agent wallet).</p>
+              </>
+            ) : (
+              <>
+                <p>Daily withdrawal limit is $250,000, resets at UTC 00:00.</p>
+                <p>Withdrawal fee is $1.</p>
+              </>
+            )}
           </div>
 
           {/* Amount Input */}

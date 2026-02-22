@@ -12,6 +12,7 @@ import { ExchangeSwitcher } from '@/components/ExchangeSwitcher';
 import { NotificationBell } from '@/components/NotificationBell';
 import { PrizesBanner } from '@/components/PrizesBanner';
 import { WithdrawModal } from '@/components/WithdrawModal';
+import { DepositModal } from '@/components/DepositModal';
 import { MobilePhantomRedirect } from '@/components/MobilePhantomRedirect';
 import { NoPacificaModal } from '@/components/NoPacificaModal';
 import { QuickPositionsBar, QuickPositionsDropdown } from '@/components/QuickPositionsBar';
@@ -29,7 +30,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 
-const PACIFICA_DEPOSIT_URL = 'https://app.pacifica.fi?referral=TFC';
+// Deposit URL moved to DepositModal — no longer hardcoded here
 
 // Wallet icon for balance
 function WalletIcon({ className }: { className?: string }) {
@@ -74,6 +75,7 @@ export function AppShell({ children }: AppShellProps) {
   // Wallet dropdown state
   const [showWalletDropdown, setShowWalletDropdown] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
   const mobileDropdownRef = useRef<HTMLDivElement>(null);
@@ -106,7 +108,7 @@ export function AppShell({ children }: AppShellProps) {
     e.stopPropagation();
     e.preventDefault();
     setShowWalletDropdown(false);
-    window.open(PACIFICA_DEPOSIT_URL, '_blank');
+    setShowDepositModal(true);
   };
 
   const handleWithdrawClick = (e: React.MouseEvent) => {
@@ -476,6 +478,12 @@ export function AppShell({ children }: AppShellProps) {
         isOpen={showWithdrawModal}
         onClose={() => setShowWithdrawModal(false)}
         availableBalance={withdrawableBalance}
+      />
+
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={showDepositModal}
+        onClose={() => setShowDepositModal(false)}
       />
 
       {/* Settings Modal */}

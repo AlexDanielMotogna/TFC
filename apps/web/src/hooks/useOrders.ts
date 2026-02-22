@@ -8,10 +8,13 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { useConfig as useWagmiConfig } from 'wagmi';
+import { toast } from 'sonner';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { useAuthStore } from '@/lib/store';
 import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
+import { IS_HL_TESTNET } from '@/lib/hyperliquid/transfers';
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_PACIFICA_BUILDER_CODE || 'TradeClubTest';
 
@@ -1269,26 +1272,80 @@ interface WithdrawParams {
 
 /**
  * Hook to withdraw funds
- * Pacifica-only — Hyperliquid withdrawals go through their own UI
+ * Exchange-aware: Pacifica uses Solana signing + backend proxy,
+ * Hyperliquid uses EIP-712 client-side signing → direct POST to HL API.
  */
 export function useWithdraw() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
+  const { exchangeType } = useExchangeContext();
+  const wagmiConfig = useWagmiConfig();
 
   return useMutation({
     mutationFn: async (params: WithdrawParams) => {
+      if (exchangeType === 'hyperliquid') {
+        // Hyperliquid: EIP-712 signing with main EVM wallet → direct to HL API
+        // Agent wallet CANNOT sign withdrawals — must use main wallet
+        const { switchChain, getWalletClient } = await import('@wagmi/core');
+        const { IS_HL_TESTNET, getHlChainId, buildWithdraw3TypedData, splitSignature, postHyperliquidExchange } = await import('@/lib/hyperliquid/transfers');
+
+        const evmAddress = useAuthStore.getState().evmWalletAddress;
+        if (!evmAddress) throw new Error('EVM wallet not connected');
+
+        const requiredChainId = getHlChainId();
+
+        // Switch wallet to the correct Arbitrum chain for signing
+        // This will prompt the user in their wallet if they're on the wrong chain
+        await switchChain(wagmiConfig, { chainId: requiredChainId });
+
+        const client = await getWalletClient(wagmiConfig, { chainId: requiredChainId });
+
+        // Build EIP-712 typed data
+        const { domain, types, primaryType, message, nonce } = buildWithdraw3TypedData(
+          params.amount,
+          evmAddress,
+        );
+
+        // Sign with main wallet
+        const signature = await client.signTypedData({
+          domain,
+          types,
+          primaryType,
+          message,
+          account: evmAddress as `0x${string}`,
+        });
+
+        // Split signature for HL API format
+        const sig = splitSignature(signature);
+
+        // POST directly to HL exchange endpoint
+        const result = await postHyperliquidExchange(
+          {
+            type: 'withdraw3',
+            hyperliquidChain: IS_HL_TESTNET ? 'Testnet' : 'Mainnet',
+            signatureChainId: `0x${requiredChainId.toString(16)}`,
+            destination: evmAddress,
+            amount: params.amount,
+            time: nonce,
+          },
+          nonce,
+          sig,
+        );
+
+        return result;
+      }
+
+      // Pacifica: Solana wallet signing → backend proxy
       if (!wallet.connected || !wallet.publicKey) {
         throw new Error('Wallet not connected');
       }
 
       const account = wallet.publicKey.toBase58();
 
-      // Sign the operation
       const { signature, timestamp } = await createSignedWithdraw(wallet, {
         amount: params.amount,
       });
 
-      // Send to backend proxy
       const response = await fetch('/api/account/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1310,11 +1367,115 @@ export function useWithdraw() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['account'] });
       queryClient.invalidateQueries({ queryKey: ['pacifica-account'] });
-      notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, { variant: 'success' });
+      if (exchangeType === 'hyperliquid') {
+        const hlApp = IS_HL_TESTNET ? 'https://app.hyperliquid-testnet.xyz' : 'https://app.hyperliquid.xyz';
+        toast.success(`Withdrawal of $${variables.amount} USDC submitted. ~5 min to arrive on Arbitrum.`, {
+          duration: 8000,
+          action: {
+            label: 'View on Hyperliquid',
+            onClick: () => window.open(hlApp, '_blank'),
+          },
+        });
+      } else {
+        notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, { variant: 'success' });
+      }
     },
     onError: (error: Error) => {
       console.error('Failed to withdraw:', error);
       notify('ORDER', 'Withdrawal Failed', `Failed to withdraw: ${error.message}`, { variant: 'error' });
+    },
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
+// Deposit Hook (Hyperliquid only — Pacifica uses external link)
+// ─────────────────────────────────────────────────────────────
+
+export type DepositStep = 'idle' | 'switching' | 'approving' | 'depositing' | 'confirming' | 'done';
+
+interface DepositParams {
+  amount: string;
+}
+
+/**
+ * Hook for in-app Hyperliquid deposits via Arbitrum bridge.
+ * Flow: switch chain → approve USDC → deposit to bridge → confirm.
+ */
+export function useDeposit() {
+  const queryClient = useQueryClient();
+  const wagmiConfig = useWagmiConfig();
+
+  return useMutation({
+    mutationFn: async (params: DepositParams) => {
+      const { readContract, writeContract, waitForTransactionReceipt, switchChain } = await import('@wagmi/core');
+      const { getHlContracts, ERC20_APPROVE_ABI, BRIDGE_DEPOSIT_ABI, parseUsdcAmount } = await import('@/lib/hyperliquid/transfers');
+
+      const evmAddress = useAuthStore.getState().evmWalletAddress;
+      if (!evmAddress) throw new Error('EVM wallet not connected');
+
+      const contracts = getHlContracts();
+      const amountRaw = parseUsdcAmount(params.amount);
+
+      // Step 1: Ensure on correct Arbitrum chain
+      try {
+        await switchChain(wagmiConfig, { chainId: contracts.chainId });
+      } catch {
+        // Already on correct chain, or user rejected — subsequent calls will throw if wrong chain
+      }
+
+      // Step 2: Check USDC allowance
+      const allowance = await readContract(wagmiConfig, {
+        address: contracts.usdc,
+        abi: ERC20_APPROVE_ABI,
+        functionName: 'allowance',
+        args: [evmAddress as `0x${string}`, contracts.bridge],
+      }) as bigint;
+
+      // Step 3: Approve if needed
+      if (allowance < amountRaw) {
+        const approveTxHash = await writeContract(wagmiConfig, {
+          address: contracts.usdc,
+          abi: ERC20_APPROVE_ABI,
+          functionName: 'approve',
+          args: [contracts.bridge, amountRaw],
+        });
+
+        await waitForTransactionReceipt(wagmiConfig, { hash: approveTxHash });
+      }
+
+      // Step 4: Deposit to bridge
+      const depositTxHash = await writeContract(wagmiConfig, {
+        address: contracts.bridge,
+        abi: BRIDGE_DEPOSIT_ABI,
+        functionName: 'sendUsd',
+        args: [evmAddress as `0x${string}`, amountRaw],
+      });
+
+      // Step 5: Wait for confirmation
+      const receipt = await waitForTransactionReceipt(wagmiConfig, { hash: depositTxHash });
+
+      return { txHash: depositTxHash, receipt };
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['account'] });
+      // Show toast with explorer link
+      const explorerBase = IS_HL_TESTNET ? 'https://sepolia.arbiscan.io' : 'https://arbiscan.io';
+      const txUrl = `${explorerBase}/tx/${data.txHash}`;
+      toast.success(`$${variables.amount} USDC deposited. Funds arrive in ~1 minute.`, {
+        duration: 8000,
+        action: {
+          label: 'View on Arbiscan',
+          onClick: () => window.open(txUrl, '_blank'),
+        },
+      });
+    },
+    onError: (error: Error) => {
+      console.error('Failed to deposit:', error);
+      if (error.message.includes('User rejected') || error.message.includes('rejected')) {
+        notify('ORDER', 'Deposit Cancelled', 'Transaction rejected by wallet', { variant: 'error' });
+      } else {
+        notify('ORDER', 'Deposit Failed', `Failed to deposit: ${error.message}`, { variant: 'error' });
+      }
     },
   });
 }
