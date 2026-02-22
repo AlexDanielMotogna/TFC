@@ -2,6 +2,7 @@
  * Hyperliquid Agent Wallet Setup
  * POST  — Generate agent wallet, return EIP-712 typed data for user to sign
  * PUT   — Receive user's signature, submit approveAgent to HL API, store encrypted key
+ * PATCH — Approve builder fee (two-phase: init → returns typedData, submit → sends to HL)
  */
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
@@ -12,6 +13,7 @@ const HL_API_URL = process.env.NEXT_PUBLIC_HL_API_URL || 'https://api.hyperliqui
 const HL_CHAIN = process.env.NEXT_PUBLIC_HL_CHAIN || 'Testnet';
 const HL_CHAIN_ID = HL_CHAIN === 'Mainnet' ? 42161 : 421614; // Arbitrum One vs Sepolia
 const HL_CHAIN_ID_HEX = HL_CHAIN === 'Mainnet' ? '0xa4b1' : '0x66eee';
+const HL_BUILDER_ADDRESS = process.env.HYPERLIQUID_BUILDER_ADDRESS || '';
 
 // EIP-712 domain for user-signed HL transactions
 const TYPED_DATA_DOMAIN = {
@@ -26,6 +28,15 @@ const APPROVE_AGENT_TYPES = {
     { name: 'hyperliquidChain', type: 'string' },
     { name: 'agentAddress', type: 'address' },
     { name: 'agentName', type: 'string' },
+    { name: 'nonce', type: 'uint64' },
+  ],
+} as const;
+
+const APPROVE_BUILDER_FEE_TYPES = {
+  'HyperliquidTransaction:ApproveBuilderFee': [
+    { name: 'hyperliquidChain', type: 'string' },
+    { name: 'maxFeeRate', type: 'string' },
+    { name: 'builder', type: 'address' },
     { name: 'nonce', type: 'uint64' },
   ],
 } as const;
@@ -180,5 +191,102 @@ export async function PUT(request: Request) {
     });
 
     return Response.json({ success: true });
+  });
+}
+
+// PATCH: Approve builder fee (two-phase)
+//   Phase 1: { action: 'init' } → returns EIP-712 typedData for signing
+//   Phase 2: { action: 'submit', signature, nonce } → submits to HL API
+export async function PATCH(request: Request) {
+  return withAuth(request, async ({ userId }) => {
+    const body = await request.json();
+    const { action } = body;
+
+    if (!HL_BUILDER_ADDRESS) {
+      return Response.json({ success: false, error: 'Builder address not configured' }, { status: 500 });
+    }
+
+    // Verify connection exists and agent is approved
+    const connection = await prisma.exchangeConnection.findUnique({
+      where: { userId_exchangeType: { userId, exchangeType: 'hyperliquid' } },
+    });
+
+    if (!connection || !connection.agentApproved) {
+      return Response.json({ success: false, error: 'Agent wallet must be approved first' }, { status: 400 });
+    }
+
+    if (action === 'init') {
+      const nonce = Date.now();
+
+      const typedData = {
+        domain: TYPED_DATA_DOMAIN,
+        types: APPROVE_BUILDER_FEE_TYPES,
+        primaryType: 'HyperliquidTransaction:ApproveBuilderFee' as const,
+        message: {
+          hyperliquidChain: HL_CHAIN,
+          maxFeeRate: '0.01%',
+          builder: HL_BUILDER_ADDRESS as `0x${string}`,
+          nonce,
+        },
+      };
+
+      return Response.json({ success: true, typedData, nonce });
+    }
+
+    if (action === 'submit') {
+      const { signature, nonce } = body;
+
+      if (!signature || !nonce) {
+        return Response.json({ success: false, error: 'signature and nonce are required' }, { status: 400 });
+      }
+
+      const { r, s, v } = splitSignature(signature);
+
+      const hlPayload = {
+        action: {
+          type: 'approveBuilderFee',
+          hyperliquidChain: HL_CHAIN,
+          signatureChainId: HL_CHAIN_ID_HEX,
+          maxFeeRate: '0.01%',
+          builder: HL_BUILDER_ADDRESS,
+          nonce,
+        },
+        nonce,
+        signature: { r, s, v },
+      };
+
+      console.log('Submitting approveBuilderFee to Hyperliquid:', {
+        userId,
+        builder: HL_BUILDER_ADDRESS.slice(0, 8) + '...',
+        chain: HL_CHAIN,
+      });
+
+      const hlRes = await fetch(`${HL_API_URL}/exchange`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hlPayload),
+      });
+
+      const hlResult = await hlRes.json();
+
+      if (!hlRes.ok || hlResult.status === 'err') {
+        console.error('Hyperliquid approveBuilderFee failed:', hlResult);
+        return Response.json({
+          success: false,
+          error: hlResult.response || 'Hyperliquid rejected builder fee approval',
+        }, { status: 502 });
+      }
+
+      await prisma.exchangeConnection.update({
+        where: { userId_exchangeType: { userId, exchangeType: 'hyperliquid' } },
+        data: { builderApproved: true },
+      });
+
+      console.log('Hyperliquid builder fee approved successfully', { userId });
+
+      return Response.json({ success: true });
+    }
+
+    return Response.json({ success: false, error: 'Invalid action. Use "init" or "submit".' }, { status: 400 });
   });
 }

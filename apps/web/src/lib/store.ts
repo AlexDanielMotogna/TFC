@@ -29,6 +29,7 @@ interface AuthState {
   evmWalletAddress: string | null;
   hyperliquidConnected: boolean;
   agentApproved: boolean;
+  builderFeeApproved: boolean;
 
   setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string, pacificaFailReason?: PacificaFailReason) => void;
   setPacificaConnected: (connected: boolean) => void;
@@ -38,7 +39,7 @@ interface AuthState {
   /** Disconnect trading wallet only — preserves JWT auth session */
   disconnectTradingWallet: () => void;
   setEvmWalletAddress: (address: string | null) => void;
-  setHyperliquidStatus: (connected: boolean, approved: boolean) => void;
+  setHyperliquidStatus: (connected: boolean, approved: boolean, builderFeeApproved?: boolean) => void;
   /** Clear only Solana-side auth (preserves exchangeType + EVM state) */
   clearSolanaAuth: () => void;
   /** Clear only EVM-side auth (preserves exchangeType + Solana state) */
@@ -69,6 +70,7 @@ export const useAuthStore = create<AuthState>()(
       evmWalletAddress: null,
       hyperliquidConnected: false,
       agentApproved: false,
+      builderFeeApproved: false,
 
       setAuth: (token, user, pacificaConnected, walletAddress, pacificaFailReason = null) =>
         set({
@@ -104,8 +106,12 @@ export const useAuthStore = create<AuthState>()(
       setEvmWalletAddress: (address) =>
         set({ evmWalletAddress: address }),
 
-      setHyperliquidStatus: (connected, approved) =>
-        set({ hyperliquidConnected: connected, agentApproved: approved }),
+      setHyperliquidStatus: (connected, approved, builderFeeApproved) =>
+        set((state) => ({
+          hyperliquidConnected: connected,
+          agentApproved: approved,
+          builderFeeApproved: builderFeeApproved ?? state.builderFeeApproved,
+        })),
 
       clearSolanaAuth: () =>
         set({
@@ -123,6 +129,7 @@ export const useAuthStore = create<AuthState>()(
           evmWalletAddress: null,
           hyperliquidConnected: false,
           agentApproved: false,
+          builderFeeApproved: false,
         }),
 
       clearAuth: () =>
@@ -140,6 +147,7 @@ export const useAuthStore = create<AuthState>()(
           evmWalletAddress: null,
           hyperliquidConnected: false,
           agentApproved: false,
+          builderFeeApproved: false,
         }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -158,6 +166,7 @@ export const useAuthStore = create<AuthState>()(
         evmWalletAddress: state.evmWalletAddress,
         hyperliquidConnected: state.hyperliquidConnected,
         agentApproved: state.agentApproved,
+        builderFeeApproved: state.builderFeeApproved,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);

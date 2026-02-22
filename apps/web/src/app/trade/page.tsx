@@ -66,6 +66,7 @@ function TradePageContent() {
   const fundingCountdown = useFundingCountdown();
   const evmWalletAddress = useAuthStore((s) => s.evmWalletAddress);
   const agentApproved = useAuthStore((s) => s.agentApproved);
+  const builderFeeApproved = useAuthStore((s) => s.builderFeeApproved);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -570,8 +571,8 @@ function TradePageContent() {
         alert('Please connect your EVM wallet first');
         return;
       }
-      if (!agentApproved) {
-        alert('Please approve agent wallet first');
+      if (!agentApproved || !builderFeeApproved) {
+        alert('Please complete Hyperliquid setup first');
         return;
       }
     } else if (!pacificaConnected) {
@@ -631,7 +632,7 @@ function TradePageContent() {
 
     // No opposite position, execute directly
     await executeOrder();
-  }, [isAuthenticated, pacificaConnected, exchangeType, exchangeConfig, evmWalletAddress, agentApproved, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
+  }, [isAuthenticated, pacificaConnected, exchangeType, exchangeConfig, evmWalletAddress, agentApproved, builderFeeApproved, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
 
   // Quick order from chart right-click context menu
   const handleChartQuickOrder = useCallback((price: number, side: 'LONG' | 'SHORT', clickY?: number) => {
@@ -1166,7 +1167,7 @@ function TradePageContent() {
 
   const builderCodeApproved = builderCodeStatus?.approved ?? false;
   const canTrade = exchangeType === 'hyperliquid'
-    ? isAuthenticated && !!evmWalletAddress && agentApproved
+    ? isAuthenticated && !!evmWalletAddress && agentApproved && builderFeeApproved
     : connected && isAuthenticated && pacificaConnected && builderCodeApproved;
 
   return (
@@ -2611,7 +2612,8 @@ function TradePageContent() {
                   </p>
                 </div>
               )}
-              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress && !agentApproved && (
+              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress &&
+                (!agentApproved || !builderFeeApproved) && (
                 <HyperliquidSetupInline />
               )}
 
@@ -3541,7 +3543,8 @@ function TradePageContent() {
                   <p className="text-xs text-surface-400 mb-2">Connect your MetaMask or EVM wallet to trade on Hyperliquid.</p>
                 </div>
               )}
-              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress && !agentApproved && (
+              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress &&
+                (!agentApproved || !builderFeeApproved) && (
                 <HyperliquidSetupInline />
               )}
               {!canTrade && !isAuthenticated && (

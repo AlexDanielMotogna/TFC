@@ -27,7 +27,7 @@ export function HyperliquidConnectionSync() {
       }
       // Clear stale HL status when conditions aren't met
       if (exchangeType === 'hyperliquid' && !evmWalletAddress) {
-        setHyperliquidStatus(false, false);
+        setHyperliquidStatus(false, false, false);
       }
       return;
     }
@@ -37,7 +37,7 @@ export function HyperliquidConnectionSync() {
         // Send the current EVM address so the backend can auto-sync
         // if the stored address is wrong (e.g. Solana address from auth)
         const data = await api.getHyperliquidStatus(token, evmWalletAddress ?? undefined);
-        setHyperliquidStatus(data.connected, data.agentApproved);
+        setHyperliquidStatus(data.connected, data.agentApproved, data.builderApproved);
       } catch (error) {
         console.error('Failed to sync Hyperliquid connection:', error);
       }

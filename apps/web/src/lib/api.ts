@@ -63,7 +63,7 @@ export async function connectWallet(
   });
 }
 
-export async function getHyperliquidStatus(token: string, evmAddress?: string): Promise<{ connected: boolean; agentApproved: boolean; accountAddress: string | null }> {
+export async function getHyperliquidStatus(token: string, evmAddress?: string): Promise<{ connected: boolean; agentApproved: boolean; builderApproved: boolean; accountAddress: string | null }> {
   const params = evmAddress ? `?evmAddress=${encodeURIComponent(evmAddress)}` : '';
   return fetchApi(`/auth/hyperliquid/me${params}`, { token });
 }

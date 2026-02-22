@@ -29,6 +29,7 @@ export async function GET(request: Request) {
         id: true,
         accountAddress: true,
         agentApproved: true,
+        builderApproved: true,
         isActive: true,
       },
     });
@@ -53,6 +54,7 @@ export async function GET(request: Request) {
       success: true,
       connected: !!connection?.isActive,
       agentApproved: connection?.agentApproved ?? false,
+      builderApproved: connection?.builderApproved ?? false,
       accountAddress: connection?.accountAddress ?? null,
     });
   });
