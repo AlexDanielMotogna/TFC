@@ -15,20 +15,28 @@ export async function GET(request: Request) {
       const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
       // Run all queries in parallel
+      // TFC platform fee rate: 0.05% (5 bps) — charged as builder fee on all exchanges
+      const TFC_FEE_RATE = 0.0005;
+
       const [
         totalUsers,
-        pacificaConnected,
+        exchangeConnections,
         fightsByStatus,
         tradeStats,
         activeUsers7dResult,
         volume24hResult,
         volumeAllResult,
+        volumeByExchange,
       ] = await Promise.all([
         // Total users
         prisma.user.count(),
 
-        // Pacifica connected users
-        prisma.exchangeConnection.count({ where: { isActive: true, exchangeType: 'pacifica' } }),
+        // Connected users per exchange
+        prisma.exchangeConnection.groupBy({
+          by: ['exchangeType'],
+          where: { isActive: true },
+          _count: true,
+        }),
 
         // Fights by status
         prisma.fight.groupBy({
@@ -62,6 +70,16 @@ export async function GET(request: Request) {
           SELECT COALESCE(SUM(amount * price), 0) as volume
           FROM trades
         `,
+
+        // Trading volume per exchange (for per-exchange fee breakdown)
+        prisma.$queryRaw<Array<{ exchange_type: string; volume: number; trade_count: bigint }>>`
+          SELECT
+            exchange_type,
+            COALESCE(SUM(amount * price), 0)::float as volume,
+            COUNT(*) as trade_count
+          FROM trades
+          GROUP BY exchange_type
+        `,
       ]);
 
       // Transform fights by status to object
@@ -70,19 +88,38 @@ export async function GET(request: Request) {
         fightsByStatusObj[item.status] = item._count;
       }
 
+      // Connected users per exchange
+      const connectedByExchange: Record<string, number> = {};
+      for (const item of exchangeConnections) {
+        connectedByExchange[item.exchangeType] = item._count;
+      }
+
       const tradingVolumeAll = Number(volumeAllResult[0]?.volume || 0);
-      // TFC platform fee is 0.05% of total volume
-      const platformFees = tradingVolumeAll * 0.0005;
+      // TFC platform fees = builder fee (0.05%) applied to total volume across all exchanges
+      const platformFees = tradingVolumeAll * TFC_FEE_RATE;
+
+      // Per-exchange breakdown
+      const exchangeBreakdown: Record<string, { volume: number; trades: number; fees: number }> = {};
+      for (const row of volumeByExchange) {
+        const vol = Number(row.volume || 0);
+        exchangeBreakdown[row.exchange_type] = {
+          volume: vol,
+          trades: Number(row.trade_count || 0),
+          fees: vol * TFC_FEE_RATE,
+        };
+      }
 
       return {
         totalUsers,
         activeUsers7d: activeUsers7dResult.length,
-        pacificaConnected,
+        pacificaConnected: connectedByExchange['pacifica'] || 0,
+        connectedByExchange,
         fightsByStatus: fightsByStatusObj,
         totalTrades: tradeStats._count,
         totalFees: platformFees,
         tradingVolume24h: Number(volume24hResult[0]?.volume || 0),
         tradingVolumeAll,
+        exchangeBreakdown,
       };
     });
   } catch (error) {

@@ -54,8 +54,9 @@ export async function emitPlatformStats() {
         prisma.$queryRaw<[{ fight_volume: number }]>`
           SELECT COALESCE(SUM(stake_usdc), 0)::float as fight_volume FROM fights
         `,
+        // TFC platform fees = builder fee (0.05% of volume), consistent across all exchanges
         prisma.$queryRaw<[{ total_fees: number }]>`
-          SELECT COALESCE(SUM(fee), 0)::float as total_fees FROM trades
+          SELECT COALESCE(SUM(amount * price) * 0.0005, 0)::float as total_fees FROM trades
         `,
         prisma.$queryRaw<[{ count: bigint }]>`
           SELECT COUNT(DISTINCT user_id) as count FROM trades

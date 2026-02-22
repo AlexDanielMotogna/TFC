@@ -106,7 +106,7 @@ model ExchangeConnection {
 
   @@unique([userId, exchangeType])
   @@index([userId])
-  @@map("pacifica_connections")
+  @@map("exchange_connections")
 }
 
 // ─────────────────────────────────────────────────────────────
