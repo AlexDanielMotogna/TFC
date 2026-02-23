@@ -186,26 +186,10 @@ export function useFight() {
     // If fight just ended (was LIVE, now is FINISHED, CANCELLED, or NO_CONTEST)
     // OR if user navigates to a fight that's already ended
     if (currentStatus === 'FINISHED' || currentStatus === 'CANCELLED' || currentStatus === 'NO_CONTEST') {
-      // Notify only if the fight just ended (was LIVE) AND we haven't already notified for this fight
-      if (prevStatus === 'LIVE' && fightEndNotifiedRef.current !== fightId) {
-        // Mark this fight as notified to prevent duplicates
+      // Fight-end toasts are handled globally by useGlobalSocket with dedup.
+      // Only track that we've seen this fight end (for redirect logic below).
+      if (prevStatus === 'LIVE') {
         fightEndNotifiedRef.current = fightId;
-
-        if (currentStatus === 'FINISHED') {
-          const isWinner = fight.winnerId === user?.id;
-          const isDraw = fight.isDraw;
-          if (isDraw) {
-            notify('FIGHT', 'Fight Ended - Draw', 'The fight ended in a draw!', { variant: 'info' });
-          } else if (isWinner) {
-            notify('FIGHT', 'Victory!', 'Congratulations, you won the fight!', { variant: 'success' });
-          } else {
-            notify('FIGHT', 'Fight Ended', 'Better luck next time!', { variant: 'info' });
-          }
-        } else if (currentStatus === 'CANCELLED') {
-          notify('FIGHT', 'Fight Cancelled', 'The fight was cancelled', { variant: 'warning' });
-        } else {
-          notify('FIGHT', 'No Contest', 'The fight was declared no contest', { variant: 'warning' });
-        }
       }
 
       // Only auto-redirect from /trade page

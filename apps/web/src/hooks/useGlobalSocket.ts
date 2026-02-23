@@ -201,9 +201,21 @@ export const useGlobalSocketStore = create<GlobalSocketState>((set, get) => ({
 let globalSocket: Socket | null = null;
 let connectionPromise: Promise<Socket> | null = null;
 
+// Deduplication: track which fight IDs have already shown toasts
+const notifiedFightEnds = new Set<string>();
+const notifiedFightStarts = new Set<string>();
+
 function getGlobalSocket(token?: string): Promise<Socket> {
   if (globalSocket?.connected) {
     return Promise.resolve(globalSocket);
+  }
+
+  // Socket exists but is temporarily disconnected — let socket.io auto-reconnect
+  // instead of creating a duplicate socket with duplicate listeners
+  if (globalSocket && !globalSocket.disconnected) {
+    return new Promise((resolve) => {
+      globalSocket!.once('connect', () => resolve(globalSocket!));
+    });
   }
 
   if (connectionPromise) {
@@ -301,9 +313,10 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       // Refresh notifications (e.g. "Opponent Joined!" for the creator)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
-      // Notify the creator that their fight has been accepted
+      // Notify the creator that their fight has been accepted (deduplicated)
       const currentUserId = useAuthStore.getState().user?.id;
-      if (currentUserId && fight.creator?.id === currentUserId) {
+      if (currentUserId && fight.creator?.id === currentUserId && !notifiedFightStarts.has(fight.id)) {
+        notifiedFightStarts.add(fight.id);
         // Guard: don't redirect if fight already expired (creator was offline)
         if (fight.startedAt && fight.durationMinutes) {
           const endTime = new Date(fight.startedAt).getTime() + fight.durationMinutes * 60000;
@@ -359,10 +372,12 @@ function getGlobalSocket(token?: string): Promise<Socket> {
       // Refresh notifications (e.g. fight results)
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
 
-      // Toast participants that the fight has ended
+      // Toast participants — deduplicated to prevent doubles from reconnects
+      // or overlap with useFight() hook
       const currentUserId = useAuthStore.getState().user?.id;
       const isParticipant = fight.participants?.some(p => p.userId === currentUserId);
-      if (currentUserId && isParticipant) {
+      if (currentUserId && isParticipant && !notifiedFightEnds.has(fight.id)) {
+        notifiedFightEnds.add(fight.id);
         if (fight.status === 'NO_CONTEST') {
           toast('Fight declared No Contest');
         } else if (fight.isDraw) {
