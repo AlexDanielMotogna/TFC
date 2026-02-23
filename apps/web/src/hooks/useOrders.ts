@@ -215,6 +215,10 @@ export function useCreateMarketOrder() {
     },
     onError: (error: Error) => {
       console.error('Failed to create market order:', error);
+      // Auto-reset builder fee flag if HL rejects due to missing approval
+      if (error.message.includes('Builder fee has not been approved')) {
+        useAuthStore.getState().setHyperliquidStatus(true, true, false);
+      }
       notify('TRADE', 'Order Failed', `Order failed: ${error.message}`, { variant: 'error' });
     },
   });
@@ -318,6 +322,9 @@ export function useCreateLimitOrder() {
     },
     onError: (error: Error) => {
       console.error('Failed to create limit order:', error);
+      if (error.message.includes('Builder fee has not been approved')) {
+        useAuthStore.getState().setHyperliquidStatus(true, true, false);
+      }
       notify('ORDER', 'Limit Order Failed', `Limit order failed: ${error.message}`, { variant: 'error' });
     },
   });

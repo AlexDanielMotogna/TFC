@@ -507,12 +507,23 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
 
       const signature = await signL1Action(wallet, action, nonce);
 
-      return hlExchange({
+      const result = await hlExchange({
         action,
         nonce,
         signature,
         vaultAddress: null,
       });
+
+      // Auto-reset builderApproved flag when HL tells us it's not approved
+      if (!result.success && result.error?.includes('Builder fee has not been approved')) {
+        console.warn('[HLRouter] Builder fee not approved — resetting flag for', params.account);
+        await prisma.exchangeConnection.updateMany({
+          where: { accountAddress: params.account.toLowerCase(), exchangeType: 'hyperliquid' },
+          data: { builderApproved: false },
+        });
+      }
+
+      return result;
     } catch (error) {
       return { success: false, error: (error as Error).message };
     }
