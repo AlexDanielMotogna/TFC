@@ -161,7 +161,7 @@ export function useAccount(): UseAccountReturn {
     // Pacifica fields: order_id, symbol, side, price, initial_amount, filled_amount,
     // cancelled_amount, order_type (limit, take_profit_market, stop_loss_market),
     // stop_price, reduce_only, created_at
-    return ordersData.map((order: any) => {
+    const mapped = ordersData.map((order: any) => {
       // Order type display
       // WS adapter uses order_type (lowercase), REST adapter uses type (UPPERCASE)
       const rawOrderType = (order.order_type || order.type || 'limit').toLowerCase();
@@ -236,6 +236,15 @@ export function useAccount(): UseAccountReturn {
         stopPrice: order.stop_price ?? order.metadata?.stopPrice ?? order.triggerPx ?? order.metadata?.triggerPx ?? null,
         createdAt: order.created_at ?? order.createdAt ?? Date.now(),
       };
+    });
+
+    // Deduplicate by id (HL can return the same oid for parent + child orders)
+    const seen = new Set<string>();
+    return mapped.filter((o) => {
+      const key = `${o.id}:${o.type}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
   }, [ordersData, positionsData]);
 
