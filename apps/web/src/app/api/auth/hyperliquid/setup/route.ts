@@ -9,11 +9,15 @@ import { prisma } from '@/lib/server/db';
 import { encryptKey } from '@/lib/server/key-vault';
 import { Wallet } from 'ethers';
 
-const HL_API_URL = process.env.NEXT_PUBLIC_HL_API_URL || 'https://api.hyperliquid-testnet.xyz';
-const HL_CHAIN = process.env.NEXT_PUBLIC_HL_CHAIN || 'Testnet';
-const HL_CHAIN_ID = HL_CHAIN === 'Mainnet' ? 42161 : 421614; // Arbitrum One vs Sepolia
-const HL_CHAIN_ID_HEX = HL_CHAIN === 'Mainnet' ? '0xa4b1' : '0x66eee';
+const HL_API_URL = process.env.HYPERLIQUID_API_URL || process.env.NEXT_PUBLIC_HYPERLIQUID_API_URL || 'https://api.hyperliquid.xyz';
+const HL_IS_MAINNET = !HL_API_URL.includes('testnet');
+const HL_CHAIN = HL_IS_MAINNET ? 'Mainnet' : 'Testnet';
+const HL_CHAIN_ID = HL_IS_MAINNET ? 42161 : 421614; // Arbitrum One vs Sepolia
+const HL_CHAIN_ID_HEX = HL_IS_MAINNET ? '0xa4b1' : '0x66eee';
 const HL_BUILDER_ADDRESS = process.env.HYPERLIQUID_BUILDER_ADDRESS || '';
+// Builder fee: HYPERLIQUID_BUILDER_FEE is tenths of bps (50 = 5 bps = 0.05%)
+// maxFeeRate for approval must be >= actual fee. Use 0.1% (10 bps, perps max) for headroom.
+const HL_MAX_FEE_RATE = '0.1%';
 
 // EIP-712 domain for user-signed HL transactions
 const TYPED_DATA_DOMAIN = {
@@ -224,7 +228,7 @@ export async function PATCH(request: Request) {
         primaryType: 'HyperliquidTransaction:ApproveBuilderFee' as const,
         message: {
           hyperliquidChain: HL_CHAIN,
-          maxFeeRate: '0.01%',
+          maxFeeRate: HL_MAX_FEE_RATE,
           builder: HL_BUILDER_ADDRESS as `0x${string}`,
           nonce,
         },
@@ -247,7 +251,7 @@ export async function PATCH(request: Request) {
           type: 'approveBuilderFee',
           hyperliquidChain: HL_CHAIN,
           signatureChainId: HL_CHAIN_ID_HEX,
-          maxFeeRate: '0.01%',
+          maxFeeRate: HL_MAX_FEE_RATE,
           builder: HL_BUILDER_ADDRESS,
           nonce,
         },
