@@ -318,6 +318,19 @@ function TradePageContent() {
   const { markets, getPrice } = usePrices({
   });
 
+  // When exchange changes, fall back to BTC-USD if current symbol doesn't exist on new exchange
+  useEffect(() => {
+    if (markets.length === 0) return;
+    const symbolExists = markets.some((m: { symbol: string }) => m.symbol === selectedMarket);
+    if (!symbolExists) {
+      const fallback = markets.find((m: { symbol: string }) => m.symbol === 'BTC-USD') || markets[0];
+      if (fallback) {
+        console.log(`[Trade] ${selectedMarket} not available on ${exchangeType}, switching to ${fallback.symbol}`);
+        handleMarketChange(fallback.symbol);
+      }
+    }
+  }, [markets, exchangeType]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-select first non-blocked symbol when in a fight and current symbol is blocked
   useEffect(() => {
     if (!inFight || !blockedSymbols.length || markets.length === 0) return;
