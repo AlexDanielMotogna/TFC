@@ -24,6 +24,7 @@ import { AiBiasWidget } from '@/components/AiBiasWidget';
 import { HyperliquidSetupInline } from '@/components/HyperliquidSetup';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { isValidExchangeType, type ExchangeType } from '@tfc/shared';
 import { useAuthStore } from '@/lib/store';
 import { toast } from 'sonner';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -62,7 +63,7 @@ function useFundingCountdown(): string {
 function TradePageContent() {
   const { connected } = useWallet();
   const { isAuthenticated, pacificaConnected, pacificaFailReason } = useAuth();
-  const { exchangeType, exchangeConfig } = useExchangeContext();
+  const { exchangeType, exchangeConfig, switchExchange } = useExchangeContext();
   const fundingCountdown = useFundingCountdown();
   const evmWalletAddress = useAuthStore((s) => s.evmWalletAddress);
   const agentApproved = useAuthStore((s) => s.agentApproved);
@@ -70,8 +71,30 @@ function TradePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Get initial symbol from URL (e.g., /trade?symbol=ETH-USD)
+  // Get initial symbol and exchange from URL (e.g., /trade?symbol=ETH-USD&exchange=hyperliquid)
   const urlSymbol = searchParams?.get('symbol');
+  const urlExchange = searchParams?.get('exchange');
+
+  // Sync exchange from URL → context on mount (if URL has a valid exchange param)
+  useEffect(() => {
+    if (urlExchange && isValidExchangeType(urlExchange) && urlExchange !== exchangeType) {
+      switchExchange(urlExchange as ExchangeType);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only on mount
+
+  // Keep URL in sync when exchange changes (via switcher or any other source)
+  useEffect(() => {
+    const currentUrlExchange = searchParams?.get('exchange');
+    if (currentUrlExchange !== exchangeType) {
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('exchange', exchangeType);
+      const newUrl = `/trade?${params.toString()}`;
+      router.replace(newUrl, { scroll: false });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exchangeType]);
+
   const {
     account,
     positions: apiPositions,
@@ -134,15 +157,12 @@ function TradePageContent() {
   }, [inFight, blockedSymbols, selectedMarket]);
 
   // Update URL when market changes (shallow navigation)
-  // Preserve fight parameter if user is in an active fight
+  // Preserves all existing params (exchange, fight, tab, etc.)
   const handleMarketChange = useCallback((symbol: string) => {
     setSelectedMarket(symbol);
-    // Preserve fight parameter if exists
-    const currentFightId = searchParams?.get('fight');
-    const url = currentFightId
-      ? `/trade?fight=${currentFightId}&symbol=${symbol}`
-      : `/trade?symbol=${symbol}`;
-    router.replace(url, { scroll: false });
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('symbol', symbol);
+    router.replace(`/trade?${params.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   // Set page title with current asset
