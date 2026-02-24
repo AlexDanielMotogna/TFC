@@ -249,6 +249,12 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
     this.doConnect();
     ensureMeta();
 
+    // If already connected and have cached data, emit immediately to new subscriber
+    if (this.connected && metaLoaded && Object.keys(this.latestMids).length > 0) {
+      // Use setTimeout to ensure the caller has finished setting up state
+      setTimeout(() => this.emitPrices(), 0);
+    }
+
     // Refresh metadata (volume, OI, funding) every 30s to keep data fresh
     if (!this.metaRefreshInterval) {
       this.metaRefreshInterval = setInterval(() => {

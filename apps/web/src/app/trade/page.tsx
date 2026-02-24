@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo, Suspense } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
@@ -318,18 +318,15 @@ function TradePageContent() {
   const { markets, getPrice } = usePrices({
   });
 
-  // When exchange changes, fall back to BTC-USD if current symbol doesn't exist on new exchange
+  // Reset to BTC-USD on exchange switch — BTC-USD exists on every exchange.
+  // This avoids complex race conditions with markets loading asynchronously.
+  const prevExchangeRef = useRef(exchangeType);
   useEffect(() => {
-    if (markets.length === 0) return;
-    const symbolExists = markets.some((m: { symbol: string }) => m.symbol === selectedMarket);
-    if (!symbolExists) {
-      const fallback = markets.find((m: { symbol: string }) => m.symbol === 'BTC-USD') || markets[0];
-      if (fallback) {
-        console.log(`[Trade] ${selectedMarket} not available on ${exchangeType}, switching to ${fallback.symbol}`);
-        handleMarketChange(fallback.symbol);
-      }
+    if (prevExchangeRef.current !== exchangeType) {
+      prevExchangeRef.current = exchangeType;
+      handleMarketChange('BTC-USD');
     }
-  }, [markets, exchangeType]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exchangeType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-select first non-blocked symbol when in a fight and current symbol is blocked
   useEffect(() => {

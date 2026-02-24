@@ -33,7 +33,8 @@ export function usePrices(_options: UsePricesOptions = {}) {
 
   useEffect(() => {
     // Remove old callbacks if exchange changed
-    if (adapterRef.current && currentExchangeRef.current !== exchangeType) {
+    const exchangeChanged = currentExchangeRef.current !== exchangeType;
+    if (adapterRef.current && exchangeChanged) {
       if (callbacksRef.current) {
         adapterRef.current.removeCallbacks(callbacksRef.current);
       }
@@ -44,6 +45,8 @@ export function usePrices(_options: UsePricesOptions = {}) {
     }
 
     currentExchangeRef.current = exchangeType;
+    // Track whether this effect's adapter has sent its first markets batch
+    let marketsReceived = false;
     const adapter = createWsAdapter(exchangeType);
     adapterRef.current = adapter;
 
@@ -59,17 +62,17 @@ export function usePrices(_options: UsePricesOptions = {}) {
           newPrices.forEach(p => { updated[p.symbol] = p; });
           return updated;
         });
-        // Only set markets from WS if we don't have them yet
-        setMarkets(prev => {
-          if (prev.length === 0 && newMarkets.length > 0) {
-            return newMarkets.sort((a, b) => {
+        // Set markets on first batch from new adapter (after exchange switch or initial load)
+        if (!marketsReceived && newMarkets.length > 0) {
+          marketsReceived = true;
+          setMarkets(
+            newMarkets.sort((a, b) => {
               const volA = newPrices.find(p => p.symbol === a.symbol)?.volume24h || 0;
               const volB = newPrices.find(p => p.symbol === b.symbol)?.volume24h || 0;
               return volB - volA;
-            });
-          }
-          return prev;
-        });
+            })
+          );
+        }
       },
       onError: (err) => setError(err),
     };
