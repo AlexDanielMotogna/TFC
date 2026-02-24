@@ -544,6 +544,9 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
       const prevDayPx = ctx ? parseFloat(ctx.prevDayPx) : 0;
       const change24h = prevDayPx > 0 ? ((oraclePx - prevDayPx) / prevDayPx) * 100 : 0;
       const stepSize = 1 / Math.pow(10, meta.szDecimals);
+      // HL tick: max decimals = 6 - szDecimals (perps), also 5 sig figs
+      const maxPriceDecimals = Math.max(0, 6 - meta.szDecimals);
+      const tickSize = 1 / Math.pow(10, maxPriceDecimals);
 
       prices.push({
         symbol: normalizeSymbol(meta.name),
@@ -558,7 +561,7 @@ export class HyperliquidWsAdapter implements ExchangeWsAdapter {
         nextFunding: ctx ? parseFloat(ctx.funding) * 100 : 0, // HL uses same rate for current/next
         lastUpdate: Date.now(),
         maxLeverage: meta.maxLeverage,
-        tickSize: 0.1,
+        tickSize,
         lotSize: stepSize,
       });
 

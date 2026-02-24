@@ -184,6 +184,29 @@ function floatToWire(x: number | string): string {
 }
 
 /**
+ * Round a price to Hyperliquid's tick size requirements:
+ *   1. At most 5 significant figures
+ *   2. At most MAX_DECIMALS - szDecimals decimal places (MAX_DECIMALS=6 for perps)
+ *   3. Integer prices are always allowed
+ *
+ * See: https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/tick-and-lot-size
+ */
+function roundToHlTick(price: number, szDecimals: number): number {
+  if (price === 0) return 0;
+  // 5 significant figures
+  const sigFig = parseFloat(price.toPrecision(5));
+  // Max allowed decimal places for perps
+  const maxDecimals = Math.max(0, 6 - szDecimals);
+  return parseFloat(sigFig.toFixed(maxDecimals));
+}
+
+/** Convenience: round + floatToWire in one step */
+function priceToWire(price: number | string, szDecimals: number): string {
+  const num = typeof price === 'string' ? parseFloat(price) : price;
+  return floatToWire(roundToHlTick(num, szDecimals));
+}
+
+/**
  * Calculate the slippage-adjusted price for market orders.
  * Matches Python SDK _slippage_price exactly:
  *   px *= (1 + slippage) if is_buy else (1 - slippage)
@@ -191,11 +214,7 @@ function floatToWire(x: number | string): string {
  */
 function slippagePrice(px: number, isBuy: boolean, slippage: number, szDecimals: number): number {
   const adjusted = isBuy ? px * (1 + slippage) : px * (1 - slippage);
-  // Round to 5 significant figures (matches Python's f"{px:.5g}")
-  const sigFig = parseFloat(adjusted.toPrecision(5));
-  // Round to (6 - szDecimals) decimal places for perps
-  const maxDecimals = Math.max(0, 6 - szDecimals);
-  return parseFloat(sigFig.toFixed(maxDecimals));
+  return roundToHlTick(adjusted, szDecimals);
 }
 
 /** Denormalize symbol: "BTC-USD" → "BTC" */
@@ -457,7 +476,7 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         orderWire = {
           a: assetIndex,
           b: isBuy,
-          p: floatToWire(params.price),
+          p: priceToWire(params.price, szDecimals),
           s: floatToWire(params.amount),
           r: params.reduce_only || false,
           t: { limit: { tif: hlTif } },
@@ -480,24 +499,26 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         const groupOrders: OrderWire[] = [orderWire];
 
         if (params.take_profit) {
+          const tpPx = priceToWire(params.take_profit.stop_price, szDecimals);
           groupOrders.push({
             a: assetIndex,
             b: !isBuy,
-            p: floatToWire(params.take_profit.stop_price),
+            p: tpPx,
             s: floatToWire(params.amount),
             r: true,
-            t: { trigger: { isMarket: true, triggerPx: floatToWire(params.take_profit.stop_price), tpsl: 'tp' } },
+            t: { trigger: { isMarket: true, triggerPx: tpPx, tpsl: 'tp' } },
           });
         }
 
         if (params.stop_loss) {
+          const slPx = priceToWire(params.stop_loss.stop_price, szDecimals);
           groupOrders.push({
             a: assetIndex,
             b: !isBuy,
-            p: floatToWire(params.stop_loss.stop_price),
+            p: slPx,
             s: floatToWire(params.amount),
             r: true,
-            t: { trigger: { isMarket: true, triggerPx: floatToWire(params.stop_loss.stop_price), tpsl: 'sl' } },
+            t: { trigger: { isMarket: true, triggerPx: slPx, tpsl: 'sl' } },
           });
         }
 
@@ -628,7 +649,9 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
   async createStopOrder(params: StopOrderParams): Promise<OrderResult> {
     try {
       const wallet = await getAgentWallet(params.account);
+      const coin = denormalizeSymbol(params.symbol);
       const assetIndex = await getHlAssetIndex(params.symbol);
+      const szDecimals = getHlSzDecimals(coin);
       const isBuy = params.side === 'BUY' || params.side === 'bid' || params.side === 'LONG';
       const nonce = Date.now();
 
@@ -640,18 +663,19 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
       // - Sell stop (isBuy=false): trigger is BELOW current price → fires on price DOWN → 'sl'
       const tpsl = isBuy ? 'tp' : 'sl';
 
+      const triggerPx = priceToWire(params.stop_order.stop_price, szDecimals);
       const orderWire: OrderWire = {
         a: assetIndex,
         b: isBuy,
         p: isMarket
-          ? floatToWire(params.stop_order.stop_price) // For market stops, trigger price doubles as price
-          : floatToWire(params.stop_order.limit_price!),
+          ? triggerPx
+          : priceToWire(params.stop_order.limit_price!, szDecimals),
         s: floatToWire(params.stop_order.amount),
         r: params.reduce_only,
         t: {
           trigger: {
             isMarket,
-            triggerPx: floatToWire(params.stop_order.stop_price),
+            triggerPx,
             tpsl,
           },
         },
@@ -714,6 +738,8 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         return { success: false, error: `Order ${params.order_id} not found in open orders` };
       }
 
+      const coin = denormalizeSymbol(params.symbol);
+      const szDecimals = getHlSzDecimals(coin);
       const isBuy = existingOrder.side === 'B';
 
       const modifyWire = {
@@ -721,7 +747,7 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         order: {
           a: assetIndex,
           b: isBuy,
-          p: floatToWire(params.price),
+          p: priceToWire(params.price, szDecimals),
           s: floatToWire(params.amount),
           r: false,
           t: { limit: { tif: 'Gtc' } },
@@ -764,13 +790,13 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
         const tif = data.tif || 'Gtc';
         const hlTif = tif.charAt(0).toUpperCase() + tif.slice(1).toLowerCase();
 
+        const coin = denormalizeSymbol(data.symbol);
+        const szDec = getHlSzDecimals(coin);
         let price: string;
         if (data.price) {
-          price = floatToWire(data.price);
+          price = priceToWire(data.price, szDec);
         } else if (data.type === 'MARKET') {
-          const coin = denormalizeSymbol(data.symbol);
           const midPx = await getMidPrice(coin);
-          const szDec = getHlSzDecimals(coin);
           const limitPx = slippagePrice(midPx, isBuy, 0.05, szDec);
           price = floatToWire(limitPx);
         } else {
@@ -814,7 +840,9 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
   async setTpSl(params: SetTpSlParams): Promise<OrderResult> {
     try {
       const wallet = await getAgentWallet(params.account);
+      const coin = denormalizeSymbol(params.symbol);
       const assetIndex = await getHlAssetIndex(params.symbol);
+      const szDecimals = getHlSzDecimals(coin);
       const isBuy = params.side === 'BUY' || params.side === 'bid' || params.side === 'LONG';
       const nonce = Date.now();
 
@@ -824,16 +852,17 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
       const size = params.size || '0'; // 0 = full position
 
       if (params.take_profit) {
+        const tpPx = priceToWire(params.take_profit.stop_price, szDecimals);
         orders.push({
           a: assetIndex,
           b: isBuy, // isBuy is already the closing side (frontend sends ask/bid)
-          p: floatToWire(params.take_profit.stop_price),
+          p: tpPx,
           s: floatToWire(size),
           r: true,
           t: {
             trigger: {
               isMarket: !params.take_profit.limit_price,
-              triggerPx: floatToWire(params.take_profit.stop_price),
+              triggerPx: tpPx,
               tpsl: 'tp',
             },
           },
@@ -841,16 +870,17 @@ export class HyperliquidOrderRouter implements ExchangeOrderRouter {
       }
 
       if (params.stop_loss) {
+        const slPx = priceToWire(params.stop_loss.stop_price, szDecimals);
         orders.push({
           a: assetIndex,
           b: isBuy, // isBuy is already the closing side (frontend sends ask/bid)
-          p: floatToWire(params.stop_loss.stop_price),
+          p: slPx,
           s: floatToWire(size),
           r: true,
           t: {
             trigger: {
               isMarket: !params.stop_loss.limit_price,
-              triggerPx: floatToWire(params.stop_loss.stop_price),
+              triggerPx: slPx,
               tpsl: 'sl',
             },
           },

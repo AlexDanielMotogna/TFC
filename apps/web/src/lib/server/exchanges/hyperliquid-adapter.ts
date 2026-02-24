@@ -265,12 +265,15 @@ export class HyperliquidAdapter implements ExchangeAdapter {
     return assetMetaCache.map((meta, i) => {
       const ctx = assetCtxCache[i];
       const stepSize = (1 / Math.pow(10, meta.szDecimals)).toFixed(meta.szDecimals);
+      // HL tick: max decimals = 6 - szDecimals (perps), also 5 sig figs
+      const maxPriceDecimals = Math.max(0, 6 - meta.szDecimals);
+      const tickSize = (1 / Math.pow(10, maxPriceDecimals)).toFixed(maxPriceDecimals);
 
       return {
         symbol: this.normalizeSymbol(meta.name),
         baseAsset: meta.name,
         quoteAsset: 'USD',
-        tickSize: '0.1', // HL uses 5 sig figs
+        tickSize,
         stepSize,
         minOrderSize: stepSize,
         maxOrderSize: '1000000',

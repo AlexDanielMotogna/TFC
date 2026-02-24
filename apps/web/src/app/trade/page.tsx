@@ -871,6 +871,9 @@ function TradePageContent() {
 
   const handleSetTpSl = useCallback(async (params: TpSlParams) => {
     try {
+      // Round prices to tick size before sending (works for all exchanges)
+      const roundPx = (px: string | undefined) => px ? roundToTickSize(parseFloat(px)) : undefined;
+
       // For PARTIAL orders, use create_stop_order endpoint which supports custom amounts
       // The set_position_tpsl endpoint only supports full position TP/SL and overwrites existing orders
       if (params.isPartial && params.partialAmount) {
@@ -882,9 +885,9 @@ function TradePageContent() {
             createStopOrder.mutateAsync({
               symbol: params.symbol,
               side: params.side,
-              stopPrice: params.takeProfit.stopPrice,
+              stopPrice: roundPx(params.takeProfit.stopPrice) || params.takeProfit.stopPrice,
               amount: params.partialAmount,
-              limitPrice: params.takeProfit.limitPrice,
+              limitPrice: roundPx(params.takeProfit.limitPrice),
               type: 'TAKE_PROFIT',
               fightId: fightId || undefined,
             })
@@ -897,9 +900,9 @@ function TradePageContent() {
             createStopOrder.mutateAsync({
               symbol: params.symbol,
               side: params.side,
-              stopPrice: params.stopLoss.stopPrice,
+              stopPrice: roundPx(params.stopLoss.stopPrice) || params.stopLoss.stopPrice,
               amount: params.partialAmount,
-              limitPrice: params.stopLoss.limitPrice,
+              limitPrice: roundPx(params.stopLoss.limitPrice),
               type: 'STOP_LOSS',
               fightId: fightId || undefined,
             })
@@ -913,13 +916,13 @@ function TradePageContent() {
         const takeProfit = params.takeProfit === null
           ? null // Explicitly remove
           : params.takeProfit
-            ? { stop_price: params.takeProfit.stopPrice, limit_price: params.takeProfit.limitPrice }
+            ? { stop_price: roundPx(params.takeProfit.stopPrice) || params.takeProfit.stopPrice, limit_price: roundPx(params.takeProfit.limitPrice) }
             : undefined; // No change
 
         const stopLoss = params.stopLoss === null
           ? null // Explicitly remove
           : params.stopLoss
-            ? { stop_price: params.stopLoss.stopPrice, limit_price: params.stopLoss.limitPrice }
+            ? { stop_price: roundPx(params.stopLoss.stopPrice) || params.stopLoss.stopPrice, limit_price: roundPx(params.stopLoss.limitPrice) }
             : undefined; // No change
 
         await setPositionTpSl.mutateAsync({
@@ -939,7 +942,7 @@ function TradePageContent() {
       console.error('Failed to set TP/SL:', message);
       toast.error(message);
     }
-  }, [setPositionTpSl, createStopOrder, refetchAccount, fightId]);
+  }, [setPositionTpSl, createStopOrder, refetchAccount, fightId, roundToTickSize]);
 
   // Get account equity for cross margin liq price calculation
   const accountEquity = account ? parseFloat(account.accountEquity) || 0 : 0;
