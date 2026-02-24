@@ -12,6 +12,7 @@ import { useConfig as useWagmiConfig } from 'wagmi';
 import { toast } from 'sonner';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { useAuthStore } from '@/lib/store';
+import { useExchangeWsStore } from '@/hooks/useExchangeWebSocket';
 import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 import { IS_HL_TESTNET } from '@/lib/hyperliquid/transfers';
@@ -388,7 +389,14 @@ export function useCancelOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      // Optimistically remove cancelled order from WS store so UI updates immediately
+      const currentOrders = useExchangeWsStore.getState().orders;
+      useExchangeWsStore.getState().setOrders(
+        currentOrders.filter(o => String(o.order_id) !== String(variables.orderId))
+      );
+
+      // Force refetch HTTP orders to sync
+      queryClient.refetchQueries({ queryKey: ['orders'] });
 
       notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
     },
@@ -459,17 +467,15 @@ export function useCancelStopOrder() {
       return result.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['positions'] });
+      // Optimistically remove cancelled order from WS store so UI updates immediately
+      const currentOrders = useExchangeWsStore.getState().orders;
+      useExchangeWsStore.getState().setOrders(
+        currentOrders.filter(o => String(o.order_id) !== String(variables.orderId))
+      );
 
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['positions'] });
-      }, 500);
-
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-      }, 1500);
+      // Force refetch to sync with server
+      queryClient.refetchQueries({ queryKey: ['orders'] });
+      queryClient.refetchQueries({ queryKey: ['positions'] });
 
       notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
     },
@@ -539,7 +545,18 @@ export function useCancelAllOrders() {
       return result.data;
     },
     onSuccess: (_, params) => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      // Optimistically clear orders from WS store so UI updates immediately
+      if (params?.symbol) {
+        const currentOrders = useExchangeWsStore.getState().orders;
+        useExchangeWsStore.getState().setOrders(
+          currentOrders.filter(o => o.symbol !== params.symbol && o.symbol !== params.symbol?.replace('-USD', ''))
+        );
+      } else {
+        useExchangeWsStore.getState().setOrders([]);
+      }
+
+      // Force refetch to sync with server
+      queryClient.refetchQueries({ queryKey: ['orders'] });
 
       const msg = params?.symbol
         ? `All ${params.symbol} orders cancelled`
