@@ -511,7 +511,7 @@ function TradingViewChartAdvancedComponent({
       {isChartReady && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[1]">
           <img
-            src="/images/logos/favicon-white-192.png"
+            src="/images/logos/Tfc-logos/favicon-white-192.png"
             alt=""
             className="w-24 h-24 opacity-[0.04] select-none"
             draggable={false}

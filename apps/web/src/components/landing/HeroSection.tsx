@@ -122,16 +122,26 @@ export function HeroSection() {
               </div>
             </div>
 
-            {/* Powered by Pacifica */}
+            {/* Powered by exchanges */}
             <div className="flex items-center justify-center lg:justify-start gap-3">
               <span className="text-sm text-surface-500">Powered by</span>
-              <Image
-                src="images/landing/White_Text_White.png"
-                alt="Pacifica"
-                width={120}
-                height={30}
-                className="h-6 w-auto opacity-80"
-              />
+              <div className="flex items-center gap-4">
+                <Image
+                  src="/images/logos/Pacifica-logos/White_Text_White.png"
+                  alt="Pacifica"
+                  width={120}
+                  height={30}
+                  className="h-6 w-auto opacity-80"
+                />
+                <span className="text-surface-700">|</span>
+                <Image
+                  src="/images/logos/Hyperliquid-logos/Hyperliquid-logos/HL logtype only_white.png"
+                  alt="Hyperliquid"
+                  width={140}
+                  height={30}
+                  className="h-5 w-auto opacity-80"
+                />
+              </div>
             </div>
           </div>
 

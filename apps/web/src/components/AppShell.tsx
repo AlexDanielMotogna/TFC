@@ -188,7 +188,7 @@ export function AppShell({ children }: AppShellProps) {
           <div className="flex items-center justify-center h-16 border-b border-surface-800 flex-shrink-0">
             <Link href="/trade">
               <Image
-                src="/images/logos/favicon-white-192.png"
+                src="/images/logos/Tfc-logos/favicon-white-192.png"
                 alt="Trade Fight Club"
                 width={sidebarState === 'icons' ? 40 : 52}
                 height={sidebarState === 'icons' ? 40 : 52}
@@ -313,7 +313,7 @@ export function AppShell({ children }: AppShellProps) {
               <div className={`flex-shrink-0 ${sidebarState !== 'hidden' ? 'max-[1199px]:block hidden' : ''}`}>
                 <Link href="/trade">
                   <Image
-                    src="/images/logos/favicon-white-192.png"
+                    src="/images/logos/Tfc-logos/favicon-white-192.png"
                     alt="Trade Fight Club"
                     width={52}
                     height={52}

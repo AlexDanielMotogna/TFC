@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   description: '1v1 trading competitions on Pacifica perpetuals',
   icons: {
     icon: [
-      { url: '/images/logos/favicon-black-32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/images/logos/favicon-black-16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/images/logos/Tfc-logos/favicon-black-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/images/logos/Tfc-logos/favicon-black-16.png', sizes: '16x16', type: 'image/png' },
     ],
     apple: [
-      { url: '/images/logos/favicon-black-180.png', sizes: '180x180', type: 'image/png' },
+      { url: '/images/logos/Tfc-logos/favicon-black-180.png', sizes: '180x180', type: 'image/png' },
     ],
   },
 };

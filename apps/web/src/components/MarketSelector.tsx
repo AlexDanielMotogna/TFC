@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { TokenIcon, extractBaseSymbol } from './TokenIcon';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
 
 interface Market {
   symbol: string;
@@ -30,6 +31,7 @@ interface MarketSelectorProps {
 }
 
 export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPrice, blockedSymbols = [] }: MarketSelectorProps) {
+  const { exchangeType } = useExchangeContext();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'volume' | 'change' | 'symbol'>('volume');
@@ -270,7 +272,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
                 >
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">
-                      <TokenIcon symbol={market.symbol} size="md" />
+                      <TokenIcon symbol={market.symbol} size="md" exchange={exchangeType} />
                       <span className={`text-sm font-medium ${isBlocked ? 'text-surface-500' : 'text-white'}`}>{marketBaseSymbol}</span>
                       <span className="px-1.5 py-0.5 text-[10px] font-medium bg-surface-700 text-surface-300 rounded">
                         {market.maxLeverage}x
@@ -332,7 +334,7 @@ export function MarketSelector({ markets, selectedMarket, onSelectMarket, getPri
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 px-3 py-1.5 bg-surface-800 hover:bg-surface-700 border border-surface-800 rounded-lg transition-colors"
       >
-        <TokenIcon symbol={selectedMarket} size="sm" />
+        <TokenIcon symbol={selectedMarket} size="sm" exchange={exchangeType} />
         <span className="font-display font-semibold text-white">{selectedMarket}</span>
         <svg
           className={`w-4 h-4 text-surface-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}

@@ -118,7 +118,7 @@ export function FullTerminalDemo({ highlightFeature = null }: FullTerminalDemoPr
         {/* Logo - Left */}
         <div className="flex-shrink-0">
           <Image
-            src="/images/logos/favicon-white-192.png"
+            src="/images/logos/Tfc-logos/favicon-white-192.png"
             alt="TFC"
             width={36}
             height={36}

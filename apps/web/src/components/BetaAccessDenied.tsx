@@ -53,7 +53,7 @@ export function BetaAccessDenied({ status, isAlphaTester, referralCode, onRefres
         {/* Logo */}
         <Link href="/" className="inline-block mb-8">
           <Image
-            src="/images/logos/favicon-white-192.png"
+            src="/images/logos/Tfc-logos/favicon-white-192.png"
             alt="Trade Fight Club"
             width={64}
             height={64}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import type { ExchangeType } from '@tfc/shared';
 
 // Fallback icons for non-crypto assets (forex, stocks, commodities)
 const FALLBACK_ICONS: Record<string, string> = {
@@ -38,15 +39,22 @@ const PACIFICA_TOKEN_NAMES: Record<string, string> = {
   'KBONK': 'kBONK',
 };
 
-// Generate icon URLs with Pacifica as primary source
-export const getIconUrls = (symbol: string): string[] => {
+// Generate icon URLs prioritized by active exchange
+export const getIconUrls = (symbol: string, exchange?: ExchangeType): string[] => {
   const baseSymbol = extractBaseSymbol(symbol).toUpperCase();
   const urls: string[] = [];
 
-  // Pacifica icons - primary source for all traded tokens
-  // Use special casing for tokens that need it (kPEPE, kBONK)
   const pacificaSymbol = PACIFICA_TOKEN_NAMES[baseSymbol] || baseSymbol;
-  urls.push(`https://app.pacifica.fi/imgs/tokens/${pacificaSymbol}.svg`);
+  const pacificaUrl = `https://app.pacifica.fi/imgs/tokens/${pacificaSymbol}.svg`;
+  const hlUrl = `https://app.hyperliquid.xyz/coins/${baseSymbol}.svg`;
+
+  if (exchange === 'hyperliquid') {
+    urls.push(hlUrl);
+    urls.push(pacificaUrl);
+  } else {
+    urls.push(pacificaUrl);
+    urls.push(hlUrl);
+  }
 
   // Fallback for forex, stocks, commodities
   if (FALLBACK_ICONS[baseSymbol]) {
@@ -61,6 +69,7 @@ export const getIconUrls = (symbol: string): string[] => {
 
 interface TokenIconProps {
   symbol: string;
+  exchange?: ExchangeType;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
   showFallback?: boolean;
@@ -82,20 +91,20 @@ const FALLBACK_TEXT_SIZES: Record<string, string> = {
   xl: 'text-sm',
 };
 
-export function TokenIcon({ symbol, size = 'md', className = '', showFallback = true }: TokenIconProps) {
+export function TokenIcon({ symbol, exchange, size = 'md', className = '', showFallback = true }: TokenIconProps) {
   const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
   const [showTextFallback, setShowTextFallback] = useState(false);
-  const urls = useMemo(() => getIconUrls(symbol), [symbol]);
+  const urls = useMemo(() => getIconUrls(symbol, exchange), [symbol, exchange]);
 
   const baseSymbol = extractBaseSymbol(symbol).toUpperCase();
   const sizeClass = SIZE_CLASSES[size];
   const textSizeClass = FALLBACK_TEXT_SIZES[size];
 
-  // Reset state when symbol changes
+  // Reset state when symbol or exchange changes
   useEffect(() => {
     setCurrentUrlIndex(0);
     setShowTextFallback(false);
-  }, [symbol]);
+  }, [symbol, exchange]);
 
   const handleError = () => {
     if (currentUrlIndex < urls.length - 1) {
