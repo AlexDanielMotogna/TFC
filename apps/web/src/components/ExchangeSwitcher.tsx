@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 const EXCHANGES: { type: ExchangeType; label: string }[] = [
   { type: 'pacifica', label: 'Pacifica' },
   { type: 'hyperliquid', label: 'Hyperliquid' },
+  { type: 'nado', label: 'Nado' },
 ];
 
 export function ExchangeSwitcher() {

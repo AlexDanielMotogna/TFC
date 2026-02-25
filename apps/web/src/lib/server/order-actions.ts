@@ -53,14 +53,15 @@ export async function recordOrderAction(params: RecordOrderActionParams): Promis
     const normalizedAddress = params.walletAddress.toLowerCase();
 
     // Find user by exchange connection (supports all exchanges: Pacifica, Hyperliquid, etc.)
-    const connection = await prisma.exchangeConnection.findUnique({
-      where: { accountAddress: normalizedAddress },
+    const connection = await prisma.exchangeConnection.findFirst({
+      where: { accountAddress: normalizedAddress, isActive: true },
     });
 
     // Fallback to User.walletAddress for legacy Pacifica-only lookups
-    const userId = connection?.userId
-      || (await prisma.user.findUnique({ where: { walletAddress: params.walletAddress } }))?.id
-      || 'unknown';
+    const userId =
+      connection?.userId ||
+      (await prisma.user.findUnique({ where: { walletAddress: params.walletAddress } }))?.id ||
+      'unknown';
 
     // Use size as alias for amount if amount not provided
     const amountValue = params.amount || params.size;

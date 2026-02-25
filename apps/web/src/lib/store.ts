@@ -1,7 +1,9 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/shallow';
 import { persist } from 'zustand/middleware';
 import type { PacificaFailReason } from './api';
 import type { ExchangeType } from '@tfc/shared';
+import type { WsPrice, WsMarket } from '@/lib/ws/types';
 
 export interface User {
   id: string;
@@ -22,8 +24,8 @@ interface AuthState {
   _hasHydrated: boolean;
 
   // Live trading wallet state (NOT persisted — derived from wallet adapter)
-  solanaWalletConnected: boolean;       // Is a Solana wallet currently connected?
-  tradingWalletAddress: string | null;  // Address of the currently connected Solana wallet
+  solanaWalletConnected: boolean; // Is a Solana wallet currently connected?
+  tradingWalletAddress: string | null; // Address of the currently connected Solana wallet
 
   // EVM / Hyperliquid auth state
   evmWalletAddress: string | null;
@@ -31,7 +33,17 @@ interface AuthState {
   agentApproved: boolean;
   builderFeeApproved: boolean;
 
-  setAuth: (token: string, user: User, pacificaConnected: boolean, walletAddress: string, pacificaFailReason?: PacificaFailReason) => void;
+  // Nado auth state
+  nadoConnected: boolean;
+  nadoAgentApproved: boolean;
+
+  setAuth: (
+    token: string,
+    user: User,
+    pacificaConnected: boolean,
+    walletAddress: string,
+    pacificaFailReason?: PacificaFailReason
+  ) => void;
   setPacificaConnected: (connected: boolean) => void;
   setExchangeType: (exchange: ExchangeType) => void;
   setSolanaWalletConnected: (connected: boolean) => void;
@@ -39,7 +51,12 @@ interface AuthState {
   /** Disconnect trading wallet only — preserves JWT auth session */
   disconnectTradingWallet: () => void;
   setEvmWalletAddress: (address: string | null) => void;
-  setHyperliquidStatus: (connected: boolean, approved: boolean, builderFeeApproved?: boolean) => void;
+  setHyperliquidStatus: (
+    connected: boolean,
+    approved: boolean,
+    builderFeeApproved?: boolean
+  ) => void;
+  setNadoStatus: (connected: boolean, approved: boolean) => void;
   /** Clear only Solana-side auth (preserves exchangeType + EVM state) */
   clearSolanaAuth: () => void;
   /** Clear only EVM-side auth (preserves exchangeType + Solana state) */
@@ -72,6 +89,10 @@ export const useAuthStore = create<AuthState>()(
       agentApproved: false,
       builderFeeApproved: false,
 
+      // Nado
+      nadoConnected: false,
+      nadoAgentApproved: false,
+
       setAuth: (token, user, pacificaConnected, walletAddress, pacificaFailReason = null) =>
         set({
           token,
@@ -86,14 +107,11 @@ export const useAuthStore = create<AuthState>()(
       setPacificaConnected: (connected) =>
         set({ pacificaConnected: connected, pacificaFailReason: connected ? null : undefined }),
 
-      setExchangeType: (exchange) =>
-        set({ exchangeType: exchange }),
+      setExchangeType: (exchange) => set({ exchangeType: exchange }),
 
-      setSolanaWalletConnected: (connected) =>
-        set({ solanaWalletConnected: connected }),
+      setSolanaWalletConnected: (connected) => set({ solanaWalletConnected: connected }),
 
-      setTradingWalletAddress: (address) =>
-        set({ tradingWalletAddress: address }),
+      setTradingWalletAddress: (address) => set({ tradingWalletAddress: address }),
 
       disconnectTradingWallet: () =>
         set({
@@ -103,8 +121,7 @@ export const useAuthStore = create<AuthState>()(
           pacificaFailReason: null,
         }),
 
-      setEvmWalletAddress: (address) =>
-        set({ evmWalletAddress: address }),
+      setEvmWalletAddress: (address) => set({ evmWalletAddress: address }),
 
       setHyperliquidStatus: (connected, approved, builderFeeApproved) =>
         set((state) => ({
@@ -112,6 +129,12 @@ export const useAuthStore = create<AuthState>()(
           agentApproved: approved,
           builderFeeApproved: builderFeeApproved ?? state.builderFeeApproved,
         })),
+
+      setNadoStatus: (connected, approved) =>
+        set({
+          nadoConnected: connected,
+          nadoAgentApproved: approved,
+        }),
 
       clearSolanaAuth: () =>
         set({
@@ -130,6 +153,8 @@ export const useAuthStore = create<AuthState>()(
           hyperliquidConnected: false,
           agentApproved: false,
           builderFeeApproved: false,
+          nadoConnected: false,
+          nadoAgentApproved: false,
         }),
 
       clearAuth: () =>
@@ -148,6 +173,8 @@ export const useAuthStore = create<AuthState>()(
           hyperliquidConnected: false,
           agentApproved: false,
           builderFeeApproved: false,
+          nadoConnected: false,
+          nadoAgentApproved: false,
         }),
 
       setHasHydrated: (state) => set({ _hasHydrated: state }),
@@ -167,6 +194,8 @@ export const useAuthStore = create<AuthState>()(
         hyperliquidConnected: state.hyperliquidConnected,
         agentApproved: state.agentApproved,
         builderFeeApproved: state.builderFeeApproved,
+        nadoConnected: state.nadoConnected,
+        nadoAgentApproved: state.nadoAgentApproved,
       }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
@@ -275,18 +304,118 @@ export const useStore = create<AppState>()((set) => ({
 
   setFights: (fights) => set({ fights }),
 
-  addFight: (fight) => set((state) => ({
-    fights: [fight, ...state.fights.filter(f => f.id !== fight.id)]
-  })),
+  addFight: (fight) =>
+    set((state) => ({
+      fights: [fight, ...state.fights.filter((f) => f.id !== fight.id)],
+    })),
 
-  updateFight: (fight) => set((state) => ({
-    fights: state.fights.map(f => f.id === fight.id ? fight : f)
-  })),
+  updateFight: (fight) =>
+    set((state) => ({
+      fights: state.fights.map((f) => (f.id === fight.id ? fight : f)),
+    })),
 
-  removeFight: (fightId) => set((state) => ({
-    fights: state.fights.filter(f => f.id !== fightId)
-  })),
+  removeFight: (fightId) =>
+    set((state) => ({
+      fights: state.fights.filter((f) => f.id !== fightId),
+    })),
 
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),
 }));
+
+// ─────────────────────────────────────────────────────────────
+// Price Store (real-time market prices from WebSocket)
+// ─────────────────────────────────────────────────────────────
+
+interface PriceState {
+  prices: Record<string, WsPrice>;
+  markets: WsMarket[];
+  isConnected: boolean;
+  error: string | null;
+
+  /** Update individual price entries (merges with existing). Skips set() if nothing changed. */
+  updatePrices: (newPrices: WsPrice[]) => void;
+  /** Set the markets list (only called once per exchange connection) */
+  setMarkets: (markets: WsMarket[]) => void;
+  /** Set WebSocket connection status */
+  setConnected: (connected: boolean) => void;
+  /** Set error message */
+  setError: (error: string | null) => void;
+  /** Clear all prices and markets (used on exchange switch) */
+  clearPrices: () => void;
+}
+
+export const usePriceStore = create<PriceState>()((set, get) => ({
+  prices: {},
+  markets: [],
+  isConnected: false,
+  error: null,
+
+  updatePrices: (newPrices) => {
+    if (newPrices.length === 0) return;
+    const current = get().prices;
+    // Only create a new object if at least one price actually changed
+    let hasChange = false;
+    for (const p of newPrices) {
+      const existing = current[p.symbol];
+      if (
+        !existing ||
+        existing.price !== p.price ||
+        existing.oracle !== p.oracle ||
+        existing.volume24h !== p.volume24h ||
+        existing.openInterest !== p.openInterest ||
+        existing.funding !== p.funding ||
+        existing.change24h !== p.change24h
+      ) {
+        hasChange = true;
+        break;
+      }
+    }
+    if (!hasChange) return;
+
+    const updated = { ...current };
+    for (const p of newPrices) {
+      updated[p.symbol] = p;
+    }
+    set({ prices: updated });
+  },
+
+  setMarkets: (markets) => set({ markets }),
+  setConnected: (connected) => set({ isConnected: connected }),
+  setError: (error) => set({ error }),
+  clearPrices: () => set({ prices: {}, markets: [] }),
+}));
+
+// ─── Price selectors (granular subscriptions) ────────────────
+
+/**
+ * Subscribe to a single symbol's price data.
+ * Only re-renders when that specific symbol's price changes.
+ */
+export function usePrice(symbol: string): WsPrice | null {
+  return usePriceStore((state) => state.prices[symbol] ?? null);
+}
+
+/**
+ * Subscribe to multiple symbols' price data.
+ * Only re-renders when any of the requested symbols change.
+ */
+export function usePricesForSymbols(symbols: string[]): Record<string, WsPrice> {
+  return usePriceStore(
+    useShallow((state) => {
+      const result: Record<string, WsPrice> = {};
+      for (const s of symbols) {
+        if (state.prices[s]) result[s] = state.prices[s];
+      }
+      return result;
+    })
+  );
+}
+
+/**
+ * Subscribe to markets list only.
+ * Only re-renders when markets array changes.
+ */
+export function useMarketsList(): WsMarket[] {
+  return usePriceStore((state) => state.markets);
+}

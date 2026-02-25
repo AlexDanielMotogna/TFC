@@ -27,9 +27,11 @@ async function getAccountAddress(userId: string, exchangeType?: string): Promise
 
   // Hyperliquid requires EVM addresses (0x...). Reject if the stored address
   // is a Solana address (from the auth wallet) rather than the DEX-specific EVM wallet.
-  if (exchangeType === 'hyperliquid' && connection.accountAddress) {
+  if ((exchangeType === 'hyperliquid' || exchangeType === 'nado') && connection.accountAddress) {
     if (!connection.accountAddress.startsWith('0x') || connection.accountAddress.length !== 42) {
-      console.error(`[AccountService] Hyperliquid connection for user ${userId} has non-EVM address: ${connection.accountAddress.slice(0, 10)}... — needs re-sync from EVM wallet`);
+      console.error(
+        `[AccountService] ${exchangeType} connection for user ${userId} has non-EVM address: ${connection.accountAddress.slice(0, 10)}... — needs re-sync from EVM wallet`
+      );
       return null;
     }
   }

@@ -10,10 +10,7 @@ import { ErrorCode } from '@/lib/server/error-codes';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: fightId } = await params;
 
   return withAuth(request, async (user) => {
@@ -27,7 +24,10 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
+        throw new ForbiddenError(
+          'You are not a participant in this fight',
+          ErrorCode.ERR_FIGHT_NOT_PARTICIPANT
+        );
       }
 
       // Get fight details for time range
@@ -53,14 +53,16 @@ export async function GET(
 
       // Get order actions recorded during this fight (for cross-referencing)
       // Use raw SQL with TEXT cast because CREATE_STOP may not be in the PostgreSQL enum yet
-      const orderActionsRaw = await prisma.$queryRaw<Array<{
-        id: string;
-        action_type: string;
-        symbol: string;
-        pacifica_order_id: bigint | null;
-        created_at: Date;
-      }>>`
-        SELECT id, action_type::text as action_type, symbol, pacifica_order_id, created_at
+      const orderActionsRaw = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          action_type: string;
+          symbol: string;
+          exchange_order_id: bigint | null;
+          created_at: Date;
+        }>
+      >`
+        SELECT id, action_type::text as action_type, symbol, exchange_order_id, created_at
         FROM tfc_order_actions
         WHERE fight_id = ${fightId}
           AND user_id = ${user.userId}
@@ -69,11 +71,11 @@ export async function GET(
         ORDER BY created_at DESC
       `;
 
-      const orderActions = orderActionsRaw.map(row => ({
+      const orderActions = orderActionsRaw.map((row) => ({
         id: row.id,
         actionType: row.action_type,
         symbol: row.symbol,
-        exchangeOrderId: row.pacifica_order_id,
+        exchangeOrderId: row.exchange_order_id,
         createdAt: row.created_at,
       }));
 
@@ -86,22 +88,24 @@ export async function GET(
       // Order IDs for MARKET_ORDER, LIMIT_ORDER, and CREATE_STOP
       const fightOrderIds = new Set(
         orderActions
-          .filter(oa => oa.exchangeOrderId && (oa.actionType === 'MARKET_ORDER' || oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP'))
-          .map(oa => oa.exchangeOrderId!.toString())
+          .filter(
+            (oa) =>
+              oa.exchangeOrderId &&
+              (oa.actionType === 'MARKET_ORDER' ||
+                oa.actionType === 'LIMIT_ORDER' ||
+                oa.actionType === 'CREATE_STOP')
+          )
+          .map((oa) => oa.exchangeOrderId!.toString())
       );
 
       // Symbols for SET_TPSL (TP/SL don't have exchangeOrderId at creation)
       const tpslSymbols = new Set(
-        orderActions.filter(oa => oa.actionType === 'SET_TPSL').map(oa => oa.symbol)
+        orderActions.filter((oa) => oa.actionType === 'SET_TPSL').map((oa) => oa.symbol)
       );
 
       // Calculate fight time range (Pacifica uses milliseconds for timestamps)
-      const fightStartMs = fight?.startedAt
-        ? new Date(fight.startedAt).getTime()
-        : undefined;
-      const fightEndMs = fight?.endedAt
-        ? new Date(fight.endedAt).getTime()
-        : undefined;
+      const fightStartMs = fight?.startedAt ? new Date(fight.startedAt).getTime() : undefined;
+      const fightEndMs = fight?.endedAt ? new Date(fight.endedAt).getTime() : undefined;
 
       // Fetch order history from Pacifica (without time filter - we'll filter locally)
       // This ensures we get all recent orders and filter precisely
@@ -121,14 +125,22 @@ export async function GET(
       console.log('[FightOrderHistory] TP/SL symbols:', Array.from(tpslSymbols));
       console.log('[FightOrderHistory] Fight time range:', { fightStartMs, fightEndMs });
       if (pacificaOrders.length > 0) {
-        console.log('[FightOrderHistory] Sample order:', JSON.stringify(pacificaOrders[0], null, 2));
+        console.log(
+          '[FightOrderHistory] Sample order:',
+          JSON.stringify(pacificaOrders[0], null, 2)
+        );
       }
 
       // Filter to only fight orders
       const fightOrders = pacificaOrders.filter((po: any) => {
         // Match by order ID (for MARKET_ORDER and LIMIT_ORDER)
         if (fightOrderIds.has(po.order_id?.toString())) {
-          console.log('[FightOrderHistory] Matched by order ID:', po.order_id, 'created_at:', po.created_at);
+          console.log(
+            '[FightOrderHistory] Matched by order ID:',
+            po.order_id,
+            'created_at:',
+            po.created_at
+          );
           return true;
         }
 
@@ -162,7 +174,10 @@ export async function GET(
 
       console.log('[FightOrderHistory] Filtered to', fightOrders.length, 'fight orders');
       if (fightOrders.length > 0) {
-        console.log('[FightOrderHistory] First matched order:', JSON.stringify(fightOrders[0], null, 2));
+        console.log(
+          '[FightOrderHistory] First matched order:',
+          JSON.stringify(fightOrders[0], null, 2)
+        );
       }
 
       // Pass through Pacifica data with same structure as "All" view

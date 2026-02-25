@@ -75,7 +75,7 @@ model ExchangeConnection {
   exchangeType String @default("pacifica") @map("exchange_type")
 
   // Exchange account (public address) - safe to log
-  accountAddress String @unique @map("account_address")
+  accountAddress String @map("account_address")
 
   // Encrypted private key stored in vault/secret manager reference
   // Pacifica: 'read-only' (client-side signing, no key stored)
@@ -105,7 +105,9 @@ model ExchangeConnection {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@unique([userId, exchangeType])
+  @@unique([accountAddress, exchangeType])
   @@index([userId])
+  @@index([accountAddress])
   @@map("exchange_connections")
 }
 
@@ -221,8 +223,8 @@ model FightTrade {
   participantUserId String @map("participant_user_id")
 
   // Exchange fill data (exchange-agnostic)
-  exchangeHistoryId BigInt  @map("pacifica_history_id") // history_id from exchange
-  exchangeOrderId   BigInt? @map("pacifica_order_id")
+  exchangeHistoryId BigInt  @map("exchange_history_id") // history_id from exchange
+  exchangeOrderId   BigInt? @map("exchange_order_id")
   exchangeType      String  @default("pacifica") @map("exchange_type")
 
   symbol   String
@@ -253,8 +255,8 @@ model Trade {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Exchange fill data (exchange-agnostic)
-  exchangeHistoryId BigInt  @unique @map("pacifica_history_id")
-  exchangeOrderId   BigInt? @map("pacifica_order_id")
+  exchangeHistoryId BigInt  @unique @map("exchange_history_id")
+  exchangeOrderId   BigInt? @map("exchange_order_id")
   exchangeType      String  @default("pacifica") @map("exchange_type")
 
   symbol   String
@@ -513,8 +515,8 @@ model TfcOrderAction {
   stopLoss   Decimal? @map("stop_loss") @db.Decimal(18, 8)
 
   // Exchange response data
-  exchangeOrderId   BigInt? @map("pacifica_order_id")
-  exchangeHistoryId BigInt? @map("pacifica_history_id")
+  exchangeOrderId   BigInt? @map("exchange_order_id")
+  exchangeHistoryId BigInt? @map("exchange_history_id")
 
   // Fill information (if applicable)
   filledAmount Decimal? @map("filled_amount") @db.Decimal(18, 8)

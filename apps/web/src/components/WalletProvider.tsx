@@ -7,6 +7,7 @@ import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adap
 import { PacificaConnectionSync } from './PacificaConnectionSync';
 import { PacificaWebSocketInit } from './PacificaWebSocketInit';
 import { HyperliquidConnectionSync } from './HyperliquidConnectionSync';
+import { NadoConnectionSync } from './NadoConnectionSync';
 import { getDeviceContext, type DeviceContext } from '@/lib/mobile';
 
 // Import wallet adapter styles
@@ -59,7 +60,8 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
   // - Desktop: always autoConnect
   // - Phantom browser: always autoConnect (provider is injected)
   // - Mobile browser (iOS/Android): only autoConnect if user was previously authenticated
-  const shouldAutoConnect = deviceContext === 'desktop' || deviceContext === 'phantom-browser' || hasPreviousAuth;
+  const shouldAutoConnect =
+    deviceContext === 'desktop' || deviceContext === 'phantom-browser' || hasPreviousAuth;
 
   // Use devnet by default, can be changed via environment variable
   const endpoint = useMemo(() => {
@@ -84,10 +86,7 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
     // Inside any wallet dApp browser OR on mobile: offer both adapters
     // so the wallet modal shows the available provider(s).
     // On desktop: browser extensions handle detection automatically.
-    return [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter(),
-    ];
+    return [new PhantomWalletAdapter(), new SolflareWalletAdapter()];
   }, [deviceContext]);
 
   return (
@@ -98,6 +97,7 @@ export function WalletProviderWrapper({ children }: { children: ReactNode }) {
           <PacificaConnectionSync />
           <PacificaWebSocketInit />
           <HyperliquidConnectionSync />
+          <NadoConnectionSync />
           {children}
         </WalletModalProvider>
       </WalletProvider>

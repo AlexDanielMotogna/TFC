@@ -24,10 +24,7 @@ function formatOrderType(orderType: string): string {
   return orderType?.toUpperCase() || 'UNKNOWN';
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: fightId } = await params;
 
   return withAuth(request, async (user) => {
@@ -49,7 +46,10 @@ export async function GET(
       });
 
       if (!participant) {
-        throw new ForbiddenError('You are not a participant in this fight', ErrorCode.ERR_FIGHT_NOT_PARTICIPANT);
+        throw new ForbiddenError(
+          'You are not a participant in this fight',
+          ErrorCode.ERR_FIGHT_NOT_PARTICIPANT
+        );
       }
 
       // Get Pacifica connection for this user
@@ -65,16 +65,18 @@ export async function GET(
       // Get all non-market order actions for this fight
       // LIMIT_ORDER = limit orders, SET_TPSL = TP/SL via position, CREATE_STOP = standalone stop orders
       // Use raw SQL with TEXT cast because CREATE_STOP may not be in the PostgreSQL enum yet
-      const orderActionsRaw = await prisma.$queryRaw<Array<{
-        id: string;
-        action_type: string;
-        symbol: string;
-        side: string | null;
-        pacifica_order_id: bigint | null;
-        created_at: Date;
-      }>>`
+      const orderActionsRaw = await prisma.$queryRaw<
+        Array<{
+          id: string;
+          action_type: string;
+          symbol: string;
+          side: string | null;
+          exchange_order_id: bigint | null;
+          created_at: Date;
+        }>
+      >`
         SELECT id, action_type::text as action_type, symbol, side,
-               pacifica_order_id, created_at
+               exchange_order_id, created_at
         FROM tfc_order_actions
         WHERE fight_id = ${fightId}
           AND user_id = ${user.userId}
@@ -84,12 +86,12 @@ export async function GET(
       `;
 
       // Normalize to camelCase
-      const orderActions = orderActionsRaw.map(row => ({
+      const orderActions = orderActionsRaw.map((row) => ({
         id: row.id,
         actionType: row.action_type,
         symbol: row.symbol,
         side: row.side,
-        exchangeOrderId: row.pacifica_order_id,
+        exchangeOrderId: row.exchange_order_id,
         createdAt: row.created_at,
       }));
 
@@ -125,21 +127,21 @@ export async function GET(
       });
 
       // Separate order types: LIMIT_ORDER/CREATE_STOP (matched by exchangeOrderId) vs SET_TPSL (matched by symbol)
-      const orderByIdActions = orderActions.filter(oa => oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP');
-      const tpslActions = orderActions.filter(oa => oa.actionType === 'SET_TPSL');
+      const orderByIdActions = orderActions.filter(
+        (oa) => oa.actionType === 'LIMIT_ORDER' || oa.actionType === 'CREATE_STOP'
+      );
+      const tpslActions = orderActions.filter((oa) => oa.actionType === 'SET_TPSL');
 
       // For LIMIT_ORDER and CREATE_STOP: cross-reference by exchangeOrderId
       const fightOrderIds = new Set(
         orderByIdActions
-          .filter(oa => oa.exchangeOrderId)
-          .map(oa => oa.exchangeOrderId!.toString())
+          .filter((oa) => oa.exchangeOrderId)
+          .map((oa) => oa.exchangeOrderId!.toString())
       );
 
       // For SET_TPSL: match by symbol (TP/SL don't have exchangeOrderId)
       // TP/SL orders in Pacifica have types: sl_market, tp_market, sl_limit, tp_limit
-      const tpslSymbols = new Set(
-        tpslActions.map(oa => oa.symbol)
-      );
+      const tpslSymbols = new Set(tpslActions.map((oa) => oa.symbol));
 
       const fightOrders = pacificaOrders.filter((po: any) => {
         // Match limit orders by order ID
@@ -166,7 +168,10 @@ export async function GET(
         // order.side 'ask' = closing LONG (position side 'bid')
         // order.side 'bid' = closing SHORT (position side 'ask')
         let resolvedAmount = order.initial_amount || order.amount || '0';
-        if (isTpSlOrder && (!resolvedAmount || resolvedAmount === '0' || parseFloat(resolvedAmount) === 0)) {
+        if (
+          isTpSlOrder &&
+          (!resolvedAmount || resolvedAmount === '0' || parseFloat(resolvedAmount) === 0)
+        ) {
           const positionSide = order.side === 'ask' ? 'bid' : 'ask';
           const positionAmount = positionMap.get(`${order.symbol}-${positionSide}`);
           if (positionAmount) {
@@ -175,7 +180,7 @@ export async function GET(
         }
 
         // For TP/SL orders, use stop_price as price (matches "All" view behavior)
-        const resolvedPrice = isTpSlOrder ? (order.stop_price || order.price) : order.price;
+        const resolvedPrice = isTpSlOrder ? order.stop_price || order.price : order.price;
 
         return {
           order_id: order.order_id,

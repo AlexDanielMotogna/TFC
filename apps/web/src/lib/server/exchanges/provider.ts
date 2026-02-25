@@ -6,6 +6,7 @@
 import { ExchangeAdapter } from './adapter';
 import { PacificaAdapter } from './pacifica-adapter';
 import { HyperliquidAdapter } from './hyperliquid-adapter';
+import { NadoAdapter } from './nado-adapter';
 import { CachedExchangeAdapter } from './cached-adapter';
 
 /**
@@ -17,7 +18,9 @@ export class ExchangeProvider {
   /**
    * Get exchange adapter (cached singleton per exchange)
    */
-  static getAdapter(exchangeName: 'pacifica' | 'hyperliquid' | 'lighter'): ExchangeAdapter {
+  static getAdapter(
+    exchangeName: 'pacifica' | 'hyperliquid' | 'lighter' | 'nado'
+  ): ExchangeAdapter {
     if (this.adapters.has(exchangeName)) {
       return this.adapters.get(exchangeName)!;
     }
@@ -35,6 +38,10 @@ export class ExchangeProvider {
 
       case 'lighter':
         throw new Error('Lighter adapter not implemented yet');
+
+      case 'nado':
+        adapter = new NadoAdapter();
+        break;
 
       default:
         throw new Error(`Unknown exchange: ${exchangeName}`);
@@ -55,7 +62,7 @@ export class ExchangeProvider {
    */
   static async getUserAdapter(userId: string, exchangeType?: string): Promise<ExchangeAdapter> {
     if (exchangeType) {
-      return this.getAdapter(exchangeType as 'pacifica' | 'hyperliquid' | 'lighter');
+      return this.getAdapter(exchangeType as 'pacifica' | 'hyperliquid' | 'lighter' | 'nado');
     }
 
     // Query database for user's active exchange connection
@@ -65,7 +72,9 @@ export class ExchangeProvider {
       select: { exchangeType: true },
     });
 
-    return this.getAdapter((connection?.exchangeType || 'pacifica') as 'pacifica' | 'hyperliquid' | 'lighter');
+    return this.getAdapter(
+      (connection?.exchangeType || 'pacifica') as 'pacifica' | 'hyperliquid' | 'lighter' | 'nado'
+    );
   }
 
   /**

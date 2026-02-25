@@ -48,7 +48,7 @@ function getWalletProviders(): { name: string; provider: WalletProvider }[] {
   }
 
   // Generic Solana provider (Backpack, etc.) - only if not already added
-  if (win.solana && !providers.some(p => p.provider === win.solana)) {
+  if (win.solana && !providers.some((p) => p.provider === win.solana)) {
     providers.push({ name: 'Solana', provider: win.solana });
   }
 
@@ -71,11 +71,23 @@ function removeProviderListener(
 export function useAuth() {
   const { publicKey, signMessage, connected, connecting, disconnect, wallet } = useWallet();
   const {
-    token, user, walletAddress: storedWalletAddress,
-    isAuthenticated, pacificaConnected, pacificaFailReason, exchangeType,
-    solanaWalletConnected, tradingWalletAddress,
-    setAuth, setPacificaConnected, setSolanaWalletConnected, setTradingWalletAddress,
-    disconnectTradingWallet, clearSolanaAuth, clearAuth, _hasHydrated,
+    token,
+    user,
+    walletAddress: storedWalletAddress,
+    isAuthenticated,
+    pacificaConnected,
+    pacificaFailReason,
+    exchangeType,
+    solanaWalletConnected,
+    tradingWalletAddress,
+    setAuth,
+    setPacificaConnected,
+    setSolanaWalletConnected,
+    setTradingWalletAddress,
+    disconnectTradingWallet,
+    clearSolanaAuth,
+    clearAuth,
+    _hasHydrated,
   } = useAuthStore();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const hasAttemptedAuth = useRef(false);
@@ -103,11 +115,7 @@ export function useAuth() {
       const referralCode = getStoredReferralCode() || undefined;
 
       // Send to API - will create account and auto-link Pacifica if available
-      const response = await api.connectWallet(
-        publicKey.toBase58(),
-        signatureBase58,
-        referralCode
-      );
+      const response = await api.connectWallet(publicKey.toBase58(), signatureBase58, referralCode);
 
       // Clear referral code after successful registration
       if (referralCode) {
@@ -115,7 +123,13 @@ export function useAuth() {
       }
 
       // Store auth state including Pacifica connection status, wallet address, and fail reason
-      setAuth(response.token, response.user, response.pacificaConnected, publicKey.toBase58(), response.pacificaFailReason);
+      setAuth(
+        response.token,
+        response.user,
+        response.pacificaConnected,
+        publicKey.toBase58(),
+        response.pacificaFailReason
+      );
 
       // Also sync the trading wallet address
       setSolanaWalletConnected(true);
@@ -129,7 +143,14 @@ export function useAuth() {
       setIsAuthenticating(false);
       globalAuthInProgress = false;
     }
-  }, [publicKey, signMessage, setAuth, setSolanaWalletConnected, setTradingWalletAddress, isAuthenticating]);
+  }, [
+    publicKey,
+    signMessage,
+    setAuth,
+    setSolanaWalletConnected,
+    setTradingWalletAddress,
+    isAuthenticating,
+  ]);
 
   // Sync live wallet adapter state to store and handle wallet switches
   // When wallet changes: update trading wallet, invalidate Pacifica connection to re-link
@@ -165,8 +186,15 @@ export function useAuth() {
       globalAuthInProgress = false;
       disconnectTradingWallet();
     }
-  }, [_hasHydrated, connected, currentWalletAddress, tradingWalletAddress,
-      setSolanaWalletConnected, setTradingWalletAddress, disconnectTradingWallet]);
+  }, [
+    _hasHydrated,
+    connected,
+    currentWalletAddress,
+    tradingWalletAddress,
+    setSolanaWalletConnected,
+    setTradingWalletAddress,
+    disconnectTradingWallet,
+  ]);
 
   // Listen to wallet provider's accountChanged event directly (wallet adapter doesn't always emit this)
   // Supports Phantom, Solflare, Backpack, and other Solana wallets
@@ -218,8 +246,8 @@ export function useAuth() {
     // Don't attempt auto-login until Zustand has hydrated from localStorage
     if (!_hasHydrated) return;
 
-    // Skip Solana auto-login when user is on Hyperliquid exchange
-    if (exchangeType === 'hyperliquid') return;
+    // Skip Solana auto-login when user is on EVM-based exchanges
+    if (exchangeType === 'hyperliquid' || exchangeType === 'nado') return;
 
     // Already authenticated — just sync trading wallet, no re-auth needed
     if (isAuthenticated && connected && currentWalletAddress) {
@@ -233,7 +261,15 @@ export function useAuth() {
     }
 
     // Not authenticated — attempt login (first wallet connection)
-    if (connected && publicKey && signMessage && !isAuthenticating && !hasAttemptedAuth.current && !globalHasAttempted && !globalAuthInProgress) {
+    if (
+      connected &&
+      publicKey &&
+      signMessage &&
+      !isAuthenticating &&
+      !hasAttemptedAuth.current &&
+      !globalHasAttempted &&
+      !globalAuthInProgress
+    ) {
       hasAttemptedAuth.current = true;
       globalHasAttempted = true;
       login().catch((err) => {
@@ -244,7 +280,19 @@ export function useAuth() {
         hasAttemptedAuth.current = false;
       });
     }
-  }, [_hasHydrated, connected, publicKey, signMessage, isAuthenticated, currentWalletAddress, isAuthenticating, login, exchangeType, setSolanaWalletConnected, setTradingWalletAddress]);
+  }, [
+    _hasHydrated,
+    connected,
+    publicKey,
+    signMessage,
+    isAuthenticated,
+    currentWalletAddress,
+    isAuthenticating,
+    login,
+    exchangeType,
+    setSolanaWalletConnected,
+    setTradingWalletAddress,
+  ]);
 
   // Detect wallet changes when app regains focus (handles mobile wallet switching)
   // On mobile (Phantom dApp browser, Android), users can switch wallets while the app is in background.
@@ -259,7 +307,10 @@ export function useAuth() {
       const currentKey = phantom?.publicKey?.toBase58?.() || publicKey?.toBase58() || null;
 
       if (currentKey && tradingWalletAddress && currentKey !== tradingWalletAddress) {
-        console.log('Trading wallet changed on focus/visibility:', { stored: tradingWalletAddress, current: currentKey });
+        console.log('Trading wallet changed on focus/visibility:', {
+          stored: tradingWalletAddress,
+          current: currentKey,
+        });
         setTradingWalletAddress(currentKey);
         queryClient.invalidateQueries({ queryKey: ['pacifica-connection'] });
         queryClient.invalidateQueries({ queryKey: ['positions'] });

@@ -61,7 +61,8 @@ export function LandingFooter() {
               />
             </Link>
             <p className="text-sm text-surface-400 mb-6 max-w-xs">
-              Compete in 1v1 trading battles on Pacifica DEX. Trade BTC, ETH, SOL with up to 50x leverage. Top traders win weekly prizes.
+              Compete in 1v1 trading battles on Pacifica DEX. Trade BTC, ETH, SOL with up to 50x
+              leverage. Top traders win weekly prizes.
             </p>
             {/* Social Links */}
             <div className="flex items-center gap-3">
@@ -86,7 +87,10 @@ export function LandingFooter() {
             <ul className="space-y-3">
               {footerLinks.platform.map((link) => (
                 <li key={link.name}>
-                  <Link href={link.href} className="text-sm text-surface-400 hover:text-white transition-colors">
+                  <Link
+                    href={link.href}
+                    className="text-sm text-surface-400 hover:text-white transition-colors"
+                  >
                     {link.name}
                   </Link>
                 </li>
@@ -100,7 +104,10 @@ export function LandingFooter() {
             <ul className="space-y-3">
               {footerLinks.trading.map((link) => (
                 <li key={link.name}>
-                  <Link href={link.href} className="text-sm text-surface-400 hover:text-white transition-colors">
+                  <Link
+                    href={link.href}
+                    className="text-sm text-surface-400 hover:text-white transition-colors"
+                  >
                     {link.name}
                   </Link>
                 </li>
@@ -124,7 +131,10 @@ export function LandingFooter() {
                       {link.name}
                     </a>
                   ) : (
-                    <Link href={link.href} className="text-sm text-surface-400 hover:text-white transition-colors">
+                    <Link
+                      href={link.href}
+                      className="text-sm text-surface-400 hover:text-white transition-colors"
+                    >
                       {link.name}
                     </Link>
                   )}
@@ -134,7 +144,7 @@ export function LandingFooter() {
           </div>
         </div>
 
-        {/* Powered by Pacifica */}
+        {/* Powered by */}
         <div className="flex items-center justify-center gap-2 mb-8 py-4 border-y border-surface-800">
           <span className="text-sm text-surface-500">Powered by</span>
           <a
@@ -143,10 +153,26 @@ export function LandingFooter() {
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-primary-400 hover:text-primary-300 transition-colors"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+            <img
+              src="/images/logos/Pacifica-logos/Cyan Logo.png"
+              alt="Pacifica"
+              className="w-5 h-5"
+            />
             <span className="font-medium">Pacifica DEX</span>
+          </a>
+          <span className="text-surface-600 mx-1">&</span>
+          <a
+            href="https://hyperliquid.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-[#6FFFE9] hover:text-[#9FFFEB] transition-colors"
+          >
+            <img
+              src="/images/logos/Hyperliquid-logos/Hyperliquid-logos/HL symbol_mint green.png"
+              alt="Hyperliquid"
+              className="w-5 h-5"
+            />
+            <span className="font-medium">Hyperliquid</span>
           </a>
         </div>
 
@@ -156,8 +182,12 @@ export function LandingFooter() {
             © {new Date().getFullYear()} Trade Fight Club. All rights reserved.
           </p>
           <div className="flex items-center gap-6 text-sm text-surface-500">
-            <Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
-            <Link href="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">
+              Privacy Policy
+            </Link>
           </div>
         </div>
       </div>

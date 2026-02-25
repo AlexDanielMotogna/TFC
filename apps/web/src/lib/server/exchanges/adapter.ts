@@ -15,6 +15,7 @@ export interface AuthContext {
 export type ExchangeCredentials =
   | { type: 'pacifica'; privateKey: string } // Base58 Ed25519 private key
   | { type: 'hyperliquid'; privateKey: string } // Ethereum private key (hex)
+  | { type: 'nado'; privateKey: string } // Ethereum private key (hex) for linked signer
   | { type: 'binance'; apiKey: string; apiSecret: string }; // HMAC API keys
 
 // ─────────────────────────────────────────────────────────────
@@ -107,7 +108,15 @@ export interface Position {
 }
 
 export type OrderSide = 'BUY' | 'SELL';
-export type OrderType = 'MARKET' | 'LIMIT' | 'STOP_MARKET' | 'STOP_LIMIT' | 'STOP_LOSS_MARKET' | 'STOP_LOSS_LIMIT' | 'TAKE_PROFIT_MARKET' | 'TAKE_PROFIT_LIMIT';
+export type OrderType =
+  | 'MARKET'
+  | 'LIMIT'
+  | 'STOP_MARKET'
+  | 'STOP_LIMIT'
+  | 'STOP_LOSS_MARKET'
+  | 'STOP_LOSS_LIMIT'
+  | 'TAKE_PROFIT_MARKET'
+  | 'TAKE_PROFIT_LIMIT';
 export type TimeInForce = 'GTC' | 'IOC' | 'FOK' | 'POST_ONLY'; // Normalized across exchanges
 
 export interface Order {
@@ -153,7 +162,13 @@ export interface AccountSetting {
   metadata: Record<string, unknown>;
 }
 
-export type OrderHistoryStatus = 'open' | 'filled' | 'canceled' | 'triggered' | 'rejected' | 'marginCanceled';
+export type OrderHistoryStatus =
+  | 'open'
+  | 'filled'
+  | 'canceled'
+  | 'triggered'
+  | 'rejected'
+  | 'marginCanceled';
 
 export interface OrderHistoryItem {
   orderId: string | number;
@@ -161,13 +176,13 @@ export interface OrderHistoryItem {
   symbol: string;
   side: OrderSide;
   type: OrderType;
-  price: string;             // Limit price or trigger price
-  amount: string;            // Original order size
-  filled: string;            // Filled amount
+  price: string; // Limit price or trigger price
+  amount: string; // Original order size
+  filled: string; // Filled amount
   status: OrderHistoryStatus;
   reduceOnly: boolean;
-  createdAt: number;         // Order creation time (epoch ms)
-  statusTimestamp: number;   // Time of last status change (epoch ms)
+  createdAt: number; // Order creation time (epoch ms)
+  statusTimestamp: number; // Time of last status change (epoch ms)
 
   // Exchange-specific metadata
   metadata: Record<string, unknown>;
@@ -200,8 +215,8 @@ export interface StopOrderParams {
   symbol: string;
   side: OrderSide;
   amount: string;
-  stopPrice: string;         // Trigger price
-  limitPrice?: string;       // Makes it stop-limit if provided
+  stopPrice: string; // Trigger price
+  limitPrice?: string; // Makes it stop-limit if provided
   reduceOnly?: boolean;
   clientOrderId?: string;
 }
@@ -266,12 +281,28 @@ export interface ExchangeAdapter {
   // Trading Operations (Signing Required)
   // ─────────────────────────────────────────────────────────────
 
-  createMarketOrder(auth: AuthContext, params: MarketOrderParams): Promise<{ orderId: string | number }>;
-  createLimitOrder(auth: AuthContext, params: LimitOrderParams): Promise<{ orderId: string | number }>;
-  createStopOrder(auth: AuthContext, params: StopOrderParams): Promise<{ orderId: string | number }>;
+  createMarketOrder(
+    auth: AuthContext,
+    params: MarketOrderParams
+  ): Promise<{ orderId: string | number }>;
+  createLimitOrder(
+    auth: AuthContext,
+    params: LimitOrderParams
+  ): Promise<{ orderId: string | number }>;
+  createStopOrder(
+    auth: AuthContext,
+    params: StopOrderParams
+  ): Promise<{ orderId: string | number }>;
   cancelOrder(auth: AuthContext, params: CancelOrderParams): Promise<{ success: boolean }>;
-  cancelAllOrders(auth: AuthContext, params: CancelAllOrdersParams): Promise<{ cancelledCount: number }>;
-  updateLeverage(auth: AuthContext, symbol: string, leverage: number): Promise<{ success: boolean }>;
+  cancelAllOrders(
+    auth: AuthContext,
+    params: CancelAllOrdersParams
+  ): Promise<{ cancelledCount: number }>;
+  updateLeverage(
+    auth: AuthContext,
+    symbol: string,
+    leverage: number
+  ): Promise<{ success: boolean }>;
 
   // Order history (completed/cancelled orders — distinct from trade fills)
   getOrderHistory?(accountId: string): Promise<OrderHistoryItem[]>;
@@ -281,7 +312,11 @@ export interface ExchangeAdapter {
   // ─────────────────────────────────────────────────────────────
 
   // Builder code (Pacifica-specific)
-  approveBuilderCode?(auth: AuthContext, builderCode: string, maxFeeRate: number): Promise<{ success: boolean }>;
+  approveBuilderCode?(
+    auth: AuthContext,
+    builderCode: string,
+    maxFeeRate: number
+  ): Promise<{ success: boolean }>;
 
   // Withdraw funds (if supported)
   withdraw?(auth: AuthContext, amount: string): Promise<{ success: boolean }>;

@@ -80,6 +80,8 @@ export interface EditOrderParams extends BaseOrderParams {
   amount: string;
   order_id?: string;
   client_order_id?: string;
+  /** Side of the original order. Required for exchanges that cancel+replace (e.g. Nado). */
+  side?: string;
 }
 
 export interface BatchOrderParams extends BaseOrderParams {
@@ -146,6 +148,7 @@ export interface ExchangeOrderRouter {
 import { PacificaOrderRouter } from './pacifica-order-router';
 import { HyperliquidOrderRouter } from './hyperliquid-order-router';
 import { LighterOrderRouter } from './lighter-order-router';
+import { NadoOrderRouter } from './nado-order-router';
 
 const routerInstances: Partial<Record<ExchangeType, ExchangeOrderRouter>> = {};
 
@@ -164,6 +167,9 @@ export function getOrderRouter(exchangeType: ExchangeType = 'pacifica'): Exchang
         break;
       case 'lighter':
         routerInstances[exchangeType] = new LighterOrderRouter();
+        break;
+      case 'nado':
+        routerInstances[exchangeType] = new NadoOrderRouter();
         break;
       default:
         throw new Error(`Unknown exchange type: ${exchangeType}`);

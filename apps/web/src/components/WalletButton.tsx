@@ -12,12 +12,12 @@ import { useEffect } from 'react';
 /**
  * Wallet button that shows the correct wallet UI based on exchange type:
  * - Pacifica → Solana WalletMultiButton
- * - Hyperliquid → RainbowKit ConnectButton (EVM wallet selector)
+ * - Hyperliquid / Nado → RainbowKit ConnectButton (EVM wallet selector)
  */
 export function WalletButton() {
-  const { exchangeType } = useExchangeContext();
+  const { exchangeType, exchangeConfig } = useExchangeContext();
 
-  if (exchangeType === 'hyperliquid') {
+  if (exchangeConfig.walletType === 'ethereum') {
     return <EvmWalletButton />;
   }
 

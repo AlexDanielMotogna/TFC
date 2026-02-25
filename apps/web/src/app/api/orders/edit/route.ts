@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       amount,
       order_id,
       client_order_id,
+      side,
       signature,
       timestamp,
     } = body;
@@ -28,32 +29,51 @@ export async function POST(request: Request) {
 
     if (!router.signsServerSide) {
       if (!account || !symbol || !price || !amount || !signature || !timestamp) {
-        throw new BadRequestError('account, symbol, price, amount, signature, and timestamp are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+        throw new BadRequestError(
+          'account, symbol, price, amount, signature, and timestamp are required',
+          ErrorCode.ERR_VALIDATION_MISSING_FIELD
+        );
       }
     } else {
       if (!account || !symbol || !price || !amount) {
-        throw new BadRequestError('account, symbol, price, and amount are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+        throw new BadRequestError(
+          'account, symbol, price, and amount are required',
+          ErrorCode.ERR_VALIDATION_MISSING_FIELD
+        );
       }
     }
 
     if (!order_id && !client_order_id) {
-      throw new BadRequestError('Either order_id or client_order_id is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+      throw new BadRequestError(
+        'Either order_id or client_order_id is required',
+        ErrorCode.ERR_VALIDATION_MISSING_FIELD
+      );
     }
 
     // Route to the correct exchange
     const result = await router.editOrder({
-      account, symbol, price, amount,
-      order_id, client_order_id,
-      signature, timestamp,
+      account,
+      symbol,
+      price,
+      amount,
+      order_id,
+      client_order_id,
+      side,
+      signature,
+      timestamp,
     });
 
     if (!result.success) {
-      throw new ServiceUnavailableError(result.error || 'Exchange API error', ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      throw new ServiceUnavailableError(
+        result.error || 'Exchange API error',
+        ErrorCode.ERR_EXTERNAL_PACIFICA_API
+      );
     }
 
     console.log('Order edited successfully', {
       exchange: exchangeType,
-      account, symbol,
+      account,
+      symbol,
       orderId: order_id,
       newPrice: price,
       newAmount: amount,
@@ -71,7 +91,7 @@ export async function POST(request: Request) {
       exchangeOrderId: result.data?.order_id as number,
       exchangeType,
       success: true,
-    }).catch(err => console.error('Failed to record edit order action:', err));
+    }).catch((err) => console.error('Failed to record edit order action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

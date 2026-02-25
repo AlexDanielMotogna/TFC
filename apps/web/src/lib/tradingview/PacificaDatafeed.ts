@@ -8,7 +8,8 @@ import { wsManager, type Bar } from './WebSocketManager';
 // Use our aggregated chart API (Pacifica + Binance/Bybit for historical data)
 const CHART_API_BASE = '';
 // Pacifica API for market info (not candles)
-const PACIFICA_API_BASE = process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://test-api.pacifica.fi';
+const PACIFICA_API_BASE =
+  process.env.NEXT_PUBLIC_PACIFICA_API_URL || 'https://test-api.pacifica.fi';
 
 // TradingView resolution to Pacifica interval mapping
 const RESOLUTION_MAP: Record<string, string> = {
@@ -22,7 +23,7 @@ const RESOLUTION_MAP: Record<string, string> = {
   '240': '4h',
   '480': '8h',
   '720': '12h',
-  'D': '1d',
+  D: '1d',
   '1D': '1d',
 };
 
@@ -56,7 +57,7 @@ const RESOLUTION_MS: Record<string, number> = {
   '240': 4 * 60 * 60 * 1000,
   '480': 8 * 60 * 60 * 1000,
   '720': 12 * 60 * 60 * 1000,
-  'D': 24 * 60 * 60 * 1000,
+  D: 24 * 60 * 60 * 1000,
   '1D': 24 * 60 * 60 * 1000,
 };
 
@@ -109,11 +110,17 @@ function symbolToPacifica(symbol: string): string {
   return symbol.replace('-USD', '');
 }
 
+/** Extract base asset from any symbol format: "BTC-USD" → "BTC", "BTC-PERP" → "BTC" */
+function symbolToBase(symbol: string): string {
+  if (symbol === 'KPEPE-USD') return '1000PEPE';
+  return symbol.replace(/-USD$/, '').replace(/-PERP$/, '');
+}
+
 /**
  * Get price scale based on symbol (for proper decimal display)
  */
 function getPriceScale(symbol: string): number {
-  const baseSymbol = symbolToPacifica(symbol);
+  const baseSymbol = symbolToBase(symbol);
 
   // High-value assets with 2 decimals
   if (['BTC', 'ETH'].includes(baseSymbol)) {
@@ -132,16 +139,16 @@ function getPriceScale(symbol: string): number {
 interface PacificaKlineResponse {
   success: boolean;
   data: Array<{
-    t: number;   // open time ms
-    T: number;   // close time ms
-    s: string;   // symbol
-    i: string;   // interval
-    o: string;   // open
-    c: string;   // close
-    h: string;   // high
-    l: string;   // low
-    v: string;   // volume
-    n: number;   // number of trades
+    t: number; // open time ms
+    T: number; // close time ms
+    s: string; // symbol
+    i: string; // interval
+    o: string; // open
+    c: string; // close
+    h: string; // high
+    l: string; // low
+    v: string; // volume
+    n: number; // number of trades
   }>;
   error: string | null;
 }
@@ -150,7 +157,7 @@ interface PacificaKlineResponse {
 interface PacificaInfoResponse {
   success: boolean;
   data: Array<{
-    symbol: string;       // e.g., "BTC", "ETH"
+    symbol: string; // e.g., "BTC", "ETH"
     max_leverage: number;
     tick_size: string;
     lot_size: string;
@@ -210,6 +217,11 @@ interface SearchSymbolResultItem {
 export class PacificaDatafeed {
   private marketsCache: Array<{ symbol: string; baseAsset: string }> = [];
   private lastBars: Map<string, Bar> = new Map();
+  private exchangeType: string;
+
+  constructor(exchangeType: string = 'pacifica') {
+    this.exchangeType = exchangeType;
+  }
 
   /**
    * Called when the library needs datafeed configuration
@@ -292,9 +304,12 @@ export class PacificaDatafeed {
   ): void {
     console.log('[Datafeed] resolveSymbol:', symbolName);
 
-    // Normalize symbol name
-    const symbol = symbolName.includes('-USD') ? symbolName : `${symbolName}-USD`;
-    const baseSymbol = symbolToPacifica(symbol);
+    // Normalize symbol name — keep native format for non-USD symbols (e.g. "BTC-PERP" for Nado)
+    const symbol =
+      symbolName.includes('-USD') || symbolName.includes('-PERP')
+        ? symbolName
+        : `${symbolName}-USD`;
+    const baseSymbol = symbolToBase(symbol);
 
     setTimeout(() => {
       const symbolInfo: LibrarySymbolInfo = {
@@ -344,8 +359,8 @@ export class PacificaDatafeed {
     const toMs = periodParams.to * 1000;
 
     try {
-      // Use our aggregated chart API that combines Pacifica + Binance/Bybit
-      const url = `${CHART_API_BASE}/api/chart/candles?symbol=${symbolInfo.name}&interval=${interval}&start=${fromMs}&end=${toMs}`;
+      // Use our aggregated chart API that combines exchange data + Binance/Bybit historical
+      const url = `${CHART_API_BASE}/api/chart/candles?symbol=${symbolInfo.name}&interval=${interval}&start=${fromMs}&end=${toMs}&exchange=${this.exchangeType}`;
       console.log('[Datafeed] Fetching from:', url);
       const response = await fetch(url);
 
@@ -362,14 +377,16 @@ export class PacificaDatafeed {
 
       // Convert to TradingView bar format (time in ms)
       // Our API returns numbers already parsed
-      const bars: Bar[] = data.data.map((c: { t: number; o: number; h: number; l: number; c: number; v: number }) => ({
-        time: c.t,
-        open: c.o,
-        high: c.h,
-        low: c.l,
-        close: c.c,
-        volume: c.v,
-      }));
+      const bars: Bar[] = data.data.map(
+        (c: { t: number; o: number; h: number; l: number; c: number; v: number }) => ({
+          time: c.t,
+          open: c.o,
+          high: c.h,
+          low: c.l,
+          close: c.c,
+          volume: c.v,
+        })
+      );
 
       // Sort by time ascending
       bars.sort((a, b) => a.time - b.time);
@@ -379,7 +396,9 @@ export class PacificaDatafeed {
 
       // Debug: log gap filling results
       if (filledBars.length !== bars.length) {
-        console.log(`[Datafeed] Gap fill: ${bars.length} → ${filledBars.length} bars (+${filledBars.length - bars.length} synthetic)`);
+        console.log(
+          `[Datafeed] Gap fill: ${bars.length} → ${filledBars.length} bars (+${filledBars.length - bars.length} synthetic)`
+        );
       }
 
       // Debug: check for remaining gaps
@@ -402,7 +421,9 @@ export class PacificaDatafeed {
         this.lastBars.set(key, lastBar);
       }
 
-      console.log(`[Datafeed] Loaded ${bars.length} bars, filled to ${filledBars.length} for ${symbolInfo.name}`);
+      console.log(
+        `[Datafeed] Loaded ${bars.length} bars, filled to ${filledBars.length} for ${symbolInfo.name}`
+      );
       onResult(filledBars);
     } catch (error) {
       console.error('[Datafeed] getBars error:', error);
@@ -422,23 +443,30 @@ export class PacificaDatafeed {
   ): void {
     console.log('[Datafeed] subscribeBars:', symbolInfo.name, resolution, listenerGuid);
 
-    const pacificaSymbol = symbolToPacifica(symbolInfo.name);
+    // For WS subscription: Pacifica uses base symbol ("BTC"), others use full symbol ("BTC-PERP")
+    const wsSymbol =
+      this.exchangeType === 'pacifica' ? symbolToPacifica(symbolInfo.name) : symbolInfo.name;
     const interval = RESOLUTION_MAP[resolution] || '5m';
     const key = `${symbolInfo.name}:${resolution}`;
 
     // Subscribe via WebSocket manager
-    wsManager.subscribe(pacificaSymbol, interval, (bar) => {
-      // Update last bar tracking
-      const lastBar = this.lastBars.get(key);
+    wsManager.subscribe(
+      wsSymbol,
+      interval,
+      (bar) => {
+        // Update last bar tracking
+        const lastBar = this.lastBars.get(key);
 
-      if (lastBar && bar.time < lastBar.time) {
-        // Ignore old bars
-        return;
-      }
+        if (lastBar && bar.time < lastBar.time) {
+          // Ignore old bars
+          return;
+        }
 
-      this.lastBars.set(key, bar);
-      onTick(bar);
-    }, listenerGuid);
+        this.lastBars.set(key, bar);
+        onTick(bar);
+      },
+      listenerGuid
+    );
   }
 
   /**

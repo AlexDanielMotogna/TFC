@@ -9,6 +9,7 @@ import type { ExchangeWsAdapter } from './types';
 import { PacificaWsAdapter } from './pacifica-ws-adapter';
 import { HyperliquidWsAdapter } from './hyperliquid-ws-adapter';
 import { LighterWsAdapter } from './lighter-ws-adapter';
+import { NadoWsAdapter } from './nado-ws-adapter';
 
 const adapterInstances: Partial<Record<ExchangeType, ExchangeWsAdapter>> = {};
 
@@ -27,6 +28,9 @@ export function createWsAdapter(exchangeType: ExchangeType): ExchangeWsAdapter {
         break;
       case 'lighter':
         adapterInstances[exchangeType] = new LighterWsAdapter();
+        break;
+      case 'nado':
+        adapterInstances[exchangeType] = new NadoWsAdapter();
         break;
       default:
         throw new Error(`Unknown exchange type: ${exchangeType}`);

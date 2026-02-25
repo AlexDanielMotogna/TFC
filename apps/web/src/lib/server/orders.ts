@@ -100,7 +100,7 @@ export async function validateStakeLimit(
         AND user_id = ${userId}
         AND success = true
     `;
-    const fightSymbols = new Set(fightSymbolsRaw.map(r => r.symbol));
+    const fightSymbols = new Set(fightSymbolsRaw.map((r) => r.symbol));
 
     if (fightSymbols.size > 0) {
       const positions = await getPositions(accountAddress);
@@ -123,7 +123,7 @@ export async function validateStakeLimit(
   if (livePositionExposure > maxExposureUsed) {
     maxExposureUsed = livePositionExposure;
     // Fire-and-forget update to DB
-    updateMaxExposureIfHigher(activeFight.participantId, livePositionExposure).catch(err => {
+    updateMaxExposureIfHigher(activeFight.participantId, livePositionExposure).catch((err) => {
       console.error('[validateStakeLimit] Failed to update maxExposureUsed:', err);
     });
   }
@@ -145,28 +145,29 @@ export async function validateStakeLimit(
     // Use raw SQL with TEXT cast because CREATE_STOP may not be in the PostgreSQL enum yet
     const [openOrders, fightOrderActions] = await Promise.all([
       getOpenOrders(accountAddress),
-      prisma.$queryRaw<Array<{ pacifica_order_id: bigint }>>`
-        SELECT pacifica_order_id
+      prisma.$queryRaw<Array<{ exchange_order_id: bigint }>>`
+        SELECT exchange_order_id
         FROM tfc_order_actions
         WHERE fight_id = ${activeFight.fightId}
           AND user_id = ${userId}
           AND action_type::text IN ('LIMIT_ORDER', 'CREATE_STOP')
-          AND pacifica_order_id IS NOT NULL
+          AND exchange_order_id IS NOT NULL
           AND success = true
       `,
     ]);
 
-    const fightOrderIds = new Set(
-      fightOrderActions.map(a => a.pacifica_order_id.toString())
-    );
+    const fightOrderIds = new Set(fightOrderActions.map((a) => a.exchange_order_id.toString()));
 
     // Sum notional of open orders that were placed during this fight
     // Use remaining amount (initial - filled - cancelled) for partially filled orders
     // For stop orders, use stop_price when price is 0 (stop market orders have no limit price)
     pendingNotional = openOrders
-      .filter(o => fightOrderIds.has(o.order_id?.toString()))
+      .filter((o) => fightOrderIds.has(o.order_id?.toString()))
       .reduce((sum, o) => {
-        const remaining = parseFloat(o.initial_amount) - parseFloat(o.filled_amount) - parseFloat(o.cancelled_amount || '0');
+        const remaining =
+          parseFloat(o.initial_amount) -
+          parseFloat(o.filled_amount) -
+          parseFloat(o.cancelled_amount || '0');
         const orderPrice = parseFloat(o.price) || parseFloat(o.stop_price || '0');
         return sum + Math.max(0, remaining) * orderPrice;
       }, 0);
@@ -179,11 +180,8 @@ export async function validateStakeLimit(
   const newExposure = currentExposure + orderNotional;
 
   // Calculate available capital using centralized formula, minus pending order notional
-  const availableCapital = calculateAvailableCapital(
-    stake,
-    maxExposureUsed,
-    currentExposure
-  ) - pendingNotional;
+  const availableCapital =
+    calculateAvailableCapital(stake, maxExposureUsed, currentExposure) - pendingNotional;
 
   // Check if order exceeds available capital
   if (orderNotional > availableCapital) {

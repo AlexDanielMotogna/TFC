@@ -56,16 +56,37 @@ export async function connectWallet(
   walletAddress: string,
   signature: string,
   referralCode?: string
-): Promise<{ token: string; user: User; pacificaConnected: boolean; pacificaFailReason: PacificaFailReason }> {
+): Promise<{
+  token: string;
+  user: User;
+  pacificaConnected: boolean;
+  pacificaFailReason: PacificaFailReason;
+}> {
   return fetchApi('/auth/connect', {
     method: 'POST',
     body: JSON.stringify({ walletAddress, signature, referralCode }),
   });
 }
 
-export async function getHyperliquidStatus(token: string, evmAddress?: string): Promise<{ connected: boolean; agentApproved: boolean; builderApproved: boolean; accountAddress: string | null }> {
+export async function getHyperliquidStatus(
+  token: string,
+  evmAddress?: string
+): Promise<{
+  connected: boolean;
+  agentApproved: boolean;
+  builderApproved: boolean;
+  accountAddress: string | null;
+}> {
   const params = evmAddress ? `?evmAddress=${encodeURIComponent(evmAddress)}` : '';
   return fetchApi(`/auth/hyperliquid/me${params}`, { token });
+}
+
+export async function getNadoStatus(
+  token: string,
+  evmAddress?: string
+): Promise<{ connected: boolean; agentApproved: boolean; accountAddress: string | null }> {
+  const params = evmAddress ? `?evmAddress=${encodeURIComponent(evmAddress)}` : '';
+  return fetchApi(`/auth/nado/me${params}`, { token });
 }
 
 export interface PacificaConnectionStatus {
@@ -82,14 +103,11 @@ export async function linkPacificaAccount(
   token: string,
   pacificaAddress: string
 ): Promise<{ connected: boolean; pacificaAddress: string }> {
-  return fetchApi<{ connected: boolean; pacificaAddress: string }>(
-    '/auth/pacifica/link',
-    {
-      method: 'POST',
-      token,
-      body: JSON.stringify({ pacificaAddress }),
-    }
-  );
+  return fetchApi<{ connected: boolean; pacificaAddress: string }>('/auth/pacifica/link', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ pacificaAddress }),
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -346,10 +364,10 @@ export interface StakeInfo {
   inFight: boolean;
   fightId?: string;
   stake: number | null;
-  currentExposure: number | null;  // Current positions value (can decrease when closing)
-  maxExposureUsed: number | null;  // Highest exposure ever reached (never decreases)
-  available: number | null;        // stake - maxExposureUsed (based on max, not current)
-  blockedSymbols?: string[];       // Symbols blocked from trading (had pre-fight positions)
+  currentExposure: number | null; // Current positions value (can decrease when closing)
+  maxExposureUsed: number | null; // Highest exposure ever reached (never decreases)
+  available: number | null; // stake - maxExposureUsed (based on max, not current)
+  blockedSymbols?: string[]; // Symbols blocked from trading (had pre-fight positions)
 }
 
 export async function getStakeInfo(account: string, fightId?: string): Promise<StakeInfo> {
@@ -380,7 +398,10 @@ export interface PlaceOrderResult {
   clientOrderId: string;
 }
 
-export async function placeOrder(token: string, params: PlaceOrderParams): Promise<PlaceOrderResult> {
+export async function placeOrder(
+  token: string,
+  params: PlaceOrderParams
+): Promise<PlaceOrderResult> {
   return fetchApi<PlaceOrderResult>('/orders', {
     method: 'POST',
     token,
@@ -388,7 +409,11 @@ export async function placeOrder(token: string, params: PlaceOrderParams): Promi
   });
 }
 
-export async function cancelOrder(token: string, orderId: number, symbol: string): Promise<boolean> {
+export async function cancelOrder(
+  token: string,
+  orderId: number,
+  symbol: string
+): Promise<boolean> {
   const response = await fetchApi<{ success: boolean }>(`/orders/${orderId}?symbol=${symbol}`, {
     method: 'DELETE',
     token,
@@ -648,6 +673,7 @@ export const api = {
   connectWallet,
   getPacificaStatus,
   getHyperliquidStatus,
+  getNadoStatus,
   linkPacificaAccount,
   // Fights
   getFights,

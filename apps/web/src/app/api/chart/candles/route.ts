@@ -8,7 +8,12 @@
  * 3. Bybit (fallback) - Historical futures data (2019+)
  * 4. CoinGecko (fallback) - Maximum historical coverage, daily data only
  */
-import { errorResponse, BadRequestError, ApiError, ServiceUnavailableError } from '@/lib/server/errors';
+import {
+  errorResponse,
+  BadRequestError,
+  ApiError,
+  ServiceUnavailableError,
+} from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import * as Pacifica from '@/lib/server/pacifica';
 
@@ -18,16 +23,19 @@ const COINGECKO_API = 'https://api.coingecko.com/api/v3';
 
 // Unified candle format
 interface Candle {
-  t: number;  // timestamp (ms)
-  o: number;  // open
-  h: number;  // high
-  l: number;  // low
-  c: number;  // close
-  v: number;  // volume
+  t: number; // timestamp (ms)
+  o: number; // open
+  h: number; // high
+  l: number; // low
+  c: number; // close
+  v: number; // volume
 }
 
 // Symbol mapping (including CoinGecko IDs)
-const SYMBOL_MAP: Record<string, { pacifica: string; binance: string; bybit: string; coingecko: string }> = {
+const SYMBOL_MAP: Record<
+  string,
+  { pacifica: string; binance: string; bybit: string; coingecko: string }
+> = {
   'BTC-USD': { pacifica: 'BTC', binance: 'BTCUSDT', bybit: 'BTCUSDT', coingecko: 'bitcoin' },
   'ETH-USD': { pacifica: 'ETH', binance: 'ETHUSDT', bybit: 'ETHUSDT', coingecko: 'ethereum' },
   'SOL-USD': { pacifica: 'SOL', binance: 'SOLUSDT', bybit: 'SOLUSDT', coingecko: 'solana' },
@@ -35,40 +43,90 @@ const SYMBOL_MAP: Record<string, { pacifica: string; binance: string; bybit: str
   'XRP-USD': { pacifica: 'XRP', binance: 'XRPUSDT', bybit: 'XRPUSDT', coingecko: 'ripple' },
   'DOGE-USD': { pacifica: 'DOGE', binance: 'DOGEUSDT', bybit: 'DOGEUSDT', coingecko: 'dogecoin' },
   'ADA-USD': { pacifica: 'ADA', binance: 'ADAUSDT', bybit: 'ADAUSDT', coingecko: 'cardano' },
-  'AVAX-USD': { pacifica: 'AVAX', binance: 'AVAXUSDT', bybit: 'AVAXUSDT', coingecko: 'avalanche-2' },
+  'AVAX-USD': {
+    pacifica: 'AVAX',
+    binance: 'AVAXUSDT',
+    bybit: 'AVAXUSDT',
+    coingecko: 'avalanche-2',
+  },
   'LINK-USD': { pacifica: 'LINK', binance: 'LINKUSDT', bybit: 'LINKUSDT', coingecko: 'chainlink' },
   'SUI-USD': { pacifica: 'SUI', binance: 'SUIUSDT', bybit: 'SUIUSDT', coingecko: 'sui' },
   'APT-USD': { pacifica: 'APT', binance: 'APTUSDT', bybit: 'APTUSDT', coingecko: 'aptos' },
   'SEI-USD': { pacifica: 'SEI', binance: 'SEIUSDT', bybit: 'SEIUSDT', coingecko: 'sei-network' },
   'TIA-USD': { pacifica: 'TIA', binance: 'TIAUSDT', bybit: 'TIAUSDT', coingecko: 'celestia' },
-  'INJ-USD': { pacifica: 'INJ', binance: 'INJUSDT', bybit: 'INJUSDT', coingecko: 'injective-protocol' },
+  'INJ-USD': {
+    pacifica: 'INJ',
+    binance: 'INJUSDT',
+    bybit: 'INJUSDT',
+    coingecko: 'injective-protocol',
+  },
   'ARB-USD': { pacifica: 'ARB', binance: 'ARBUSDT', bybit: 'ARBUSDT', coingecko: 'arbitrum' },
   'OP-USD': { pacifica: 'OP', binance: 'OPUSDT', bybit: 'OPUSDT', coingecko: 'optimism' },
   'STX-USD': { pacifica: 'STX', binance: 'STXUSDT', bybit: 'STXUSDT', coingecko: 'blockstack' },
   'IMX-USD': { pacifica: 'IMX', binance: 'IMXUSDT', bybit: 'IMXUSDT', coingecko: 'immutable-x' },
   'AAVE-USD': { pacifica: 'AAVE', binance: 'AAVEUSDT', bybit: 'AAVEUSDT', coingecko: 'aave' },
-  'JUP-USD': { pacifica: 'JUP', binance: 'JUPUSDT', bybit: 'JUPUSDT', coingecko: 'jupiter-exchange-solana' },
-  'PENDLE-USD': { pacifica: 'PENDLE', binance: 'PENDLEUSDT', bybit: 'PENDLEUSDT', coingecko: 'pendle' },
+  'JUP-USD': {
+    pacifica: 'JUP',
+    binance: 'JUPUSDT',
+    bybit: 'JUPUSDT',
+    coingecko: 'jupiter-exchange-solana',
+  },
+  'PENDLE-USD': {
+    pacifica: 'PENDLE',
+    binance: 'PENDLEUSDT',
+    bybit: 'PENDLEUSDT',
+    coingecko: 'pendle',
+  },
   'ENA-USD': { pacifica: 'ENA', binance: 'ENAUSDT', bybit: 'ENAUSDT', coingecko: 'ethena' },
-  'RENDER-USD': { pacifica: 'RENDER', binance: 'RENDERUSDT', bybit: 'RENDERUSDT', coingecko: 'render-token' },
+  'RENDER-USD': {
+    pacifica: 'RENDER',
+    binance: 'RENDERUSDT',
+    bybit: 'RENDERUSDT',
+    coingecko: 'render-token',
+  },
   'FET-USD': { pacifica: 'FET', binance: 'FETUSDT', bybit: 'FETUSDT', coingecko: 'fetch-ai' },
   'WIF-USD': { pacifica: 'WIF', binance: 'WIFUSDT', bybit: 'WIFUSDT', coingecko: 'dogwifcoin' },
-  'KPEPE-USD': { pacifica: '1000PEPE', binance: '1000PEPEUSDT', bybit: '1000PEPEUSDT', coingecko: 'pepe' },
+  'KPEPE-USD': {
+    pacifica: '1000PEPE',
+    binance: '1000PEPEUSDT',
+    bybit: '1000PEPEUSDT',
+    coingecko: 'pepe',
+  },
   'WLD-USD': { pacifica: 'WLD', binance: 'WLDUSDT', bybit: 'WLDUSDT', coingecko: 'worldcoin-wld' },
-  'HYPE-USD': { pacifica: 'HYPE', binance: 'HYPEUSDT', bybit: 'HYPEUSDT', coingecko: 'hyperliquid' },
+  'HYPE-USD': {
+    pacifica: 'HYPE',
+    binance: 'HYPEUSDT',
+    bybit: 'HYPEUSDT',
+    coingecko: 'hyperliquid',
+  },
 };
 
 // Interval mapping for Bybit
 const BYBIT_INTERVAL_MAP: Record<string, string> = {
-  '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30',
-  '1h': '60', '2h': '120', '4h': '240', '8h': '480', '12h': '720', '1d': 'D',
+  '1m': '1',
+  '3m': '3',
+  '5m': '5',
+  '15m': '15',
+  '30m': '30',
+  '1h': '60',
+  '2h': '120',
+  '4h': '240',
+  '8h': '480',
+  '12h': '720',
+  '1d': 'D',
 };
 
 function mapSymbol(tfcSymbol: string, source: 'binance' | 'bybit' | 'pacifica'): string | null {
   const mapping = SYMBOL_MAP[tfcSymbol];
   if (mapping) return mapping[source];
+  // Also try mapping "-PERP" symbols via their "-USD" equivalent (e.g. "BTC-PERP" → lookup "BTC-USD")
+  if (tfcSymbol.endsWith('-PERP')) {
+    const usdVariant = tfcSymbol.replace(/-PERP$/, '-USD');
+    const altMapping = SYMBOL_MAP[usdVariant];
+    if (altMapping) return altMapping[source];
+  }
   // Fallback for unknown symbols
-  const base = tfcSymbol.replace('-USD', '');
+  const base = tfcSymbol.replace(/-USD$/, '').replace(/-PERP$/, '');
   if (source === 'pacifica') return base;
   return `${base}USDT`;
 }
@@ -93,7 +151,10 @@ async function fetchFromBinance(
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`Binance API error: ${response.status}`);
-      throw new ServiceUnavailableError(`Binance API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      throw new ServiceUnavailableError(
+        `Binance API error: ${response.status}`,
+        ErrorCode.ERR_EXTERNAL_PACIFICA_API
+      );
     }
 
     const data = await response.json();
@@ -119,7 +180,7 @@ async function fetchFromBinance(
     if (data.length < MAX_LIMIT) break;
 
     // Small delay to avoid rate limiting
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   return allCandles;
@@ -146,12 +207,18 @@ async function fetchFromBybit(
     const response = await fetch(url);
     if (!response.ok) {
       console.error(`Bybit API error: ${response.status}`);
-      throw new ServiceUnavailableError(`Bybit API error: ${response.status}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      throw new ServiceUnavailableError(
+        `Bybit API error: ${response.status}`,
+        ErrorCode.ERR_EXTERNAL_PACIFICA_API
+      );
     }
 
     const data = await response.json();
     if (data.retCode !== 0) {
-      throw new ServiceUnavailableError(`Bybit API error: ${data.retMsg}`, ErrorCode.ERR_EXTERNAL_PACIFICA_API);
+      throw new ServiceUnavailableError(
+        `Bybit API error: ${data.retMsg}`,
+        ErrorCode.ERR_EXTERNAL_PACIFICA_API
+      );
     }
 
     if (!data.result || !data.result.list) {
@@ -163,14 +230,16 @@ async function fetchFromBybit(
     if (rawCandles.length === 0) break;
 
     // Bybit format: [startTime, open, high, low, close, volume, turnover] - newest first
-    const candles: Candle[] = rawCandles.map((k: string[]) => ({
-      t: parseInt(k[0] ?? '0'),
-      o: parseFloat(k[1] ?? '0'),
-      h: parseFloat(k[2] ?? '0'),
-      l: parseFloat(k[3] ?? '0'),
-      c: parseFloat(k[4] ?? '0'),
-      v: parseFloat(k[5] ?? '0'),
-    })).reverse(); // Reverse to get oldest first
+    const candles: Candle[] = rawCandles
+      .map((k: string[]) => ({
+        t: parseInt(k[0] ?? '0'),
+        o: parseFloat(k[1] ?? '0'),
+        h: parseFloat(k[2] ?? '0'),
+        l: parseFloat(k[3] ?? '0'),
+        c: parseFloat(k[4] ?? '0'),
+        v: parseFloat(k[5] ?? '0'),
+      }))
+      .reverse(); // Reverse to get oldest first
 
     allCandles.unshift(...candles);
 
@@ -181,7 +250,7 @@ async function fetchFromBybit(
 
     if (rawCandles.length < MAX_LIMIT) break;
 
-    await new Promise(resolve => setTimeout(resolve, 50));
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   return allCandles;
@@ -216,13 +285,15 @@ async function fetchFromCoinGecko(
       // For intraday intervals, CoinGecko doesn't have granular OHLC
       // We can only get market_chart data which has limited granularity
       // Skip CoinGecko for intraday intervals as it won't match the requested interval
-      console.log(`[Chart] CoinGecko skipped for ${tfcSymbol} - doesn't support ${interval} interval`);
+      console.log(
+        `[Chart] CoinGecko skipped for ${tfcSymbol} - doesn't support ${interval} interval`
+      );
       return [];
     }
 
     const response = await fetch(url, {
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
       },
     });
 
@@ -250,7 +321,7 @@ async function fetchFromCoinGecko(
         c: k[4]!,
         v: 0, // CoinGecko OHLC doesn't include volume
       }))
-      .filter(c => c.t >= startTime && c.t <= endTime); // Filter to requested range
+      .filter((c) => c.t >= startTime && c.t <= endTime); // Filter to requested range
 
     console.log(`[Chart] CoinGecko returned ${candles.length} candles for ${tfcSymbol}`);
     return candles;
@@ -293,7 +364,7 @@ async function fetchFromPacifica(
 
       // Adapter returns normalized {timestamp, open, high, low, close, volume}
       // Convert to chart format {t, o, h, l, c, v}
-      return rawCandles.map(c => ({
+      return rawCandles.map((c) => ({
         t: c.timestamp,
         o: parseFloat(c.open),
         h: parseFloat(c.high),
@@ -322,7 +393,7 @@ async function fetchFromPacifica(
       });
     }
 
-    return rawCandles.map(c => ({
+    return rawCandles.map((c) => ({
       t: c.t,
       o: parseFloat(c.o),
       h: parseFloat(c.h),
@@ -332,14 +403,17 @@ async function fetchFromPacifica(
     }));
   } catch (error: any) {
     // Handle rate limit errors with exponential backoff
-    const isRateLimit = error?.message?.includes('rate limit') ||
-                        error?.name === 'RateLimitError' ||
-                        error?.status === 429;
+    const isRateLimit =
+      error?.message?.includes('rate limit') ||
+      error?.name === 'RateLimitError' ||
+      error?.status === 429;
 
     if (isRateLimit && retryCount < 3) {
       const delayMs = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-      console.log(`[Chart] Pacifica rate limited, retrying in ${delayMs}ms (attempt ${retryCount + 1}/3)`);
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      console.log(
+        `[Chart] Pacifica rate limited, retrying in ${delayMs}ms (attempt ${retryCount + 1}/3)`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
       return fetchFromPacifica(tfcSymbol, interval, startTime, endTime, retryCount + 1);
     }
 
@@ -419,7 +493,9 @@ function hasGaps(candles: Candle[], interval: string, expectedEnd: number): bool
   // Check 1: Gap at the end (data doesn't reach expectedEnd)
   const gapAtEnd = expectedEnd - lastCandle.t;
   if (gapAtEnd > intervalMs * 2) {
-    console.log(`[Chart] Gap detected at end: last candle is ${gapAtEnd / 1000 / 60 / 60 / 24} days before expected end`);
+    console.log(
+      `[Chart] Gap detected at end: last candle is ${gapAtEnd / 1000 / 60 / 60 / 24} days before expected end`
+    );
     return true;
   }
 
@@ -434,7 +510,9 @@ function hasGaps(candles: Candle[], interval: string, expectedEnd: number): bool
 
     const timeDiff = currentCandle.t - prevCandle.t;
     if (timeDiff > maxGap) {
-      console.log(`[Chart] Internal gap detected: ${timeDiff / 1000 / 60 / 60 / 24} days between ${new Date(prevCandle.t).toISOString()} and ${new Date(currentCandle.t).toISOString()}`);
+      console.log(
+        `[Chart] Internal gap detected: ${timeDiff / 1000 / 60 / 60 / 24} days between ${new Date(prevCandle.t).toISOString()} and ${new Date(currentCandle.t).toISOString()}`
+      );
       return true;
     }
   }
@@ -511,7 +589,9 @@ async function fetchFromExchangeAdapter(
   endTime: number
 ): Promise<Candle[]> {
   const { ExchangeProvider } = await import('@/lib/server/exchanges/provider');
-  const adapter = ExchangeProvider.getAdapter(exchangeType as 'pacifica' | 'hyperliquid' | 'lighter');
+  const adapter = ExchangeProvider.getAdapter(
+    exchangeType as 'pacifica' | 'hyperliquid' | 'lighter' | 'nado'
+  );
   const rawCandles = await adapter.getKlines({
     symbol: tfcSymbol,
     interval,
@@ -519,7 +599,7 @@ async function fetchFromExchangeAdapter(
     endTime,
   });
 
-  return rawCandles.map(c => ({
+  return rawCandles.map((c) => ({
     t: c.timestamp,
     o: parseFloat(c.open),
     h: parseFloat(c.high),
@@ -539,14 +619,20 @@ export async function GET(request: Request) {
     const exchange = searchParams.get('exchange') || 'pacifica';
 
     if (!symbol || !interval || !startStr || !endStr) {
-      throw new BadRequestError('symbol, interval, start, and end are required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+      throw new BadRequestError(
+        'symbol, interval, start, and end are required',
+        ErrorCode.ERR_VALIDATION_MISSING_FIELD
+      );
     }
 
     const startTime = parseInt(startStr, 10);
     const endTime = parseInt(endStr, 10);
 
     if (isNaN(startTime) || isNaN(endTime)) {
-      throw new BadRequestError('start and end must be valid timestamps', ErrorCode.ERR_VALIDATION_INVALID_FORMAT);
+      throw new BadRequestError(
+        'start and end must be valid timestamps',
+        ErrorCode.ERR_VALIDATION_INVALID_FORMAT
+      );
     }
 
     if (startTime >= endTime) {
@@ -556,7 +642,9 @@ export async function GET(request: Request) {
     // Ensure minimum time range to avoid API errors
     const minRange = getIntervalMs(interval);
     if (endTime - startTime < minRange) {
-      console.warn(`[Chart] Time range too small (${endTime - startTime}ms), minimum is ${minRange}ms`);
+      console.warn(
+        `[Chart] Time range too small (${endTime - startTime}ms), minimum is ${minRange}ms`
+      );
       return Response.json({
         success: true,
         data: [],
@@ -571,8 +659,16 @@ export async function GET(request: Request) {
     if (exchange !== 'pacifica') {
       let exchangeCandles: Candle[] = [];
       try {
-        console.log(`[Chart] Requesting from ${exchange}: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
-        exchangeCandles = await fetchFromExchangeAdapter(exchange, symbol, interval, startTime, endTime);
+        console.log(
+          `[Chart] Requesting from ${exchange}: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`
+        );
+        exchangeCandles = await fetchFromExchangeAdapter(
+          exchange,
+          symbol,
+          interval,
+          startTime,
+          endTime
+        );
         console.log(`[Chart] ${exchange} returned ${exchangeCandles.length} candles`);
       } catch (error: any) {
         console.warn(`[Chart] ${exchange} fetch failed:`, error?.message || error);
@@ -588,7 +684,8 @@ export async function GET(request: Request) {
         if (oldestCandle && startTime < oldestCandle.t - intervalMs) {
           const fallbackEnd = oldestCandle.t - intervalMs;
           const olderCandles = await fetchHistorical(symbol, interval, startTime, fallbackEnd);
-          candles = olderCandles.length > 0 ? mergeCandles(olderCandles, exchangeCandles) : exchangeCandles;
+          candles =
+            olderCandles.length > 0 ? mergeCandles(olderCandles, exchangeCandles) : exchangeCandles;
         } else {
           candles = exchangeCandles;
         }
@@ -598,23 +695,31 @@ export async function GET(request: Request) {
       let pacificaCandles: Candle[] = [];
 
       try {
-        console.log(`[Chart] Requesting from Pacifica: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`);
+        console.log(
+          `[Chart] Requesting from Pacifica: ${symbol} ${interval} from ${new Date(startTime).toISOString()} to ${new Date(endTime).toISOString()}`
+        );
         pacificaCandles = await fetchFromPacifica(symbol, interval, startTime, endTime);
-        console.log(`[Chart] Pacifica returned ${pacificaCandles.length} candles for ${symbol} ${interval}`);
+        console.log(
+          `[Chart] Pacifica returned ${pacificaCandles.length} candles for ${symbol} ${interval}`
+        );
 
         if (pacificaCandles.length > 0) {
           const firstCandle = pacificaCandles[0];
           const lastCandle = pacificaCandles[pacificaCandles.length - 1];
           if (firstCandle && lastCandle) {
-            console.log(`[Chart] Pacifica first candle: ${new Date(firstCandle.t).toISOString()} - last candle: ${new Date(lastCandle.t).toISOString()}`);
+            console.log(
+              `[Chart] Pacifica first candle: ${new Date(firstCandle.t).toISOString()} - last candle: ${new Date(lastCandle.t).toISOString()}`
+            );
           }
         }
       } catch (error: any) {
-        const isRateLimit = error?.message?.includes('rate limit') ||
-                            error?.name === 'RateLimitError';
+        const isRateLimit =
+          error?.message?.includes('rate limit') || error?.name === 'RateLimitError';
 
         if (isRateLimit) {
-          console.warn(`[Chart] Pacifica rate limited for ${symbol}, will use Binance/Bybit/CoinGecko only`);
+          console.warn(
+            `[Chart] Pacifica rate limited for ${symbol}, will use Binance/Bybit/CoinGecko only`
+          );
         } else {
           console.warn(`[Chart] Pacifica fetch failed for ${symbol}:`, error?.message || error);
         }
@@ -634,15 +739,21 @@ export async function GET(request: Request) {
 
           if (startTime < oldestPacificaTime - intervalMs) {
             const fallbackEnd = oldestPacificaTime - intervalMs;
-            console.log(`[Chart] Need older data: fetching from Binance/Bybit/CoinGecko from ${new Date(startTime).toISOString()} to ${new Date(fallbackEnd).toISOString()}`);
+            console.log(
+              `[Chart] Need older data: fetching from Binance/Bybit/CoinGecko from ${new Date(startTime).toISOString()} to ${new Date(fallbackEnd).toISOString()}`
+            );
 
             const olderCandles = await fetchHistorical(symbol, interval, startTime, fallbackEnd);
 
             if (olderCandles.length > 0) {
               candles = mergeCandles(olderCandles, pacificaCandles);
-              console.log(`[Chart] Final merged: ${candles.length} total candles (${olderCandles.length} historical + ${pacificaCandles.length} Pacifica)`);
+              console.log(
+                `[Chart] Final merged: ${candles.length} total candles (${olderCandles.length} historical + ${pacificaCandles.length} Pacifica)`
+              );
             } else {
-              console.log(`[Chart] Token not available on fallback sources, using only Pacifica data (${pacificaCandles.length} candles)`);
+              console.log(
+                `[Chart] Token not available on fallback sources, using only Pacifica data (${pacificaCandles.length} candles)`
+              );
               candles = pacificaCandles;
             }
           } else {
@@ -656,7 +767,9 @@ export async function GET(request: Request) {
     // Fill gaps in the final candle data to ensure continuous chart display
     const filledCandles = fillCandleGaps(candles, interval);
     if (filledCandles.length !== candles.length) {
-      console.log(`[Chart] Gap fill: ${candles.length} → ${filledCandles.length} candles (+${filledCandles.length - candles.length} synthetic)`);
+      console.log(
+        `[Chart] Gap fill: ${candles.length} → ${filledCandles.length} candles (+${filledCandles.length - candles.length} synthetic)`
+      );
     }
 
     return Response.json({

@@ -36,7 +36,7 @@ interface PendingActionRow {
   fight_id: string | null;
   symbol: string;
   side: string | null;
-  pacifica_order_id: bigint | null;
+  exchange_order_id: bigint | null;
   leverage: number | null;
   action_type: string;
 }
@@ -52,54 +52,59 @@ export class FillDetector {
    * Check for filled orders across all live fights
    * Called every 5 seconds from the fight engine tick loop
    */
-  async checkForFilledOrders(liveFights: Array<{ id: string; startedAt: Date | null; durationMinutes: number }>): Promise<void> {
+  async checkForFilledOrders(
+    liveFights: Array<{ id: string; startedAt: Date | null; durationMinutes: number }>
+  ): Promise<void> {
     try {
       // Get all pending order actions for live fights
-      const liveFightIds = liveFights.map(f => f.id);
+      const liveFightIds = liveFights.map((f) => f.id);
       if (liveFightIds.length === 0) return;
 
       // Use raw SQL with TEXT cast to avoid PostgreSQL enum type mismatch
       // (CREATE_STOP may not be in the DB enum yet if migration hasn't run)
       const pendingActions = await prisma.$queryRaw<PendingActionRow[]>`
         SELECT id, user_id, wallet_address, fight_id, symbol, side,
-               pacifica_order_id, leverage, action_type::text as action_type
+               exchange_order_id, leverage, action_type::text as action_type
         FROM tfc_order_actions
         WHERE fight_id IN (${Prisma.join(liveFightIds)})
           AND action_type::text IN ('LIMIT_ORDER', 'CREATE_STOP', 'SET_TPSL')
-          AND pacifica_order_id IS NOT NULL
+          AND exchange_order_id IS NOT NULL
           AND success = true
       `;
 
       if (pendingActions.length === 0) return;
 
       // Normalize raw SQL rows to camelCase for downstream use
-      const normalizedActions = pendingActions.map(row => ({
+      const normalizedActions = pendingActions.map((row) => ({
         id: row.id,
         userId: row.user_id,
         walletAddress: row.wallet_address,
         fightId: row.fight_id,
         symbol: row.symbol,
         side: row.side,
-        exchangeOrderId: row.pacifica_order_id,
+        exchangeOrderId: row.exchange_order_id,
         leverage: row.leverage,
         actionType: row.action_type,
       }));
 
       // Group by user+fight to batch API calls
-      const userFightGroups = new Map<string, {
-        userId: string;
-        walletAddress: string;
-        fightId: string;
-        fight: { startedAt: Date | null; durationMinutes: number };
-        actions: typeof normalizedActions;
-      }>();
+      const userFightGroups = new Map<
+        string,
+        {
+          userId: string;
+          walletAddress: string;
+          fightId: string;
+          fight: { startedAt: Date | null; durationMinutes: number };
+          actions: typeof normalizedActions;
+        }
+      >();
 
       for (const action of normalizedActions) {
         if (!action.fightId) continue;
         const key = `${action.userId}:${action.fightId}`;
 
         if (!userFightGroups.has(key)) {
-          const fight = liveFights.find(f => f.id === action.fightId);
+          const fight = liveFights.find((f) => f.id === action.fightId);
           if (!fight) continue;
 
           userFightGroups.set(key, {
@@ -176,7 +181,7 @@ export class FillDetector {
       if (trades.length === 0) return;
 
       // Build lookup of pending order IDs
-      const actionsByOrderId = new Map<string, typeof actions[0]>();
+      const actionsByOrderId = new Map<string, (typeof actions)[0]>();
       for (const action of actions) {
         if (action.exchangeOrderId) {
           actionsByOrderId.set(action.exchangeOrderId.toString(), action);
@@ -197,14 +202,19 @@ export class FillDetector {
           if (!this.isTpSlFill(trade)) continue;
 
           // For TP/SL fills, try matching by symbol from SET_TPSL actions
-          const tpslAction = actions.find(a =>
-            a.actionType === 'SET_TPSL' &&
-            a.symbol === trade.symbol
+          const tpslAction = actions.find(
+            (a) => a.actionType === 'SET_TPSL' && a.symbol === trade.symbol
           );
           if (!tpslAction) continue;
 
           // Use the TP/SL action's leverage (or null)
-          await this.recordFill(connection.accountAddress, trade, fightId, tpslAction.leverage, historyKey);
+          await this.recordFill(
+            connection.accountAddress,
+            trade,
+            fightId,
+            tpslAction.leverage,
+            historyKey
+          );
           continue;
         }
 
@@ -224,7 +234,13 @@ export class FillDetector {
           continue;
         }
 
-        await this.recordFill(connection.accountAddress, trade, fightId, matchedAction.leverage, historyKey);
+        await this.recordFill(
+          connection.accountAddress,
+          trade,
+          fightId,
+          matchedAction.leverage,
+          historyKey
+        );
       }
     } catch (error) {
       logger.error(LOG_EVENTS.API_ERROR, 'Failed to check fills for user', error as Error, {
@@ -258,7 +274,7 @@ export class FillDetector {
 
       // Determine side for TFC recording
       // Pacifica trade.side can be: open_long, open_short, close_long, close_short
-      const side = (trade.side === 'open_long' || trade.side === 'close_short') ? 'bid' : 'ask';
+      const side = trade.side === 'open_long' || trade.side === 'close_short' ? 'bid' : 'ask';
 
       const response = await fetch(`${WEB_API_URL}/api/internal/record-fill`, {
         method: 'POST',

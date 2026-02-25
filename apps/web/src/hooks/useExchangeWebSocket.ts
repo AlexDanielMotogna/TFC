@@ -16,7 +16,14 @@ import { create } from 'zustand';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { useAuthStore } from '@/lib/store';
 import { createWsAdapter } from '@/lib/ws/ws-factory';
-import type { ExchangeWsAdapter, ExchangeWsCallbacks, WsPosition, WsOrder, WsTrade, WsAccountLeverage } from '@/lib/ws/types';
+import type {
+  ExchangeWsAdapter,
+  ExchangeWsCallbacks,
+  WsPosition,
+  WsOrder,
+  WsTrade,
+  WsAccountLeverage,
+} from '@/lib/ws/types';
 
 // Re-export types for backward compatibility
 export type Position = WsPosition;
@@ -61,7 +68,7 @@ export const useExchangeWsStore = create<ExchangeWsState>((set, get) => ({
     const currentTrades = get().trades;
     // Merge and deduplicate by history_id
     const tradeMap = new Map<number, WsTrade>();
-    [...currentTrades, ...newTrades].forEach(t => tradeMap.set(t.history_id, t));
+    [...currentTrades, ...newTrades].forEach((t) => tradeMap.set(t.history_id, t));
     const allTrades = Array.from(tradeMap.values())
       .sort((a, b) => b.created_at - a.created_at)
       .slice(0, 100);
@@ -73,13 +80,14 @@ export const useExchangeWsStore = create<ExchangeWsState>((set, get) => ({
     set({ leverageMap: { ...current, [data.symbol]: data.leverage }, lastUpdate: Date.now() });
   },
 
-  clearAll: () => set({
-    positions: [],
-    orders: [],
-    trades: [],
-    leverageMap: {},
-    lastUpdate: Date.now(),
-  }),
+  clearAll: () =>
+    set({
+      positions: [],
+      orders: [],
+      trades: [],
+      leverageMap: {},
+      lastUpdate: Date.now(),
+    }),
 }));
 
 // Backward-compat alias
@@ -145,7 +153,7 @@ export function useExchangeWebSocket() {
       // Only remove our callbacks — don't kill the shared connection
       adapter.removeCallbacks(callbacks);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exchangeType]);
 
   // Subscribe/unsubscribe account when wallet connects/disconnects
@@ -157,7 +165,7 @@ export function useExchangeWebSocket() {
     let accountId: string | null = null;
     if (exchangeType === 'pacifica') {
       accountId = walletConnected && publicKey ? publicKey.toBase58() : null;
-    } else if (exchangeType === 'hyperliquid') {
+    } else if (exchangeType === 'hyperliquid' || exchangeType === 'nado') {
       accountId = evmWalletAddress || null;
     }
 
@@ -167,7 +175,7 @@ export function useExchangeWebSocket() {
       adapter.unsubscribeAccount();
       clearAll();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletConnected, publicKey?.toBase58(), evmWalletAddress, exchangeType]);
 
   // Force refresh method
@@ -195,13 +203,13 @@ export function useExchangeWebSocket() {
     let accountId: string | null = null;
     if (exchangeType === 'pacifica') {
       accountId = publicKey && walletConnected ? publicKey.toBase58() : null;
-    } else if (exchangeType === 'hyperliquid') {
+    } else if (exchangeType === 'hyperliquid' || exchangeType === 'nado') {
       accountId = evmWalletAddress || null;
     }
     if (accountId) {
       adapter.subscribeAccount(accountId);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publicKey, walletConnected, evmWalletAddress, exchangeType]);
 
   return {

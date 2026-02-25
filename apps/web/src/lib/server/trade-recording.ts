@@ -8,10 +8,7 @@
  *
  * @see Fight.md - Fill Detector architecture
  */
-import {
-  calculateFightExposure,
-  updateMaxExposureIfHigher,
-} from '@/lib/server/fight-exposure';
+import { calculateFightExposure, updateMaxExposureIfHigher } from '@/lib/server/fight-exposure';
 import { calculateReferralCommissions } from '@/lib/server/services/referral';
 import { broadcastAdminTrade } from '@/lib/server/admin-realtime';
 import { ExchangeProvider } from '@/lib/server/exchanges/provider';
@@ -43,26 +40,32 @@ export interface ExecutionDetails {
 export async function emitPlatformStats() {
   try {
     // Fetch current stats from database
-    const [volumeResult, fightsCount, fightVolumeResult, totalFeesResult, activeUsersCount, totalTradesCount] =
-      await Promise.all([
-        prisma.$queryRaw<[{ total_volume: number }]>`
+    const [
+      volumeResult,
+      fightsCount,
+      fightVolumeResult,
+      totalFeesResult,
+      activeUsersCount,
+      totalTradesCount,
+    ] = await Promise.all([
+      prisma.$queryRaw<[{ total_volume: number }]>`
           SELECT COALESCE(SUM(amount * price), 0)::float as total_volume FROM trades
         `,
-        prisma.fight.count({
-          where: { status: FightStatus.FINISHED },
-        }),
-        prisma.$queryRaw<[{ fight_volume: number }]>`
+      prisma.fight.count({
+        where: { status: FightStatus.FINISHED },
+      }),
+      prisma.$queryRaw<[{ fight_volume: number }]>`
           SELECT COALESCE(SUM(stake_usdc), 0)::float as fight_volume FROM fights
         `,
-        // TFC platform fees = builder fee (0.05% of volume), consistent across all exchanges
-        prisma.$queryRaw<[{ total_fees: number }]>`
+      // TFC platform fees = builder fee (0.05% of volume), consistent across all exchanges
+      prisma.$queryRaw<[{ total_fees: number }]>`
           SELECT COALESCE(SUM(amount * price) * 0.0005, 0)::float as total_fees FROM trades
         `,
-        prisma.$queryRaw<[{ count: bigint }]>`
+      prisma.$queryRaw<[{ count: bigint }]>`
           SELECT COUNT(DISTINCT user_id) as count FROM trades
         `,
-        prisma.trade.count(),
-      ]);
+      prisma.trade.count(),
+    ]);
 
     const stats = {
       tradingVolume: volumeResult[0]?.total_volume || 0,
@@ -140,8 +143,8 @@ export async function recordAllTrades(
   const normalizedAddress = accountAddress.toLowerCase();
 
   // Find user by exchange account address
-  const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress: normalizedAddress },
+  const connection = await prisma.exchangeConnection.findFirst({
+    where: { accountAddress: normalizedAddress, isActive: true },
     include: { user: true },
   });
 
@@ -171,7 +174,12 @@ export async function recordAllTrades(
   // Use blockedSymbols from FightParticipant (set when user joined fight with open positions)
   let autoDetectedPreFightFlip = isPreFightFlip;
 
-  if (!autoDetectedPreFightFlip && resolvedFightId && !leverage && activeFightParticipant?.blockedSymbols) {
+  if (
+    !autoDetectedPreFightFlip &&
+    resolvedFightId &&
+    !leverage &&
+    activeFightParticipant?.blockedSymbols
+  ) {
     // This is a CLOSING trade (no leverage) during a fight
     // Check if this symbol is in the user's blockedSymbols list
     // blockedSymbols contains symbols with pre-fight positions (e.g., ["BTC-USD", "ETH-USD"])
@@ -207,7 +215,7 @@ export async function recordAllTrades(
   );
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[attempt]));
 
     try {
       const trades = await adapter.getTradeHistory({
@@ -235,10 +243,15 @@ export async function recordAllTrades(
       }
 
       if (attempt < MAX_RETRIES - 1) {
-        console.log(`[recordAllTrades] Trade not found in history yet, retrying... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        console.log(
+          `[recordAllTrades] Trade not found in history yet, retrying... (attempt ${attempt + 1}/${MAX_RETRIES})`
+        );
       }
     } catch (err) {
-      console.error(`[recordAllTrades] Failed to fetch trade history (attempt ${attempt + 1}):`, err);
+      console.error(
+        `[recordAllTrades] Failed to fetch trade history (attempt ${attempt + 1}):`,
+        err
+      );
     }
   }
 
@@ -289,7 +302,7 @@ export async function recordAllTrades(
       fee: parseFloat(fee),
       pnl: pnl ? parseFloat(pnl) : null,
       timestamp: trade.executedAt,
-    }).catch(err => {
+    }).catch((err) => {
       console.error('[recordAllTrades] Failed to broadcast admin trade:', err);
     });
 
@@ -308,13 +321,13 @@ export async function recordAllTrades(
         symbol,
         tradeFee: tfcFee,
         tradeValue,
-      }).catch(err => {
+      }).catch((err) => {
         console.error('[recordAllTrades] Failed to calculate referral commissions:', err);
       });
     }
 
     // Emit updated platform stats via WebSocket (non-blocking)
-    emitPlatformStats().catch(err => {
+    emitPlatformStats().catch((err) => {
       console.error('[recordAllTrades] Failed to emit platform stats:', err);
     });
   } catch (err: any) {
@@ -360,8 +373,8 @@ export async function recordAllTradesWithDetails(
   const normalizedAddress = accountAddress.toLowerCase();
 
   // Find user by exchange account address
-  const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress: normalizedAddress },
+  const connection = await prisma.exchangeConnection.findFirst({
+    where: { accountAddress: normalizedAddress, isActive: true },
     include: { user: true },
   });
 
@@ -388,7 +401,12 @@ export async function recordAllTradesWithDetails(
 
   // Auto-detect pre-fight flip
   let autoDetectedPreFightFlip = isPreFightFlip;
-  if (!autoDetectedPreFightFlip && resolvedFightId && !leverage && activeFightParticipant?.blockedSymbols) {
+  if (
+    !autoDetectedPreFightFlip &&
+    resolvedFightId &&
+    !leverage &&
+    activeFightParticipant?.blockedSymbols
+  ) {
     const normalizedSymbol = symbol.includes('-USD') ? symbol : `${symbol}-USD`;
     if (activeFightParticipant.blockedSymbols.includes(normalizedSymbol)) {
       autoDetectedPreFightFlip = true;
@@ -440,7 +458,7 @@ export async function recordAllTradesWithDetails(
       fee: parseFloat(execDetails.fee),
       pnl: execDetails.pnl ? parseFloat(execDetails.pnl) : null,
       timestamp: trade.executedAt,
-    }).catch(err => {
+    }).catch((err) => {
       console.error('[recordAllTradesWithDetails] Failed to broadcast admin trade:', err);
     });
 
@@ -457,12 +475,15 @@ export async function recordAllTradesWithDetails(
         symbol,
         tradeFee: tfcFee,
         tradeValue,
-      }).catch(err => {
-        console.error('[recordAllTradesWithDetails] Failed to calculate referral commissions:', err);
+      }).catch((err) => {
+        console.error(
+          '[recordAllTradesWithDetails] Failed to calculate referral commissions:',
+          err
+        );
       });
     }
 
-    emitPlatformStats().catch(err => {
+    emitPlatformStats().catch((err) => {
       console.error('[recordAllTradesWithDetails] Failed to emit platform stats:', err);
     });
   } catch (err: any) {
@@ -512,8 +533,8 @@ export async function recordFightTradeWithDetails(
   const normalizedAddress = accountAddress.toLowerCase();
 
   // Find user by exchange account address
-  const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress: normalizedAddress },
+  const connection = await prisma.exchangeConnection.findFirst({
+    where: { accountAddress: normalizedAddress, isActive: true },
     include: { user: true },
   });
 
@@ -541,7 +562,11 @@ export async function recordFightTradeWithDetails(
   });
 
   if (!activeFight) {
-    console.log('User not in active fight:', connection.userId, specificFightId ? `(fight: ${specificFightId})` : '');
+    console.log(
+      'User not in active fight:',
+      connection.userId,
+      specificFightId ? `(fight: ${specificFightId})` : ''
+    );
     return;
   }
 
@@ -569,7 +594,9 @@ export async function recordFightTradeWithDetails(
   // Log pre-fight position for debugging (not used in calculation - we use Pacifica API)
   if (initialPos) {
     const absAmount = parseFloat(initialPos.amount);
-    console.log(`[FightTrade] Pre-fight position for ${baseSymbol}: ${initialPos.side === 'ask' ? 'SHORT' : 'LONG'} ${absAmount}`);
+    console.log(
+      `[FightTrade] Pre-fight position for ${baseSymbol}: ${initialPos.side === 'ask' ? 'SHORT' : 'LONG'} ${absAmount}`
+    );
   }
 
   // Get all fight trades for this symbol
@@ -584,8 +611,12 @@ export async function recordFightTradeWithDetails(
     }),
   ]);
 
-  const totalBought = fightBuysResult._sum.amount ? parseFloat(fightBuysResult._sum.amount.toString()) : 0;
-  const totalSold = fightSellsResult._sum.amount ? parseFloat(fightSellsResult._sum.amount.toString()) : 0;
+  const totalBought = fightBuysResult._sum.amount
+    ? parseFloat(fightBuysResult._sum.amount.toString())
+    : 0;
+  const totalSold = fightSellsResult._sum.amount
+    ? parseFloat(fightSellsResult._sum.amount.toString())
+    : 0;
 
   // TFC net position = totalBought - totalSold (BEFORE this trade)
   // Positive = LONG opened via TFC, Negative = SHORT opened via TFC
@@ -624,7 +655,11 @@ export async function recordFightTradeWithDetails(
     } else {
       exchangePositionAfter = 0; // No position found = flat
     }
-    console.log('[RULE 35] Exchange position after trade:', { exchange: connection.exchangeType, symbol, exchangePositionAfter });
+    console.log('[RULE 35] Exchange position after trade:', {
+      exchange: connection.exchangeType,
+      symbol,
+      exchangePositionAfter,
+    });
   } catch (err) {
     console.error('[RULE 35] Failed to fetch exchange position:', err);
     exchangeFetchFailed = true;
@@ -643,9 +678,10 @@ export async function recordFightTradeWithDetails(
     // Use TFC net as the position before this trade
     positionBefore = tfcNet;
   } else {
-    positionBefore = tradeSide === 'SELL'
-      ? exchangePositionAfter! + tradeAmount
-      : exchangePositionAfter! - tradeAmount;
+    positionBefore =
+      tradeSide === 'SELL'
+        ? exchangePositionAfter! + tradeAmount
+        : exchangePositionAfter! - tradeAmount;
   }
 
   console.log('[RULE 35] Position analysis:', {
@@ -692,7 +728,9 @@ export async function recordFightTradeWithDetails(
       });
 
       if (fightRelevantAmount <= 0.0000001) {
-        console.log('[RULE 35] SELL only closes external/pre-fight LONG. Skipping FightTrade record.');
+        console.log(
+          '[RULE 35] SELL only closes external/pre-fight LONG. Skipping FightTrade record.'
+        );
         return;
       }
 
@@ -736,7 +774,9 @@ export async function recordFightTradeWithDetails(
       });
 
       if (fightRelevantAmount <= 0.0000001) {
-        console.log('[RULE 35] BUY only closes external/pre-fight SHORT. Skipping FightTrade record.');
+        console.log(
+          '[RULE 35] BUY only closes external/pre-fight SHORT. Skipping FightTrade record.'
+        );
         return;
       }
 
@@ -764,7 +804,7 @@ export async function recordFightTradeWithDetails(
     );
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS[attempt]));
 
       try {
         const trades = await tradeAdapter.getTradeHistory({
@@ -796,7 +836,9 @@ export async function recordFightTradeWithDetails(
         }
 
         if (attempt < MAX_RETRIES - 1) {
-          console.log(`Trade not found in history yet, retrying... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+          console.log(
+            `Trade not found in history yet, retrying... (attempt ${attempt + 1}/${MAX_RETRIES})`
+          );
         }
       } catch (err) {
         console.error(`Failed to fetch trade history (attempt ${attempt + 1}):`, err);
@@ -804,7 +846,9 @@ export async function recordFightTradeWithDetails(
     }
 
     if (executionPrice === '0') {
-      console.warn(`Could not fetch execution price for order ${orderId} after ${MAX_RETRIES} attempts`);
+      console.warn(
+        `Could not fetch execution price for order ${orderId} after ${MAX_RETRIES} attempts`
+      );
     }
   }
 
@@ -852,7 +896,9 @@ export async function recordFightTradeWithDetails(
     const exposureResult = await calculateFightExposure(fight.id, connection.userId);
     const { currentExposure, cumulativeOpeningNotional, positionsBySymbol } = exposureResult;
 
-    console.log(`[MaxExposure] Calculated exposure for fight ${fight.id}, user ${connection.userId}:`);
+    console.log(
+      `[MaxExposure] Calculated exposure for fight ${fight.id}, user ${connection.userId}:`
+    );
     console.log(`[MaxExposure]   currentExposure: ${currentExposure}`);
     console.log(`[MaxExposure]   cumulativeOpeningNotional: ${cumulativeOpeningNotional}`);
     console.log(`[MaxExposure]   positionsBySymbol:`, JSON.stringify(positionsBySymbol));
@@ -871,7 +917,9 @@ export async function recordFightTradeWithDetails(
     if (participant) {
       const prevMaxExposure = parseFloat(participant.maxExposureUsed?.toString() || '0');
 
-      console.log(`[MaxExposure] Participant ${participant.id}: prevMax=${prevMaxExposure}, cumulative=${cumulativeOpeningNotional}`);
+      console.log(
+        `[MaxExposure] Participant ${participant.id}: prevMax=${prevMaxExposure}, cumulative=${cumulativeOpeningNotional}`
+      );
 
       // Update maxExposureUsed with cumulative opening notional (total capital ever committed)
       // This is NOT the current open exposure, but the SUM of all capital used for OPENING positions
@@ -883,13 +931,17 @@ export async function recordFightTradeWithDetails(
         where: { id: participant.id },
         select: { maxExposureUsed: true },
       });
-      console.log(`[MaxExposure] After update: maxExposureUsed = ${updatedParticipant?.maxExposureUsed}`);
+      console.log(
+        `[MaxExposure] After update: maxExposureUsed = ${updatedParticipant?.maxExposureUsed}`
+      );
 
       // Get the effective max exposure (cumulative, not just current open positions)
       const effectiveMaxExposure = Math.max(prevMaxExposure, cumulativeOpeningNotional);
 
       if (cumulativeOpeningNotional > prevMaxExposure) {
-        console.log(`[MaxExposure] Updated: ${prevMaxExposure.toFixed(2)} -> ${cumulativeOpeningNotional.toFixed(2)} USDC (cumulative)`);
+        console.log(
+          `[MaxExposure] Updated: ${prevMaxExposure.toFixed(2)} -> ${cumulativeOpeningNotional.toFixed(2)} USDC (cumulative)`
+        );
       }
 
       // Emit real-time stake info update
@@ -903,7 +955,9 @@ export async function recordFightTradeWithDetails(
         effectiveMaxExposure
       );
     } else {
-      console.error(`[MaxExposure] No participant found for fight ${fight.id}, user ${connection.userId}`);
+      console.error(
+        `[MaxExposure] No participant found for fight ${fight.id}, user ${connection.userId}`
+      );
     }
   } catch (err) {
     console.error('Failed to update maxExposure/emit stake info:', err);

@@ -50,13 +50,19 @@ export async function calculateFightExposure(
     },
   });
 
-  console.log(`[calculateFightExposure] Found ${fightTrades.length} trades for fight ${fightId}, user ${userId}`);
+  console.log(
+    `[calculateFightExposure] Found ${fightTrades.length} trades for fight ${fightId}, user ${userId}`
+  );
   fightTrades.forEach((t, i) => {
-    console.log(`[calculateFightExposure]   Trade ${i + 1}: ${t.side} ${t.amount} ${t.symbol} @ ${t.price}`);
+    console.log(
+      `[calculateFightExposure]   Trade ${i + 1}: ${t.side} ${t.amount} ${t.symbol} @ ${t.price}`
+    );
   });
 
   const result = calculateExposureFromTrades(fightTrades);
-  console.log(`[calculateFightExposure] Result: currentExposure=${result.currentExposure}, cumulativeOpeningNotional=${result.cumulativeOpeningNotional}`);
+  console.log(
+    `[calculateFightExposure] Result: currentExposure=${result.currentExposure}, cumulativeOpeningNotional=${result.cumulativeOpeningNotional}`
+  );
 
   return result;
 }
@@ -147,16 +153,13 @@ export function calculateExposureFromTrades(
   // Threshold for considering a position as closed (handles floating point issues)
   const DUST_THRESHOLD = 0.0000001;
 
-  const currentExposure = Object.values(positionsBySymbol).reduce(
-    (sum, pos) => {
-      // Only count if there's still an open position
-      if (Math.abs(pos.amount) < DUST_THRESHOLD) {
-        return sum;
-      }
-      return sum + Math.abs(pos.totalNotional);
-    },
-    0
-  );
+  const currentExposure = Object.values(positionsBySymbol).reduce((sum, pos) => {
+    // Only count if there's still an open position
+    if (Math.abs(pos.amount) < DUST_THRESHOLD) {
+      return sum;
+    }
+    return sum + Math.abs(pos.totalNotional);
+  }, 0);
 
   return {
     currentExposure,
@@ -331,7 +334,9 @@ export async function updateMaxExposureIfHigher(
   participantId: string,
   newExposure: number
 ): Promise<void> {
-  console.log(`[updateMaxExposureIfHigher] Called with participantId=${participantId}, newExposure=${newExposure}`);
+  console.log(
+    `[updateMaxExposureIfHigher] Called with participantId=${participantId}, newExposure=${newExposure}`
+  );
 
   // Get current value
   const current = await prisma.fightParticipant.findUnique({
@@ -349,7 +354,9 @@ export async function updateMaxExposureIfHigher(
       where: { id: participantId },
       data: { maxExposureUsed: newExposure },
     });
-    console.log(`[updateMaxExposureIfHigher] Update result: maxExposureUsed=${result.maxExposureUsed}`);
+    console.log(
+      `[updateMaxExposureIfHigher] Update result: maxExposureUsed=${result.maxExposureUsed}`
+    );
   } else {
     console.log(`[updateMaxExposureIfHigher] No update needed (${newExposure} <= ${currentMax})`);
   }
@@ -358,12 +365,10 @@ export async function updateMaxExposureIfHigher(
 /**
  * Get user ID from exchange account address
  */
-export async function getUserIdFromAccount(
-  accountAddress: string
-): Promise<string | null> {
+export async function getUserIdFromAccount(accountAddress: string): Promise<string | null> {
   // Normalize to lowercase for case-insensitive matching (EVM addresses use mixed-case checksums)
-  const connection = await prisma.exchangeConnection.findUnique({
-    where: { accountAddress: accountAddress.toLowerCase() },
+  const connection = await prisma.exchangeConnection.findFirst({
+    where: { accountAddress: accountAddress.toLowerCase(), isActive: true },
   });
 
   return connection?.userId || null;

@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useRef, memo, useState } from 'react';
-import { PacificaDatafeed, intervalToResolution, resolutionToInterval } from '@/lib/tradingview/PacificaDatafeed';
+import {
+  PacificaDatafeed,
+  intervalToResolution,
+  resolutionToInterval,
+} from '@/lib/tradingview/PacificaDatafeed';
 import { HyperliquidDatafeed } from '@/lib/tradingview/HyperliquidDatafeed';
 import { Spinner } from './Spinner';
 import type { ExchangeType } from '@tfc/shared';
@@ -40,10 +44,19 @@ export interface ChartWidget {
   save: (callback: (state: object) => void) => void;
   onContextMenu: (callback: (unixTime: number, price: number) => ContextMenuItem[]) => void;
   activeChart: () => {
-    createStudy: (name: string, forceOverlay: boolean, lock: boolean, inputs?: unknown[], overrides?: Record<string, unknown>) => Promise<unknown>;
+    createStudy: (
+      name: string,
+      forceOverlay: boolean,
+      lock: boolean,
+      inputs?: unknown[],
+      overrides?: Record<string, unknown>
+    ) => Promise<unknown>;
     crossHairMoved: () => ISubscription<(params: { time: number; price: number }) => void>;
     // Shape drawing API (TradingView Advanced Charting Library)
-    createShape: (point: { time: number; price: number }, options: Record<string, unknown>) => unknown;
+    createShape: (
+      point: { time: number; price: number },
+      options: Record<string, unknown>
+    ) => unknown;
     removeShape: (shapeId: unknown) => void;
     removeEntity: (entityId: unknown) => void;
     removeAllShapes: () => void;
@@ -95,7 +108,7 @@ function TradingViewChartAdvancedComponent({
 
     // Show/hide/position the "+" button + update side color.
     const updateButton = (y: number) => {
-      if (!onQuickOrderRef.current || y < 30 || y > (height - 30)) {
+      if (!onQuickOrderRef.current || y < 30 || y > height - 30) {
         btn.style.display = 'none';
         return;
       }
@@ -112,7 +125,9 @@ function TradingViewChartAdvancedComponent({
 
       // Reset hide timeout
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-      hideTimeoutRef.current = setTimeout(() => { btn.style.display = 'none'; }, 2000);
+      hideTimeoutRef.current = setTimeout(() => {
+        btn.style.display = 'none';
+      }, 2000);
     };
     const hideButton = () => {
       btn.style.display = 'none';
@@ -135,7 +150,9 @@ function TradingViewChartAdvancedComponent({
           };
           const onIframeLeave = () => {
             if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
-            hideTimeoutRef.current = setTimeout(() => { btn.style.display = 'none'; }, 200);
+            hideTimeoutRef.current = setTimeout(() => {
+              btn.style.display = 'none';
+            }, 200);
           };
           // Detect clicks in the button zone from the iframe
           const onIframeClick = (e: MouseEvent) => {
@@ -145,8 +162,12 @@ function TradingViewChartAdvancedComponent({
             // Convert iframe-local coords to page coords
             const pageX = e.clientX + iframeRect.left;
             const pageY = e.clientY + iframeRect.top;
-            if (pageX >= btnRect.left && pageX <= btnRect.right &&
-                pageY >= btnRect.top && pageY <= btnRect.bottom) {
+            if (
+              pageX >= btnRect.left &&
+              pageX <= btnRect.right &&
+              pageY >= btnRect.top &&
+              pageY <= btnRect.bottom
+            ) {
               const price = crosshairPriceRef.current;
               const cp = currentPriceRef.current;
               if (price && cp && onQuickOrderRef.current) {
@@ -166,17 +187,25 @@ function TradingViewChartAdvancedComponent({
               iframeDoc.removeEventListener('mousemove', onIframeMove);
               iframeDoc.removeEventListener('mouseleave', onIframeLeave);
               iframeDoc.removeEventListener('click', onIframeClick);
-            } catch { /* ignore */ }
+            } catch {
+              /* ignore */
+            }
           });
         }
-      } catch { /* cross-origin — fallback below */ }
+      } catch {
+        /* cross-origin — fallback below */
+      }
     }
 
     // Fallback: listen on main document (for non-iframe rendering)
     const onDocMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      if (e.clientX >= rect.left && e.clientX <= rect.right &&
-          e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      if (
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      ) {
         updateButton(e.clientY - rect.top);
       } else {
         hideButton();
@@ -242,18 +271,29 @@ function TradingViewChartAdvancedComponent({
       const raw = localStorage.getItem(CHART_STATE_KEY);
       if (raw) {
         savedState = JSON.parse(raw);
-        console.log('[TradingView] Restoring saved chart state from localStorage', Object.keys(savedState || {}));
+        console.log(
+          '[TradingView] Restoring saved chart state from localStorage',
+          Object.keys(savedState || {})
+        );
       } else {
         console.log('[TradingView] No saved chart state found in localStorage');
       }
-    } catch (e) { console.warn('[TradingView] Failed to parse saved state:', e); }
+    } catch (e) {
+      console.warn('[TradingView] Failed to parse saved state:', e);
+    }
 
     const widgetOptions = {
       container: containerRef.current,
       library_path: '/charting_library/',
       datafeed: (() => {
-        const feed = exchangeType === 'hyperliquid' ? new HyperliquidDatafeed() : new PacificaDatafeed();
-        console.log(`[TradingView] Using datafeed for exchange: ${exchangeType}`, feed.constructor.name);
+        const feed =
+          exchangeType === 'hyperliquid'
+            ? new HyperliquidDatafeed()
+            : new PacificaDatafeed(exchangeType);
+        console.log(
+          `[TradingView] Using datafeed for exchange: ${exchangeType}`,
+          feed.constructor.name
+        );
         return feed;
       })(),
       symbol: symbol,
@@ -306,7 +346,8 @@ function TradingViewChartAdvancedComponent({
       },
 
       // Custom font
-      custom_font_family: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
+      custom_font_family:
+        "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif",
 
       disabled_features: [
         'header_symbol_search',
@@ -391,14 +432,22 @@ function TradingViewChartAdvancedComponent({
             try {
               const json = JSON.stringify(state);
               localStorage.setItem(CHART_STATE_KEY, json);
-              console.log('[TradingView] Chart state saved to localStorage', (json.length / 1024).toFixed(1) + 'KB');
-            } catch (e) { console.warn('[TradingView] Failed to save chart state:', e); }
+              console.log(
+                '[TradingView] Chart state saved to localStorage',
+                (json.length / 1024).toFixed(1) + 'KB'
+              );
+            } catch (e) {
+              console.warn('[TradingView] Failed to save chart state:', e);
+            }
           });
         });
 
         // Quick order via right-click context menu
         widget.onContextMenu((_unixTime: number, price: number) => {
-          const formattedPrice = price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const formattedPrice = price.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
           const items: ContextMenuItem[] = [];
           if (onQuickOrderRef.current && currentPriceRef.current > 0) {
             if (price < currentPriceRef.current) {
@@ -433,7 +482,9 @@ function TradingViewChartAdvancedComponent({
                 const cp = currentPriceRef.current;
                 if (cp > 0) {
                   const isLong = params.price < cp;
-                  btn.style.backgroundColor = isLong ? 'rgba(38, 166, 154, 0.85)' : 'rgba(239, 83, 80, 0.85)';
+                  btn.style.backgroundColor = isLong
+                    ? 'rgba(38, 166, 154, 0.85)'
+                    : 'rgba(239, 83, 80, 0.85)';
                 }
               }
             }
@@ -444,7 +495,6 @@ function TradingViewChartAdvancedComponent({
 
         // Notify external consumers that the widget is ready for drawing
         onWidgetReadyRef.current?.(widget);
-
       });
     } catch (error) {
       console.error('[TradingView] Failed to create widget:', error);
@@ -455,7 +505,9 @@ function TradingViewChartAdvancedComponent({
       if (widgetRef.current) {
         try {
           widgetRef.current.remove();
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
         widgetRef.current = null;
       }
       isReadyRef.current = false;
@@ -477,15 +529,8 @@ function TradingViewChartAdvancedComponent({
   }, [symbol, tvResolution]);
 
   return (
-    <div
-      className="relative w-full"
-      style={{ height }}
-    >
-      <div
-        ref={containerRef}
-        className="absolute inset-0"
-        style={{ background: '#111113' }}
-      />
+    <div className="relative w-full" style={{ height }}>
+      <div ref={containerRef} className="absolute inset-0" style={{ background: '#111113' }} />
 
       {/* Floating "+" button with price — pointer-events:none so mouse passes to iframe */}
       {onQuickOrder && (
@@ -501,7 +546,13 @@ function TradingViewChartAdvancedComponent({
             backgroundColor: 'rgba(75, 85, 99, 0.85)',
           }}
         >
-          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg
+            className="w-3 h-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={3}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </div>

@@ -4,12 +4,49 @@ import { useState, useCallback, useEffect, useMemo, useRef, Suspense } from 'rea
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useAuth, useAccount, usePrices, useCreateMarketOrder, useCreateLimitOrder, useCancelOrder, useCancelStopOrder, useCancelAllOrders, useSetPositionTpSl, useCreateStopOrder, useCreateStandaloneStopOrder, useSetLeverage, useSetMarginMode, useAccountSettings, useTradeHistory, useOrderHistory, useBuilderCodeStatus, useApproveBuilderCode, useFight, useStakeInfo, useFightPositions, useFightTrades, useFightOrders, useFightOrderHistory, useExchangeWsStore, useExchangeWebSocket } from '@/hooks';
+import {
+  useAuth,
+  useAccount,
+  usePriceConnection,
+  usePrice,
+  usePriceStore,
+  useMarketsList,
+  useCreateMarketOrder,
+  useCreateLimitOrder,
+  useCancelOrder,
+  useCancelStopOrder,
+  useCancelAllOrders,
+  useSetPositionTpSl,
+  useCreateStopOrder,
+  useCreateStandaloneStopOrder,
+  useSetLeverage,
+  useSetMarginMode,
+  useAccountSettings,
+  useTradeHistory,
+  useOrderHistory,
+  useBuilderCodeStatus,
+  useApproveBuilderCode,
+  useFight,
+  useStakeInfo,
+  useFightPositions,
+  useFightTrades,
+  useFightOrders,
+  useFightOrderHistory,
+  useExchangeWsStore,
+  useExchangeWebSocket,
+  useCanTrade,
+} from '@/hooks';
 // Note: isAuthenticating and user from useAuth are used by AppShell now
 import { TradingViewChartAdvanced } from '@/components/TradingViewChartAdvanced';
 import type { ChartWidget } from '@/components/TradingViewChartAdvanced';
 import { OrderBook } from '@/components/OrderBook';
-import { Positions, type Position, type LimitCloseParams, type MarketCloseParams, type TpSlParams } from '@/components/Positions';
+import {
+  Positions,
+  type Position,
+  type LimitCloseParams,
+  type MarketCloseParams,
+  type TpSlParams,
+} from '@/components/Positions';
 import { FightBanner } from '@/components/FightBanner';
 import { ActiveFightsSwitcher } from '@/components/ActiveFightsSwitcher';
 import { AppShell } from '@/components/AppShell';
@@ -21,10 +58,14 @@ import { DepositModal } from '@/components/DepositModal';
 import { EditOrderModal } from '@/components/EditOrderModal';
 import { BetaGate } from '@/components/BetaGate';
 import { AiBiasWidget } from '@/components/AiBiasWidget';
+import { OrdersTable } from '@/components/trade/OrdersTable';
+import { TradeHistoryTable } from '@/components/trade/TradeHistoryTable';
+import { OrderHistoryTable } from '@/components/trade/OrderHistoryTable';
 import { HyperliquidSetupInline } from '@/components/HyperliquidSetup';
+import { NadoSetupInline } from '@/components/NadoSetup';
 import { formatPrice, formatUSD, formatPercent, formatFundingRate } from '@/lib/formatters';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
-import { isValidExchangeType, type ExchangeType } from '@tfc/shared';
+import { isValidExchangeType, getBaseToken, type ExchangeType } from '@tfc/shared';
 import { useAuthStore } from '@/lib/store';
 import { toast } from 'sonner';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -47,7 +88,8 @@ function useFundingCountdown(): string {
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      const msLeft = (3600000 - ((now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds()));
+      const msLeft =
+        3600000 - ((now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds());
       const totalSec = Math.floor(msLeft / 1000);
       const mm = String(Math.floor(totalSec / 60)).padStart(2, '0');
       const ss = String(totalSec % 60).padStart(2, '0');
@@ -63,11 +105,13 @@ function useFundingCountdown(): string {
 function TradePageContent() {
   const { connected } = useWallet();
   const { isAuthenticated, pacificaConnected, pacificaFailReason } = useAuth();
-  const { exchangeType, exchangeConfig, switchExchange } = useExchangeContext();
+  const { exchangeType, exchangeConfig, isExchangeConnected, switchExchange } =
+    useExchangeContext();
   const fundingCountdown = useFundingCountdown();
   const evmWalletAddress = useAuthStore((s) => s.evmWalletAddress);
   const agentApproved = useAuthStore((s) => s.agentApproved);
   const builderFeeApproved = useAuthStore((s) => s.builderFeeApproved);
+  const nadoAgentApproved = useAuthStore((s) => s.nadoAgentApproved);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -80,27 +124,10 @@ function TradePageContent() {
     if (urlExchange && isValidExchangeType(urlExchange) && urlExchange !== exchangeType) {
       switchExchange(urlExchange as ExchangeType);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only on mount
 
-  // Keep URL in sync when exchange changes (via switcher or any other source)
-  useEffect(() => {
-    const currentUrlExchange = searchParams?.get('exchange');
-    if (currentUrlExchange !== exchangeType) {
-      const params = new URLSearchParams(searchParams?.toString() || '');
-      params.set('exchange', exchangeType);
-      const newUrl = `/trade?${params.toString()}`;
-      router.replace(newUrl, { scroll: false });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exchangeType]);
-
-  const {
-    account,
-    positions: apiPositions,
-    openOrders,
-    refetch: refetchAccount,
-  } = useAccount();
+  const { account, positions: apiPositions, openOrders, refetch: refetchAccount } = useAccount();
 
   // Trading hooks
   const createMarketOrder = useCreateMarketOrder();
@@ -118,14 +145,15 @@ function TradePageContent() {
   const { data: accountSettings } = useAccountSettings();
 
   // History hooks
-  const {
-    data: tradeHistory = [],
-  } = useTradeHistory();
+  const { data: tradeHistory = [] } = useTradeHistory();
   const { data: orderHistoryData = [] } = useOrderHistory();
 
   // Builder code approval (required for trading)
   const { data: builderCodeStatus, isLoading: isLoadingBuilderCode } = useBuilderCodeStatus();
   const approveBuilderCode = useApproveBuilderCode();
+
+  // Unified trade readiness check (exchange-specific logic encapsulated in hook)
+  const canTrade = useCanTrade();
 
   // Fight state (for max size validation)
   const { isActive: inActiveFight, maxSize: fightMaxSize, fightId } = useFight();
@@ -133,7 +161,14 @@ function TradePageContent() {
   // Stake limit info (available capital in fight)
   // maxExposureUsed = highest exposure ever reached (never resets when closing positions)
   // available = stake - maxExposureUsed (once capital is used, it can't be reused)
-  const { inFight, stake, currentExposure, maxExposureUsed, available: availableStake, blockedSymbols } = useStakeInfo();
+  const {
+    inFight,
+    stake,
+    currentExposure,
+    maxExposureUsed,
+    available: availableStake,
+    blockedSymbols,
+  } = useStakeInfo();
 
   // Fight-specific data hooks
   const { positions: fightPositions } = useFightPositions(fightId);
@@ -148,8 +183,10 @@ function TradePageContent() {
   // TradingView widget instance — shared with AiBiasWidget for chart drawing
   const [tvWidget, setTvWidget] = useState<ChartWidget | null>(null);
 
-  // Trading terminal state - initialize from URL if present
-  const [selectedMarket, setSelectedMarket] = useState(() => urlSymbol || 'BTC-USD');
+  // Trading terminal state - initialize from URL if present, else use exchange default
+  const [selectedMarket, setSelectedMarket] = useState(
+    () => urlSymbol || exchangeConfig.defaultSymbol
+  );
 
   // Check if currently selected symbol is blocked (pre-fight position exists)
   const isSymbolBlocked = useMemo(() => {
@@ -160,10 +197,33 @@ function TradePageContent() {
   // Preserves all existing params (exchange, fight, tab, etc.)
   const handleMarketChange = useCallback((symbol: string) => {
     setSelectedMarket(symbol);
-    const params = new URLSearchParams(searchParams?.toString() || '');
-    params.set('symbol', symbol);
-    router.replace(`/trade?${params.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+    // URL update handled by the buildTradeUrl effect below
+  }, []);
+
+  // Centralized URL builder — always derives from React state, never from
+  // window.location (which lags behind async router.replace calls).
+  const buildTradeUrl = useCallback(
+    (overrides?: { symbol?: string; tab?: string }) => {
+      const params = new URLSearchParams();
+      params.set('exchange', exchangeType);
+      const sym = overrides?.symbol ?? selectedMarket;
+      if (sym) params.set('symbol', sym);
+      // Preserve tab from window.location unless overridden
+      const tab = overrides?.tab ?? new URLSearchParams(window.location.search).get('tab');
+      if (tab && tab !== 'positions') params.set('tab', tab);
+      return `/trade?${params.toString()}`;
+    },
+    [exchangeType, selectedMarket]
+  );
+
+  // Keep URL in sync when exchange or market changes
+  useEffect(() => {
+    const url = buildTradeUrl();
+    const current = `${window.location.pathname}${window.location.search}`;
+    if (current !== url) {
+      router.replace(url, { scroll: false });
+    }
+  }, [exchangeType, selectedMarket, buildTradeUrl, router]);
 
   // Set page title with current asset
   useEffect(() => {
@@ -178,7 +238,9 @@ function TradePageContent() {
   const [isIsolated, setIsIsolated] = useState(false); // Cross (false) or Isolated (true)
 
   // Order type state
-  const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop-market' | 'stop-limit'>('market');
+  const [orderType, setOrderType] = useState<'market' | 'limit' | 'stop-market' | 'stop-limit'>(
+    'market'
+  );
   const [limitPrice, setLimitPrice] = useState('');
   const [triggerPrice, setTriggerPrice] = useState('');
 
@@ -271,17 +333,14 @@ function TradePageContent() {
 
   const [bottomTab, setBottomTabState] = useState<BottomTab>(getBottomTabFromUrl);
 
-  const setBottomTab = useCallback((tab: BottomTab) => {
-    setBottomTabState(tab);
-    const params = new URLSearchParams(searchParams?.toString() || '');
-    if (tab === 'positions') {
-      params.delete('tab'); // Default tab, no need to show in URL
-    } else {
-      params.set('tab', tab);
-    }
-    const newUrl = params.toString() ? `/trade?${params.toString()}` : '/trade';
-    router.replace(newUrl, { scroll: false });
-  }, [router, searchParams]);
+  const setBottomTab = useCallback(
+    (tab: BottomTab) => {
+      setBottomTabState(tab);
+      // Pass 'positions' to clear tab from URL (default), otherwise set it
+      router.replace(buildTradeUrl({ tab }), { scroll: false });
+    },
+    [router, buildTradeUrl]
+  );
 
   // Sync bottom tab state when URL changes (e.g., browser back/forward)
   useEffect(() => {
@@ -291,40 +350,38 @@ function TradePageContent() {
     }
   }, [searchParams, getBottomTabFromUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Sort state for tables: { column, desc }
-  const [ordersSort, setOrdersSort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
-  const [tradesSort, setTradesSort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
-  const [orderHistorySort, setOrderHistorySort] = useState<{ col: string; desc: boolean }>({ col: 'time', desc: true });
-
-  // Helper to toggle sort column
-  const toggleSort = (
-    current: { col: string; desc: boolean },
-    setter: (val: { col: string; desc: boolean }) => void,
-    column: string
-  ) => {
-    if (current.col === column) {
-      setter({ col: column, desc: !current.desc });
-    } else {
-      setter({ col: column, desc: true });
-    }
-  };
-
   // Fight filter toggle (only visible when in active fight)
   const [showFightOnly, setShowFightOnly] = useState(true);
   // Fight capital limit accordion (collapsed by default)
   const [showFightCapital, setShowFightCapital] = useState(true);
 
-  // Markets and prices from Pacifica API (dynamic, not hardcoded)
-  const { markets, getPrice } = usePrices({
-  });
+  // Manage WS price connection lifecycle (writes to usePriceStore).
+  // This hook never re-renders on price ticks — it only manages the connection.
+  usePriceConnection();
 
-  // Reset to BTC-USD on exchange switch — BTC-USD exists on every exchange.
-  // This avoids complex race conditions with markets loading asynchronously.
+  // Markets list (only re-renders when markets change, not on every tick)
+  const markets = useMarketsList();
+
+  // Granular price selector: only re-renders when selectedMarket's price changes
+  const currentPriceData = usePrice(selectedMarket);
+
+  // getPrice reads from the Zustand store for other symbols (positions, etc.)
+  // Using getState() avoids subscribing to every symbol's changes.
+  const getPrice = useCallback(
+    (symbol: string) => usePriceStore.getState().prices[symbol] ?? null,
+    // We intentionally omit dependencies — getState() always returns current data.
+    // Consumers that need reactivity for a specific symbol should use usePrice(symbol).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // Reset to exchange-specific default symbol on exchange switch.
+  // Each exchange has its own symbol format (e.g. "BTC-USD" for Pacifica, "BTC-PERP" for Nado).
   const prevExchangeRef = useRef(exchangeType);
   useEffect(() => {
     if (prevExchangeRef.current !== exchangeType) {
       prevExchangeRef.current = exchangeType;
-      handleMarketChange('BTC-USD');
+      handleMarketChange(exchangeConfig.defaultSymbol);
     }
   }, [exchangeType]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -334,18 +391,23 @@ function TradePageContent() {
 
     // If current symbol is blocked, find first non-blocked symbol
     if (blockedSymbols.includes(selectedMarket)) {
-      const firstNonBlocked = markets.find((m: { symbol: string }) => !blockedSymbols.includes(m.symbol));
+      const firstNonBlocked = markets.find(
+        (m: { symbol: string }) => !blockedSymbols.includes(m.symbol)
+      );
       if (firstNonBlocked) {
-        console.log(`[Trade] Auto-switching from blocked ${selectedMarket} to ${firstNonBlocked.symbol}`);
+        console.log(
+          `[Trade] Auto-switching from blocked ${selectedMarket} to ${firstNonBlocked.symbol}`
+        );
         handleMarketChange(firstNonBlocked.symbol);
       }
     }
   }, [inFight, blockedSymbols, markets, selectedMarket, handleMarketChange]);
 
-  const currentPriceData = getPrice(selectedMarket);
-  // Use oracle price as the main price (closer to last traded price than mark price)
-  const currentPrice = currentPriceData?.oracle || currentPriceData?.price || 0;
-  const markPrice = currentPriceData?.price || currentPrice;
+  // currentPriceData comes from usePrice(selectedMarket) above (granular Zustand selector)
+  // price = live BBO mid (most real-time), oracle = external oracle feed
+  const currentPrice = currentPriceData?.price || 0;
+  const oraclePrice = currentPriceData?.oracle || currentPrice;
+  const indexPrice = currentPriceData?.indexPrice || 0;
   const priceChange = currentPriceData?.change24h || 0;
   const volume24h = currentPriceData?.volume24h || 0;
   const openInterest = currentPriceData?.openInterest || 0;
@@ -358,9 +420,11 @@ function TradePageContent() {
   // Debug: log Market Info data source (once per market/exchange change)
   useEffect(() => {
     if (currentPriceData) {
-      console.log(`[MarketInfo] exchange=${exchangeType}, symbol=${selectedMarket}, mark=${markPrice.toFixed(2)}, volume=$${(volume24h / 1e6).toFixed(2)}M, OI=$${(openInterest / 1e6).toFixed(2)}M, funding=${fundingRate.toFixed(4)}%`);
+      console.log(
+        `[MarketInfo] exchange=${exchangeType}, symbol=${selectedMarket}, price=${currentPrice.toFixed(2)}, volume=$${(volume24h / 1e6).toFixed(2)}M, OI=$${(openInterest / 1e6).toFixed(2)}M, funding=${fundingRate.toFixed(4)}%`
+      );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exchangeType, selectedMarket, !!currentPriceData]);
 
   // Helper to round amount to lot size
@@ -371,31 +435,35 @@ function TradePageContent() {
   };
 
   // Helper to round price to tick size (Pacifica requires prices to be multiples of tick size)
-  const roundToTickSize = useCallback((price: number): string => {
-    const rounded = Math.round(price / tickSize) * tickSize;
-    const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
-    return rounded.toFixed(decimals);
-  }, [tickSize]);
+  const roundToTickSize = useCallback(
+    (price: number): string => {
+      const rounded = Math.round(price / tickSize) * tickSize;
+      const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
+      return rounded.toFixed(decimals);
+    },
+    [tickSize]
+  );
 
   // Check if leverage can be set (validates against open positions)
-  const canSetLeverage = useCallback((lev: number): { valid: boolean; error?: string } => {
-    const marketSymbol = selectedMarket.replace('-USD', '');
-    const openPosition = apiPositions?.find(
-      (p: any) => p.symbol.replace('-USD', '') === marketSymbol
-    );
+  const canSetLeverage = useCallback(
+    (lev: number): { valid: boolean; error?: string } => {
+      const marketSymbol = getBaseToken(selectedMarket);
+      const openPosition = apiPositions?.find((p: any) => getBaseToken(p.symbol) === marketSymbol);
 
-    if (openPosition) {
-      const positionLeverage = openPosition.leverage || 1;
-      // Pacifica only allows INCREASING leverage on open positions
-      if (lev < positionLeverage) {
-        return {
-          valid: false,
-          error: `Cannot decrease leverage below ${positionLeverage}x while ${marketSymbol} position is open`
-        };
+      if (openPosition) {
+        const positionLeverage = openPosition.leverage || 1;
+        // Pacifica only allows INCREASING leverage on open positions
+        if (lev < positionLeverage) {
+          return {
+            valid: false,
+            error: `Cannot decrease leverage below ${positionLeverage}x while ${marketSymbol} position is open`,
+          };
+        }
       }
-    }
-    return { valid: true };
-  }, [selectedMarket, apiPositions]);
+      return { valid: true };
+    },
+    [selectedMarket, apiPositions]
+  );
 
   // Handle Set Leverage button click
   const handleSetLeverage = useCallback(() => {
@@ -409,17 +477,20 @@ function TradePageContent() {
       {
         onSuccess: () => {
           setSavedLeverage(leverage); // Update saved leverage on success
-        }
+        },
       }
     );
   }, [leverage, selectedMarket, canSetLeverage, setLeverageMutation]);
 
   // Handle margin mode change (cross/isolated) — opens confirmation modal
-  const handleSetMarginMode = useCallback((isolated: boolean) => {
-    if (isolated === isIsolated) return;
-    setPendingMarginMode(isolated);
-    setShowMarginModeModal(true);
-  }, [isIsolated]);
+  const handleSetMarginMode = useCallback(
+    (isolated: boolean) => {
+      if (isolated === isIsolated) return;
+      setPendingMarginMode(isolated);
+      setShowMarginModeModal(true);
+    },
+    [isIsolated]
+  );
 
   // Confirm margin mode change from modal
   const confirmMarginMode = useCallback(() => {
@@ -437,17 +508,15 @@ function TradePageContent() {
           setIsIsolated(newMode);
           setShowMarginModeModal(false);
           setPendingMarginMode(null);
-        }
+        },
       }
     );
   }, [pendingMarginMode, isIsolated, selectedMarket, setMarginModeMutation]);
 
   // Check if current market has an open position (blocks margin mode change)
   const hasOpenPosition = useMemo(() => {
-    const marketSymbol = selectedMarket.replace('-USD', '');
-    return apiPositions.some(
-      (pos: any) => (pos.symbol || '').replace('-USD', '') === marketSymbol
-    );
+    const marketSymbol = getBaseToken(selectedMarket);
+    return apiPositions.some((pos: any) => getBaseToken(pos.symbol || '') === marketSymbol);
   }, [selectedMarket, apiPositions]);
 
   // Initialize leverage from account settings when market changes
@@ -455,10 +524,10 @@ function TradePageContent() {
   // that exceed the current exchange max (e.g. AVAX was 20x, now 10x)
   useEffect(() => {
     if (accountSettings && Array.isArray(accountSettings)) {
-      const marketSymbol = selectedMarket.replace('-USD', '');
+      const marketSymbol = getBaseToken(selectedMarket);
       // Match both formats: adapter returns 'AVAX-USD', direct Pacifica returns 'AVAX'
-      const setting = accountSettings.find((s: any) =>
-        s.symbol === marketSymbol || s.symbol === selectedMarket
+      const setting = accountSettings.find(
+        (s: any) => s.symbol === marketSymbol || s.symbol === selectedMarket
       );
       if (setting?.leverage) {
         const clamped = Math.min(setting.leverage, maxLeverage);
@@ -482,29 +551,34 @@ function TradePageContent() {
       // Calculate amount in tokens (position size with leverage, divided by price)
       // Round down to lot size to avoid Pacifica API rejection
       // For limit orders, use limit price; for market, use current price
-      const priceForCalc = orderType === 'limit' || orderType === 'stop-limit'
-        ? parseFloat(limitPrice) || currentPrice
-        : currentPrice;
+      const priceForCalc =
+        orderType === 'limit' || orderType === 'stop-limit'
+          ? parseFloat(limitPrice) || currentPrice
+          : currentPrice;
       const rawAmount = effectivePositionSize / priceForCalc;
       const orderAmount = roundToLotSize(rawAmount, lotSize);
 
       // Build TP/SL params if enabled (for market and limit orders)
       // Round to tick size to avoid "Invalid stop tick" errors from Pacifica
-      const tpParam = (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit
-        ? { stop_price: roundToTickSize(parseFloat(takeProfit)) }
-        : undefined;
-      const slParam = (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss
-        ? { stop_price: roundToTickSize(parseFloat(stopLoss)) }
-        : undefined;
+      const tpParam =
+        (orderType === 'market' || orderType === 'limit') && tpEnabled && takeProfit
+          ? { stop_price: roundToTickSize(parseFloat(takeProfit)) }
+          : undefined;
+      const slParam =
+        (orderType === 'market' || orderType === 'limit') && slEnabled && stopLoss
+          ? { stop_price: roundToTickSize(parseFloat(stopLoss)) }
+          : undefined;
 
       // Minimum order size per exchange config
       const minOrderSize = exchangeConfig.minOrderValue;
       if (minOrderSize > 0 && effectivePositionSize < minOrderSize) {
-        toast.error(`Minimum order size is $${minOrderSize} (current: $${effectivePositionSize.toFixed(2)})`);
+        toast.error(
+          `Minimum order size is $${minOrderSize} (current: $${effectivePositionSize.toFixed(2)})`
+        );
         return;
       }
 
-      const symbol = selectedMarket.replace('-USD', ''); // Convert BTC-USD to BTC
+      const symbol = selectedMarket; // Full symbol (BTC-USD, BTC-PERP) — API routes handle exchange mapping
       const side = selectedSide === 'LONG' ? 'bid' : 'ask';
 
       if (orderType === 'market') {
@@ -554,11 +628,15 @@ function TradePageContent() {
         // Sell stop (ask/SHORT): trigger must be BELOW current price (breakdown entry)
         const trigger = parseFloat(triggerPrice);
         if (side === 'bid' && trigger <= currentPrice) {
-          toast.error(`Buy stop trigger must be above current price ($${currentPrice.toFixed(2)}). Use a limit order to buy below market.`);
+          toast.error(
+            `Buy stop trigger must be above current price ($${currentPrice.toFixed(2)}). Use a limit order to buy below market.`
+          );
           return;
         }
         if (side === 'ask' && trigger >= currentPrice) {
-          toast.error(`Sell stop trigger must be below current price ($${currentPrice.toFixed(2)}). Use a limit order to sell above market.`);
+          toast.error(
+            `Sell stop trigger must be below current price ($${currentPrice.toFixed(2)}). Use a limit order to sell above market.`
+          );
           return;
         }
 
@@ -567,7 +645,8 @@ function TradePageContent() {
           side,
           stopPrice: roundToTickSize(parseFloat(triggerPrice)),
           amount: orderAmount,
-          limitPrice: orderType === 'stop-limit' ? roundToTickSize(parseFloat(limitPrice)) : undefined,
+          limitPrice:
+            orderType === 'stop-limit' ? roundToTickSize(parseFloat(limitPrice)) : undefined,
           reduceOnly,
           fightId: fightId || undefined,
           leverage,
@@ -588,25 +667,37 @@ function TradePageContent() {
       // Error notification is handled by the hook's onError handler
       console.error('Failed to place order:', err instanceof Error ? err.message : err);
     }
-  }, [selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, createMarketOrder, createLimitOrder, createStandaloneStopOrder, orderType, limitPrice, triggerPrice, tpEnabled, slEnabled, takeProfit, stopLoss, fightId, lotSize, slippage, roundToTickSize, reduceOnly]);
+  }, [
+    selectedMarket,
+    selectedSide,
+    orderSize,
+    currentPrice,
+    leverage,
+    maxLeverage,
+    createMarketOrder,
+    createLimitOrder,
+    createStandaloneStopOrder,
+    orderType,
+    limitPrice,
+    triggerPrice,
+    tpEnabled,
+    slEnabled,
+    takeProfit,
+    stopLoss,
+    fightId,
+    lotSize,
+    slippage,
+    roundToTickSize,
+    reduceOnly,
+  ]);
 
   const handlePlaceOrder = useCallback(async () => {
-    if (!isAuthenticated) {
-      alert('Please connect wallet to trade');
-      return;
-    }
-
-    if (exchangeType === 'hyperliquid') {
-      if (!evmWalletAddress) {
-        alert('Please connect your EVM wallet first');
-        return;
+    if (!canTrade) {
+      if (!isAuthenticated) {
+        alert('Please connect wallet to trade');
+      } else {
+        alert('Please complete exchange setup to trade');
       }
-      if (!agentApproved || !builderFeeApproved) {
-        alert('Please complete Hyperliquid setup first');
-        return;
-      }
-    } else if (!pacificaConnected) {
-      alert('Please connect your Pacifica account first');
       return;
     }
 
@@ -615,7 +706,9 @@ function TradePageContent() {
     // Validate max size if in active fight
     const effectivePositionSize = parseFloat(orderSize) * effectiveLeverage;
     if (inActiveFight && fightMaxSize > 0 && effectivePositionSize > fightMaxSize) {
-      toast.error(`Position size ($${effectivePositionSize.toLocaleString()}) exceeds fight max size ($${fightMaxSize.toLocaleString()})`);
+      toast.error(
+        `Position size ($${effectivePositionSize.toLocaleString()}) exceeds fight max size ($${fightMaxSize.toLocaleString()})`
+      );
       return;
     }
 
@@ -662,20 +755,37 @@ function TradePageContent() {
 
     // No opposite position, execute directly
     await executeOrder();
-  }, [isAuthenticated, pacificaConnected, exchangeType, exchangeConfig, evmWalletAddress, agentApproved, builderFeeApproved, selectedMarket, selectedSide, orderSize, currentPrice, leverage, maxLeverage, inActiveFight, fightMaxSize, lotSize, apiPositions, executeOrder]);
+  }, [
+    canTrade,
+    isAuthenticated,
+    selectedMarket,
+    selectedSide,
+    orderSize,
+    currentPrice,
+    leverage,
+    maxLeverage,
+    inActiveFight,
+    fightMaxSize,
+    lotSize,
+    apiPositions,
+    executeOrder,
+  ]);
 
   // Quick order from chart right-click context menu
-  const handleChartQuickOrder = useCallback((price: number, side: 'LONG' | 'SHORT', clickY?: number) => {
-    setQuickOrderPrice(price);
-    setQuickOrderSide(side);
-    setQuickOrderAmount('');
-    setQuickOrderClickY(clickY ?? null);
-  }, []);
+  const handleChartQuickOrder = useCallback(
+    (price: number, side: 'LONG' | 'SHORT', clickY?: number) => {
+      setQuickOrderPrice(price);
+      setQuickOrderSide(side);
+      setQuickOrderAmount('');
+      setQuickOrderClickY(clickY ?? null);
+    },
+    []
+  );
 
   const handleQuickOrderSubmit = useCallback(async () => {
     if (!quickOrderPrice || !quickOrderAmount || quickOrderSubmitting) return;
 
-    const symbol = selectedMarket.replace('-USD', '');
+    const symbol = selectedMarket; // Full symbol for API
     const usdAmount = parseFloat(quickOrderAmount);
     if (isNaN(usdAmount) || usdAmount <= 0) return;
     if (exchangeConfig.minOrderValue > 0 && usdAmount < exchangeConfig.minOrderValue) {
@@ -702,7 +812,9 @@ function TradePageContent() {
         leverage,
         fightId: fightId || undefined,
       });
-      toast.success(`Limit ${quickOrderSide === 'LONG' ? 'Buy' : 'Sell'} at $${roundToTickSize(quickOrderPrice)}`);
+      toast.success(
+        `Limit ${quickOrderSide === 'LONG' ? 'Buy' : 'Sell'} at $${roundToTickSize(quickOrderPrice)}`
+      );
       setQuickOrderPrice(null);
       setQuickOrderAmount('');
     } catch (err: unknown) {
@@ -711,142 +823,170 @@ function TradePageContent() {
     } finally {
       setQuickOrderSubmitting(false);
     }
-  }, [quickOrderPrice, quickOrderAmount, quickOrderSubmitting, quickOrderSide, selectedMarket, leverage, fightId, createLimitOrder, lotSize, roundToTickSize]);
+  }, [
+    quickOrderPrice,
+    quickOrderAmount,
+    quickOrderSubmitting,
+    quickOrderSide,
+    selectedMarket,
+    leverage,
+    fightId,
+    createLimitOrder,
+    lotSize,
+    roundToTickSize,
+  ]);
 
-  const handleCancelOrder = useCallback(async (orderId: string, symbol: string, orderType?: string) => {
-    try {
-      // Check if this is a stop order (TP/SL or standalone stop) - these need cancel_stop_order endpoint
-      const isStopOrder = orderType && (orderType.includes('TP') || orderType.includes('SL') || orderType.includes('STOP'));
+  const handleCancelOrder = useCallback(
+    async (orderId: string, symbol: string, orderType?: string) => {
+      try {
+        // Check if this is a stop order (TP/SL or standalone stop) - these need cancel_stop_order endpoint
+        const isStopOrder =
+          orderType &&
+          (orderType.includes('TP') || orderType.includes('SL') || orderType.includes('STOP'));
 
-      if (isStopOrder) {
-        // Stop orders need to use the stop/cancel endpoint
-        await cancelStopOrder.mutateAsync({
-          symbol,
-          orderId: parseInt(orderId),
-        });
-      } else {
-        // Regular order - use normal cancel
-        await cancelOrder.mutateAsync({
-          symbol,
-          orderId: parseInt(orderId),
-        });
+        if (isStopOrder) {
+          // Stop orders need to use the stop/cancel endpoint
+          await cancelStopOrder.mutateAsync({
+            symbol,
+            orderId: parseInt(orderId),
+          });
+        } else {
+          // Regular order - use normal cancel
+          await cancelOrder.mutateAsync({
+            symbol,
+            orderId: parseInt(orderId),
+          });
+        }
+        // Refresh account data to update orders list
+        await refetchAccount();
+      } catch (err) {
+        // Error notification is handled by the hook's onError handler
+        console.error('Failed to cancel order:', err instanceof Error ? err.message : err);
       }
-      // Refresh account data to update orders list
-      await refetchAccount();
-    } catch (err) {
-      // Error notification is handled by the hook's onError handler
-      console.error('Failed to cancel order:', err instanceof Error ? err.message : err);
-    }
-  }, [cancelOrder, cancelStopOrder, refetchAccount]);
+    },
+    [cancelOrder, cancelStopOrder, refetchAccount]
+  );
 
-  const handleEditOrder = useCallback((order: {
-    id: string;
-    symbol: string;
-    side: string;
-    price: string;
-    size: string;
-    type: string;
-  }) => {
-    // Only allow editing LIMIT orders (not TP/SL orders)
-    if (order.type !== 'LIMIT') {
-      return;
-    }
-    setEditingOrder({
-      id: parseInt(order.id),
-      symbol: order.symbol,
-      side: order.side,
-      price: order.price,
-      size: order.size,
-      type: order.type,
-    });
-    setShowEditOrderModal(true);
-  }, []);
+  const handleEditOrder = useCallback(
+    (order: {
+      id: string;
+      symbol: string;
+      side: string;
+      price: string;
+      size: string;
+      type: string;
+    }) => {
+      // Only allow editing LIMIT orders (not TP/SL orders)
+      if (order.type !== 'LIMIT') {
+        return;
+      }
+      setEditingOrder({
+        id: parseInt(order.id),
+        symbol: order.symbol,
+        side: order.side,
+        price: order.price,
+        size: order.size,
+        type: order.type,
+      });
+      setShowEditOrderModal(true);
+    },
+    []
+  );
 
-  const handleClosePosition = useCallback(async (
-    positionId: string,
-    closeType: 'market' | 'limit' | 'flip' = 'market',
-    params?: LimitCloseParams | MarketCloseParams
-  ) => {
-    // Position ID is in format "SYMBOL-SIDE" (e.g., "BTC-USD-LONG")
-    const parts = positionId.split('-');
-    if (parts.length < 2) {
-      console.error('Invalid position ID format:', positionId);
-      return;
-    }
-
-    const side = parts[parts.length - 1];
-    const symbolParts = parts.slice(0, -1);
-    const symbol = symbolParts.join('-');
-
-    const position = apiPositions.find((p) => p.symbol === symbol && p.side === side);
-
-    if (!position || !symbol) {
-      console.error('Position not found:', positionId);
-      return;
-    }
-
-    const tokenSymbol = symbol.replace('-USD', '');
-
-    try {
-      if (closeType === 'limit' && params && 'price' in params) {
-        // Close position with a reduce-only limit order
-        const limitParams = params as LimitCloseParams;
-        await createLimitOrder.mutateAsync({
-          symbol: tokenSymbol,
-          side: side === 'LONG' ? 'ask' : 'bid', // Opposite side to close
-          amount: limitParams.amount,
-          price: limitParams.price,
-          reduceOnly: true,
-        });
-        // Toast is handled by useCreateLimitOrder
-      } else if (closeType === 'flip') {
-        // Flip position: close current and open opposite direction
-        // Use 2x the position size in opposite direction to net flip
-        const flipSide = side === 'LONG' ? 'ask' : 'bid';
-        const doubleAmount = (parseFloat(position.size) * 2).toString();
-        const newSide = side === 'LONG' ? 'Short' : 'Long';
-
-        // Check if this is a pre-fight position
-        // A position is pre-fight if we're in an active fight and the position is NOT in fightPositions
-        const isPreFightPosition = inActiveFight && !fightPositions?.some(
-          (fp) => fp.symbol === symbol && fp.side === side
-        );
-
-        await createMarketOrder.mutateAsync({
-          symbol: tokenSymbol,
-          side: flipSide,
-          amount: doubleAmount,
-          reduceOnly, // Not reduce-only because we want to open new position
-          slippage_percent: '1',
-          fightId: inActiveFight && fightId ? fightId : undefined,
-          isPreFightFlip: isPreFightPosition, // Don't record this as a fight trade
-        });
-
-        // Show flip-specific toast
-        toast.success(`Position flipped to ${newSide}: ${position.size} ${tokenSymbol}`);
-      } else {
-        // Close position with a reduce-only market order
-        // Use partial amount if provided via MarketCloseParams
-        const marketParams = params as MarketCloseParams | undefined;
-        const closeAmount = marketParams?.amount || position.size;
-
-        await createMarketOrder.mutateAsync({
-          symbol: tokenSymbol,
-          side: side === 'LONG' ? 'ask' : 'bid', // Opposite side to close
-          amount: closeAmount,
-          reduceOnly: true,
-          slippage_percent: '1',
-        });
-        // Toast is handled by useCreateMarketOrder
+  const handleClosePosition = useCallback(
+    async (
+      positionId: string,
+      closeType: 'market' | 'limit' | 'flip' = 'market',
+      params?: LimitCloseParams | MarketCloseParams
+    ) => {
+      // Position ID is in format "SYMBOL-SIDE" (e.g., "BTC-USD-LONG")
+      const parts = positionId.split('-');
+      if (parts.length < 2) {
+        console.error('Invalid position ID format:', positionId);
+        return;
       }
 
-      // Refresh account data
-      await refetchAccount();
-    } catch (err) {
-      // Error notification is handled by the hook's onError handler
-      console.error('Failed to close position:', err instanceof Error ? err.message : err);
-    }
-  }, [apiPositions, createMarketOrder, createLimitOrder, refetchAccount, inActiveFight, fightId, fightPositions]);
+      const side = parts[parts.length - 1];
+      const symbolParts = parts.slice(0, -1);
+      const symbol = symbolParts.join('-');
+
+      const position = apiPositions.find((p) => p.symbol === symbol && p.side === side);
+
+      if (!position || !symbol) {
+        console.error('Position not found:', positionId);
+        return;
+      }
+
+      try {
+        if (closeType === 'limit' && params && 'price' in params) {
+          // Close position with a reduce-only limit order
+          const limitParams = params as LimitCloseParams;
+          await createLimitOrder.mutateAsync({
+            symbol, // Full symbol (BTC-USD, BTC-PERP) — API handles exchange mapping
+            side: side === 'LONG' ? 'ask' : 'bid', // Opposite side to close
+            amount: limitParams.amount,
+            price: limitParams.price,
+            reduceOnly: true,
+          });
+          // Toast is handled by useCreateLimitOrder
+        } else if (closeType === 'flip') {
+          // Flip position: close current and open opposite direction
+          // Use 2x the position size in opposite direction to net flip
+          const flipSide = side === 'LONG' ? 'ask' : 'bid';
+          const doubleAmount = (parseFloat(position.size) * 2).toString();
+          const newSide = side === 'LONG' ? 'Short' : 'Long';
+
+          // Check if this is a pre-fight position
+          // A position is pre-fight if we're in an active fight and the position is NOT in fightPositions
+          const isPreFightPosition =
+            inActiveFight &&
+            !fightPositions?.some((fp) => fp.symbol === symbol && fp.side === side);
+
+          await createMarketOrder.mutateAsync({
+            symbol, // Full symbol for API
+            side: flipSide,
+            amount: doubleAmount,
+            reduceOnly, // Not reduce-only because we want to open new position
+            slippage_percent: '1',
+            fightId: inActiveFight && fightId ? fightId : undefined,
+            isPreFightFlip: isPreFightPosition, // Don't record this as a fight trade
+          });
+
+          // Show flip-specific toast
+          toast.success(`Position flipped to ${newSide}: ${position.size} ${getBaseToken(symbol)}`);
+        } else {
+          // Close position with a reduce-only market order
+          // Use partial amount if provided via MarketCloseParams
+          const marketParams = params as MarketCloseParams | undefined;
+          const closeAmount = marketParams?.amount || position.size;
+
+          await createMarketOrder.mutateAsync({
+            symbol, // Full symbol for API
+            side: side === 'LONG' ? 'ask' : 'bid', // Opposite side to close
+            amount: closeAmount,
+            reduceOnly: true,
+            slippage_percent: '1',
+          });
+          // Toast is handled by useCreateMarketOrder
+        }
+
+        // Refresh account data
+        await refetchAccount();
+      } catch (err) {
+        // Error notification is handled by the hook's onError handler
+        console.error('Failed to close position:', err instanceof Error ? err.message : err);
+      }
+    },
+    [
+      apiPositions,
+      createMarketOrder,
+      createLimitOrder,
+      refetchAccount,
+      inActiveFight,
+      fightId,
+      fightPositions,
+    ]
+  );
 
   // Close all positions at market price
   const handleCloseAllPositions = useCallback(async () => {
@@ -857,11 +997,10 @@ function TradePageContent() {
     try {
       // Close each position with a market order
       for (const position of apiPositions) {
-        const tokenSymbol = position.symbol.replace('-USD', '');
         const closeSide = position.side === 'LONG' ? 'ask' : 'bid';
 
         await createMarketOrder.mutateAsync({
-          symbol: tokenSymbol,
+          symbol: position.symbol, // Full symbol for API
           side: closeSide,
           amount: position.size,
           reduceOnly: true,
@@ -879,253 +1018,290 @@ function TradePageContent() {
     }
   }, [apiPositions, createMarketOrder, refetchAccount]);
 
-  const handleSetTpSl = useCallback(async (params: TpSlParams) => {
-    try {
-      // Round prices to tick size before sending (works for all exchanges)
-      const roundPx = (px: string | undefined) => px ? roundToTickSize(parseFloat(px)) : undefined;
+  const handleSetTpSl = useCallback(
+    async (params: TpSlParams) => {
+      try {
+        // Round prices to tick size before sending (works for all exchanges)
+        const roundPx = (px: string | undefined) =>
+          px ? roundToTickSize(parseFloat(px)) : undefined;
 
-      // For PARTIAL orders, use create_stop_order endpoint which supports custom amounts
-      // The set_position_tpsl endpoint only supports full position TP/SL and overwrites existing orders
-      if (params.isPartial && params.partialAmount) {
-        const promises: Promise<any>[] = [];
+        // For PARTIAL orders, use create_stop_order endpoint which supports custom amounts
+        // The set_position_tpsl endpoint only supports full position TP/SL and overwrites existing orders
+        if (params.isPartial && params.partialAmount) {
+          const promises: Promise<any>[] = [];
 
-        // Create partial TP order if specified
-        if (params.takeProfit) {
-          promises.push(
-            createStopOrder.mutateAsync({
-              symbol: params.symbol,
-              side: params.side,
-              stopPrice: roundPx(params.takeProfit.stopPrice) || params.takeProfit.stopPrice,
-              amount: params.partialAmount,
-              limitPrice: roundPx(params.takeProfit.limitPrice),
-              type: 'TAKE_PROFIT',
-              fightId: fightId || undefined,
-            })
-          );
+          // Create partial TP order if specified
+          if (params.takeProfit) {
+            promises.push(
+              createStopOrder.mutateAsync({
+                symbol: params.symbol,
+                side: params.side,
+                stopPrice: roundPx(params.takeProfit.stopPrice) || params.takeProfit.stopPrice,
+                amount: params.partialAmount,
+                limitPrice: roundPx(params.takeProfit.limitPrice),
+                type: 'TAKE_PROFIT',
+                fightId: fightId || undefined,
+              })
+            );
+          }
+
+          // Create partial SL order if specified
+          if (params.stopLoss) {
+            promises.push(
+              createStopOrder.mutateAsync({
+                symbol: params.symbol,
+                side: params.side,
+                stopPrice: roundPx(params.stopLoss.stopPrice) || params.stopLoss.stopPrice,
+                amount: params.partialAmount,
+                limitPrice: roundPx(params.stopLoss.limitPrice),
+                type: 'STOP_LOSS',
+                fightId: fightId || undefined,
+              })
+            );
+          }
+
+          await Promise.all(promises);
+        } else {
+          // For FULL position TP/SL, use set_position_tpsl endpoint
+          // Handle null = remove, object = set, undefined = no change
+          const takeProfit =
+            params.takeProfit === null
+              ? null // Explicitly remove
+              : params.takeProfit
+                ? {
+                    stop_price: roundPx(params.takeProfit.stopPrice) || params.takeProfit.stopPrice,
+                    limit_price: roundPx(params.takeProfit.limitPrice),
+                  }
+                : undefined; // No change
+
+          const stopLoss =
+            params.stopLoss === null
+              ? null // Explicitly remove
+              : params.stopLoss
+                ? {
+                    stop_price: roundPx(params.stopLoss.stopPrice) || params.stopLoss.stopPrice,
+                    limit_price: roundPx(params.stopLoss.limitPrice),
+                  }
+                : undefined; // No change
+
+          await setPositionTpSl.mutateAsync({
+            symbol: params.symbol,
+            side: params.side,
+            size: params.size,
+            take_profit: takeProfit,
+            stop_loss: stopLoss,
+            fightId: fightId || undefined, // Track as fight order if in fight
+          });
         }
 
-        // Create partial SL order if specified
-        if (params.stopLoss) {
-          promises.push(
-            createStopOrder.mutateAsync({
-              symbol: params.symbol,
-              side: params.side,
-              stopPrice: roundPx(params.stopLoss.stopPrice) || params.stopLoss.stopPrice,
-              amount: params.partialAmount,
-              limitPrice: roundPx(params.stopLoss.limitPrice),
-              type: 'STOP_LOSS',
-              fightId: fightId || undefined,
-            })
-          );
-        }
-
-        await Promise.all(promises);
-      } else {
-        // For FULL position TP/SL, use set_position_tpsl endpoint
-        // Handle null = remove, object = set, undefined = no change
-        const takeProfit = params.takeProfit === null
-          ? null // Explicitly remove
-          : params.takeProfit
-            ? { stop_price: roundPx(params.takeProfit.stopPrice) || params.takeProfit.stopPrice, limit_price: roundPx(params.takeProfit.limitPrice) }
-            : undefined; // No change
-
-        const stopLoss = params.stopLoss === null
-          ? null // Explicitly remove
-          : params.stopLoss
-            ? { stop_price: roundPx(params.stopLoss.stopPrice) || params.stopLoss.stopPrice, limit_price: roundPx(params.stopLoss.limitPrice) }
-            : undefined; // No change
-
-        await setPositionTpSl.mutateAsync({
-          symbol: params.symbol,
-          side: params.side,
-          size: params.size,
-          take_profit: takeProfit,
-          stop_loss: stopLoss,
-          fightId: fightId || undefined, // Track as fight order if in fight
-        });
+        // Refresh account data
+        await refetchAccount();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to set TP/SL';
+        console.error('Failed to set TP/SL:', message);
+        toast.error(message);
       }
-
-      // Refresh account data
-      await refetchAccount();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to set TP/SL';
-      console.error('Failed to set TP/SL:', message);
-      toast.error(message);
-    }
-  }, [setPositionTpSl, createStopOrder, refetchAccount, fightId, roundToTickSize]);
+    },
+    [setPositionTpSl, createStopOrder, refetchAccount, fightId, roundToTickSize]
+  );
 
   // Get account equity for cross margin liq price calculation
   const accountEquity = account ? parseFloat(account.accountEquity) || 0 : 0;
 
+  // Subscribe to the full prices record for position PnL calculations.
+  // Positions span multiple symbols, so we need to react to all price changes.
+  // This is intentional — position PnL must update in real-time.
+  const allPrices = usePriceStore((s) => s.prices);
+
   // Convert API positions to component format with calculated PnL
-  const displayPositions: Position[] = apiPositions.map((pos) => {
-    const priceData = getPrice(pos.symbol);
-    const entryPrice = parseFloat(pos.entryPrice) || 0;
-    const markPrice = priceData?.price || entryPrice;
-    const sizeInToken = parseFloat(pos.size) || 0; // Size in token units (e.g., 0.00011 BTC)
-    const leverage = typeof pos.leverage === 'number' ? pos.leverage : parseInt(String(pos.leverage)) || 50;
-    const funding = parseFloat(pos.funding || '0') || 0;
-    const isolated = pos.isolated ?? false;
+  const displayPositions: Position[] = useMemo(
+    () =>
+      apiPositions.map((pos) => {
+        const priceData = allPrices[pos.symbol] ?? null;
+        const entryPrice = parseFloat(pos.entryPrice) || 0;
+        const markPrice = priceData?.price || entryPrice;
+        const sizeInToken = parseFloat(pos.size) || 0; // Size in token units (e.g., 0.00011 BTC)
+        const leverage =
+          typeof pos.leverage === 'number' ? pos.leverage : parseInt(String(pos.leverage)) || 50;
+        const funding = parseFloat(pos.funding || '0') || 0;
+        const isolated = pos.isolated ?? false;
 
-    // Position value in USD
-    const positionValueAtEntry = sizeInToken * entryPrice;
-    const positionValueAtMark = sizeInToken * markPrice;
+        // Position value in USD
+        const positionValueAtEntry = sizeInToken * entryPrice;
+        const positionValueAtMark = sizeInToken * markPrice;
 
-    // Margin: prefer API-provided value (HL always provides marginUsed),
-    // fall back to calculation for Pacifica cross-margin
-    const apiMargin = parseFloat(pos.margin) || 0;
-    const margin = apiMargin > 0
-      ? apiMargin
-      : positionValueAtEntry / leverage;
+        // Margin: prefer API-provided value (HL always provides marginUsed),
+        // fall back to calculation for Pacifica cross-margin
+        const apiMargin = parseFloat(pos.margin) || 0;
+        const margin = apiMargin > 0 ? apiMargin : positionValueAtEntry / leverage;
 
-    // Unrealized PnL: use API-provided value (HL) or calculate (Pacifica)
-    const apiPnl = parseFloat(pos.unrealizedPnl) || 0;
-    let unrealizedPnl: number;
-    if (apiPnl !== 0 || parseFloat(pos.unrealizedPnl || '0') !== 0) {
-      // HL provides unrealizedPnl directly — use it
-      unrealizedPnl = parseFloat(pos.unrealizedPnl || '0');
-    } else {
-      // Pacifica: calculate from price diff
-      const priceDiff = pos.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
-      unrealizedPnl = priceDiff * sizeInToken;
-    }
+        // Unrealized PnL: use API-provided value (HL) or calculate (Pacifica)
+        const apiPnl = parseFloat(pos.unrealizedPnl) || 0;
+        let unrealizedPnl: number;
+        if (apiPnl !== 0 || parseFloat(pos.unrealizedPnl || '0') !== 0) {
+          // HL provides unrealizedPnl directly — use it
+          unrealizedPnl = parseFloat(pos.unrealizedPnl || '0');
+        } else {
+          // Pacifica: calculate from price diff
+          const priceDiff = pos.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+          unrealizedPnl = priceDiff * sizeInToken;
+        }
 
-    // ROI%: use API-provided returnOnEquity (HL) or calculate
-    const apiRoe = parseFloat(pos.unrealizedPnlPercent) || 0;
-    const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+        // ROI%: use API-provided returnOnEquity (HL) or calculate
+        const apiRoe = parseFloat(pos.unrealizedPnlPercent) || 0;
+        const unrealizedPnlPercent =
+          apiRoe !== 0 ? apiRoe : margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
-    // Liquidation price: prefer API-provided value
-    const apiLiqPrice = parseFloat(pos.liquidationPrice) || 0;
-    let liquidationPrice: number;
+        // Liquidation price: prefer API-provided value
+        const apiLiqPrice = parseFloat(pos.liquidationPrice) || 0;
+        let liquidationPrice: number;
 
-    if (apiLiqPrice > 0) {
-      liquidationPrice = apiLiqPrice;
-    } else if (entryPrice > 0 && sizeInToken > 0) {
-      // Fallback: calculate using Pacifica's formula
-      const side = pos.side === 'LONG' ? 1 : -1;
-      const mktMaxLeverage = leverage;
-      const positionMargin = isolated && apiMargin > 0 ? apiMargin : accountEquity > 0 ? accountEquity : positionValueAtEntry / leverage;
+        if (apiLiqPrice > 0) {
+          liquidationPrice = apiLiqPrice;
+        } else if (entryPrice > 0 && sizeInToken > 0) {
+          // Fallback: calculate using Pacifica's formula
+          const side = pos.side === 'LONG' ? 1 : -1;
+          const mktMaxLeverage = leverage;
+          const positionMargin =
+            isolated && apiMargin > 0
+              ? apiMargin
+              : accountEquity > 0
+                ? accountEquity
+                : positionValueAtEntry / leverage;
 
-      const numerator = entryPrice - (side * positionMargin) / sizeInToken;
-      const denominator = 1 - side / mktMaxLeverage / 2;
-      liquidationPrice = Math.max(0, numerator / denominator);
-    } else {
-      liquidationPrice = 0;
-    }
+          const numerator = entryPrice - (side * positionMargin) / sizeInToken;
+          const denominator = 1 - side / mktMaxLeverage / 2;
+          liquidationPrice = Math.max(0, numerator / denominator);
+        } else {
+          liquidationPrice = 0;
+        }
 
-    // Find TP/SL orders for this position
-    // TP/SL orders have opposite side: LONG position → SHORT (ask) orders, SHORT position → LONG (bid) orders
-    const posSymbol = pos.symbol.replace('-USD', '');
-    const oppositeOrderSide = pos.side === 'LONG' ? 'SHORT' : 'LONG';
+        // Find TP/SL orders for this position
+        // TP/SL orders have opposite side: LONG position → SHORT (ask) orders, SHORT position → LONG (bid) orders
+        const posSymbol = getBaseToken(pos.symbol);
+        const oppositeOrderSide = pos.side === 'LONG' ? 'SHORT' : 'LONG';
 
-    // Find ALL Take Profit orders for this position
-    // TP orders can be:
-    // 1. Native TP: order.type includes 'TP' or 'take_profit'
-    // 2. Reduce-only LIMIT orders on opposite side at profit-taking price
-    // 3. Any opposite-side limit order at profit-taking price (HL / general)
-    //    - For LONG position: TP price is ABOVE entry price
-    //    - For SHORT position: TP price is BELOW entry price
-    const tpOrders = openOrders.filter(order => {
-      const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
-      if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
+        // Find ALL Take Profit orders for this position
+        // TP orders can be:
+        // 1. Native TP: order.type includes 'TP' or 'take_profit'
+        // 2. Reduce-only LIMIT orders on opposite side at profit-taking price
+        // 3. Any opposite-side limit order at profit-taking price (HL / general)
+        //    - For LONG position: TP price is ABOVE entry price
+        //    - For SHORT position: TP price is BELOW entry price
+        const tpOrders = openOrders
+          .filter((order) => {
+            const orderSymbol = order.symbol ? getBaseToken(order.symbol) : order.symbol;
+            if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
 
-      // Check for native TP orders (Pacifica / HL trigger orders)
-      const isNativeTP = order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
-      if (isNativeTP) return true;
+            // Check for native TP orders (Pacifica / HL trigger orders)
+            const isNativeTP =
+              order.type?.includes('TP') || order.type?.toLowerCase().includes('take_profit');
+            if (isNativeTP) return true;
 
-      // Check for limit orders at profit-taking price on the opposite side
-      // These close the position at a profit — effectively a TP
-      const isLimitOrder = order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
-      if (isLimitOrder) {
-        const orderPrice = parseFloat(order.price) || 0;
-        // For LONG: TP is above entry, for SHORT: TP is below entry
-        if (pos.side === 'LONG' && orderPrice > entryPrice) return true;
-        if (pos.side === 'SHORT' && orderPrice < entryPrice) return true;
-      }
+            // Check for limit orders at profit-taking price on the opposite side
+            // These close the position at a profit — effectively a TP
+            const isLimitOrder =
+              order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
+            if (isLimitOrder) {
+              const orderPrice = parseFloat(order.price) || 0;
+              // For LONG: TP is above entry, for SHORT: TP is below entry
+              if (pos.side === 'LONG' && orderPrice > entryPrice) return true;
+              if (pos.side === 'SHORT' && orderPrice < entryPrice) return true;
+            }
 
-      return false;
-    }).map(order => ({
-      orderId: order.id,
-      type: 'TP' as const,
-      triggerPrice: parseFloat(order.stopPrice || order.price) || 0,
-      amount: parseFloat(order.size) || 0,
-      orderType: (order.type?.includes('MARKET') ? 'market' : 'limit') as 'market' | 'limit',
-      limitPrice: order.type?.includes('LIMIT') ? parseFloat(order.price) : undefined,
-    }));
+            return false;
+          })
+          .map((order) => ({
+            orderId: order.id,
+            type: 'TP' as const,
+            triggerPrice: parseFloat(order.stopPrice || order.price) || 0,
+            amount: parseFloat(order.size) || 0,
+            orderType: (order.type?.includes('MARKET') ? 'market' : 'limit') as 'market' | 'limit',
+            limitPrice: order.type?.includes('LIMIT') ? parseFloat(order.price) : undefined,
+          }));
 
-    // Find ALL Stop Loss orders for this position
-    // SL orders can be:
-    // 1. Native SL: order.type includes 'SL' or 'stop_loss'
-    // 2. Reduce-only STOP orders on opposite side at loss-limiting price
-    // 3. Any opposite-side limit order at loss-limiting price (HL / general)
-    //    - For LONG position: SL price is BELOW entry price
-    //    - For SHORT position: SL price is ABOVE entry price
-    const slOrders = openOrders.filter(order => {
-      const orderSymbol = order.symbol?.replace('-USD', '') || order.symbol;
-      if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
+        // Find ALL Stop Loss orders for this position
+        // SL orders can be:
+        // 1. Native SL: order.type includes 'SL' or 'stop_loss'
+        // 2. Reduce-only STOP orders on opposite side at loss-limiting price
+        // 3. Any opposite-side limit order at loss-limiting price (HL / general)
+        //    - For LONG position: SL price is BELOW entry price
+        //    - For SHORT position: SL price is ABOVE entry price
+        const slOrders = openOrders
+          .filter((order) => {
+            const orderSymbol = order.symbol ? getBaseToken(order.symbol) : order.symbol;
+            if (orderSymbol !== posSymbol || order.side !== oppositeOrderSide) return false;
 
-      // Check for native SL orders (Pacifica / HL trigger orders)
-      const isNativeSL = order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
-      if (isNativeSL) return true;
+            // Check for native SL orders (Pacifica / HL trigger orders)
+            const isNativeSL =
+              order.type?.includes('SL') || order.type?.toLowerCase().includes('stop_loss');
+            if (isNativeSL) return true;
 
-      // Check for stop orders at loss-limiting price
-      const isStopOrder = order.type?.toUpperCase().includes('STOP') && !order.type?.includes('TP') && !order.type?.includes('SL');
-      if (isStopOrder) {
-        const triggerPrice = parseFloat(order.stopPrice || order.price) || 0;
-        // For LONG: SL is below entry, for SHORT: SL is above entry
-        if (pos.side === 'LONG' && triggerPrice < entryPrice) return true;
-        if (pos.side === 'SHORT' && triggerPrice > entryPrice) return true;
-      }
+            // Check for stop orders at loss-limiting price
+            const isStopOrder =
+              order.type?.toUpperCase().includes('STOP') &&
+              !order.type?.includes('TP') &&
+              !order.type?.includes('SL');
+            if (isStopOrder) {
+              const triggerPrice = parseFloat(order.stopPrice || order.price) || 0;
+              // For LONG: SL is below entry, for SHORT: SL is above entry
+              if (pos.side === 'LONG' && triggerPrice < entryPrice) return true;
+              if (pos.side === 'SHORT' && triggerPrice > entryPrice) return true;
+            }
 
-      // Check for limit orders at loss-limiting price on the opposite side
-      // These close the position at a loss — effectively a SL (limit-style)
-      const isLimitOrder = order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
-      if (isLimitOrder) {
-        const orderPrice = parseFloat(order.price) || 0;
-        // For LONG: SL is below entry, for SHORT: SL is above entry
-        if (pos.side === 'LONG' && orderPrice < entryPrice) return true;
-        if (pos.side === 'SHORT' && orderPrice > entryPrice) return true;
-      }
+            // Check for limit orders at loss-limiting price on the opposite side
+            // These close the position at a loss — effectively a SL (limit-style)
+            const isLimitOrder =
+              order.type?.toUpperCase() === 'LIMIT' || order.type?.toLowerCase() === 'limit order';
+            if (isLimitOrder) {
+              const orderPrice = parseFloat(order.price) || 0;
+              // For LONG: SL is below entry, for SHORT: SL is above entry
+              if (pos.side === 'LONG' && orderPrice < entryPrice) return true;
+              if (pos.side === 'SHORT' && orderPrice > entryPrice) return true;
+            }
 
-      return false;
-    }).map(order => ({
-      orderId: order.id,
-      type: 'SL' as const,
-      triggerPrice: parseFloat(order.stopPrice || order.price) || 0,
-      amount: parseFloat(order.size) || 0,
-      orderType: (order.type?.includes('MARKET') ? 'market' : 'limit') as 'market' | 'limit',
-      limitPrice: order.type?.includes('LIMIT') ? parseFloat(order.price) : undefined,
-    }));
+            return false;
+          })
+          .map((order) => ({
+            orderId: order.id,
+            type: 'SL' as const,
+            triggerPrice: parseFloat(order.stopPrice || order.price) || 0,
+            amount: parseFloat(order.size) || 0,
+            orderType: (order.type?.includes('MARKET') ? 'market' : 'limit') as 'market' | 'limit',
+            limitPrice: order.type?.includes('LIMIT') ? parseFloat(order.price) : undefined,
+          }));
 
-    // Extract trigger prices from first TP/SL orders (for backward compatibility)
-    const takeProfit = tpOrders[0]?.triggerPrice;
-    const stopLoss = slOrders[0]?.triggerPrice;
+        // Extract trigger prices from first TP/SL orders (for backward compatibility)
+        const takeProfit = tpOrders[0]?.triggerPrice;
+        const stopLoss = slOrders[0]?.triggerPrice;
 
-    return {
-      id: `${pos.symbol}-${pos.side}`,
-      symbol: pos.symbol,
-      side: pos.side,
-      size: positionValueAtMark, // Position value in USD at current mark price
-      sizeInToken, // Size in token units
-      entryPrice,
-      markPrice,
-      leverage,
-      liquidationPrice,
-      unrealizedPnl,
-      unrealizedPnlPercent,
-      margin,
-      marginType: isolated ? 'Isolated' : 'Cross' as const,
-      funding,
-      takeProfit,
-      stopLoss,
-      tpOrders: tpOrders.length > 0 ? tpOrders : undefined,
-      slOrders: slOrders.length > 0 ? slOrders : undefined,
-    };
-  });
+        return {
+          id: `${pos.symbol}-${pos.side}`,
+          symbol: pos.symbol,
+          side: pos.side,
+          size: positionValueAtMark, // Position value in USD at current mark price
+          sizeInToken, // Size in token units
+          entryPrice,
+          markPrice,
+          leverage,
+          liquidationPrice,
+          unrealizedPnl,
+          unrealizedPnlPercent,
+          margin,
+          marginType: isolated ? 'Isolated' : ('Cross' as const),
+          funding,
+          takeProfit,
+          stopLoss,
+          tpOrders: tpOrders.length > 0 ? tpOrders : undefined,
+          slOrders: slOrders.length > 0 ? slOrders : undefined,
+        };
+      }),
+    [apiPositions, allPrices, accountEquity, openOrders]
+  );
 
   // When Reduce Only is ON, auto-select the closing side (opposite of current position)
   const currentMarketPosition = displayPositions.find(
-    p => p.symbol.replace('-USD', '') === selectedMarket.replace('-USD', '')
+    (p) => getBaseToken(p.symbol) === getBaseToken(selectedMarket)
   );
   useEffect(() => {
     if (reduceOnly && currentMarketPosition) {
@@ -1134,41 +1310,45 @@ function TradePageContent() {
   }, [reduceOnly, currentMarketPosition?.side]);
 
   // Convert fight positions to display format
-  const displayFightPositions: Position[] = fightPositions.map((pos) => {
-    const priceData = getPrice(pos.symbol);
-    const entryPrice = parseFloat(pos.entryPrice) || 0;
-    const markPrice = priceData?.price || parseFloat(pos.markPrice) || entryPrice;
-    const sizeInToken = parseFloat(pos.size) || 0;
-    const leverage = parseFloat(pos.leverage) || 1;
-    const funding = parseFloat(pos.funding || '0') || 0;
+  const displayFightPositions: Position[] = useMemo(
+    () =>
+      fightPositions.map((pos) => {
+        const priceData = allPrices[pos.symbol] ?? null;
+        const entryPrice = parseFloat(pos.entryPrice) || 0;
+        const markPrice = priceData?.price || parseFloat(pos.markPrice) || entryPrice;
+        const sizeInToken = parseFloat(pos.size) || 0;
+        const leverage = parseFloat(pos.leverage) || 1;
+        const funding = parseFloat(pos.funding || '0') || 0;
 
-    const positionValueAtMark = sizeInToken * markPrice;
-    const positionValueAtEntry = sizeInToken * entryPrice;
-    const margin = positionValueAtEntry / leverage;
+        const positionValueAtMark = sizeInToken * markPrice;
+        const positionValueAtEntry = sizeInToken * entryPrice;
+        const margin = positionValueAtEntry / leverage;
 
-    const priceDiff = pos.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
-    const unrealizedPnl = priceDiff * sizeInToken;
-    const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
+        const priceDiff = pos.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+        const unrealizedPnl = priceDiff * sizeInToken;
+        const unrealizedPnlPercent = margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
-    return {
-      id: `${pos.symbol}-${pos.side}`, // Same format as regular positions for handleClosePosition
-      symbol: pos.symbol,
-      side: pos.side,
-      size: positionValueAtMark,
-      sizeInToken,
-      entryPrice,
-      markPrice,
-      leverage,
-      liquidationPrice: 0, // Not calculated for fight positions
-      unrealizedPnl,
-      unrealizedPnlPercent,
-      margin,
-      marginType: 'Cross' as const,
-      funding,
-      takeProfit: undefined,
-      stopLoss: undefined,
-    };
-  });
+        return {
+          id: `${pos.symbol}-${pos.side}`, // Same format as regular positions for handleClosePosition
+          symbol: pos.symbol,
+          side: pos.side,
+          size: positionValueAtMark,
+          sizeInToken,
+          entryPrice,
+          markPrice,
+          leverage,
+          liquidationPrice: 0, // Not calculated for fight positions
+          unrealizedPnl,
+          unrealizedPnlPercent,
+          margin,
+          marginType: 'Cross' as const,
+          funding,
+          takeProfit: undefined,
+          stopLoss: undefined,
+        };
+      }),
+    [fightPositions, allPrices]
+  );
 
   // Choose which positions/trades/orders to display based on toggle
   // For Fight Only: use Pacifica positions (instant WebSocket) filtered by blockedSymbols
@@ -1199,768 +1379,340 @@ function TradePageContent() {
   const fightRoi = fightMargin > 0 ? (fightPnl / fightMargin) * 100 : 0;
 
   const builderCodeApproved = builderCodeStatus?.approved ?? false;
-  const canTrade = exchangeType === 'hyperliquid'
-    ? isAuthenticated && !!evmWalletAddress && agentApproved && builderFeeApproved
-    : connected && isAuthenticated && pacificaConnected && builderCodeApproved;
 
   return (
     <BetaGate>
-    <AppShell>
-      {/* Fight Banner - Shows when in active fight */}
-      {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
-      <div style={{ overflowAnchor: 'none' }}>
-        <FightBanner />
-      </div>
+      <AppShell>
+        {/* Fight Banner - Shows when in active fight */}
+        {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
+        <div style={{ overflowAnchor: 'none' }}>
+          <FightBanner />
+        </div>
 
-      {/* Active Fights Switcher - Shows when user has active fights */}
-      {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
-      <div style={{ overflowAnchor: 'none' }}>
-        <ActiveFightsSwitcher />
-      </div>
+        {/* Active Fights Switcher - Shows when user has active fights */}
+        {/* overflow-anchor: none prevents this dynamic element from affecting scroll position */}
+        <div style={{ overflowAnchor: 'none' }}>
+          <ActiveFightsSwitcher />
+        </div>
 
-      {/* Main container - overflow-anchor: none prevents scroll jumping when WebSocket updates components */}
-      <div className="w-full px-1 py-1 touch-pan-y min-h-[calc(100vh-3rem)] max-[1199px]:pb-[60px]" style={{ overflowAnchor: 'none' }}>
-
-        {/* ═══════════════════════════════════════════════════════════════════════
+        {/* Main container - overflow-anchor: none prevents scroll jumping when WebSocket updates components */}
+        <div
+          className="w-full px-1 py-1 touch-pan-y min-h-[calc(100vh-3rem)] max-[1199px]:pb-[60px]"
+          style={{ overflowAnchor: 'none' }}
+        >
+          {/* ═══════════════════════════════════════════════════════════════════════
             MOBILE LAYOUT (< xl / < 1280px) — CEX-style (Binance/MEXC/Bybit)
             Market Info → Chart/OrderBook/Info (tabbed) → Positions → Sticky Buy/Sell
             ═══════════════════════════════════════════════════════════════════════ */}
-        <div className="xl:hidden flex flex-col gap-1">
-          {/* Mobile Market Info Bar */}
-          <div className="card px-3 py-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <MarketSelector
-                  markets={markets.length > 0 ? markets : [DEFAULT_MARKET]}
-                  selectedMarket={selectedMarket}
-                  onSelectMarket={handleMarketChange}
-                  getPrice={getPrice}
-                  blockedSymbols={inFight ? blockedSymbols : []}
-                />
-                <div className="flex flex-col">
-                  <span className="text-sm text-white font-mono font-semibold">{formatPrice(currentPrice)}</span>
-                  <span className={`text-xs font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                    {formatPercent(priceChange)}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowMarketInfo(!showMarketInfo)}
-                className="p-1.5 rounded hover:bg-surface-800 transition-colors"
-              >
-                <svg className={`w-4 h-4 text-surface-400 transition-transform ${showMarketInfo ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
-            {showMarketInfo && (
-              <div className="pt-2 mt-2 border-t border-surface-800/50">
-                <div className="grid grid-cols-3 gap-y-2.5">
+          <div className="xl:hidden flex flex-col gap-1">
+            {/* Mobile Market Info Bar */}
+            <div className="card px-3 py-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <MarketSelector
+                    markets={markets.length > 0 ? markets : [DEFAULT_MARKET]}
+                    selectedMarket={selectedMarket}
+                    onSelectMarket={handleMarketChange}
+                    getPrice={getPrice}
+                    blockedSymbols={inFight ? blockedSymbols : []}
+                  />
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-surface-500 mb-0.5">Mark</span>
-                    <span className="text-[11px] text-white font-mono">{formatPrice(markPrice)}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-surface-500 mb-0.5">24h Volume</span>
-                    <span className="text-[11px] text-white font-mono">{formatUSD(volume24h)}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-surface-500 mb-0.5">Open Interest</span>
-                    <span className="text-[11px] text-white font-mono">{formatUSD(openInterest)}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-surface-500 mb-0.5">Funding / Countdown</span>
-                    <span className={`text-[11px] font-mono ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                      {formatFundingRate(nextFundingRate)} <span className="text-surface-500">{fundingCountdown}</span>
+                    <span className="text-sm text-white font-mono font-semibold">
+                      {formatPrice(currentPrice)}
+                    </span>
+                    <span
+                      className={`text-xs font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                    >
+                      {formatPercent(priceChange)}
                     </span>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Section Tabs */}
-          <div className="card flex items-center">
-            {(['chart', 'orderbook', 'info'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setMobileSection(tab)}
-                className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors border-b-2 ${
-                  mobileSection === tab
-                    ? 'text-surface-200 border-surface-300'
-                    : 'text-surface-400 border-transparent hover:text-white'
-                }`}
-              >
-                {tab === 'chart' ? 'Chart' : tab === 'orderbook' ? 'Order Book' : 'Info'}
-              </button>
-            ))}
-          </div>
-
-          {/* Mobile Section Content */}
-          <div className="card overflow-hidden">
-            {mobileSection === 'chart' && (
-              <div className="h-[400px]">
-                <TradingViewChartAdvanced symbol={selectedMarket} height={400} currentPrice={currentPrice} exchangeType={exchangeType} onQuickOrder={handleChartQuickOrder} onWidgetReady={setTvWidget} />
-              </div>
-            )}
-            {mobileSection === 'orderbook' && (
-              <div className="h-[500px] overflow-y-auto">
-                <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
-              </div>
-            )}
-            {mobileSection === 'info' && (
-              <div className="p-4 space-y-4">
-                <h3 className="text-sm font-semibold text-white">Market Information</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Last Price</span>
-                    <span className="text-sm text-white font-mono font-medium">{formatPrice(currentPrice)}</span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Mark Price</span>
-                    <span className="text-sm text-white font-mono font-medium">{formatPrice(markPrice)}</span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">24h Change</span>
-                    <span className={`text-sm font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{formatPercent(priceChange)}</span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">24h Volume</span>
-                    <span className="text-sm text-white font-mono font-medium">{formatUSD(volume24h)}</span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Open Interest</span>
-                    <span className="text-sm text-white font-mono font-medium">{formatUSD(openInterest)}</span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Funding / Countdown</span>
-                    <span className={`text-sm font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                      {formatFundingRate(nextFundingRate)} <span className="text-surface-500">{fundingCountdown}</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Maker Fee</span>
-                    <span className="text-sm text-white font-mono font-medium">{makerFeePercent}%</span>
-                  </div>
-                  <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
-                    <span className="text-[10px] text-surface-400 uppercase">Taker Fee</span>
-                    <span className="text-sm text-white font-mono font-medium">{takerFeePercent}%</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Mobile Positions/Orders/Trades/History Tabs — reuse the same panel */}
-          <div className="card h-[calc(100vh-16rem)] flex flex-col overflow-hidden" style={{ contain: 'layout' }}>
-            {/* Tab navigation */}
-            <div className="flex items-center justify-between border-surface-800 flex-shrink-0">
-              <div className="flex items-center w-full gap-0">
                 <button
-                  onClick={() => setBottomTab('positions')}
-                  className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'positions'
-                    ? 'text-surface-200 border-surface-300'
-                    : 'text-surface-400 border-transparent hover:text-white'
-                    }`}
+                  onClick={() => setShowMarketInfo(!showMarketInfo)}
+                  className="p-1.5 rounded hover:bg-surface-800 transition-colors"
                 >
-                  Positions {activePositions.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activePositions.length}</span>}
-                </button>
-                <button
-                  onClick={() => setBottomTab('orders')}
-                  className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'orders'
-                    ? 'text-surface-200 border-surface-300'
-                    : 'text-surface-400 border-transparent hover:text-white'
-                    }`}
-                >
-                  Orders {activeOpenOrders.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activeOpenOrders.length}</span>}
-                </button>
-                <button
-                  onClick={() => setBottomTab('trades')}
-                  className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'trades'
-                    ? 'text-surface-200 border-surface-300'
-                    : 'text-surface-400 border-transparent hover:text-white'
-                    }`}
-                >
-                  Trades
-                </button>
-                <button
-                  onClick={() => setBottomTab('history')}
-                  className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${bottomTab === 'history'
-                    ? 'text-surface-200 border-surface-300'
-                    : 'text-surface-400 border-transparent hover:text-white'
-                    }`}
-                >
-                  History
-                </button>
-              </div>
-              {/* Fight filter toggle */}
-              {fightId && (
-                <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-0.5 mr-2 flex-shrink-0">
-                  <button
-                    onClick={() => setShowFightOnly(false)}
-                    className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${!showFightOnly
-                      ? 'bg-surface-600 text-white'
-                      : 'text-surface-400 hover:text-white'
-                      }`}
+                  <svg
+                    className={`w-4 h-4 text-surface-400 transition-transform ${showMarketInfo ? 'rotate-180' : ''}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setShowFightOnly(true)}
-                    className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${showFightOnly
-                      ? 'bg-surface-500/30 text-white'
-                      : 'text-surface-400 hover:text-white'
-                      }`}
-                  >
-                    Fight
-                  </button>
-                </div>
-              )}
-            </div>
-            {/* Tab content */}
-            <div className={`flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}>
-              {bottomTab === 'positions' && (
-                <Positions
-                  positions={activePositions}
-                  onClosePosition={handleClosePosition}
-                  onSetTpSl={handleSetTpSl}
-                  onCancelOrder={handleCancelOrder}
-                  onCloseAll={handleCloseAllPositions}
-                  isClosingAll={isClosingAllPositions}
-                />
-              )}
-              {bottomTab === 'orders' && (
-                activeOpenOrders.length > 0 ? (
-                  <div className="px-1">
-                    <div className="flex justify-end px-2 py-1.5">
-                      <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs">Cancel All</button>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+              </div>
+              {showMarketInfo && (
+                <div className="pt-2 mt-2 border-t border-surface-800/50">
+                  <div className="grid grid-cols-3 gap-y-2.5">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] text-surface-500 mb-0.5">Price</span>
+                      <span className="text-[11px] text-white font-mono">
+                        {formatPrice(currentPrice)}
+                      </span>
                     </div>
-                    {[...activeOpenOrders].sort((a, b) => {
-                      const getValue = (order: any) => {
-                        switch (ordersSort.col) {
-                          case 'time': return order.createdAt ? new Date(order.createdAt).getTime() : 0;
-                          case 'type': return order.type || '';
-                          case 'token': return order.symbol || '';
-                          case 'side': return order.side || '';
-                          case 'originalSize': return parseFloat(order.size) || 0;
-                          case 'filledSize': return parseFloat(order.filled) || 0;
-                          case 'price': return parseFloat(order.price) || 0;
-                          case 'value': return (parseFloat(order.size) || 0) * (parseFloat(order.price) || 0);
-                          case 'reduceOnly': return order.reduceOnly ? 1 : 0;
-                          case 'trigger': return order.stopPrice ? parseFloat(order.stopPrice) : 0;
-                          default: return 0;
-                        }
-                      };
-                      const valA = getValue(a);
-                      const valB = getValue(b);
-                      if (typeof valA === 'string') return ordersSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                      return ordersSort.desc ? valB - valA : valA - valB;
-                    }).map((order) => {
-                      const price = parseFloat(order.price) || 0;
-                      const originalSize = parseFloat(order.size) || 0;
-                      const filledSize = parseFloat(order.filled) || 0;
-                      const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                      const orderTypeLower = order.type.toLowerCase();
-                      const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('take profit') || orderTypeLower.includes('stop loss');
-                      const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
-                      const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
-                      const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
-                      let displayType = order.type;
-                      if (order.type.includes('TP') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('take profit')) displayType = 'Take Profit Market';
-                      else if (order.type.includes('SL') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('stop loss')) displayType = 'Stop Loss Market';
-                      else if (isHybridTp) displayType = 'TP (Partial)';
-                      else if (isHybridSl) displayType = 'SL (Partial)';
-                      else if (order.type === 'LIMIT') displayType = 'Limit';
-                      else if (order.type === 'MARKET') displayType = 'Market';
-                      else if (order.type === 'STOP_LIMIT') displayType = 'Stop Limit';
-                      else if (order.type === 'STOP_MARKET') displayType = 'Stop Market';
-                      else displayType = order.type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                      const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
-                      const orderValue = originalSize * (price || stopPrice || 0);
-                      const formatSize = (size: number) => {
-                        if (size === 0) return '0';
-                        if (size >= 1) return size.toFixed(2).replace(/\.?0+$/, '');
-                        // For small numbers, show enough decimals without excessive trailing zeros
-                        const str = size.toPrecision(4);
-                        return parseFloat(str).toString();
-                      };
-                      const tokenSymbol = order.symbol.replace('-USD', '');
-
-                      return (
-                        <div key={order.id} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
-                          {/* Header */}
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <span className="font-medium text-white text-sm">{tokenSymbol}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                              isTpSl ? (displayType.includes('Take Profit') || displayType.includes('TP') ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400')
-                                : 'bg-surface-700 text-surface-300'
-                            }`}>
-                              {displayType}
-                            </span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${order.side === 'LONG' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>
-                              {order.side === 'LONG' ? 'Long' : 'Short'}
-                            </span>
-                          </div>
-                          {/* Data grid */}
-                          <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
-                            <div>
-                              <div className="text-surface-500">Time</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Original Size</div>
-                              <div className="tabular-nums tracking-tight text-white">{formatSize(originalSize)}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Filled Size</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">{filledSize}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Price</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">{isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Order Value</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">${orderValue.toFixed(2)}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Reduce Only</div>
-                              <div className="text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</div>
-                            </div>
-                            {stopPrice && (
-                              <div>
-                                <div className="text-surface-500">Trigger Condition</div>
-                                <div className="tabular-nums tracking-tight text-surface-300">${stopPrice.toLocaleString()} / Last</div>
-                              </div>
-                            )}
-                          </div>
-                          {/* Cancel button */}
-                          <div className="mt-2.5 pt-2 border-t border-surface-800/50">
-                            <button
-                              onClick={() => handleCancelOrder(order.id, order.symbol, order.type)}
-                              disabled={cancelOrder.isPending || cancelStopOrder.isPending}
-                              className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs"
-                            >
-                              {isTpSl ? 'Remove' : 'Cancel'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-32 text-sm text-surface-500">
-                    {showFightOnly && fightId ? 'No open orders during this fight' : 'No open orders'}
-                  </div>
-                )
-              )}
-              {bottomTab === 'trades' && (
-                activeTrades.length > 0 ? (
-                  <div className="px-1">
-                    {[...activeTrades].sort((a: any, b: any) => {
-                      const getValue = (trade: any) => {
-                        switch (tradesSort.col) {
-                          case 'time': return trade.created_at || 0;
-                          case 'token': return trade.symbol?.replace('-USD', '') || '';
-                          case 'side': return trade.side || '';
-                          case 'size': return parseFloat(trade.amount) || 0;
-                          case 'price': return parseFloat(trade.price) || 0;
-                          case 'value': return (parseFloat(trade.price) || 0) * (parseFloat(trade.amount) || 0);
-                          case 'fee': return parseFloat(trade.fee) || 0;
-                          case 'pnl': return parseFloat(trade.pnl) || 0;
-                          default: return 0;
-                        }
-                      };
-                      const valA = getValue(a);
-                      const valB = getValue(b);
-                      if (typeof valA === 'string') return tradesSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                      return tradesSort.desc ? valB - valA : valA - valB;
-                    }).map((trade: any, index: number) => {
-                      const price = parseFloat(trade.price) || 0;
-                      const amount = parseFloat(trade.amount) || 0;
-                      const realizedPnl = parseFloat(trade.pnl) || 0;
-                      const fee = parseFloat(trade.fee) || 0;
-                      const tradeValue = price * amount;
-                      const timestamp = trade.created_at ? new Date(trade.created_at) : new Date();
-                      const sideFormatted = trade.side?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '';
-                      const isLong = trade.side?.includes('long');
-                      const isClose = trade.side?.includes('close');
-                      const sideColor = isClose ? (realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400') : (isLong ? 'text-win-400' : 'text-loss-400');
-                      const token = trade.symbol?.replace('-USD', '') || '';
-
-                      return (
-                        <div key={trade.history_id || index} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
-                          {/* Header */}
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <span className="font-medium text-white text-sm">{token}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${sideColor} ${isClose ? (realizedPnl >= 0 ? 'bg-win-500/20' : 'bg-loss-500/20') : (isLong ? 'bg-win-500/20' : 'bg-loss-500/20')}`}>
-                              {sideFormatted}
-                            </span>
-                            <span className={`tabular-nums tracking-tight text-xs font-medium ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                              {realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}
-                            </span>
-                          </div>
-                          {/* Data grid */}
-                          <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
-                            <div>
-                              <div className="text-surface-500">Time</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Side</div>
-                              <div className={`font-medium ${sideColor}`}>{sideFormatted}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Order Type</div>
-                              <div className="text-surface-300">Fulfill Taker</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Size</div>
-                              <div className="tabular-nums tracking-tight text-white">{amount.toFixed(amount < 0.01 ? 5 : 4)}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Price</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">${price >= 1000 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price >= 1 ? price.toFixed(2) : price.toFixed(4)}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Trade Value</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">${tradeValue.toFixed(2)}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Fees</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">${fee.toFixed(2)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {false && (
-                      <div className="p-3 text-center">
-                        {/* Pagination removed — trade history loads in one batch */}
+                    {oraclePrice > 0 && oraclePrice !== currentPrice && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-surface-500 mb-0.5">Oracle</span>
+                        <span className="text-[11px] text-white font-mono">
+                          {formatPrice(oraclePrice)}
+                        </span>
                       </div>
                     )}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-32 text-sm text-surface-500">
-                    {showFightOnly && fightId ? 'No trades during this fight' : 'No trade history'}
-                  </div>
-                )
-              )}
-              {bottomTab === 'history' && (
-                activeOrderHistory.length > 0 ? (
-                  <div className="px-1">
-                    {[...activeOrderHistory].sort((a: any, b: any) => {
-                      const getValue = (order: any) => {
-                        switch (orderHistorySort.col) {
-                          case 'time': return order.created_at || 0;
-                          case 'token': return order.symbol || '';
-                          case 'side': return order.side || '';
-                          case 'type': return order.order_type || '';
-                          case 'originalSize': return parseFloat(order.amount) || 0;
-                          case 'filledSize': return parseFloat(order.filled_amount) || 0;
-                          case 'initialPrice': return parseFloat(order.initial_price || order.stop_price) || 0;
-                          case 'avgPrice': return parseFloat(order.average_filled_price) || 0;
-                          case 'value': { const f = parseFloat(order.filled_amount) || 0; const p = parseFloat(order.average_filled_price) || 0; return f * p; }
-                          case 'status': return order.order_status || '';
-                          case 'orderId': return order.order_id || 0;
-                          default: return 0;
-                        }
-                      };
-                      const valA = getValue(a);
-                      const valB = getValue(b);
-                      if (typeof valA === 'string') return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                      return orderHistorySort.desc ? valB - valA : valA - valB;
-                    }).slice(0, 150).map((order: any, index: number) => {
-                      const orderSide = (order.side === 'bid' || order.side === 'BUY' || order.side === 'LONG' || order.side?.includes('long')) ? 'Long' : 'Short';
-                      const rawOrderType = order.order_type || 'limit';
-                      const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                      const filledAmount = parseFloat(order.filled_amount || '0');
-                      const initialAmount = parseFloat(order.amount || '0');
-                      const avgFilledPrice = parseFloat(order.average_filled_price || '0');
-                      const stopPrice = parseFloat(order.stop_price || '0');
-                      const initialPrice = parseFloat(order.initial_price || order.price || '0');
-                      const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
-                      const isRegularMarketOrder = rawOrderType === 'market';
-                      const isStopOrder = rawOrderType.includes('stop') && !isTpSlOrder;
-                      const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
-                      let status = 'Open';
-                      const rawStatus = order.order_status || '';
-                      if (rawStatus) {
-                        switch (rawStatus.toLowerCase()) {
-                          case 'open': status = 'Open'; break;
-                          case 'partially_filled': status = 'Partial'; break;
-                          case 'filled': status = 'Filled'; break;
-                          case 'cancelled': case 'canceled': status = 'Cancelled'; break;
-                          case 'triggered': status = 'Triggered'; break;
-                          case 'rejected': status = 'Rejected'; break;
-                          case 'margincanceled': status = 'Margin Cancel'; break;
-                          default: status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
-                        }
-                      }
-                      const formatHistPrice = (price: number) => {
-                        if (price === 0) return 'N/A';
-                        if (price >= 1000) return price.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                        if (price >= 1) return price.toLocaleString(undefined, { maximumFractionDigits: 2 });
-                        return price.toLocaleString(undefined, { maximumFractionDigits: 4 });
-                      };
-                      const timestamp = order.created_at ? new Date(order.created_at) : null;
-
-                      return (
-                        <div key={order.order_id || index} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
-                          {/* Header */}
-                          <div className="flex items-center gap-2 mb-2.5">
-                            <span className="font-medium text-white text-sm">{order.symbol?.replace('-USD', '')}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderSide === 'Long' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>{orderSide}</span>
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-700 text-surface-300">{orderType}</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Triggered' ? 'bg-win-500/20 text-win-400' : (status === 'Cancelled' || status === 'Margin Cancel') ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
-                          </div>
-                          {/* Data grid */}
-                          <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
-                            <div>
-                              <div className="text-surface-500">Time</div>
-                              <div className="tabular-nums tracking-tight text-surface-300">{timestamp ? `${timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Original Size</div>
-                              <div className="tabular-nums tracking-tight text-surface-200">{initialAmount > 0 ? initialAmount.toFixed(5) : 'N/A'}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Filled Size</div>
-                              <div className="tabular-nums tracking-tight text-surface-200">{filledAmount > 0 ? filledAmount.toFixed(5) : 'N/A'}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">{(isTpSlOrder || isStopOrder) ? 'Trigger Price' : 'Price'}</div>
-                              <div className="tabular-nums tracking-tight text-surface-200">{(isTpSlOrder || isStopOrder) ? (stopPrice > 0 ? formatHistPrice(stopPrice) : formatHistPrice(initialPrice)) : (isRegularMarketOrder ? 'Market' : formatHistPrice(initialPrice))}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Avg Filled Price</div>
-                              <div className="tabular-nums tracking-tight text-surface-200">{avgFilledPrice > 0 ? formatHistPrice(avgFilledPrice) : 'N/A'}</div>
-                            </div>
-                            <div>
-                              <div className="text-surface-500">Order Value</div>
-                              <div className="tabular-nums tracking-tight text-win-400">{orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A'}</div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-32 text-sm text-surface-500">
-                    {showFightOnly && fightId ? 'No order history during this fight' : 'No order history'}
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════════════
-            DESKTOP LAYOUT (>= xl / >= 1280px) — Original 5-column grid
-            ═══════════════════════════════════════════════════════════════════════ */}
-        <div className="hidden xl:grid xl:grid-cols-5 gap-1 h-full" style={{ transform: 'translateZ(0)' }}>
-          {/* Left column wrapper */}
-          <div className="col-span-4 flex flex-col gap-1 order-1 h-full">
-            {/* Top row: Order Book + Chart */}
-            <div className="grid grid-cols-12 gap-1">
-              {/* Order Book - 3 cols on desktop */}
-              <div className="col-span-3 order-2 card overflow-hidden h-full flex flex-col" style={{ contain: 'layout' }}>
-                <div className="px-3 py-2 border-surface-800 flex-shrink-0">
-                  <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
-                    Order Book
-                  </h3>
-                </div>
-                <div className="flex-1 overflow-y-auto overscroll-y-auto isolate" style={{ contain: 'strict' }}>
-                  <OrderBook symbol={selectedMarket} currentPrice={currentPrice} oraclePrice={currentPrice} tickSize={tickSize} />
-                </div>
-              </div>
-
-              {/* Chart - 9 cols on desktop */}
-              <div className="col-span-9 order-1 card overflow-hidden">
-                {/* Chart Header - Market Info (Desktop) */}
-                <div className="px-4 py-2">
-                  <div className="flex items-center gap-6 text-sm">
-                    <MarketSelector
-                      markets={markets.length > 0 ? markets : [DEFAULT_MARKET]}
-                      selectedMarket={selectedMarket}
-                      onSelectMarket={handleMarketChange}
-                      getPrice={getPrice}
-                      blockedSymbols={inFight ? blockedSymbols : []}
-                    />
+                    {indexPrice > 0 && (
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-surface-500 mb-0.5">Index</span>
+                        <span className="text-[11px] text-white font-mono">
+                          {formatPrice(indexPrice)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">Last Price</span>
-                      <span className="text-xs text-white font-mono font-medium">{formatPrice(currentPrice)}</span>
+                      <span className="text-[10px] text-surface-500 mb-0.5">24h Volume</span>
+                      <span className="text-[11px] text-white font-mono">
+                        {formatUSD(volume24h)}
+                      </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">Mark</span>
-                      <span className="text-xs text-white font-mono font-medium">{formatPrice(markPrice)}</span>
+                      <span className="text-[10px] text-surface-500 mb-0.5">Open Interest</span>
+                      <span className="text-[11px] text-white font-mono">
+                        {formatUSD(openInterest)}
+                      </span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">24h Change</span>
-                      <span className={`text-xs font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{formatPercent(priceChange)}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">24h Volume</span>
-                      <span className="text-xs text-white font-mono font-medium">{formatUSD(volume24h)}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">Open Interest</span>
-                      <span className="text-xs text-white font-mono font-medium">{formatUSD(openInterest)}</span>
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs text-surface-300">Funding / Countdown</span>
-                      <span className={`text-xs font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                        {formatFundingRate(nextFundingRate)} <span className="text-surface-400">{fundingCountdown}</span>
+                      <span className="text-[10px] text-surface-500 mb-0.5">
+                        Funding / Countdown
+                      </span>
+                      <span
+                        className={`text-[11px] font-mono ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                      >
+                        {formatFundingRate(nextFundingRate)}{' '}
+                        <span className="text-surface-500">{fundingCountdown}</span>
                       </span>
                     </div>
                   </div>
                 </div>
+              )}
+            </div>
 
-                {/* Mobile market info removed — handled by mobile layout above */}
-                {/* Chart */}
-                <div className="h-[650px] relative">
+            {/* Mobile Section Tabs */}
+            <div className="card flex items-center">
+              {(['chart', 'orderbook', 'info'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileSection(tab)}
+                  className={`flex-1 py-2.5 text-xs font-medium text-center transition-colors border-b-2 ${
+                    mobileSection === tab
+                      ? 'text-surface-200 border-surface-300'
+                      : 'text-surface-400 border-transparent hover:text-white'
+                  }`}
+                >
+                  {tab === 'chart' ? 'Chart' : tab === 'orderbook' ? 'Order Book' : 'Info'}
+                </button>
+              ))}
+            </div>
+
+            {/* Mobile Section Content */}
+            <div className="card overflow-hidden">
+              {mobileSection === 'chart' && (
+                <div className="h-[400px]">
                   <TradingViewChartAdvanced
                     symbol={selectedMarket}
-                    height={650}
+                    height={400}
                     currentPrice={currentPrice}
                     exchangeType={exchangeType}
                     onQuickOrder={handleChartQuickOrder}
                     onWidgetReady={setTvWidget}
                   />
-                  {/* Quick Order overlay from right-click context menu */}
-                  {quickOrderPrice !== null && (
-                    <div
-                      className="absolute z-20 flex items-center gap-2 bg-surface-900/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-2xl"
-                      style={{ top: quickOrderClickY != null ? quickOrderClickY : '50%', right: 80, transform: 'translateY(-50%)' }}
-                    >
-                      <button
-                        onClick={() => setQuickOrderPrice(null)}
-                        className="text-surface-500 hover:text-white transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                      <div className="flex flex-col min-w-0">
-                        <span className={`text-[10px] leading-tight ${quickOrderSide === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>
-                          Limit {quickOrderSide === 'LONG' ? 'Buy' : 'Sell'}
-                        </span>
-                        <span className="text-white font-mono text-sm font-medium">
-                          ${quickOrderPrice >= 1000
-                            ? quickOrderPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            : quickOrderPrice >= 1
-                              ? quickOrderPrice.toFixed(2)
-                              : quickOrderPrice.toFixed(4)}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={quickOrderAmount}
-                          onChange={(e) => setQuickOrderAmount(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && quickOrderAmount) {
-                              handleQuickOrderSubmit();
-                            }
-                            if (e.key === 'Escape') {
-                              setQuickOrderPrice(null);
-                            }
-                          }}
-                          placeholder={`Min $${exchangeConfig.minOrderValue}`}
-                          className="w-20 bg-surface-800 rounded px-2 py-1.5 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-surface-600 placeholder:text-surface-600"
-                          autoFocus
-                        />
-                        <span className="text-surface-500 text-[10px]">USD</span>
-                      </div>
-                      <button
-                        onClick={() => handleQuickOrderSubmit()}
-                        disabled={quickOrderSubmitting || !quickOrderAmount}
-                        className={`px-4 py-1.5 text-white text-xs font-bold rounded transition-colors disabled:opacity-40 ${
-                          quickOrderSide === 'LONG'
-                            ? 'bg-win-500 hover:bg-win-400'
-                            : 'bg-loss-500 hover:bg-loss-400'
-                        }`}
-                      >
-                        {quickOrderSubmitting ? '...' : quickOrderSide === 'LONG' ? 'Buy' : 'Sell'}
-                      </button>
-                    </div>
-                  )}
                 </div>
-              </div>
+              )}
+              {mobileSection === 'orderbook' && (
+                <div className="h-[500px] overflow-y-auto">
+                  <OrderBook
+                    symbol={selectedMarket}
+                    currentPrice={currentPrice}
+                    oraclePrice={currentPrice}
+                    tickSize={tickSize}
+                  />
+                </div>
+              )}
+              {mobileSection === 'info' && (
+                <div className="p-4 space-y-4">
+                  <h3 className="text-sm font-semibold text-white">Market Information</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">Price</span>
+                      <span className="text-sm text-white font-mono font-medium">
+                        {formatPrice(currentPrice)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">24h Change</span>
+                      <span
+                        className={`text-sm font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                      >
+                        {formatPercent(priceChange)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">24h Volume</span>
+                      <span className="text-sm text-white font-mono font-medium">
+                        {formatUSD(volume24h)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">Open Interest</span>
+                      <span className="text-sm text-white font-mono font-medium">
+                        {formatUSD(openInterest)}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">
+                        Funding / Countdown
+                      </span>
+                      <span
+                        className={`text-sm font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                      >
+                        {formatFundingRate(nextFundingRate)}{' '}
+                        <span className="text-surface-500">{fundingCountdown}</span>
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">
+                        Est. Ann. Funding
+                      </span>
+                      <span
+                        className={`text-sm font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                      >
+                        {(nextFundingRate * 24 * 365).toFixed(2)}%
+                      </span>
+                    </div>
+                    {oraclePrice > 0 && (
+                      <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                        <span className="text-[10px] text-surface-400 uppercase">Oracle Price</span>
+                        <span className="text-sm text-white font-mono font-medium">
+                          {formatPrice(oraclePrice)}
+                        </span>
+                      </div>
+                    )}
+                    {indexPrice > 0 && (
+                      <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                        <span className="text-[10px] text-surface-400 uppercase">Index Price</span>
+                        <span className="text-sm text-white font-mono font-medium">
+                          {formatPrice(indexPrice)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">Maker Fee</span>
+                      <span className="text-sm text-white font-mono font-medium">
+                        {makerFeePercent}%
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1 p-3 bg-surface-800 rounded-lg">
+                      <span className="text-[10px] text-surface-400 uppercase">Taker Fee</span>
+                      <span className="text-sm text-white font-mono font-medium">
+                        {takerFeePercent}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Positions Panel (Desktop) */}
-            <div className="order-4 card min-h-[400px] flex flex-col overflow-hidden" style={{ contain: 'strict' }}>
+            {/* Mobile Positions/Orders/Trades/History Tabs — reuse the same panel */}
+            <div
+              className="card h-[calc(100vh-16rem)] flex flex-col overflow-hidden"
+              style={{ contain: 'layout' }}
+            >
               {/* Tab navigation */}
-              <div className="flex items-center justify-between border-surface-800 flex-shrink-0 overflow-x-auto">
-                <div className="flex items-center gap-6 px-4 min-w-max">
+              <div className="flex items-center justify-between border-surface-800 flex-shrink-0">
+                <div className="flex items-center w-full gap-0">
                   <button
                     onClick={() => setBottomTab('positions')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'positions'
-                      ? 'text-surface-200 border-surface-300'
-                      : 'text-surface-400 border-transparent hover:text-white'
-                      }`}
+                    className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${
+                      bottomTab === 'positions'
+                        ? 'text-surface-200 border-surface-300'
+                        : 'text-surface-400 border-transparent hover:text-white'
+                    }`}
                   >
-                    Positions {activePositions.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activePositions.length}</span>}
+                    Positions{' '}
+                    {activePositions.length > 0 && (
+                      <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">
+                        {activePositions.length}
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => setBottomTab('orders')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'orders'
-                      ? 'text-surface-200 border-surface-300'
-                      : 'text-surface-400 border-transparent hover:text-white'
-                      }`}
+                    className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${
+                      bottomTab === 'orders'
+                        ? 'text-surface-200 border-surface-300'
+                        : 'text-surface-400 border-transparent hover:text-white'
+                    }`}
                   >
-                    Open Orders
-                    {activeOpenOrders.length > 0 && <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">{activeOpenOrders.length}</span>}
+                    Orders{' '}
+                    {activeOpenOrders.length > 0 && (
+                      <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">
+                        {activeOpenOrders.length}
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => setBottomTab('trades')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'trades'
-                      ? 'text-surface-200 border-surface-300'
-                      : 'text-surface-400 border-transparent hover:text-white'
-                      }`}
+                    className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${
+                      bottomTab === 'trades'
+                        ? 'text-surface-200 border-surface-300'
+                        : 'text-surface-400 border-transparent hover:text-white'
+                    }`}
                   >
-                    Trade History
+                    Trades
                   </button>
                   <button
                     onClick={() => setBottomTab('history')}
-                    className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${bottomTab === 'history'
-                      ? 'text-surface-200 border-surface-300'
-                      : 'text-surface-400 border-transparent hover:text-white'
-                      }`}
+                    className={`flex-1 py-3 text-xs font-medium text-center border-b-2 transition-colors ${
+                      bottomTab === 'history'
+                        ? 'text-surface-200 border-surface-300'
+                        : 'text-surface-400 border-transparent hover:text-white'
+                    }`}
                   >
-                    Order History
+                    History
                   </button>
                 </div>
-
-                {/* Fight filter toggle - only show when in active fight */}
+                {/* Fight filter toggle */}
                 {fightId && (
-                  <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-1 mx-4 flex-shrink-0">
+                  <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-0.5 mr-2 flex-shrink-0">
                     <button
                       onClick={() => setShowFightOnly(false)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${!showFightOnly
-                        ? 'bg-surface-600 text-white'
-                        : 'text-surface-400 hover:text-white'
-                        }`}
+                      className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                        !showFightOnly
+                          ? 'bg-surface-600 text-white'
+                          : 'text-surface-400 hover:text-white'
+                      }`}
                     >
                       All
                     </button>
                     <button
                       onClick={() => setShowFightOnly(true)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${showFightOnly
-                        ? 'bg-surface-500 text-white'
-                        : 'text-surface-400 hover:text-white'
-                        }`}
+                      className={`px-2 py-1 text-[10px] font-medium rounded transition-colors ${
+                        showFightOnly
+                          ? 'bg-surface-500/30 text-white'
+                          : 'text-surface-400 hover:text-white'
+                      }`}
                     >
-                      Fight Only
+                      Fight
                     </button>
                   </div>
                 )}
               </div>
-
-              {/* Tab content - scrollable with overscroll containment to prevent scroll chaining on mobile */}
-              <div className={`flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto overscroll-y-auto'}`}>
+              {/* Tab content */}
+              <div
+                className={`flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'}`}
+              >
                 {bottomTab === 'positions' && (
                   <Positions
                     positions={activePositions}
@@ -1972,2198 +1724,2785 @@ function TradePageContent() {
                   />
                 )}
                 {bottomTab === 'orders' && (
-                  activeOpenOrders.length > 0 ? (
-                    <div>
-                      {/* Mobile card view for orders */}
-                      <div className="max-[1199px]:block hidden space-y-2 px-1">
-                        <div className="flex justify-end mb-1">
-                          <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs">Cancel All</button>
-                        </div>
-                        {[...activeOpenOrders].sort((a, b) => {
-                          const getValue = (order: any) => {
-                            switch (ordersSort.col) {
-                              case 'time': return order.createdAt ? new Date(order.createdAt).getTime() : 0;
-                              case 'type': return order.type || '';
-                              case 'token': return order.symbol || '';
-                              case 'side': return order.side || '';
-                              case 'originalSize': return parseFloat(order.size) || 0;
-                              case 'filledSize': return parseFloat(order.filled) || 0;
-                              case 'price': return parseFloat(order.price) || 0;
-                              case 'value': return (parseFloat(order.size) || 0) * (parseFloat(order.price) || 0);
-                              case 'reduceOnly': return order.reduceOnly ? 1 : 0;
-                              case 'trigger': return order.stopPrice ? parseFloat(order.stopPrice) : 0;
-                              default: return 0;
-                            }
-                          };
-                          const valA = getValue(a);
-                          const valB = getValue(b);
-                          if (typeof valA === 'string') return ordersSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                          return ordersSort.desc ? valB - valA : valA - valB;
-                        }).map((order) => {
-                          const price = parseFloat(order.price) || 0;
-                          const originalSize = parseFloat(order.size) || 0;
-                          const filledSize = parseFloat(order.filled) || 0;
-                          const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                          const orderTypeLower = order.type.toLowerCase();
-                          const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('take profit') || orderTypeLower.includes('stop loss');
-                          const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
-                          const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
-                          const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
-                          let displayType = order.type;
-                          if (order.type.includes('TP') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('take profit')) displayType = 'Take Profit Market';
-                          else if (order.type.includes('SL') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('stop loss')) displayType = 'Stop Loss Market';
-                          else if (isHybridTp) displayType = 'TP (Partial)';
-                          else if (isHybridSl) displayType = 'SL (Partial)';
-                          else if (order.type === 'LIMIT') displayType = 'Limit';
-                          else if (order.type === 'MARKET') displayType = 'Market';
-                          else if (order.type === 'STOP_LIMIT') displayType = 'Stop Limit';
-                          else if (order.type === 'STOP_MARKET') displayType = 'Stop Market';
-                          else displayType = order.type.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                          const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
-                          const orderValue = originalSize * (price || stopPrice || 0);
-                          const formatSize = (size: number) => {
-                            if (size === 0) return '0';
-                            if (size >= 1) return size.toFixed(2).replace(/\.?0+$/, '');
-                            const str = size.toPrecision(4);
-                            return parseFloat(str).toString();
-                          };
-                          const tokenSymbol = order.symbol.replace('-USD', '');
-
-                          return (
-                            <div key={order.id} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
-                              {/* Header */}
-                              <div className="flex items-center gap-2 mb-2.5">
-                                <span className="font-medium text-white text-sm">{order.symbol?.replace('-USD', '')}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                  isTpSl ? (displayType.includes('Take Profit') || displayType.includes('TP') ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400')
-                                    : 'bg-surface-700 text-surface-300'
-                                }`}>
-                                  {displayType}
-                                </span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${order.side === 'LONG' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>
-                                  {order.side === 'LONG' ? 'Long' : 'Short'}
-                                </span>
-                              </div>
-                              {/* Data grid */}
-                              <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
-                                <div>
-                                  <div className="text-surface-500">Time</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Original Size</div>
-                                  <div className="tabular-nums tracking-tight text-white">{formatSize(originalSize)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Filled Size</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">{filledSize}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Price</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">{isTpSl ? 'Market' : order.type.includes('STOP') && !price ? 'Market' : price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Order Value</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">${orderValue.toFixed(2)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Reduce Only</div>
-                                  <div className="text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</div>
-                                </div>
-                                {stopPrice && (
-                                  <div>
-                                    <div className="text-surface-500">Trigger Condition</div>
-                                    <div className="tabular-nums tracking-tight text-surface-300">${stopPrice.toLocaleString()} / Last</div>
-                                  </div>
-                                )}
-                              </div>
-                              {/* Cancel button */}
-                              <div className="mt-2.5 pt-2 border-t border-surface-800/50">
-                                <button
-                                  onClick={() => handleCancelOrder(order.id, order.symbol, order.type)}
-                                  disabled={cancelOrder.isPending || cancelStopOrder.isPending}
-                                  className="text-surface-300 hover:text-white transition-colors disabled:opacity-50 text-xs"
-                                >
-                                  {isTpSl ? 'Remove' : 'Cancel'}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Desktop table view */}
-                      <div className="overflow-x-auto max-[1199px]:hidden">
-                      <table className="w-full text-xs min-w-[900px]">
-                        <thead>
-                          <tr className="text-xs text-surface-400 tracking-wider">
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'time')}>Time {ordersSort.col === 'time' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'type')}>Order Type {ordersSort.col === 'type' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'token')}>Token {ordersSort.col === 'token' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'side')}>Side {ordersSort.col === 'side' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'originalSize')}>Original Size {ordersSort.col === 'originalSize' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'filledSize')}>Filled Size {ordersSort.col === 'filledSize' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'price')}>Price {ordersSort.col === 'price' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'value')}>Order Value {ordersSort.col === 'value' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'reduceOnly')}>Reduce Only {ordersSort.col === 'reduceOnly' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(ordersSort, setOrdersSort, 'trigger')}>Trigger {ordersSort.col === 'trigger' && (ordersSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium">
-                              <button onClick={() => cancelAllOrders.mutate({})} disabled={cancelAllOrders.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50">Cancel All</button>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...activeOpenOrders].sort((a, b) => {
-                            const getValue = (order: any) => {
-                              switch (ordersSort.col) {
-                                case 'time': return order.createdAt ? new Date(order.createdAt).getTime() : 0;
-                                case 'type': return order.type || '';
-                                case 'token': return order.symbol || '';
-                                case 'side': return order.side || '';
-                                case 'originalSize': return parseFloat(order.size) || 0;
-                                case 'filledSize': return parseFloat(order.filled) || 0;
-                                case 'price': return parseFloat(order.price) || 0;
-                                case 'value': return (parseFloat(order.size) || 0) * (parseFloat(order.price) || 0);
-                                case 'reduceOnly': return order.reduceOnly ? 1 : 0;
-                                case 'trigger': return order.stopPrice ? parseFloat(order.stopPrice) : 0;
-                                default: return 0;
-                              }
-                            };
-                            const valA = getValue(a);
-                            const valB = getValue(b);
-                            if (typeof valA === 'string') return ordersSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                            return ordersSort.desc ? valB - valA : valA - valB;
-                          }).map((order) => {
-                            const price = parseFloat(order.price) || 0;
-                            const originalSize = parseFloat(order.size) || 0;
-                            const filledSize = parseFloat(order.filled) || 0;
-                            const timestamp = order.createdAt ? new Date(order.createdAt) : new Date();
-                            const orderTypeLower = order.type.toLowerCase();
-                            const isNativeTpSl = order.type.includes('TP') || order.type.includes('SL') || orderTypeLower.includes('take_profit') || orderTypeLower.includes('stop_loss') || orderTypeLower.includes('take profit') || orderTypeLower.includes('stop loss');
-                            const isHybridTp = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase() === 'LIMIT';
-                            const isHybridSl = !isNativeTpSl && order.reduceOnly && order.type.toUpperCase().includes('STOP');
-                            const isTpSl = isNativeTpSl || isHybridTp || isHybridSl;
-                            let displayType = order.type;
-                            if (order.type === 'TP_MARKET' || (order.type.includes('TP') && !order.type.includes('LIMIT'))) displayType = 'Take Profit Market';
-                            else if (order.type === 'TP_LIMIT' || (order.type.includes('TP') && order.type.includes('LIMIT'))) displayType = 'Take Profit Limit';
-                            else if (order.type === 'SL_MARKET' || (order.type.includes('SL') && !order.type.includes('LIMIT'))) displayType = 'Stop Market';
-                            else if (order.type === 'SL_LIMIT' || (order.type.includes('SL') && order.type.includes('LIMIT'))) displayType = 'Stop Limit';
-                            else if (isHybridTp) displayType = 'TP (Partial)';
-                            else if (isHybridSl) displayType = 'SL (Partial)';
-                            else if (order.type === 'LIMIT') displayType = 'Limit';
-                            else if (order.type === 'MARKET') displayType = 'Market';
-                            else if (order.type === 'STOP_LIMIT') displayType = 'Stop Limit';
-                            else if (order.type === 'STOP_MARKET') displayType = 'Stop Market';
-                            else displayType = order.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                            const stopPrice = order.stopPrice ? parseFloat(order.stopPrice) : null;
-                            const orderValue = originalSize * (price || stopPrice || 0);
-                            const formatSize = (size: number) => {
-                              if (size === 0) return '0';
-                              if (size >= 1) return size.toFixed(2).replace(/\.?0+$/, '');
-                              const str = size.toPrecision(4);
-                              return parseFloat(str).toString();
-                            };
-                            const tokenSymbol = order.symbol.replace('-USD', '');
-                            return (
-                              <tr key={order.id} className="border-surface-800/50 hover:bg-surface-800/30">
-                                <td className="py-px px-2 text-surface-300 whitespace-nowrap tabular-nums tracking-tight">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
-                                <td className="py-px px-2 text-surface-300">{displayType}</td>
-                                <td className="py-px px-2"><span className="text-surface-300">{tokenSymbol}</span></td>
-                                <td className="py-px px-2"><span className={`font-medium ${order.side === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}>{order.side === 'LONG' ? 'Long' : 'Short'}</span></td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-white">{formatSize(originalSize)}</td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-400">{filledSize}</td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">
-                                  {isTpSl && displayType.includes('Market') ? 'Market'
-                                  : isTpSl && displayType.includes('Limit') ? (
-                                    price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })
-                                  ) : order.type.includes('STOP') && !price ? 'Market' : order.type.includes('STOP') ? (
-                                    price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })
-                                  ) : (
-                                    <button onClick={() => handleEditOrder({ id: order.id, symbol: order.symbol, side: order.side, price: order.price, size: order.size, type: order.type })} className="inline-flex items-center gap-1 hover:text-white transition-colors group" title="Edit order price">
-                                      {price.toLocaleString(undefined, { maximumFractionDigits: price < 1 ? 6 : 2 })}
-                                      <svg className="w-3 h-3 text-surface-500 group-hover:text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
-                                    </button>
-                                  )}
-                                </td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${orderValue.toFixed(2)}</td>
-                                <td className="py-px px-2 text-surface-300">{order.reduceOnly ? 'Yes' : 'No'}</td>
-                                <td className="py-px px-2 text-surface-400">{stopPrice ? `$${stopPrice.toLocaleString()}` : 'N/A'}</td>
-                                <td className="py-px px-2">
-                                  <button onClick={() => handleCancelOrder(order.id, order.symbol, order.type)} disabled={cancelOrder.isPending || cancelStopOrder.isPending} className="text-surface-300 hover:text-white transition-colors disabled:opacity-50">{isTpSl ? 'Remove' : 'Cancel'}</button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-surface-500 text-xs">
-                      {showFightOnly && fightId ? 'No open orders during this fight' : 'No open orders'}
-                    </div>
-                  )
+                  <OrdersTable
+                    orders={activeOpenOrders}
+                    onCancelOrder={handleCancelOrder}
+                    onCancelAll={() => cancelAllOrders.mutate({})}
+                    onEditOrder={handleEditOrder}
+                    isCancelling={cancelOrder.isPending}
+                    isCancellingStop={cancelStopOrder.isPending}
+                    isCancellingAll={cancelAllOrders.isPending}
+                    emptyMessage={
+                      showFightOnly && fightId
+                        ? 'No open orders during this fight'
+                        : 'No open orders'
+                    }
+                  />
                 )}
                 {bottomTab === 'trades' && (
-                  activeTrades.length > 0 ? (
-                    <div>
-                      {/* Mobile card view for trades */}
-                      <div className="max-[1199px]:block hidden space-y-2 px-1">
-                        {[...activeTrades].sort((a: any, b: any) => {
-                          const getValue = (trade: any) => {
-                            switch (tradesSort.col) {
-                              case 'time': return trade.created_at || 0;
-                              case 'token': return trade.symbol?.replace('-USD', '') || '';
-                              case 'side': return trade.side || '';
-                              case 'size': return parseFloat(trade.amount) || 0;
-                              case 'price': return parseFloat(trade.price) || 0;
-                              case 'value': return (parseFloat(trade.price) || 0) * (parseFloat(trade.amount) || 0);
-                              case 'fee': return parseFloat(trade.fee) || 0;
-                              case 'pnl': return parseFloat(trade.pnl) || 0;
-                              default: return 0;
-                            }
-                          };
-                          const valA = getValue(a);
-                          const valB = getValue(b);
-                          if (typeof valA === 'string') return tradesSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                          return tradesSort.desc ? valB - valA : valA - valB;
-                        }).map((trade: any, index: number) => {
-                          const price = parseFloat(trade.price) || 0;
-                          const amount = parseFloat(trade.amount) || 0;
-                          const realizedPnl = parseFloat(trade.pnl) || 0;
-                          const fee = parseFloat(trade.fee) || 0;
-                          const tradeValue = price * amount;
-                          const timestamp = trade.created_at ? new Date(trade.created_at) : new Date();
-                          const sideFormatted = trade.side?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '';
-                          const isLong = trade.side?.includes('long');
-                          const isClose = trade.side?.includes('close');
-                          const sideColor = isClose ? (realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400') : (isLong ? 'text-win-400' : 'text-loss-400');
-                          const token = trade.symbol?.replace('-USD', '') || '';
-
-                          return (
-                            <div key={trade.history_id || index} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
-                              {/* Header */}
-                              <div className="flex items-center gap-2 mb-2.5">
-                                <span className="font-medium text-white text-sm">{token}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${sideColor} ${isClose ? (realizedPnl >= 0 ? 'bg-win-500/20' : 'bg-loss-500/20') : (isLong ? 'bg-win-500/20' : 'bg-loss-500/20')}`}>
-                                  {sideFormatted}
-                                </span>
-                                <span className={`tabular-nums tracking-tight text-xs font-medium ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                                  {realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}
-                                </span>
-                              </div>
-                              {/* Data grid */}
-                              <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
-                                <div>
-                                  <div className="text-surface-500">Time</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">{timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Side</div>
-                                  <div className={`font-medium ${sideColor}`}>{sideFormatted}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Order Type</div>
-                                  <div className="text-surface-300">Fulfill Taker</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Size</div>
-                                  <div className="tabular-nums tracking-tight text-white">{amount.toFixed(amount < 0.01 ? 5 : 4)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Price</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">${price >= 1000 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price >= 1 ? price.toFixed(2) : price.toFixed(4)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Trade Value</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">${tradeValue.toFixed(2)}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Fees</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">${fee.toFixed(2)}</div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {/* Pagination removed — trade history loads in one batch */}
-                      </div>
-                      {/* Desktop table view */}
-                      <div className="overflow-x-auto max-[1199px]:hidden">
-                      <table className="w-full text-xs min-w-[800px]">
-                        <thead>
-                          <tr className="text-xs text-surface-400 tracking-wider">
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'time')}>Time {tradesSort.col === 'time' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'token')}>Token {tradesSort.col === 'token' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'side')}>Side {tradesSort.col === 'side' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium whitespace-nowrap">Order Type</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'size')}>Size {tradesSort.col === 'size' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'price')}>Price {tradesSort.col === 'price' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'value')}>Trade Value {tradesSort.col === 'value' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'fee')}>Fees {tradesSort.col === 'fee' && (tradesSort.desc ? '↓' : '↑')}</th>
-                            <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(tradesSort, setTradesSort, 'pnl')}>Realized PnL {tradesSort.col === 'pnl' && (tradesSort.desc ? '↓' : '↑')}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...activeTrades].sort((a: any, b: any) => {
-                            const getValue = (trade: any) => {
-                              switch (tradesSort.col) {
-                                case 'time': return trade.created_at || 0;
-                                case 'token': return trade.symbol?.replace('-USD', '') || '';
-                                case 'side': return trade.side || '';
-                                case 'size': return parseFloat(trade.amount) || 0;
-                                case 'price': return parseFloat(trade.price) || 0;
-                                case 'value': return (parseFloat(trade.price) || 0) * (parseFloat(trade.amount) || 0);
-                                case 'fee': return parseFloat(trade.fee) || 0;
-                                case 'pnl': return parseFloat(trade.pnl) || 0;
-                                default: return 0;
-                              }
-                            };
-                            const valA = getValue(a);
-                            const valB = getValue(b);
-                            if (typeof valA === 'string') return tradesSort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                            return tradesSort.desc ? valB - valA : valA - valB;
-                          }).map((trade: any, index: number) => {
-                            const price = parseFloat(trade.price) || 0;
-                            const amount = parseFloat(trade.amount) || 0;
-                            const realizedPnl = parseFloat(trade.pnl) || 0;
-                            const fee = parseFloat(trade.fee) || 0;
-                            const tradeValue = price * amount;
-                            const timestamp = trade.created_at ? new Date(trade.created_at) : new Date();
-                            const sideFormatted = trade.side?.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) || '';
-                            const isLong = trade.side?.includes('long');
-                            const isClose = trade.side?.includes('close');
-                            const sideColor = isClose ? (realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400') : (isLong ? 'text-win-400' : 'text-loss-400');
-                            const token = trade.symbol?.replace('-USD', '') || '';
-                            return (
-                              <tr key={trade.history_id || index} className="border-surface-800/50 hover:bg-surface-800/30">
-                                <td className="py-px px-2 text-surface-300 whitespace-nowrap tabular-nums tracking-tight">{timestamp.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, {timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</td>
-                                <td className="py-px px-2 text-surface-300">{token}</td>
-                                <td className="py-px px-2"><span className={`font-medium ${sideColor}`}>{sideFormatted}</span></td>
-                                <td className="py-px px-2 text-surface-300">Fulfill Taker</td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300 whitespace-nowrap">{amount.toFixed(amount < 0.01 ? 5 : 4)}</td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${price >= 1000 ? price.toLocaleString(undefined, { maximumFractionDigits: 2 }) : price >= 1 ? price.toFixed(2) : price.toFixed(4)}</td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${tradeValue.toFixed(2)}</td>
-                                <td className="py-px px-2 tabular-nums tracking-tight text-surface-300">${fee.toFixed(2)}</td>
-                                <td className="py-px px-2"><span className={`tabular-nums tracking-tight ${realizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>{realizedPnl >= 0 ? '+' : '-'}${Math.abs(realizedPnl).toFixed(2)}</span></td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                      {/* Pagination removed — trade history loads in one batch */}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-surface-500 text-xs">
-                      {showFightOnly && fightId ? 'No trades during this fight' : 'No trade history'}
-                    </div>
-                  )
+                  <TradeHistoryTable
+                    trades={activeTrades}
+                    emptyMessage={
+                      showFightOnly && fightId ? 'No trades during this fight' : 'No trade history'
+                    }
+                  />
                 )}
                 {bottomTab === 'history' && (
-                  activeOrderHistory.length > 0 ? (
-                    <div>
-                      {/* Mobile card view for order history */}
-                      <div className="max-[1199px]:block hidden space-y-2 px-1">
-                        {[...activeOrderHistory].sort((a: any, b: any) => {
-                          const getValue = (order: any) => {
-                            switch (orderHistorySort.col) {
-                              case 'time': return order.created_at || 0;
-                              case 'token': return order.symbol || '';
-                              case 'side': return order.side || '';
-                              case 'type': return order.order_type || '';
-                              case 'originalSize': return parseFloat(order.amount) || 0;
-                              case 'filledSize': return parseFloat(order.filled_amount) || 0;
-                              case 'initialPrice': return parseFloat(order.initial_price || order.stop_price) || 0;
-                              case 'avgPrice': return parseFloat(order.average_filled_price) || 0;
-                              case 'value': { const f = parseFloat(order.filled_amount) || 0; const p = parseFloat(order.average_filled_price) || 0; return f * p; }
-                              case 'status': return order.order_status || '';
-                              case 'orderId': return order.order_id || 0;
-                              default: return 0;
-                            }
-                          };
-                          const valA = getValue(a);
-                          const valB = getValue(b);
-                          if (typeof valA === 'string') return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                          return orderHistorySort.desc ? valB - valA : valA - valB;
-                        }).slice(0, 150).map((order: any, index: number) => {
-                          const orderSide = (order.side === 'bid' || order.side === 'BUY' || order.side === 'LONG' || order.side?.includes('long')) ? 'Long' : 'Short';
-                          const rawOrderType = order.order_type || 'limit';
-                          const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                          const filledAmount = parseFloat(order.filled_amount || '0');
-                          const initialAmount = parseFloat(order.amount || '0');
-                          const avgFilledPrice = parseFloat(order.average_filled_price || '0');
-                          const stopPrice = parseFloat(order.stop_price || '0');
-                          const initialPrice = parseFloat(order.initial_price || order.price || '0');
-                          const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
-                          const isRegularMarketOrder = rawOrderType === 'market';
-                      const isStopOrder = rawOrderType.includes('stop') && !isTpSlOrder;
-                          const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
-                          let status = 'Open';
-                          const rawStatus = order.order_status || '';
-                          if (rawStatus) {
-                            switch (rawStatus.toLowerCase()) {
-                              case 'open': status = 'Open'; break;
-                              case 'partially_filled': status = 'Partial'; break;
-                              case 'filled': status = 'Filled'; break;
-                              case 'cancelled': status = 'Cancelled'; break;
-                              case 'rejected': status = 'Rejected'; break;
-                              default: status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
-                            }
-                          }
-                          const formatHistPrice = (price: number) => {
-                            if (price === 0) return 'N/A';
-                            if (price >= 1000) return price.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                            if (price >= 1) return price.toLocaleString(undefined, { maximumFractionDigits: 2 });
-                            return price.toLocaleString(undefined, { maximumFractionDigits: 4 });
-                          };
-                          const timestamp = order.created_at ? new Date(order.created_at) : null;
-
-                          return (
-                            <div key={order.order_id || index} className="border border-surface-800/50 rounded-lg bg-surface-900/50 px-3 py-2.5">
-                              {/* Header */}
-                              <div className="flex items-center gap-2 mb-2.5">
-                                <span className="font-medium text-white text-sm">{order.symbol?.replace('-USD', '')}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${orderSide === 'Long' ? 'bg-win-500/20 text-win-400' : 'bg-loss-500/20 text-loss-400'}`}>{orderSide}</span>
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-surface-700 text-surface-300">{orderType}</span>
-                                <span className={`text-xs px-1.5 py-0.5 rounded font-semibold ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Triggered' ? 'bg-win-500/20 text-win-400' : (status === 'Cancelled' || status === 'Margin Cancel') ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
-                              </div>
-                              {/* Data grid */}
-                              <div className="grid grid-cols-3 gap-x-3 gap-y-2.5 text-[11px]">
-                                <div>
-                                  <div className="text-surface-500">Time</div>
-                                  <div className="tabular-nums tracking-tight text-surface-300">{timestamp ? `${timestamp.toLocaleDateString('en-GB', { day: 'numeric', month: 'numeric', year: 'numeric' })}, ${timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Original Size</div>
-                                  <div className="tabular-nums tracking-tight text-surface-200">{initialAmount > 0 ? initialAmount.toFixed(5) : 'N/A'}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Filled Size</div>
-                                  <div className="tabular-nums tracking-tight text-surface-200">{filledAmount > 0 ? filledAmount.toFixed(5) : 'N/A'}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">{(isTpSlOrder || isStopOrder) ? 'Trigger Price' : 'Price'}</div>
-                                  <div className="tabular-nums tracking-tight text-surface-200">{(isTpSlOrder || isStopOrder) ? (stopPrice > 0 ? formatHistPrice(stopPrice) : formatHistPrice(initialPrice)) : (isRegularMarketOrder ? 'Market' : formatHistPrice(initialPrice))}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Avg Filled Price</div>
-                                  <div className="tabular-nums tracking-tight text-surface-200">{avgFilledPrice > 0 ? formatHistPrice(avgFilledPrice) : 'N/A'}</div>
-                                </div>
-                                <div>
-                                  <div className="text-surface-500">Order Value</div>
-                                  <div className="tabular-nums tracking-tight text-win-400">{orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A'}</div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Desktop table view */}
-                      <div className="overflow-x-auto max-[1199px]:hidden">
-                    <table className="w-full text-xs min-w-[900px]">
-                      <thead>
-                        <tr className="text-surface-400 text-xs">
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'time')}>Time {orderHistorySort.col === 'time' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'token')}>Token {orderHistorySort.col === 'token' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'side')}>Side {orderHistorySort.col === 'side' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'type')}>Order Type {orderHistorySort.col === 'type' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'originalSize')}>Original Size {orderHistorySort.col === 'originalSize' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'filledSize')}>Filled Size {orderHistorySort.col === 'filledSize' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'initialPrice')}>Initial Price {orderHistorySort.col === 'initialPrice' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'avgPrice')}>Avg Filled Price {orderHistorySort.col === 'avgPrice' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'value')}>Order Value {orderHistorySort.col === 'value' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'status')}>Status {orderHistorySort.col === 'status' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                          <th className="text-left py-2 px-2 font-medium cursor-pointer hover:text-surface-200 select-none whitespace-nowrap" onClick={() => toggleSort(orderHistorySort, setOrderHistorySort, 'orderId')}>Order ID {orderHistorySort.col === 'orderId' && (orderHistorySort.desc ? '↓' : '↑')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...activeOrderHistory].sort((a: any, b: any) => {
-                          const getValue = (order: any) => {
-                            switch (orderHistorySort.col) {
-                              case 'time': return order.created_at || 0;
-                              case 'token': return order.symbol || '';
-                              case 'side': return order.side || '';
-                              case 'type': return order.order_type || '';
-                              case 'originalSize': return parseFloat(order.amount) || 0;
-                              case 'filledSize': return parseFloat(order.filled_amount) || 0;
-                              case 'initialPrice': return parseFloat(order.initial_price || order.stop_price) || 0;
-                              case 'avgPrice': return parseFloat(order.average_filled_price) || 0;
-                              case 'value': { const filled = parseFloat(order.filled_amount) || 0; const avgPrice = parseFloat(order.average_filled_price) || 0; return filled * avgPrice; }
-                              case 'status': return order.order_status || '';
-                              case 'orderId': return order.order_id || 0;
-                              default: return 0;
-                            }
-                          };
-                          const valA = getValue(a);
-                          const valB = getValue(b);
-                          if (typeof valA === 'string') return orderHistorySort.desc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-                          return orderHistorySort.desc ? valB - valA : valA - valB;
-                        }).slice(0, 150).map((order: any, index: number) => {
-                          const orderSide = (order.side === 'bid' || order.side === 'BUY' || order.side === 'LONG' || order.side?.includes('long')) ? 'Long' : 'Short';
-                          const rawOrderType = order.order_type || 'limit';
-                          const orderType = rawOrderType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
-                          const filledAmount = parseFloat(order.filled_amount || '0');
-                          const initialAmount = parseFloat(order.amount || '0');
-                          const avgFilledPrice = parseFloat(order.average_filled_price || '0');
-                          const stopPrice = parseFloat(order.stop_price || '0');
-                          const initialPrice = parseFloat(order.initial_price || order.price || '0');
-                          const isTpSlOrder = rawOrderType.includes('stop_loss') || rawOrderType.includes('take_profit');
-                          const isRegularMarketOrder = rawOrderType === 'market';
-                      const isStopOrder = rawOrderType.includes('stop') && !isTpSlOrder;
-                          const orderValue = filledAmount > 0 && avgFilledPrice > 0 ? filledAmount * avgFilledPrice : 0;
-                          let status = 'Open';
-                          const rawStatus = order.order_status || '';
-                          if (rawStatus) {
-                            switch (rawStatus.toLowerCase()) {
-                              case 'open': status = 'Open'; break;
-                              case 'partially_filled': status = 'Partial'; break;
-                              case 'filled': status = 'Filled'; break;
-                              case 'cancelled': case 'canceled': status = 'Cancelled'; break;
-                              case 'triggered': status = 'Triggered'; break;
-                              case 'rejected': status = 'Rejected'; break;
-                              case 'margincanceled': status = 'Margin Cancel'; break;
-                              default: status = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1).toLowerCase();
-                            }
-                          }
-                          const formatPrice = (price: number) => {
-                            if (price === 0) return 'N/A';
-                            if (price >= 1000) return price.toLocaleString(undefined, { maximumFractionDigits: 0 });
-                            if (price >= 1) return price.toLocaleString(undefined, { maximumFractionDigits: 2 });
-                            return price.toLocaleString(undefined, { maximumFractionDigits: 4 });
-                          };
-                          return (
-                            <tr key={order.order_id || index} className="border-surface-800/50 hover:bg-surface-800/30">
-                              <td className="py-px px-2 text-surface-300 tabular-nums tracking-tight whitespace-nowrap">{order.created_at ? `${new Date(order.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}` : '-'}</td>
-                              <td className="py-px px-2 font-medium text-white">{order.symbol?.replace('-USD', '')}</td>
-                              <td className={`py-px px-2 font-medium ${orderSide === 'Long' ? 'text-win-400' : 'text-loss-400'}`}>{orderSide}</td>
-                              <td className="py-px px-2 text-surface-300">{orderType}</td>
-                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200 whitespace-nowrap">{initialAmount > 0 ? initialAmount.toFixed(5) : 'N/A'}</td>
-                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200 whitespace-nowrap">{filledAmount > 0 ? filledAmount.toFixed(5) : 'N/A'}</td>
-                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200">{(isTpSlOrder || isStopOrder) ? (stopPrice > 0 ? formatPrice(stopPrice) : formatPrice(initialPrice)) : (isRegularMarketOrder ? 'Market' : formatPrice(initialPrice))}</td>
-                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-200">{avgFilledPrice > 0 ? formatPrice(avgFilledPrice) : 'N/A'}</td>
-                              <td className="py-px px-2 tabular-nums tracking-tight text-win-400">{orderValue > 0 ? `$${orderValue.toFixed(2)}` : 'N/A'}</td>
-                              <td className="py-px px-2">
-                                <span className={`text-xs px-2 py-0.5 rounded ${status === 'Filled' ? 'bg-win-500/20 text-win-400' : status === 'Triggered' ? 'bg-win-500/20 text-win-400' : (status === 'Cancelled' || status === 'Margin Cancel') ? 'bg-surface-600/50 text-surface-400' : status === 'Partial' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-surface-500/20 text-surface-300'}`}>{status}</span>
-                              </td>
-                              <td className="py-px px-2 tabular-nums tracking-tight text-surface-400">{order.order_id || '-'}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-4 text-surface-500 text-xs">
-                      {showFightOnly && fightId ? 'No order history during this fight' : 'No order history'}
-                    </div>
-                  )
+                  <OrderHistoryTable
+                    orders={activeOrderHistory}
+                    emptyMessage={
+                      showFightOnly && fightId
+                        ? 'No order history during this fight'
+                        : 'No order history'
+                    }
+                  />
                 )}
               </div>
             </div>
           </div>
 
-          {/* Right: Order Entry (Desktop only — mobile uses bottom sheet) */}
-          <div className="col-span-1 order-2 row-span-2 min-h-[1104px] flex flex-col overflow-hidden card" style={{ contain: 'layout' }}>
-            <div className="px-4 pt-2 pb-2 flex-shrink-0 border-surface-800">
-              <div className="flex items-center justify-between">
-                <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
-                  Place Order
-                </h3>
-                <button
-                  onClick={() => { if (canTrade && !hasOpenPosition) setShowMarginModeModal(true); }}
-                  disabled={!canTrade || hasOpenPosition}
-                  className="flex items-center gap-1 px-2.5 py-1 bg-surface-800 rounded text-[10px] font-medium text-surface-300 hover:text-white hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          {/* ═══════════════════════════════════════════════════════════════════════
+            DESKTOP LAYOUT (>= xl / >= 1280px) — Original 5-column grid
+            ═══════════════════════════════════════════════════════════════════════ */}
+          <div
+            className="hidden xl:grid xl:grid-cols-5 gap-1 h-full"
+            style={{ transform: 'translateZ(0)' }}
+          >
+            {/* Left column wrapper */}
+            <div className="col-span-4 flex flex-col gap-1 order-1 h-full">
+              {/* Top row: Order Book + Chart */}
+              <div className="grid grid-cols-12 gap-1">
+                {/* Order Book - 3 cols on desktop */}
+                <div
+                  className="col-span-3 order-2 card overflow-hidden h-full flex flex-col"
+                  style={{ contain: 'layout' }}
                 >
-                  {isIsolated ? 'Isolated' : 'Cross'}
-                  <svg className="w-2.5 h-2.5 text-surface-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+                  <div className="px-3 py-2 border-surface-800 flex-shrink-0">
+                    <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
+                      Order Book
+                    </h3>
+                  </div>
+                  <div
+                    className="flex-1 overflow-y-auto overscroll-y-auto isolate"
+                    style={{ contain: 'strict' }}
+                  >
+                    <OrderBook
+                      symbol={selectedMarket}
+                      currentPrice={currentPrice}
+                      oraclePrice={currentPrice}
+                      tickSize={tickSize}
+                    />
+                  </div>
+                </div>
+
+                {/* Chart - 9 cols on desktop */}
+                <div className="col-span-9 order-1 card overflow-hidden">
+                  {/* Chart Header - Market Info (Desktop) */}
+                  <div className="px-4 py-2">
+                    <div className="flex items-center gap-6 text-sm">
+                      <MarketSelector
+                        markets={markets.length > 0 ? markets : [DEFAULT_MARKET]}
+                        selectedMarket={selectedMarket}
+                        onSelectMarket={handleMarketChange}
+                        getPrice={getPrice}
+                        blockedSymbols={inFight ? blockedSymbols : []}
+                      />
+                      <div className="flex flex-col">
+                        <span className="text-xs text-surface-300">Price</span>
+                        <span className="text-xs text-white font-mono font-medium">
+                          {formatPrice(currentPrice)}
+                        </span>
+                      </div>
+                      {oraclePrice > 0 && oraclePrice !== currentPrice && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-surface-300">Oracle</span>
+                          <span className="text-xs text-white font-mono font-medium">
+                            {formatPrice(oraclePrice)}
+                          </span>
+                        </div>
+                      )}
+                      {indexPrice > 0 && (
+                        <div className="flex flex-col">
+                          <span className="text-xs text-surface-300">Index</span>
+                          <span className="text-xs text-white font-mono font-medium">
+                            {formatPrice(indexPrice)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex flex-col">
+                        <span className="text-xs text-surface-300">24h Change</span>
+                        <span
+                          className={`text-xs font-mono font-medium ${priceChange >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                        >
+                          {formatPercent(priceChange)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-surface-300">24h Volume</span>
+                        <span className="text-xs text-white font-mono font-medium">
+                          {formatUSD(volume24h)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-surface-300">Open Interest</span>
+                        <span className="text-xs text-white font-mono font-medium">
+                          {formatUSD(openInterest)}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-surface-300">Funding / Countdown</span>
+                        <span
+                          className={`text-xs font-mono font-medium ${nextFundingRate >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                        >
+                          {formatFundingRate(nextFundingRate)}{' '}
+                          <span className="text-surface-400">{fundingCountdown}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mobile market info removed — handled by mobile layout above */}
+                  {/* Chart */}
+                  <div className="h-[650px] relative">
+                    <TradingViewChartAdvanced
+                      symbol={selectedMarket}
+                      height={650}
+                      currentPrice={currentPrice}
+                      exchangeType={exchangeType}
+                      onQuickOrder={handleChartQuickOrder}
+                      onWidgetReady={setTvWidget}
+                    />
+                    {/* Quick Order overlay from right-click context menu */}
+                    {quickOrderPrice !== null && (
+                      <div
+                        className="absolute z-20 flex items-center gap-2 bg-surface-900/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-2xl"
+                        style={{
+                          top: quickOrderClickY != null ? quickOrderClickY : '50%',
+                          right: 80,
+                          transform: 'translateY(-50%)',
+                        }}
+                      >
+                        <button
+                          onClick={() => setQuickOrderPrice(null)}
+                          className="text-surface-500 hover:text-white transition-colors"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                        <div className="flex flex-col min-w-0">
+                          <span
+                            className={`text-[10px] leading-tight ${quickOrderSide === 'LONG' ? 'text-win-400' : 'text-loss-400'}`}
+                          >
+                            Limit {quickOrderSide === 'LONG' ? 'Buy' : 'Sell'}
+                          </span>
+                          <span className="text-white font-mono text-sm font-medium">
+                            $
+                            {quickOrderPrice >= 1000
+                              ? quickOrderPrice.toLocaleString(undefined, {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })
+                              : quickOrderPrice >= 1
+                                ? quickOrderPrice.toFixed(2)
+                                : quickOrderPrice.toFixed(4)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={quickOrderAmount}
+                            onChange={(e) => setQuickOrderAmount(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && quickOrderAmount) {
+                                handleQuickOrderSubmit();
+                              }
+                              if (e.key === 'Escape') {
+                                setQuickOrderPrice(null);
+                              }
+                            }}
+                            placeholder={`Min $${exchangeConfig.minOrderValue}`}
+                            className="w-20 bg-surface-800 rounded px-2 py-1.5 text-white font-mono text-xs focus:outline-none focus:ring-1 focus:ring-surface-600 placeholder:text-surface-600"
+                            autoFocus
+                          />
+                          <span className="text-surface-500 text-[10px]">USD</span>
+                        </div>
+                        <button
+                          onClick={() => handleQuickOrderSubmit()}
+                          disabled={quickOrderSubmitting || !quickOrderAmount}
+                          className={`px-4 py-1.5 text-white text-xs font-bold rounded transition-colors disabled:opacity-40 ${
+                            quickOrderSide === 'LONG'
+                              ? 'bg-win-500 hover:bg-win-400'
+                              : 'bg-loss-500 hover:bg-loss-400'
+                          }`}
+                        >
+                          {quickOrderSubmitting
+                            ? '...'
+                            : quickOrderSide === 'LONG'
+                              ? 'Buy'
+                              : 'Sell'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="p-1 flex-1 overflow-y-auto overscroll-y-auto">
 
-              {/* ═══ Warning Banners (top, block trading) ═══ */}
-
-              {/* ── Pacifica-specific warnings ── */}
-              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-orange-500/10 rounded border border-orange-500/30">
-                  <div className="text-[10px] xl:text-xs text-orange-400 font-semibold mb-1.5 xl:mb-2 uppercase">Beta Access Required</div>
-                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    Your wallet needs Pacifica beta access. Request a code from Pacifica.
-                  </p>
-                  <a
-                    href="https://pacifica.fi"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
-                  >
-                    Visit Pacifica
-                  </a>
-                </div>
-              )}
-              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">No Pacifica Account</div>
-                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    Deposit funds on Pacifica first to start trading.
-                  </p>
-                  <button
-                    onClick={() => setShowDepositModal(true)}
-                    className="block w-full py-1.5 bg-surface-500 hover:bg-surface-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
-                  >
-                    Deposit on Pacifica
-                  </button>
-                </div>
-              )}
-              {exchangeType === 'pacifica' && isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-xl">
-                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Authorization Required</div>
-                  <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
-                    Authorize TFC builder code to trade. One-time approval.
-                  </p>
-                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    TFC fee: <span className="text-surface-300 font-semibold">0.05%</span>
-                  </p>
-                  <button
-                    onClick={() => approveBuilderCode.mutate('0.0005')}
-                    disabled={approveBuilderCode.isPending}
-                    className="w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
-                  </button>
-                </div>
-              )}
-
-              {/* ── Hyperliquid-specific warnings ── */}
-              {exchangeType === 'hyperliquid' && isAuthenticated && !evmWalletAddress && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">Connect EVM Wallet</div>
-                  <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
-                    Connect your MetaMask or EVM wallet to trade on Hyperliquid.
-                  </p>
-                </div>
-              )}
-              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress &&
-                (!agentApproved || !builderFeeApproved) && (
-                <HyperliquidSetupInline />
-              )}
-
-              {!canTrade && !isAuthenticated && (
-                <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-lg text-center text-xs xl:text-sm text-surface-400">
-                  {!connected ? 'Connect wallet to trade' : 'Authenticating...'}
-                </div>
-              )}
-
-              {/* ═══ Section A: Trade Form ═══ */}
-
-              {/* Order Type Selector — underline tabs */}
-              <div className="mb-3 xl:mb-4 border-b border-surface-800">
-                <div className="flex">
-                  {(['market', 'limit', 'stop-market', 'stop-limit'] as const).map((type) => (
+              {/* Positions Panel (Desktop) */}
+              <div
+                className="order-4 card min-h-[400px] flex flex-col overflow-hidden"
+                style={{ contain: 'strict' }}
+              >
+                {/* Tab navigation */}
+                <div className="flex items-center justify-between border-surface-800 flex-shrink-0 overflow-x-auto">
+                  <div className="flex items-center gap-6 px-4 min-w-max">
                     <button
-                      key={type}
-                      onClick={() => setOrderType(type)}
-                      disabled={!canTrade}
-                      className={`relative flex-1 pb-2 text-[10px] xl:text-xs font-medium transition-colors ${
-                        orderType === type
-                          ? 'text-white'
-                          : 'text-surface-500 hover:text-surface-300'
-                      } disabled:opacity-50`}
+                      onClick={() => setBottomTab('positions')}
+                      className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        bottomTab === 'positions'
+                          ? 'text-surface-200 border-surface-300'
+                          : 'text-surface-400 border-transparent hover:text-white'
+                      }`}
                     >
-                      <span className="whitespace-nowrap">{type === 'market' ? 'Market' : type === 'limit' ? 'Limit' : type === 'stop-market' ? 'Stop' : 'Stop Limit'}</span>
-                      {orderType === type && (
-                        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-surface-300 rounded-full" />
+                      Positions{' '}
+                      {activePositions.length > 0 && (
+                        <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">
+                          {activePositions.length}
+                        </span>
                       )}
                     </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Buy/Long — Sell/Short Toggle */}
-              <div className="grid grid-cols-2 gap-0 mb-3 xl:mb-4 border border-surface-700 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setSelectedSide('LONG')}
-                  disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'LONG')}
-                  className={`py-2 xl:py-2.5 font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'LONG'
-                    ? 'bg-win-500/15 text-win-400 border-r border-surface-700'
-                    : 'bg-transparent text-surface-500 hover:text-surface-300 border-r border-surface-700'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  Buy / Long
-                </button>
-                <button
-                  onClick={() => setSelectedSide('SHORT')}
-                  disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'SHORT')}
-                  className={`py-2 xl:py-2.5 font-semibold transition-all text-xs xl:text-sm ${selectedSide === 'SHORT'
-                    ? 'bg-[#e8566d]/15 text-[#e8566d]'
-                    : 'bg-transparent text-surface-500 hover:text-surface-300'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  Sell / Short
-                </button>
-              </div>
-
-              {/* Fight Stake Limit Info - collapsible accordion */}
-              {inFight && stake !== null && (
-                <div className="mb-3 xl:mb-4 bg-surface-800 rounded border-surface-700 overflow-hidden">
-                  <button
-                    onClick={() => setShowFightCapital(!showFightCapital)}
-                    className="w-full flex items-center justify-between p-2 xl:p-3 hover:bg-surface-700/50 transition-colors"
-                  >
-                    <span className="text-[10px] xl:text-xs text-surface-300 font-semibold uppercase">Fight Capital</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[10px] xl:text-xs font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                        ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <svg className={`w-3 h-3 text-surface-400 transition-transform ${showFightCapital ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </div>
-                  </button>
-                  {showFightCapital && (
-                    <div className="px-2 xl:px-3 pb-2 xl:pb-3 space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Fight Stake</span>
-                        <span className="text-white font-mono">${stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Current Positions</span>
-                        <span className="text-surface-300 font-mono">${(currentExposure || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Max Capital Used</span>
-                        <span className="text-surface-300 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Available to Trade</span>
-                        <span className={`font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                          ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <div className="mt-1.5 xl:mt-2">
-                        <div className="h-1.5 xl:h-2 bg-surface-700 rounded overflow-hidden">
-                          <div
-                            className="h-full bg-surface-500 transition-all duration-300"
-                            style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }}
-                          />
-                        </div>
-                        <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
-                          <span>{((maxExposureUsed || 0) / stake * 100).toFixed(0)}% used</span>
-                          <span>{(100 - (maxExposureUsed || 0) / stake * 100).toFixed(0)}% available</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Leverage Slider */}
-              <div className="mb-3 xl:mb-4">
-                <div className="flex justify-between items-center mb-1.5 xl:mb-2">
-                  <label className="text-[10px] xl:text-xs font-medium text-surface-400">Leverage</label>
-                  <div className="flex items-center gap-1.5 xl:gap-2">
-                    <span className="text-[10px] xl:text-xs font-semibold text-surface-300">{Math.min(leverage, maxLeverage)}x</span>
-                    {leverage !== savedLeverage && (
-                      <button
-                        onClick={handleSetLeverage}
-                        disabled={!canTrade || setLeverageMutation.isPending}
-                        className="px-1.5 xl:px-2 py-0.5 text-[10px] xl:text-xs font-medium bg-surface-500 hover:bg-surface-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {setLeverageMutation.isPending ? '...' : 'Set'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {/* Custom slider track */}
-                {(() => {
-                  const currentLev = Math.min(leverage, maxLeverage);
-                  const percent = ((currentLev - 1) / (maxLeverage - 1)) * 100;
-                  const ticks = [0, 25, 50, 75, 100];
-                  return (
-                    <div
-                      className={`relative w-full h-8 flex items-center select-none touch-none ${!canTrade ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
-                      onPointerDown={(e) => {
-                        if (!canTrade) return;
-                        e.currentTarget.setPointerCapture(e.pointerId);
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const pad = 9;
-                        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2)));
-                        setLeverage(Math.max(1, Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))));
-                      }}
-                      onPointerMove={(e) => {
-                        if (!canTrade || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const pad = 9;
-                        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2)));
-                        setLeverage(Math.max(1, Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))));
-                      }}
-                    >
-                      {/* Track bg */}
-                      <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
-                      {/* Filled portion */}
-                      <div className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full" style={{ width: `calc(${percent / 100} * (100% - 18px))` }} />
-                      {/* Tick dots */}
-                      {ticks.map((t) => (
-                        <div
-                          key={t}
-                          className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-surface-400' : 'bg-surface-600'}`}
-                          style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
-                        />
-                      ))}
-                      {/* Thumb — ring style */}
-                      <div
-                        className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
-                        style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}
-                      >
-                        <div className="absolute inset-[3px] rounded-full bg-surface-900" />
-                        <div className="absolute inset-[5px] rounded-full bg-surface-300" />
-                      </div>
-                    </div>
-                  );
-                })()}
-                <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
-                  <span>1x</span>
-                  <span>{Math.floor(maxLeverage / 2)}x</span>
-                  <span>{maxLeverage}x</span>
-                </div>
-                {leverage !== savedLeverage && canTrade && (
-                  <p className="text-[10px] xl:text-xs text-yellow-400 mt-1.5">
-                    Confirm leverage change with <span className="font-semibold">Set</span>
-                  </p>
-                )}
-              </div>
-
-              {/* Price Inputs - Show for non-market orders */}
-              {orderType !== 'market' && (
-                <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
-                  {/* Trigger Price - for stop orders */}
-                  {(orderType === 'stop-market' || orderType === 'stop-limit') && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5 xl:mb-2">
-                        <label className="text-[10px] xl:text-xs font-medium text-surface-400">
-                          Trigger Price
-                        </label>
-                        <button
-                          onClick={() => setTriggerPrice(currentPrice.toFixed(2))}
-                          disabled={!canTrade}
-                          className="text-[10px] xl:text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Mid
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={triggerPrice}
-                          onChange={(e) => setTriggerPrice(e.target.value)}
-                          placeholder={selectedSide === 'LONG' ? `> ${currentPrice.toFixed(2)}` : `< ${currentPrice.toFixed(2)}`}
-                          disabled={!canTrade}
-                          className="input text-xs xl:text-sm w-full pr-12"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
-                          USD
-                        </span>
-                      </div>
-                      <p className="text-[9px] xl:text-[10px] text-surface-500 mt-0.5">
-                        {selectedSide === 'LONG'
-                          ? 'Triggers when price rises above this level'
-                          : 'Triggers when price drops below this level'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Limit Price - for limit and stop-limit orders */}
-                  {(orderType === 'limit' || orderType === 'stop-limit') && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5 xl:mb-2">
-                        <label className="text-[10px] xl:text-xs font-medium text-surface-400">
-                          {orderType === 'stop-limit' ? 'Limit Price' : 'Price'}
-                        </label>
-                        <button
-                          onClick={() => setLimitPrice(currentPrice.toFixed(2))}
-                          disabled={!canTrade}
-                          className="text-[10px] xl:text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Mid
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="number"
-                          value={limitPrice}
-                          onChange={(e) => setLimitPrice(e.target.value)}
-                          placeholder={currentPrice.toFixed(2)}
-                          disabled={!canTrade}
-                          className="input text-xs xl:text-sm w-full pr-12"
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
-                          USD
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Size Input */}
-              <div className="mb-3 xl:mb-4">
-                <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
-                  Size
-                </label>
-                {(() => {
-                  const effectiveLeverage = Math.min(leverage, maxLeverage);
-                  const available = account ? parseFloat(account.availableToSpend) : 0;
-                  // Margin buffer: use 95% of available to maintain margin for fees/slippage
-                  const MARGIN_BUFFER = 0.95;
-
-                  // For reduce_only: max is based on the opposite position size (what can be closed)
-                  const closeablePosition = reduceOnly
-                    ? displayPositions.find(
-                        p => p.symbol.replace('-USD', '') === selectedMarket.replace('-USD', '') &&
-                             p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
-                      )
-                    : null;
-                  const maxMargin = reduceOnly
-                    ? (closeablePosition ? closeablePosition.margin : 0)
-                    : available * MARGIN_BUFFER;
-                  const margin = parseFloat(orderSize || '0');
-                  const positionSize = margin * effectiveLeverage;
-                  const tokenAmount = currentPrice > 0 ? positionSize / currentPrice : 0;
-
-                  return (
-                    <>
-                      {/* Token and USD inputs - stacked on mobile, side by side on desktop */}
-                      <div className="flex flex-col xl:flex-row gap-1.5 xl:gap-2 mb-1.5 xl:mb-2">
-                        {/* Token amount input (position size in tokens) */}
-                        <div className="flex-1 relative">
-                          <input
-                            type="number"
-                            value={tokenAmount > 0 ? tokenAmount.toFixed(5) : ''}
-                            onChange={(e) => {
-                              const newTokenAmount = parseFloat(e.target.value) || 0;
-                              // Calculate margin from token amount: margin = (tokens * price) / leverage
-                              const newMargin = (newTokenAmount * currentPrice) / effectiveLeverage;
-                              setOrderSize(newMargin.toFixed(2));
-                            }}
-                            className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
-                            placeholder="0.00"
-                            disabled={!canTrade}
-                          />
-                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-300 font-medium">
-                            {selectedMarket.replace('-USD', '')}
-                          </span>
-                        </div>
-                        {/* USD position size display (leveraged amount) */}
-                        <div className="flex-1 relative">
-                          <input
-                            type="number"
-                            value={positionSize > 0 ? positionSize.toFixed(2) : ''}
-                            onChange={(e) => {
-                              const newPositionSize = parseFloat(e.target.value) || 0;
-                              // Calculate margin from position size: margin = positionSize / leverage
-                              const newMargin = newPositionSize / effectiveLeverage;
-                              setOrderSize(newMargin.toFixed(2));
-                            }}
-                            className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
-                            placeholder="0.00"
-                            disabled={!canTrade}
-                          />
-                          <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400 font-medium">
-                            USD
-                          </span>
-                        </div>
-                      </div>
-                      {/* Margin indicator - stacked on mobile, side by side on desktop */}
-                      <div className="text-[10px] xl:text-xs text-surface-500 mb-1.5 xl:mb-2 flex flex-col xl:flex-row xl:justify-between">
-                        <span>Margin: ${margin.toFixed(2)}</span>
-                        <span>Max: ${maxMargin.toFixed(2)} ({effectiveLeverage}x)</span>
-                      </div>
-                      {/* Percentage slider */}
-                      {(() => {
-                        const pct = maxMargin > 0 ? Math.min(100, Math.round((margin / maxMargin) * 100)) : 0;
-                        const ticks = [0, 25, 50, 75, 100];
-                        return (
-                          <div
-                            className={`relative w-full h-8 flex items-center select-none touch-none ${!canTrade ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
-                            onPointerDown={(e) => {
-                              if (!canTrade) return;
-                              e.currentTarget.setPointerCapture(e.pointerId);
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const pad = 9;
-                              const p = Math.max(0, Math.min(100, Math.round(((e.clientX - rect.left - pad) / (rect.width - pad * 2)) * 100)));
-                              setOrderSize((maxMargin * p / 100).toFixed(2));
-                            }}
-                            onPointerMove={(e) => {
-                              if (!canTrade || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const pad = 9;
-                              const p = Math.max(0, Math.min(100, Math.round(((e.clientX - rect.left - pad) / (rect.width - pad * 2)) * 100)));
-                              setOrderSize((maxMargin * p / 100).toFixed(2));
-                            }}
-                          >
-                            <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
-                            <div className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full" style={{ width: `calc(${pct / 100} * (100% - 18px))` }} />
-                            {ticks.map((t) => (
-                              <div
-                                key={t}
-                                className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= pct ? 'bg-surface-400' : 'bg-surface-600'}`}
-                                style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
-                              />
-                            ))}
-                            <div
-                              className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
-                              style={{ left: `calc(9px + ${pct / 100} * (100% - 18px))` }}
-                            >
-                              <div className="absolute inset-[3px] rounded-full bg-surface-900" />
-                              <div className="absolute inset-[5px] rounded-full bg-surface-300" />
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      {/* Percentage buttons */}
-                      <div className="flex gap-1.5 xl:gap-2 mt-1.5 xl:mt-2">
-                        {[25, 50, 75, 100].map((percent) => {
-                          const currentPercent = maxMargin > 0
-                            ? Math.round((margin / maxMargin) * 100)
-                            : 0;
-                          const isSelected = Math.abs(currentPercent - percent) <= 2;
-
-                          return (
-                            <button
-                              key={percent}
-                              onClick={() => {
-                                const newMargin = (maxMargin * percent / 100).toFixed(2);
-                                setOrderSize(newMargin);
-                              }}
-                              disabled={!canTrade}
-                              className={`flex-1 py-1 xl:py-1.5 text-[10px] xl:text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected
-                                ? 'bg-surface-600 text-white border border-surface-500'
-                                : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-transparent'
-                                }`}
-                            >
-                              {percent}%
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-
-
-              {/* Reduce Only toggle — above TP/SL */}
-              <div className="mb-3 xl:mb-4">
-                <Toggle
-                  checked={reduceOnly}
-                  onChange={(checked) => {
-                    setReduceOnly(checked);
-                    // Disable TP/SL when reduce only is enabled
-                    if (checked) {
-                      setTpEnabled(false);
-                      setSlEnabled(false);
-                      setTakeProfit('');
-                      setStopLoss('');
-                    }
-                  }}
-                  disabled={!canTrade}
-                  label="Reduce Only"
-                />
-              </div>
-
-              {/* Take Profit / Stop Loss - For Market and Limit orders, disabled when Reduce Only */}
-              {(orderType === 'market' || orderType === 'limit') && !reduceOnly && (
-                <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
-                  {/* TP/SL Toggle Header */}
-                  <Toggle
-                    checked={tpEnabled || slEnabled}
-                    onChange={(checked) => {
-                      setTpEnabled(checked);
-                      setSlEnabled(checked);
-                    }}
-                    disabled={!canTrade}
-                    label="Take Profit / Stop Loss"
-                  />
-
-                  {(tpEnabled || slEnabled) && (() => {
-                    // Reference price for percentage calculations
-                    const refPrice = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
-                    const effectiveLev = Math.min(leverage, maxLeverage);
-
-                    // Round price to tick size (Pacifica requires prices to be multiples of tick size)
-                    const roundToTickSize = (price: number) => {
-                      const rounded = Math.round(price / tickSize) * tickSize;
-                      // Determine decimal places from tick size
-                      const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
-                      return rounded.toFixed(decimals);
-                    };
-
-                    // Calculate TP price from percentage gain
-                    const calcTpPrice = (gainPercent: number) => {
-                      const priceMove = (gainPercent / 100 / effectiveLev) * refPrice;
-                      const rawPrice = selectedSide === 'LONG'
-                        ? refPrice + priceMove
-                        : refPrice - priceMove;
-                      return roundToTickSize(rawPrice);
-                    };
-
-                    // Calculate SL price from percentage loss
-                    const calcSlPrice = (lossPercent: number) => {
-                      const priceMove = (Math.abs(lossPercent) / 100 / effectiveLev) * refPrice;
-                      const rawPrice = selectedSide === 'LONG'
-                        ? refPrice - priceMove
-                        : refPrice + priceMove;
-                      return roundToTickSize(rawPrice);
-                    };
-
-                    return (
-                      <>
-                        {/* Take Profit */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5 xl:mb-2">
-                            <span className="text-[10px] xl:text-xs font-medium text-surface-300">TP Price</span>
-                            {takeProfit && (
-                              <span className="text-[10px] xl:text-xs text-surface-400">
-                                {selectedSide === 'LONG'
-                                  ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
-                                  : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
-                                }
-                              </span>
-                            )}
-                          </div>
-                          <input
-                            type="number"
-                            value={takeProfit}
-                            onChange={(e) => setTakeProfit(e.target.value)}
-                            placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`}
-                            disabled={!canTrade}
-                            className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
-                          />
-                          {/* TP Percentage Buttons */}
-                          <div className="flex gap-1">
-                            {[25, 50, 75, 100].map((pct) => (
-                              <button
-                                key={pct}
-                                onClick={() => setTakeProfit(calcTpPrice(pct))}
-                                disabled={!canTrade}
-                                className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
-                              >
-                                {pct}%
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Stop Loss */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5 xl:mb-2">
-                            <span className="text-[10px] xl:text-xs font-medium text-surface-300">SL Price</span>
-                            {stopLoss && (
-                              <span className="text-[10px] xl:text-xs text-surface-400">
-                                {selectedSide === 'LONG'
-                                  ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
-                                  : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
-                                }
-                              </span>
-                            )}
-                          </div>
-                          <input
-                            type="number"
-                            value={stopLoss}
-                            onChange={(e) => setStopLoss(e.target.value)}
-                            placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`}
-                            disabled={!canTrade}
-                            className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
-                          />
-                          {/* SL Percentage Buttons */}
-                          <div className="flex gap-1">
-                            {[-25, -50, -75, -100].map((pct) => (
-                              <button
-                                key={pct}
-                                onClick={() => setStopLoss(calcSlPrice(pct))}
-                                disabled={!canTrade}
-                                className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
-                              >
-                                {pct}%
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* Order Preview — compact (no redundant Order Type row) */}
-              {(() => {
-                const effectiveLeverage = Math.min(leverage, maxLeverage);
-                const positionSize = Number(orderSize) * effectiveLeverage;
-                const orderMargin = Number(orderSize) || 0;
-
-                // Find current position for selected market
-                const mktSymbol = selectedMarket.replace('-USD', '');
-                const currentPos = displayPositions.find(
-                  p => p.symbol.replace('-USD', '') === mktSymbol
-                );
-
-                // For reduce_only: show closeable position size instead of available margin
-                const closeablePos = reduceOnly
-                  ? displayPositions.find(
-                      p => p.symbol.replace('-USD', '') === mktSymbol &&
-                           p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
-                    )
-                  : null;
-                const available = reduceOnly
-                  ? (closeablePos ? closeablePos.margin : 0)
-                  : (account ? parseFloat(account.availableToSpend) || 0 : 0);
-
-                // For limit orders, use limit price; for market, use current price
-                const executionPrice = orderType === 'limit' || orderType === 'stop-limit'
-                  ? parseFloat(limitPrice) || currentPrice
-                  : currentPrice;
-
-                // Estimated liquidation price for new order (simplified)
-                const estLiqPrice = positionSize > 0
-                  ? executionPrice * (selectedSide === 'LONG'
-                    ? 1 - (1 / effectiveLeverage) * 0.9
-                    : 1 + (1 / effectiveLeverage) * 0.9)
-                  : 0;
-
-                const hasOrder = positionSize > 0;
-                const hasPosition = !!currentPos && currentPos.liquidationPrice > 0;
-
-                // Liq Price: show arrow "current -> new" when both exist
-                let liqPriceDisplay: string;
-                if (hasOrder && hasPosition) {
-                  liqPriceDisplay = `$${formatPrice(currentPos.liquidationPrice)} → $${formatPrice(estLiqPrice)}`;
-                } else if (hasOrder) {
-                  liqPriceDisplay = `$${formatPrice(estLiqPrice)}`;
-                } else if (hasPosition) {
-                  liqPriceDisplay = `$${formatPrice(currentPos.liquidationPrice)}`;
-                } else {
-                  liqPriceDisplay = 'N/A';
-                }
-
-                // Margin: show arrow "current -> new" when both exist
-                let marginDisplay: string;
-                if (hasOrder && hasPosition) {
-                  marginDisplay = `$${currentPos.margin.toFixed(2)} → $${(currentPos.margin + orderMargin).toFixed(2)}`;
-                } else if (hasOrder) {
-                  marginDisplay = `$${orderMargin.toFixed(2)}`;
-                } else if (hasPosition) {
-                  marginDisplay = `$${currentPos.margin.toFixed(2)}`;
-                } else {
-                  marginDisplay = 'N/A';
-                }
-
-                return (
-                  <div className="text-[10px] xl:text-xs space-y-1 xl:space-y-1.5 mb-3 xl:mb-4">
-                    {orderType === 'market' && (
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Max Slippage</span>
-                        <button
-                          onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }}
-                          disabled={!isAuthenticated}
-                          className={`font-mono ${isAuthenticated ? 'text-surface-300 hover:text-white underline decoration-dotted cursor-pointer' : 'text-surface-500 cursor-not-allowed'}`}
-                        >
-                          {slippage}%
-                        </button>
-                      </div>
-                    )}
-                    {(orderType === 'limit' || orderType === 'stop-limit') && limitPrice && (
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Limit Price</span>
-                        <span className="text-white font-mono">${parseFloat(limitPrice).toLocaleString()}</span>
-                      </div>
-                    )}
-                    {(orderType === 'stop-market' || orderType === 'stop-limit') && triggerPrice && (
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Trigger Price</span>
-                        <span className="text-white font-mono">${parseFloat(triggerPrice).toLocaleString()}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Est. Liq Price</span>
-                      <span className="text-white font-mono">{liqPriceDisplay}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Margin</span>
-                      <span className="text-white font-mono">{marginDisplay}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-surface-400">Available</span>
-                      <span className="text-white font-mono">
-                        {`$${available.toFixed(2)}`}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })()}
-
-
-              {/* Blocked symbol warning */}
-              {isSymbolBlocked && (
-                <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[10px] xl:text-xs text-amber-400 text-center">
-                  {selectedMarket.replace('-USD', '')} is blocked - you had a position before the fight started
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <button
-                onClick={handlePlaceOrder}
-                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || createStandaloneStopOrder.isPending || leverage !== savedLeverage || isSymbolBlocked}
-                className={`w-full py-2.5 xl:py-3 rounded-lg font-bold text-xs xl:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
-                  ? 'bg-win-500 hover:bg-win-400 text-white'
-                  : 'bg-[#e8566d] hover:bg-[#ec6b7e] text-white'
-                  }`}
-              >
-                {isSymbolBlocked
-                  ? 'Symbol Blocked'
-                  : (createMarketOrder.isPending || createLimitOrder.isPending || createStandaloneStopOrder.isPending)
-                    ? 'Placing Order...'
-                    : (() => {
-                      const orderTypeLabel = orderType === 'market' ? '' :
-                        orderType === 'limit' ? ' Limit' :
-                          orderType === 'stop-market' ? ' Stop' :
-                            ' Stop Limit';
-                      return selectedSide === 'LONG'
-                        ? `Buy / Long${orderTypeLabel}`
-                        : `Sell / Short${orderTypeLabel}`;
-                    })()}
-              </button>
-
-              {/* ═══ Section B: Account Info (below submit) ═══ */}
-
-              {/* Deposit/Withdraw buttons */}
-              {isAuthenticated && pacificaConnected && account && (
-                <div className="flex gap-1.5 xl:gap-2 mt-3 xl:mt-4">
-                  <button
-                    onClick={() => setShowDepositModal(true)}
-                    className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
-                  >
-                    <FileDownloadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
-                    Deposit
-                  </button>
-                  <button
-                    onClick={() => setShowWithdrawModal(true)}
-                    className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
-                  >
-                    <FileUploadIcon sx={{ fontSize: 12 }} className="text-surface-400 xl:text-base" />
-                    Withdraw
-                  </button>
-                </div>
-              )}
-
-              {/* Account Stats — collapsible */}
-              {isAuthenticated && pacificaConnected && account && (() => {
-                // Dynamic fees from Pacifica API (change monthly, not hardcoded)
-                const pacificaTakerFee = parseFloat(account.takerFee || '0.0007'); // Default fallback
-                const pacificaMakerFee = parseFloat(account.makerFee || '0.000575'); // Default fallback
-                const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-                const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-
-                const equity = parseFloat(account.accountEquity) || 0;
-                const marginUsed = parseFloat(account.totalMarginUsed) || 0;
-                const available = parseFloat(account.availableToSpend) || 0;
-                const restingOrderValue = Math.max(0, equity - marginUsed - available - realtimeUnrealizedPnl);
-
-                // Cross account leverage = total position value / equity
-                const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.size, 0);
-                const crossAccountLeverage = equity > 0 ? totalPositionValue / equity : 0;
-
-                // Maintenance margin from API
-                const maintenanceMargin = parseFloat(account.crossMmr || '0') || marginUsed * 0.5;
-
-                return (
-                  <div className="mt-3 xl:mt-4 border-t border-surface-800">
                     <button
-                      onClick={() => setShowAccountStats(!showAccountStats)}
-                      className="w-full flex items-center justify-between py-2 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+                      onClick={() => setBottomTab('orders')}
+                      className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        bottomTab === 'orders'
+                          ? 'text-surface-200 border-surface-300'
+                          : 'text-surface-400 border-transparent hover:text-white'
+                      }`}
                     >
-                      <span className="font-medium">Account Info</span>
-                      <div className="flex items-center gap-2">
-                        <span className="tabular-nums tracking-tight text-white">${equity.toFixed(2)}</span>
-                        <svg className={`w-3.5 h-3.5 transition-transform ${showAccountStats ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
+                      Open Orders
+                      {activeOpenOrders.length > 0 && (
+                        <span className="ml-1 text-xs bg-surface-700 px-1.5 py-0.5 rounded">
+                          {activeOpenOrders.length}
+                        </span>
+                      )}
                     </button>
-                    {showAccountStats && (
-                      <div className="pb-3 space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Account Equity</span>
-                          <span className="text-white font-mono">${equity.toFixed(2)}</span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Total account value including unrealized PnL and margin used
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Idle Balance</span>
-                          <span className="text-white font-mono">${available.toFixed(2)}</span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Available balance not used in positions or orders
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Resting Order Value</span>
-                          <span className="text-white font-mono">${restingOrderValue.toFixed(2)}</span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Total value locked in open limit orders
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Fees</span>
-                          <span className="text-white font-mono">{takerFeePercent}% / {makerFeePercent}%</span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Trading fees: Taker (market orders) / Maker (limit orders). Includes 0.05% TradeFightClub fee
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Unrealized PnL</span>
-                          <span className={`font-mono ${realtimeUnrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                            {realtimeUnrealizedPnl >= 0 ? '+' : '-'}${Math.abs(realtimeUnrealizedPnl).toFixed(2)}
-                          </span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Profit or loss from open positions at current mark price
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Cross Account Leverage</span>
-                          <span className="text-white font-mono">{crossAccountLeverage.toFixed(2)}x</span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Overall leverage across all positions in cross margin mode. Higher values indicate more risk
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Maintenance Margin</span>
-                          <span className="text-white font-mono">${maintenanceMargin.toFixed(2)}</span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            Minimum margin required to keep positions open. Liquidation occurs if equity falls below this
-                          </div>
-                        </div>
-                        <div className="flex justify-between group relative">
-                          <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">Real-time Updates</span>
-                          <span className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
-                            {exchangeWsConnected ? 'Live' : 'Polling'}
-                          </span>
-                          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
-                            {exchangeWsConnected
-                              ? 'Connected to WebSocket for instant position and order updates'
-                              : 'Using HTTP polling for updates (every 10 seconds). WebSocket connection not available.'}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => setBottomTab('trades')}
+                      className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        bottomTab === 'trades'
+                          ? 'text-surface-200 border-surface-300'
+                          : 'text-surface-400 border-transparent hover:text-white'
+                      }`}
+                    >
+                      Trade History
+                    </button>
+                    <button
+                      onClick={() => setBottomTab('history')}
+                      className={`py-3 text-xs font-medium border-b-2 transition-colors whitespace-nowrap ${
+                        bottomTab === 'history'
+                          ? 'text-surface-200 border-surface-300'
+                          : 'text-surface-400 border-transparent hover:text-white'
+                      }`}
+                    >
+                      Order History
+                    </button>
                   </div>
-                );
-              })()}
 
-              {/* Challenge CTA */}
-              <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-800">
-                {isAuthenticated ? (
-                  <Link
-                    href="/lobby"
-                    className="block text-center py-2.5 xl:py-3 bg-surface-500/10 hover:bg-surface-500/20 rounded-lg text-surface-300 text-xs xl:text-sm font-semibold transition-colors"
-                  >
-                    Challenge a Trader
-                  </Link>
-                ) : (
-                  <div className="block text-center py-2.5 xl:py-3 bg-surface-800/50 rounded-lg text-surface-500 text-xs xl:text-sm font-semibold cursor-not-allowed">
-                    Challenge a Trader
-                  </div>
-                )}
+                  {/* Fight filter toggle - only show when in active fight */}
+                  {fightId && (
+                    <div className="flex items-center gap-1 bg-surface-800 rounded-lg p-1 mx-4 flex-shrink-0">
+                      <button
+                        onClick={() => setShowFightOnly(false)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                          !showFightOnly
+                            ? 'bg-surface-600 text-white'
+                            : 'text-surface-400 hover:text-white'
+                        }`}
+                      >
+                        All
+                      </button>
+                      <button
+                        onClick={() => setShowFightOnly(true)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded transition-colors ${
+                          showFightOnly
+                            ? 'bg-surface-500 text-white'
+                            : 'text-surface-400 hover:text-white'
+                        }`}
+                      >
+                        Fight Only
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Tab content - scrollable with overscroll containment to prevent scroll chaining on mobile */}
+                <div
+                  className={`flex-1 ${bottomTab === 'positions' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto overflow-x-auto overscroll-y-auto'}`}
+                >
+                  {bottomTab === 'positions' && (
+                    <Positions
+                      positions={activePositions}
+                      onClosePosition={handleClosePosition}
+                      onSetTpSl={handleSetTpSl}
+                      onCancelOrder={handleCancelOrder}
+                      onCloseAll={handleCloseAllPositions}
+                      isClosingAll={isClosingAllPositions}
+                    />
+                  )}
+                  {bottomTab === 'orders' && (
+                    <OrdersTable
+                      orders={activeOpenOrders}
+                      onCancelOrder={handleCancelOrder}
+                      onCancelAll={() => cancelAllOrders.mutate({})}
+                      onEditOrder={handleEditOrder}
+                      isCancelling={cancelOrder.isPending}
+                      isCancellingStop={cancelStopOrder.isPending}
+                      isCancellingAll={cancelAllOrders.isPending}
+                      emptyMessage={
+                        showFightOnly && fightId
+                          ? 'No open orders during this fight'
+                          : 'No open orders'
+                      }
+                    />
+                  )}
+                  {bottomTab === 'trades' && (
+                    <TradeHistoryTable
+                      trades={activeTrades}
+                      emptyMessage={
+                        showFightOnly && fightId
+                          ? 'No trades during this fight'
+                          : 'No trade history'
+                      }
+                    />
+                  )}
+                  {bottomTab === 'history' && (
+                    <OrderHistoryTable
+                      orders={activeOrderHistory}
+                      emptyMessage={
+                        showFightOnly && fightId
+                          ? 'No order history during this fight'
+                          : 'No order history'
+                      }
+                    />
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* ═══ Mobile Sticky Buy/Sell Buttons (CEX-style) ═══ */}
-      <div className="xl:hidden fixed bottom-14 left-0 right-0 z-40 bg-surface-900 border-surface-800 px-3 py-2 flex gap-3">
-        <button
-          onClick={() => { setSelectedSide('LONG'); setShowOrderSheet(true); }}
-          className="flex-1 py-3 rounded-lg bg-win-500 hover:bg-win-400 text-white font-bold text-sm transition-colors"
-        >
-          Buy / Long
-        </button>
-        <button
-          onClick={() => { setSelectedSide('SHORT'); setShowOrderSheet(true); }}
-          className="flex-1 py-3 rounded-lg bg-[#e8566d] hover:bg-[#ec6b7e] text-white font-bold text-sm transition-colors"
-        >
-          Sell / Short
-        </button>
-      </div>
-
-      {/* ═══ Mobile Order Form Bottom Sheet ═══ */}
-      {showOrderSheet && (
-        <div className="xl:hidden fixed inset-0 z-[70]">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/60 transition-opacity duration-500"
-            style={{ opacity: orderSheetVisible ? 1 : 0 }}
-            onClick={closeOrderSheet}
-          />
-          {/* Sheet wrapper — handles transform animation */}
-          <div
-            className="absolute left-0 right-0 bottom-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
-            style={{ transform: orderSheetVisible ? 'translateY(0)' : 'translateY(100%)' }}
-          >
-          {/* Sheet content — handles scroll */}
-          <div className="bg-surface-900 rounded-t-2xl max-h-[85vh] overflow-y-auto pb-4">
-            {/* Drag handle + header */}
-            <div className="sticky top-0 bg-surface-900 pt-3 pb-2 z-10 rounded-t-2xl">
-              <div className="flex justify-center mb-2">
-                <div className="w-10 h-1 bg-surface-600 rounded-full" />
-              </div>
-              <div className="flex items-center justify-between px-4">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-display font-semibold text-sm text-white uppercase tracking-wide">Place Order</h3>
+            {/* Right: Order Entry (Desktop only — mobile uses bottom sheet) */}
+            <div
+              className="col-span-1 order-2 row-span-2 min-h-[1104px] flex flex-col overflow-hidden card"
+              style={{ contain: 'layout' }}
+            >
+              <div className="px-4 pt-2 pb-2 flex-shrink-0 border-surface-800">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display font-semibold text-sm uppercase tracking-wide">
+                    Place Order
+                  </h3>
                   <button
-                    onClick={() => { if (canTrade && !hasOpenPosition) setShowMarginModeModal(true); }}
+                    onClick={() => {
+                      if (canTrade && !hasOpenPosition) setShowMarginModeModal(true);
+                    }}
                     disabled={!canTrade || hasOpenPosition}
                     className="flex items-center gap-1 px-2.5 py-1 bg-surface-800 rounded text-[10px] font-medium text-surface-300 hover:text-white hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isIsolated ? 'Isolated' : 'Cross'}
-                    <svg className="w-3 h-3 text-surface-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    <svg
+                      className="w-2.5 h-2.5 text-surface-500"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 9l-7 7-7-7"
+                      />
                     </svg>
                   </button>
                 </div>
-                <button
-                  onClick={closeOrderSheet}
-                  className="p-1.5 rounded hover:bg-surface-800 text-surface-400 hover:text-white transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
               </div>
-            </div>
-            {/* Order form content */}
-            <div className="px-4 pb-8">
-              {/* Warning Banners */}
-              {/* ── Pacifica-specific warnings ── */}
-              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason === 'beta_required' && (
-                <div className="mb-3 p-3 bg-orange-500/10 rounded border border-orange-500/30">
-                  <div className="text-xs text-orange-400 font-semibold mb-2 uppercase">Beta Access Required</div>
-                  <p className="text-xs text-surface-400 mb-2">Your wallet needs Pacifica beta access.</p>
-                  <a href="https://pacifica.fi" target="_blank" rel="noopener noreferrer" className="block w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded transition-colors text-center">Visit Pacifica</a>
-                </div>
-              )}
-              {exchangeType === 'pacifica' && isAuthenticated && !pacificaConnected && pacificaFailReason !== 'beta_required' && (
-                <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">No Pacifica Account</div>
-                  <p className="text-xs text-surface-400 mb-2">Deposit funds on Pacifica first.</p>
-                  <button onClick={() => setShowDepositModal(true)} className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center">Deposit on Pacifica</button>
-                </div>
-              )}
-              {exchangeType === 'pacifica' && isAuthenticated && pacificaConnected && !isLoadingBuilderCode && !builderCodeApproved && (
-                <div className="mb-3 p-3 bg-surface-800 rounded-xl">
-                  <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">Authorization Required</div>
-                  <p className="text-xs text-surface-400 mb-1.5">Authorize TFC builder code. One-time approval.</p>
-                  <p className="text-xs text-surface-400 mb-2">TFC fee: <span className="text-surface-300 font-semibold">0.05%</span></p>
-                  <button onClick={() => approveBuilderCode.mutate('0.0005')} disabled={approveBuilderCode.isPending} className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50">
-                    {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
-                  </button>
-                </div>
-              )}
-              {/* ── Hyperliquid-specific warnings ── */}
-              {exchangeType === 'hyperliquid' && isAuthenticated && !evmWalletAddress && (
-                <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
-                  <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">Connect EVM Wallet</div>
-                  <p className="text-xs text-surface-400 mb-2">Connect your MetaMask or EVM wallet to trade on Hyperliquid.</p>
-                </div>
-              )}
-              {exchangeType === 'hyperliquid' && isAuthenticated && evmWalletAddress &&
-                (!agentApproved || !builderFeeApproved) && (
-                <HyperliquidSetupInline />
-              )}
-              {!canTrade && !isAuthenticated && (
-                <div className="mb-3 p-3 bg-surface-800 rounded-lg text-center text-sm text-surface-400">
-                  {!connected ? 'Connect wallet to trade' : 'Authenticating...'}
-                </div>
-              )}
+              <div className="p-1 flex-1 overflow-y-auto overscroll-y-auto">
+                {/* ═══ Warning Banners (top, block trading) ═══ */}
 
-              {/* Order Type Selector */}
-              <div className="mb-4 border-b border-surface-800">
-                <div className="flex">
-                  {(['market', 'limit', 'stop-market', 'stop-limit'] as const).map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setOrderType(type)}
-                      disabled={!canTrade}
-                      className={`relative flex-1 pb-2.5 text-xs font-medium transition-colors ${
-                        orderType === type ? 'text-white' : 'text-surface-500 hover:text-surface-300'
-                      } disabled:opacity-50`}
-                    >
-                      <span className="whitespace-nowrap">{type === 'market' ? 'Market' : type === 'limit' ? 'Limit' : type === 'stop-market' ? 'Stop' : 'Stop Limit'}</span>
-                      {orderType === type && <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-surface-300 rounded-full" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Buy/Long — Sell/Short Toggle */}
-              <div className="grid grid-cols-2 gap-0 mb-4 border border-surface-700 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setSelectedSide('LONG')}
-                  disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'LONG')}
-                  className={`py-2.5 font-semibold transition-all text-sm ${selectedSide === 'LONG'
-                    ? 'bg-win-500/15 text-win-400 border-r border-surface-700'
-                    : 'bg-transparent text-surface-500 hover:text-surface-300 border-r border-surface-700'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  Buy / Long
-                </button>
-                <button
-                  onClick={() => setSelectedSide('SHORT')}
-                  disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'SHORT')}
-                  className={`py-2.5 font-semibold transition-all text-sm ${selectedSide === 'SHORT'
-                    ? 'bg-[#e8566d]/15 text-[#e8566d]'
-                    : 'bg-transparent text-surface-500 hover:text-surface-300'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  Sell / Short
-                </button>
-              </div>
-
-              {/* Fight Stake Limit Info */}
-              {inFight && stake !== null && (
-                <div className="mb-4 bg-surface-800 rounded border-surface-700 overflow-hidden">
-                  <button
-                    onClick={() => setShowFightCapital(!showFightCapital)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-surface-700/50 transition-colors"
-                  >
-                    <span className="text-xs text-surface-300 font-semibold uppercase">Fight Capital</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-xs font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                        ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <svg className={`w-3 h-3 text-surface-400 transition-transform ${showFightCapital ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                    </div>
-                  </button>
-                  {showFightCapital && (
-                    <div className="px-3 pb-3 space-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Fight Stake</span>
-                        <span className="text-white font-mono">${stake.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {/* ── Pacifica-specific warnings ── */}
+                {exchangeType === 'pacifica' &&
+                  isAuthenticated &&
+                  !pacificaConnected &&
+                  pacificaFailReason === 'beta_required' && (
+                    <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-orange-500/10 rounded border border-orange-500/30">
+                      <div className="text-[10px] xl:text-xs text-orange-400 font-semibold mb-1.5 xl:mb-2 uppercase">
+                        Beta Access Required
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Current Positions</span>
-                        <span className="text-surface-300 font-mono">${(currentExposure || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Max Capital Used</span>
-                        <span className="text-surface-300 font-mono">${(maxExposureUsed || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-surface-400">Available to Trade</span>
-                        <span className={`font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                          ${(availableStake || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      <div className="mt-2">
-                        <div className="h-2 bg-surface-700 rounded overflow-hidden">
-                          <div className="h-full bg-surface-500 transition-all duration-300" style={{ width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%` }} />
-                        </div>
-                        <div className="flex justify-between text-xs text-surface-500 mt-1">
-                          <span>{((maxExposureUsed || 0) / stake * 100).toFixed(0)}% used</span>
-                          <span>{(100 - (maxExposureUsed || 0) / stake * 100).toFixed(0)}% available</span>
-                        </div>
-                      </div>
+                      <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                        Your wallet needs Pacifica beta access. Request a code from Pacifica.
+                      </p>
+                      <a
+                        href="https://pacifica.fi"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
+                      >
+                        Visit Pacifica
+                      </a>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Leverage Slider */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-xs font-medium text-surface-400">Leverage</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-surface-300">{Math.min(leverage, maxLeverage)}x</span>
-                    {leverage !== savedLeverage && (
+                {exchangeType === 'pacifica' &&
+                  isAuthenticated &&
+                  !pacificaConnected &&
+                  pacificaFailReason !== 'beta_required' && (
+                    <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                      <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">
+                        No Pacifica Account
+                      </div>
+                      <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                        Deposit funds on Pacifica first to start trading.
+                      </p>
                       <button
-                        onClick={handleSetLeverage}
-                        disabled={!canTrade || setLeverageMutation.isPending}
-                        className="px-2 py-0.5 text-xs font-medium bg-surface-500 hover:bg-surface-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        onClick={() => setShowDepositModal(true)}
+                        className="block w-full py-1.5 bg-surface-500 hover:bg-surface-400 text-white text-[10px] font-semibold rounded transition-colors text-center"
                       >
-                        {setLeverageMutation.isPending ? '...' : 'Set'}
+                        Deposit on Pacifica
                       </button>
-                    )}
+                    </div>
+                  )}
+                {exchangeType === 'pacifica' &&
+                  isAuthenticated &&
+                  pacificaConnected &&
+                  !isLoadingBuilderCode &&
+                  !builderCodeApproved && (
+                    <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-xl">
+                      <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">
+                        Authorization Required
+                      </div>
+                      <p className="text-[10px] xl:text-xs text-surface-400 mb-1.5">
+                        Authorize TFC builder code to trade. One-time approval.
+                      </p>
+                      <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                        TFC fee: <span className="text-surface-300 font-semibold">0.05%</span>
+                      </p>
+                      <button
+                        onClick={() => approveBuilderCode.mutate('0.0005')}
+                        disabled={approveBuilderCode.isPending}
+                        className="w-full py-1.5 bg-orange-500 hover:bg-orange-400 text-white text-[10px] font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
+                      </button>
+                    </div>
+                  )}
+
+                {/* ── Hyperliquid-specific warnings ── */}
+                {exchangeType === 'hyperliquid' && isAuthenticated && !evmWalletAddress && (
+                  <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                    <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">
+                      Connect EVM Wallet
+                    </div>
+                    <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                      Connect your MetaMask or EVM wallet to trade on Hyperliquid.
+                    </p>
+                  </div>
+                )}
+                {exchangeType === 'hyperliquid' &&
+                  isAuthenticated &&
+                  evmWalletAddress &&
+                  (!agentApproved || !builderFeeApproved) && <HyperliquidSetupInline />}
+                {exchangeType === 'nado' && isAuthenticated && !evmWalletAddress && (
+                  <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded border-surface-700">
+                    <div className="text-[10px] xl:text-xs text-surface-300 font-semibold mb-1.5 xl:mb-2 uppercase">
+                      Connect EVM Wallet
+                    </div>
+                    <p className="text-[10px] xl:text-xs text-surface-400 mb-2">
+                      Connect your MetaMask or EVM wallet to trade on Nado.
+                    </p>
+                  </div>
+                )}
+                {exchangeType === 'nado' &&
+                  isAuthenticated &&
+                  evmWalletAddress &&
+                  !nadoAgentApproved && <NadoSetupInline />}
+
+                {!canTrade && !isAuthenticated && (
+                  <div className="mb-3 xl:mb-4 p-2 xl:p-3 bg-surface-800 rounded-lg text-center text-xs xl:text-sm text-surface-400">
+                    {!connected ? 'Connect wallet to trade' : 'Authenticating...'}
+                  </div>
+                )}
+
+                {/* ═══ Section A: Trade Form ═══ */}
+
+                {/* Order Type Selector — underline tabs */}
+                <div className="mb-3 xl:mb-4 border-b border-surface-800">
+                  <div className="flex">
+                    {(['market', 'limit', 'stop-market', 'stop-limit'] as const).map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => setOrderType(type)}
+                        disabled={!canTrade}
+                        className={`relative flex-1 pb-2 text-[10px] xl:text-xs font-medium transition-colors ${
+                          orderType === type
+                            ? 'text-white'
+                            : 'text-surface-500 hover:text-surface-300'
+                        } disabled:opacity-50`}
+                      >
+                        <span className="whitespace-nowrap">
+                          {type === 'market'
+                            ? 'Market'
+                            : type === 'limit'
+                              ? 'Limit'
+                              : type === 'stop-market'
+                                ? 'Stop'
+                                : 'Stop Limit'}
+                        </span>
+                        {orderType === type && (
+                          <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-surface-300 rounded-full" />
+                        )}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                {(() => {
-                  const currentLev = Math.min(leverage, maxLeverage);
-                  const percent = ((currentLev - 1) / (maxLeverage - 1)) * 100;
-                  const ticks = [0, 25, 50, 75, 100];
-                  return (
-                    <div
-                      className={`relative w-full h-8 flex items-center select-none touch-none ${!canTrade ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
-                      onPointerDown={(e) => {
-                        if (!canTrade) return;
-                        e.currentTarget.setPointerCapture(e.pointerId);
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const pad = 9;
-                        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2)));
-                        setLeverage(Math.max(1, Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))));
-                      }}
-                      onPointerMove={(e) => {
-                        if (!canTrade || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const pad = 9;
-                        const pct = Math.max(0, Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2)));
-                        setLeverage(Math.max(1, Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))));
-                      }}
+
+                {/* Buy/Long — Sell/Short Toggle */}
+                <div className="grid grid-cols-2 gap-0 mb-3 xl:mb-4 border border-surface-700 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setSelectedSide('LONG')}
+                    disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'LONG')}
+                    className={`py-2 xl:py-2.5 font-semibold transition-all text-xs xl:text-sm ${
+                      selectedSide === 'LONG'
+                        ? 'bg-win-500/15 text-win-400 border-r border-surface-700'
+                        : 'bg-transparent text-surface-500 hover:text-surface-300 border-r border-surface-700'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Buy / Long
+                  </button>
+                  <button
+                    onClick={() => setSelectedSide('SHORT')}
+                    disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'SHORT')}
+                    className={`py-2 xl:py-2.5 font-semibold transition-all text-xs xl:text-sm ${
+                      selectedSide === 'SHORT'
+                        ? 'bg-[#e8566d]/15 text-[#e8566d]'
+                        : 'bg-transparent text-surface-500 hover:text-surface-300'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Sell / Short
+                  </button>
+                </div>
+
+                {/* Fight Stake Limit Info - collapsible accordion */}
+                {inFight && stake !== null && (
+                  <div className="mb-3 xl:mb-4 bg-surface-800 rounded border-surface-700 overflow-hidden">
+                    <button
+                      onClick={() => setShowFightCapital(!showFightCapital)}
+                      className="w-full flex items-center justify-between p-2 xl:p-3 hover:bg-surface-700/50 transition-colors"
                     >
-                      <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
-                      <div className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full" style={{ width: `calc(${percent / 100} * (100% - 18px))` }} />
-                      {ticks.map((t) => (
-                        <div key={t} className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-surface-400' : 'bg-surface-600'}`} style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }} />
-                      ))}
-                      <div className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30" style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}>
-                        <div className="absolute inset-[3px] rounded-full bg-surface-900" />
-                        <div className="absolute inset-[5px] rounded-full bg-surface-300" />
+                      <span className="text-[10px] xl:text-xs text-surface-300 font-semibold uppercase">
+                        Fight Capital
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[10px] xl:text-xs font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}
+                        >
+                          $
+                          {(availableStake || 0).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </span>
+                        <svg
+                          className={`w-3 h-3 text-surface-400 transition-transform ${showFightCapital ? 'rotate-180' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
                       </div>
-                    </div>
-                  );
-                })()}
-                <div className="flex justify-between text-xs text-surface-500 mt-1">
-                  <span>1x</span>
-                  <span>{Math.floor(maxLeverage / 2)}x</span>
-                  <span>{maxLeverage}x</span>
-                </div>
-                {leverage !== savedLeverage && canTrade && (
-                  <p className="text-xs text-yellow-400 mt-1.5">Confirm leverage change with <span className="font-semibold">Set</span></p>
+                    </button>
+                    {showFightCapital && (
+                      <div className="px-2 xl:px-3 pb-2 xl:pb-3 space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-surface-400">Fight Stake</span>
+                          <span className="text-white font-mono">
+                            $
+                            {stake.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-surface-400">Current Positions</span>
+                          <span className="text-surface-300 font-mono">
+                            $
+                            {(currentExposure || 0).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-surface-400">Max Capital Used</span>
+                          <span className="text-surface-300 font-mono">
+                            $
+                            {(maxExposureUsed || 0).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-surface-400">Available to Trade</span>
+                          <span
+                            className={`font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}
+                          >
+                            $
+                            {(availableStake || 0).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 xl:mt-2">
+                          <div className="h-1.5 xl:h-2 bg-surface-700 rounded overflow-hidden">
+                            <div
+                              className="h-full bg-surface-500 transition-all duration-300"
+                              style={{
+                                width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
+                            <span>{(((maxExposureUsed || 0) / stake) * 100).toFixed(0)}% used</span>
+                            <span>
+                              {(100 - ((maxExposureUsed || 0) / stake) * 100).toFixed(0)}% available
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </div>
 
-              {/* Price Inputs */}
-              {orderType !== 'market' && (
-                <div className="mb-4 space-y-3">
-                  {(orderType === 'stop-market' || orderType === 'stop-limit') && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-surface-400">Trigger Price</label>
-                        <button onClick={() => setTriggerPrice(currentPrice.toFixed(2))} disabled={!canTrade} className="text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 transition-colors">Mid</button>
-                      </div>
-                      <div className="relative">
-                        <input type="number" value={triggerPrice} onChange={(e) => setTriggerPrice(e.target.value)} placeholder={selectedSide === 'LONG' ? `> ${currentPrice.toFixed(2)}` : `< ${currentPrice.toFixed(2)}`} disabled={!canTrade} className="input text-sm w-full pr-12" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">USD</span>
-                      </div>
-                      <p className="text-[10px] text-surface-500 mt-0.5">{selectedSide === 'LONG' ? 'Triggers when price rises above this level' : 'Triggers when price drops below this level'}</p>
+                {/* Leverage Slider */}
+                <div className="mb-3 xl:mb-4">
+                  <div className="flex justify-between items-center mb-1.5 xl:mb-2">
+                    <label className="text-[10px] xl:text-xs font-medium text-surface-400">
+                      Leverage
+                    </label>
+                    <div className="flex items-center gap-1.5 xl:gap-2">
+                      <span className="text-[10px] xl:text-xs font-semibold text-surface-300">
+                        {Math.min(leverage, maxLeverage)}x
+                      </span>
+                      {leverage !== savedLeverage && (
+                        <button
+                          onClick={handleSetLeverage}
+                          disabled={!canTrade || setLeverageMutation.isPending}
+                          className="px-1.5 xl:px-2 py-0.5 text-[10px] xl:text-xs font-medium bg-surface-500 hover:bg-surface-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {setLeverageMutation.isPending ? '...' : 'Set'}
+                        </button>
+                      )}
                     </div>
-                  )}
-                  {(orderType === 'limit' || orderType === 'stop-limit') && (
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-surface-400">{orderType === 'stop-limit' ? 'Limit Price' : 'Price'}</label>
-                        <button onClick={() => setLimitPrice(currentPrice.toFixed(2))} disabled={!canTrade} className="text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 transition-colors">Mid</button>
+                  </div>
+                  {/* Custom slider track */}
+                  {(() => {
+                    const currentLev = Math.min(leverage, maxLeverage);
+                    const percent = ((currentLev - 1) / (maxLeverage - 1)) * 100;
+                    const ticks = [0, 25, 50, 75, 100];
+                    return (
+                      <div
+                        className={`relative w-full h-8 flex items-center select-none touch-none ${!canTrade ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
+                        onPointerDown={(e) => {
+                          if (!canTrade) return;
+                          e.currentTarget.setPointerCapture(e.pointerId);
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const pad = 9;
+                          const pct = Math.max(
+                            0,
+                            Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2))
+                          );
+                          setLeverage(
+                            Math.max(
+                              1,
+                              Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))
+                            )
+                          );
+                        }}
+                        onPointerMove={(e) => {
+                          if (!canTrade || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const pad = 9;
+                          const pct = Math.max(
+                            0,
+                            Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2))
+                          );
+                          setLeverage(
+                            Math.max(
+                              1,
+                              Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))
+                            )
+                          );
+                        }}
+                      >
+                        {/* Track bg */}
+                        <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
+                        {/* Filled portion */}
+                        <div
+                          className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full"
+                          style={{ width: `calc(${percent / 100} * (100% - 18px))` }}
+                        />
+                        {/* Tick dots */}
+                        {ticks.map((t) => (
+                          <div
+                            key={t}
+                            className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-surface-400' : 'bg-surface-600'}`}
+                            style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
+                          />
+                        ))}
+                        {/* Thumb — ring style */}
+                        <div
+                          className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
+                          style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}
+                        >
+                          <div className="absolute inset-[3px] rounded-full bg-surface-900" />
+                          <div className="absolute inset-[5px] rounded-full bg-surface-300" />
+                        </div>
                       </div>
-                      <div className="relative">
-                        <input type="number" value={limitPrice} onChange={(e) => setLimitPrice(e.target.value)} placeholder={currentPrice.toFixed(2)} disabled={!canTrade} className="input text-sm w-full pr-12" />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">USD</span>
-                      </div>
-                    </div>
+                    );
+                  })()}
+                  <div className="flex justify-between text-[10px] xl:text-xs text-surface-500 mt-1">
+                    <span>1x</span>
+                    <span>{Math.floor(maxLeverage / 2)}x</span>
+                    <span>{maxLeverage}x</span>
+                  </div>
+                  {leverage !== savedLeverage && canTrade && (
+                    <p className="text-[10px] xl:text-xs text-yellow-400 mt-1.5">
+                      Confirm leverage change with <span className="font-semibold">Set</span>
+                    </p>
                   )}
                 </div>
-              )}
 
-              {/* Size Input */}
-              <div className="mb-4">
-                <label className="block text-xs font-medium text-surface-400 mb-2">Size</label>
-                {(() => {
-                  const effectiveLeverage = Math.min(leverage, maxLeverage);
-                  const available = account ? parseFloat(account.availableToSpend) : 0;
-                  const MARGIN_BUFFER = 0.95;
-                  const closeablePosition = reduceOnly ? displayPositions.find(p => p.symbol.replace('-USD', '') === selectedMarket.replace('-USD', '') && p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')) : null;
-                  const maxMargin = reduceOnly ? (closeablePosition ? closeablePosition.margin : 0) : available * MARGIN_BUFFER;
-                  const margin = parseFloat(orderSize || '0');
-                  const positionSize = margin * effectiveLeverage;
-                  const tokenAmount = currentPrice > 0 ? positionSize / currentPrice : 0;
-                  return (
-                    <>
-                      <div className="flex flex-col gap-2 mb-2">
-                        <div className="flex-1 relative">
-                          <input type="number" value={tokenAmount > 0 ? tokenAmount.toFixed(5) : ''} onChange={(e) => { const n = parseFloat(e.target.value) || 0; setOrderSize(((n * currentPrice) / effectiveLeverage).toFixed(2)); }} className="input text-sm w-full pr-12" placeholder="0.00" disabled={!canTrade} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-300 font-medium">{selectedMarket.replace('-USD', '')}</span>
+                {/* Price Inputs - Show for non-market orders */}
+                {orderType !== 'market' && (
+                  <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
+                    {/* Trigger Price - for stop orders */}
+                    {(orderType === 'stop-market' || orderType === 'stop-limit') && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5 xl:mb-2">
+                          <label className="text-[10px] xl:text-xs font-medium text-surface-400">
+                            Trigger Price
+                          </label>
+                          <button
+                            onClick={() => setTriggerPrice(currentPrice.toFixed(2))}
+                            disabled={!canTrade}
+                            className="text-[10px] xl:text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Mid
+                          </button>
                         </div>
-                        <div className="flex-1 relative">
-                          <input type="number" value={positionSize > 0 ? positionSize.toFixed(2) : ''} onChange={(e) => { const n = parseFloat(e.target.value) || 0; setOrderSize((n / effectiveLeverage).toFixed(2)); }} className="input text-sm w-full pr-12" placeholder="0.00" disabled={!canTrade} />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400 font-medium">USD</span>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={triggerPrice}
+                            onChange={(e) => setTriggerPrice(e.target.value)}
+                            placeholder={
+                              selectedSide === 'LONG'
+                                ? `> ${currentPrice.toFixed(2)}`
+                                : `< ${currentPrice.toFixed(2)}`
+                            }
+                            disabled={!canTrade}
+                            className="input text-xs xl:text-sm w-full pr-12"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
+                            USD
+                          </span>
+                        </div>
+                        <p className="text-[9px] xl:text-[10px] text-surface-500 mt-0.5">
+                          {selectedSide === 'LONG'
+                            ? 'Triggers when price rises above this level'
+                            : 'Triggers when price drops below this level'}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Limit Price - for limit and stop-limit orders */}
+                    {(orderType === 'limit' || orderType === 'stop-limit') && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5 xl:mb-2">
+                          <label className="text-[10px] xl:text-xs font-medium text-surface-400">
+                            {orderType === 'stop-limit' ? 'Limit Price' : 'Price'}
+                          </label>
+                          <button
+                            onClick={() => setLimitPrice(currentPrice.toFixed(2))}
+                            disabled={!canTrade}
+                            className="text-[10px] xl:text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Mid
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            value={limitPrice}
+                            onChange={(e) => setLimitPrice(e.target.value)}
+                            placeholder={currentPrice.toFixed(2)}
+                            disabled={!canTrade}
+                            className="input text-xs xl:text-sm w-full pr-12"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400">
+                            USD
+                          </span>
                         </div>
                       </div>
-                      <div className="text-xs text-surface-500 mb-2 flex justify-between">
-                        <span>Margin: ${margin.toFixed(2)}</span>
-                        <span>Max: ${maxMargin.toFixed(2)} ({effectiveLeverage}x)</span>
-                      </div>
-                      {/* Percentage buttons */}
-                      <div className="flex gap-2 mt-2">
-                        {[25, 50, 75, 100].map((percent) => {
-                          const currentPercent = maxMargin > 0 ? Math.round((margin / maxMargin) * 100) : 0;
-                          const isSelected = Math.abs(currentPercent - percent) <= 2;
-                          return (
-                            <button key={percent} onClick={() => setOrderSize((maxMargin * percent / 100).toFixed(2))} disabled={!canTrade} className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected ? 'bg-surface-600 text-white border border-surface-500' : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-transparent'}`}>
-                              {percent}%
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
+                    )}
+                  </div>
+                )}
 
-              {/* Reduce Only */}
-              <div className="mb-4">
-                <Toggle checked={reduceOnly} onChange={(checked) => { setReduceOnly(checked); if (checked) { setTpEnabled(false); setSlEnabled(false); setTakeProfit(''); setStopLoss(''); } }} disabled={!canTrade} label="Reduce Only" />
-              </div>
+                {/* Size Input */}
+                <div className="mb-3 xl:mb-4">
+                  <label className="block text-[10px] xl:text-xs font-medium text-surface-400 mb-1.5 xl:mb-2">
+                    Size
+                  </label>
+                  {(() => {
+                    const effectiveLeverage = Math.min(leverage, maxLeverage);
+                    const available = account ? parseFloat(account.availableToSpend) : 0;
+                    // Margin buffer: use 95% of available to maintain margin for fees/slippage
+                    const MARGIN_BUFFER = 0.95;
 
-              {/* TP/SL */}
-              {(orderType === 'market' || orderType === 'limit') && !reduceOnly && (
-                <div className="mb-4 space-y-3">
-                  <Toggle checked={tpEnabled || slEnabled} onChange={(checked) => { setTpEnabled(checked); setSlEnabled(checked); }} disabled={!canTrade} label="Take Profit / Stop Loss" />
-                  {(tpEnabled || slEnabled) && (() => {
-                    const refPrice = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice;
-                    const effectiveLev = Math.min(leverage, maxLeverage);
-                    const roundToTickSize = (price: number) => { const r = Math.round(price / tickSize) * tickSize; const d = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize)); return r.toFixed(d); };
-                    const calcTpPrice = (g: number) => { const m = (g / 100 / effectiveLev) * refPrice; return roundToTickSize(selectedSide === 'LONG' ? refPrice + m : refPrice - m); };
-                    const calcSlPrice = (l: number) => { const m = (Math.abs(l) / 100 / effectiveLev) * refPrice; return roundToTickSize(selectedSide === 'LONG' ? refPrice - m : refPrice + m); };
+                    // For reduce_only: max is based on the opposite position size (what can be closed)
+                    const closeablePosition = reduceOnly
+                      ? displayPositions.find(
+                          (p) =>
+                            getBaseToken(p.symbol) === getBaseToken(selectedMarket) &&
+                            p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
+                        )
+                      : null;
+                    const maxMargin = reduceOnly
+                      ? closeablePosition
+                        ? closeablePosition.margin
+                        : 0
+                      : available * MARGIN_BUFFER;
+                    const margin = parseFloat(orderSize || '0');
+                    const positionSize = margin * effectiveLeverage;
+                    const tokenAmount = currentPrice > 0 ? positionSize / currentPrice : 0;
+
                     return (
                       <>
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-surface-300">TP Price</span>
-                            {takeProfit && <span className="text-xs text-surface-400">{selectedSide === 'LONG' ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%` : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`}</span>}
+                        {/* Token and USD inputs - stacked on mobile, side by side on desktop */}
+                        <div className="flex flex-col xl:flex-row gap-1.5 xl:gap-2 mb-1.5 xl:mb-2">
+                          {/* Token amount input (position size in tokens) */}
+                          <div className="flex-1 relative">
+                            <input
+                              type="number"
+                              value={tokenAmount > 0 ? tokenAmount.toFixed(5) : ''}
+                              onChange={(e) => {
+                                const newTokenAmount = parseFloat(e.target.value) || 0;
+                                // Calculate margin from token amount: margin = (tokens * price) / leverage
+                                const newMargin =
+                                  (newTokenAmount * currentPrice) / effectiveLeverage;
+                                setOrderSize(newMargin.toFixed(2));
+                              }}
+                              className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
+                              placeholder="0.00"
+                              disabled={!canTrade}
+                            />
+                            <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-300 font-medium">
+                              {getBaseToken(selectedMarket)}
+                            </span>
                           </div>
-                          <input type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} placeholder={selectedSide === 'LONG' ? `> ${roundToTickSize(refPrice)}` : `< ${roundToTickSize(refPrice)}`} disabled={!canTrade} className="input text-sm w-full mb-2" />
-                          <div className="flex gap-1">
-                            {[25, 50, 75, 100].map((pct) => (<button key={pct} onClick={() => setTakeProfit(calcTpPrice(pct))} disabled={!canTrade} className="flex-1 py-1 text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50">{pct}%</button>))}
+                          {/* USD position size display (leveraged amount) */}
+                          <div className="flex-1 relative">
+                            <input
+                              type="number"
+                              value={positionSize > 0 ? positionSize.toFixed(2) : ''}
+                              onChange={(e) => {
+                                const newPositionSize = parseFloat(e.target.value) || 0;
+                                // Calculate margin from position size: margin = positionSize / leverage
+                                const newMargin = newPositionSize / effectiveLeverage;
+                                setOrderSize(newMargin.toFixed(2));
+                              }}
+                              className="input text-xs xl:text-sm w-full pr-10 xl:pr-12"
+                              placeholder="0.00"
+                              disabled={!canTrade}
+                            />
+                            <span className="absolute right-2 xl:right-3 top-1/2 -translate-y-1/2 text-[10px] xl:text-xs text-surface-400 font-medium">
+                              USD
+                            </span>
                           </div>
                         </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-surface-300">SL Price</span>
-                            {stopLoss && <span className="text-xs text-surface-400">{selectedSide === 'LONG' ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%` : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`}</span>}
-                          </div>
-                          <input type="number" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} placeholder={selectedSide === 'LONG' ? `< ${roundToTickSize(refPrice)}` : `> ${roundToTickSize(refPrice)}`} disabled={!canTrade} className="input text-sm w-full mb-2" />
-                          <div className="flex gap-1">
-                            {[-25, -50, -75, -100].map((pct) => (<button key={pct} onClick={() => setStopLoss(calcSlPrice(pct))} disabled={!canTrade} className="flex-1 py-1 text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50">{Math.abs(pct)}%</button>))}
-                          </div>
+                        {/* Margin indicator - stacked on mobile, side by side on desktop */}
+                        <div className="text-[10px] xl:text-xs text-surface-500 mb-1.5 xl:mb-2 flex flex-col xl:flex-row xl:justify-between">
+                          <span>Margin: ${margin.toFixed(2)}</span>
+                          <span>
+                            Max: ${maxMargin.toFixed(2)} ({effectiveLeverage}x)
+                          </span>
+                        </div>
+                        {/* Percentage slider */}
+                        {(() => {
+                          const pct =
+                            maxMargin > 0
+                              ? Math.min(100, Math.round((margin / maxMargin) * 100))
+                              : 0;
+                          const ticks = [0, 25, 50, 75, 100];
+                          return (
+                            <div
+                              className={`relative w-full h-8 flex items-center select-none touch-none ${!canTrade ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
+                              onPointerDown={(e) => {
+                                if (!canTrade) return;
+                                e.currentTarget.setPointerCapture(e.pointerId);
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const pad = 9;
+                                const p = Math.max(
+                                  0,
+                                  Math.min(
+                                    100,
+                                    Math.round(
+                                      ((e.clientX - rect.left - pad) / (rect.width - pad * 2)) * 100
+                                    )
+                                  )
+                                );
+                                setOrderSize(((maxMargin * p) / 100).toFixed(2));
+                              }}
+                              onPointerMove={(e) => {
+                                if (!canTrade || !e.currentTarget.hasPointerCapture(e.pointerId))
+                                  return;
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const pad = 9;
+                                const p = Math.max(
+                                  0,
+                                  Math.min(
+                                    100,
+                                    Math.round(
+                                      ((e.clientX - rect.left - pad) / (rect.width - pad * 2)) * 100
+                                    )
+                                  )
+                                );
+                                setOrderSize(((maxMargin * p) / 100).toFixed(2));
+                              }}
+                            >
+                              <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
+                              <div
+                                className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full"
+                                style={{ width: `calc(${pct / 100} * (100% - 18px))` }}
+                              />
+                              {ticks.map((t) => (
+                                <div
+                                  key={t}
+                                  className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= pct ? 'bg-surface-400' : 'bg-surface-600'}`}
+                                  style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
+                                />
+                              ))}
+                              <div
+                                className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
+                                style={{ left: `calc(9px + ${pct / 100} * (100% - 18px))` }}
+                              >
+                                <div className="absolute inset-[3px] rounded-full bg-surface-900" />
+                                <div className="absolute inset-[5px] rounded-full bg-surface-300" />
+                              </div>
+                            </div>
+                          );
+                        })()}
+                        {/* Percentage buttons */}
+                        <div className="flex gap-1.5 xl:gap-2 mt-1.5 xl:mt-2">
+                          {[25, 50, 75, 100].map((percent) => {
+                            const currentPercent =
+                              maxMargin > 0 ? Math.round((margin / maxMargin) * 100) : 0;
+                            const isSelected = Math.abs(currentPercent - percent) <= 2;
+
+                            return (
+                              <button
+                                key={percent}
+                                onClick={() => {
+                                  const newMargin = ((maxMargin * percent) / 100).toFixed(2);
+                                  setOrderSize(newMargin);
+                                }}
+                                disabled={!canTrade}
+                                className={`flex-1 py-1 xl:py-1.5 text-[10px] xl:text-xs font-medium rounded transition-colors disabled:opacity-50 ${
+                                  isSelected
+                                    ? 'bg-surface-600 text-white border border-surface-500'
+                                    : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-transparent'
+                                }`}
+                              >
+                                {percent}%
+                              </button>
+                            );
+                          })}
                         </div>
                       </>
                     );
                   })()}
                 </div>
-              )}
 
-              {/* Slippage */}
-              {orderType === 'market' && (
-                <div className="mb-4 flex items-center justify-between text-xs">
-                  <span className="text-surface-400">Max Slippage</span>
-                  <button onClick={() => { setSlippageInput(slippage); setShowSlippageModal(true); }} className="text-surface-300 hover:text-white font-mono font-medium transition-colors">{slippage}%</button>
+                {/* Reduce Only toggle — above TP/SL */}
+                <div className="mb-3 xl:mb-4">
+                  <Toggle
+                    checked={reduceOnly}
+                    onChange={(checked) => {
+                      setReduceOnly(checked);
+                      // Disable TP/SL when reduce only is enabled
+                      if (checked) {
+                        setTpEnabled(false);
+                        setSlEnabled(false);
+                        setTakeProfit('');
+                        setStopLoss('');
+                      }
+                    }}
+                    disabled={!canTrade}
+                    label="Reduce Only"
+                  />
                 </div>
-              )}
 
-              {/* Order Summary */}
-              {parseFloat(orderSize || '0') > 0 && (() => {
-                const effectiveLeverage = Math.min(leverage, maxLeverage);
-                const margin = parseFloat(orderSize || '0');
-                const positionSize = margin * effectiveLeverage;
-                const feeRate = orderType === 'market' ? (parseFloat(takerFeePercent) / 100) : (parseFloat(makerFeePercent) / 100);
-                const estimatedFee = positionSize * feeRate;
-                const available = account ? parseFloat(account.availableToSpend) : 0;
-                const marginDisplay = `$${margin.toFixed(2)}`;
-                return (
-                  <div className="mb-4 p-3 bg-surface-800 rounded-lg space-y-1.5 text-xs">
-                    <div className="flex justify-between"><span className="text-surface-400">Position Size</span><span className="text-white font-mono">${positionSize.toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span className="text-surface-400">Est. Fee</span><span className="text-surface-300 font-mono">${estimatedFee.toFixed(2)}</span></div>
-                    <div className="flex justify-between"><span className="text-surface-400">Margin</span><span className="text-white font-mono">{marginDisplay}</span></div>
-                    <div className="flex justify-between"><span className="text-surface-400">Available</span><span className="text-white font-mono">${available.toFixed(2)}</span></div>
+                {/* Take Profit / Stop Loss - For Market and Limit orders, disabled when Reduce Only */}
+                {(orderType === 'market' || orderType === 'limit') && !reduceOnly && (
+                  <div className="mb-3 xl:mb-4 space-y-2 xl:space-y-3">
+                    {/* TP/SL Toggle Header */}
+                    <Toggle
+                      checked={tpEnabled || slEnabled}
+                      onChange={(checked) => {
+                        setTpEnabled(checked);
+                        setSlEnabled(checked);
+                      }}
+                      disabled={!canTrade}
+                      label="Take Profit / Stop Loss"
+                    />
+
+                    {(tpEnabled || slEnabled) &&
+                      (() => {
+                        // Reference price for percentage calculations
+                        const refPrice =
+                          orderType === 'limit' && limitPrice
+                            ? parseFloat(limitPrice)
+                            : currentPrice;
+                        const effectiveLev = Math.min(leverage, maxLeverage);
+
+                        // Round price to tick size (Pacifica requires prices to be multiples of tick size)
+                        const roundToTickSize = (price: number) => {
+                          const rounded = Math.round(price / tickSize) * tickSize;
+                          // Determine decimal places from tick size
+                          const decimals = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
+                          return rounded.toFixed(decimals);
+                        };
+
+                        // Calculate TP price from percentage gain
+                        const calcTpPrice = (gainPercent: number) => {
+                          const priceMove = (gainPercent / 100 / effectiveLev) * refPrice;
+                          const rawPrice =
+                            selectedSide === 'LONG' ? refPrice + priceMove : refPrice - priceMove;
+                          return roundToTickSize(rawPrice);
+                        };
+
+                        // Calculate SL price from percentage loss
+                        const calcSlPrice = (lossPercent: number) => {
+                          const priceMove = (Math.abs(lossPercent) / 100 / effectiveLev) * refPrice;
+                          const rawPrice =
+                            selectedSide === 'LONG' ? refPrice - priceMove : refPrice + priceMove;
+                          return roundToTickSize(rawPrice);
+                        };
+
+                        return (
+                          <>
+                            {/* Take Profit */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5 xl:mb-2">
+                                <span className="text-[10px] xl:text-xs font-medium text-surface-300">
+                                  TP Price
+                                </span>
+                                {takeProfit && (
+                                  <span className="text-[10px] xl:text-xs text-surface-400">
+                                    {selectedSide === 'LONG'
+                                      ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                      : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`}
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="number"
+                                value={takeProfit}
+                                onChange={(e) => setTakeProfit(e.target.value)}
+                                placeholder={
+                                  selectedSide === 'LONG'
+                                    ? `> ${roundToTickSize(refPrice)}`
+                                    : `< ${roundToTickSize(refPrice)}`
+                                }
+                                disabled={!canTrade}
+                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
+                              />
+                              {/* TP Percentage Buttons */}
+                              <div className="flex gap-1">
+                                {[25, 50, 75, 100].map((pct) => (
+                                  <button
+                                    key={pct}
+                                    onClick={() => setTakeProfit(calcTpPrice(pct))}
+                                    disabled={!canTrade}
+                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    {pct}%
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Stop Loss */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5 xl:mb-2">
+                                <span className="text-[10px] xl:text-xs font-medium text-surface-300">
+                                  SL Price
+                                </span>
+                                {stopLoss && (
+                                  <span className="text-[10px] xl:text-xs text-surface-400">
+                                    {selectedSide === 'LONG'
+                                      ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                      : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`}
+                                  </span>
+                                )}
+                              </div>
+                              <input
+                                type="number"
+                                value={stopLoss}
+                                onChange={(e) => setStopLoss(e.target.value)}
+                                placeholder={
+                                  selectedSide === 'LONG'
+                                    ? `< ${roundToTickSize(refPrice)}`
+                                    : `> ${roundToTickSize(refPrice)}`
+                                }
+                                disabled={!canTrade}
+                                className="input text-xs xl:text-sm w-full mb-1.5 xl:mb-2"
+                              />
+                              {/* SL Percentage Buttons */}
+                              <div className="flex gap-1">
+                                {[-25, -50, -75, -100].map((pct) => (
+                                  <button
+                                    key={pct}
+                                    onClick={() => setStopLoss(calcSlPrice(pct))}
+                                    disabled={!canTrade}
+                                    className="flex-1 py-0.5 xl:py-1 text-[10px] xl:text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                  >
+                                    {pct}%
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                   </div>
-                );
-              })()}
+                )}
 
-              {/* Blocked symbol warning */}
-              {isSymbolBlocked && (
-                <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-400 text-center">
-                  {selectedMarket.replace('-USD', '')} is blocked - you had a position before the fight started
-                </div>
-              )}
+                {/* Order Preview — compact (no redundant Order Type row) */}
+                {(() => {
+                  const effectiveLeverage = Math.min(leverage, maxLeverage);
+                  const positionSize = Number(orderSize) * effectiveLeverage;
+                  const orderMargin = Number(orderSize) || 0;
 
-              {/* Submit Button */}
-              <button
-                onClick={() => { handlePlaceOrder(); closeOrderSheet(); }}
-                disabled={!canTrade || createMarketOrder.isPending || createLimitOrder.isPending || createStandaloneStopOrder.isPending || leverage !== savedLeverage || isSymbolBlocked}
-                className={`w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSide === 'LONG'
-                  ? 'bg-win-500 hover:bg-win-400 text-white'
-                  : 'bg-[#e8566d] hover:bg-[#ec6b7e] text-white'
-                  }`}
-              >
-                {isSymbolBlocked ? 'Symbol Blocked'
-                  : (createMarketOrder.isPending || createLimitOrder.isPending || createStandaloneStopOrder.isPending) ? 'Placing Order...'
-                  : (() => {
-                      const label = orderType === 'market' ? '' : orderType === 'limit' ? ' Limit' : orderType === 'stop-market' ? ' Stop' : ' Stop Limit';
-                      return selectedSide === 'LONG' ? `Buy / Long${label}` : `Sell / Short${label}`;
-                    })()
-                }
-              </button>
+                  // Find current position for selected market
+                  const mktSymbol = getBaseToken(selectedMarket);
+                  const currentPos = displayPositions.find(
+                    (p) => getBaseToken(p.symbol) === mktSymbol
+                  );
 
-              {/* Deposit/Withdraw buttons */}
-              {isAuthenticated && pacificaConnected && account && (
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() => { setShowDepositModal(true); closeOrderSheet(); }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
-                  >
-                    <FileDownloadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
-                    Deposit
-                  </button>
-                  <button
-                    onClick={() => { setShowWithdrawModal(true); closeOrderSheet(); }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
-                  >
-                    <FileUploadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
-                    Withdraw
-                  </button>
-                </div>
-              )}
+                  // For reduce_only: show closeable position size instead of available margin
+                  const closeablePos = reduceOnly
+                    ? displayPositions.find(
+                        (p) =>
+                          getBaseToken(p.symbol) === mktSymbol &&
+                          p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
+                      )
+                    : null;
+                  const available = reduceOnly
+                    ? closeablePos
+                      ? closeablePos.margin
+                      : 0
+                    : account
+                      ? parseFloat(account.availableToSpend) || 0
+                      : 0;
 
-              {/* Account Stats — collapsible */}
-              {isAuthenticated && pacificaConnected && account && (() => {
-                const pacificaTakerFee = parseFloat(account.takerFee || '0.0007');
-                const pacificaMakerFee = parseFloat(account.makerFee || '0.000575');
-                const takerFeePercent = ((pacificaTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-                const makerFeePercent = ((pacificaMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
-                const equity = parseFloat(account.accountEquity) || 0;
-                const marginUsed = parseFloat(account.totalMarginUsed) || 0;
-                const available = parseFloat(account.availableToSpend) || 0;
-                const restingOrderValue = Math.max(0, equity - marginUsed - available - realtimeUnrealizedPnl);
-                const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.size, 0);
-                const crossAccountLeverage = equity > 0 ? totalPositionValue / equity : 0;
-                const maintenanceMargin = parseFloat(account.crossMmr || '0') || marginUsed * 0.5;
+                  // For limit orders, use limit price; for market, use current price
+                  const executionPrice =
+                    orderType === 'limit' || orderType === 'stop-limit'
+                      ? parseFloat(limitPrice) || currentPrice
+                      : currentPrice;
 
-                return (
-                  <div className="mt-4 border-t border-surface-800">
-                    <button
-                      onClick={() => setShowAccountStats(!showAccountStats)}
-                      className="w-full flex items-center justify-between py-2 text-xs text-surface-400 hover:text-surface-200 transition-colors"
-                    >
-                      <span className="font-medium">Account Info</span>
-                      <div className="flex items-center gap-2">
-                        <span className="tabular-nums tracking-tight text-white">${equity.toFixed(2)}</span>
-                        <svg className={`w-3.5 h-3.5 transition-transform ${showAccountStats ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                  // Estimated liquidation price for new order (simplified)
+                  const estLiqPrice =
+                    positionSize > 0
+                      ? executionPrice *
+                        (selectedSide === 'LONG'
+                          ? 1 - (1 / effectiveLeverage) * 0.9
+                          : 1 + (1 / effectiveLeverage) * 0.9)
+                      : 0;
+
+                  const hasOrder = positionSize > 0;
+                  const hasPosition = !!currentPos && currentPos.liquidationPrice > 0;
+
+                  // Liq Price: show arrow "current -> new" when both exist
+                  let liqPriceDisplay: string;
+                  if (hasOrder && hasPosition) {
+                    liqPriceDisplay = `$${formatPrice(currentPos.liquidationPrice)} → $${formatPrice(estLiqPrice)}`;
+                  } else if (hasOrder) {
+                    liqPriceDisplay = `$${formatPrice(estLiqPrice)}`;
+                  } else if (hasPosition) {
+                    liqPriceDisplay = `$${formatPrice(currentPos.liquidationPrice)}`;
+                  } else {
+                    liqPriceDisplay = 'N/A';
+                  }
+
+                  // Margin: show arrow "current -> new" when both exist
+                  let marginDisplay: string;
+                  if (hasOrder && hasPosition) {
+                    marginDisplay = `$${currentPos.margin.toFixed(2)} → $${(currentPos.margin + orderMargin).toFixed(2)}`;
+                  } else if (hasOrder) {
+                    marginDisplay = `$${orderMargin.toFixed(2)}`;
+                  } else if (hasPosition) {
+                    marginDisplay = `$${currentPos.margin.toFixed(2)}`;
+                  } else {
+                    marginDisplay = 'N/A';
+                  }
+
+                  return (
+                    <div className="text-[10px] xl:text-xs space-y-1 xl:space-y-1.5 mb-3 xl:mb-4">
+                      {orderType === 'market' && (
+                        <div className="flex justify-between">
+                          <span className="text-surface-400">Max Slippage</span>
+                          <button
+                            onClick={() => {
+                              setSlippageInput(slippage);
+                              setShowSlippageModal(true);
+                            }}
+                            disabled={!isAuthenticated}
+                            className={`font-mono ${isAuthenticated ? 'text-surface-300 hover:text-white underline decoration-dotted cursor-pointer' : 'text-surface-500 cursor-not-allowed'}`}
+                          >
+                            {slippage}%
+                          </button>
+                        </div>
+                      )}
+                      {(orderType === 'limit' || orderType === 'stop-limit') && limitPrice && (
+                        <div className="flex justify-between">
+                          <span className="text-surface-400">Limit Price</span>
+                          <span className="text-white font-mono">
+                            ${parseFloat(limitPrice).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {(orderType === 'stop-market' || orderType === 'stop-limit') &&
+                        triggerPrice && (
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Trigger Price</span>
+                            <span className="text-white font-mono">
+                              ${parseFloat(triggerPrice).toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Est. Liq Price</span>
+                        <span className="text-white font-mono">{liqPriceDisplay}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Margin</span>
+                        <span className="text-white font-mono">{marginDisplay}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-400">Available</span>
+                        <span className="text-white font-mono">{`$${available.toFixed(2)}`}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Blocked symbol warning */}
+                {isSymbolBlocked && (
+                  <div className="mb-2 xl:mb-3 p-1.5 xl:p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-[10px] xl:text-xs text-amber-400 text-center">
+                    {getBaseToken(selectedMarket)} is blocked - you had a position before the fight
+                    started
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  onClick={handlePlaceOrder}
+                  disabled={
+                    !canTrade ||
+                    createMarketOrder.isPending ||
+                    createLimitOrder.isPending ||
+                    createStandaloneStopOrder.isPending ||
+                    leverage !== savedLeverage ||
+                    isSymbolBlocked
+                  }
+                  className={`w-full py-2.5 xl:py-3 rounded-lg font-bold text-xs xl:text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    selectedSide === 'LONG'
+                      ? 'bg-win-500 hover:bg-win-400 text-white'
+                      : 'bg-[#e8566d] hover:bg-[#ec6b7e] text-white'
+                  }`}
+                >
+                  {isSymbolBlocked
+                    ? 'Symbol Blocked'
+                    : createMarketOrder.isPending ||
+                        createLimitOrder.isPending ||
+                        createStandaloneStopOrder.isPending
+                      ? 'Placing Order...'
+                      : (() => {
+                          const orderTypeLabel =
+                            orderType === 'market'
+                              ? ''
+                              : orderType === 'limit'
+                                ? ' Limit'
+                                : orderType === 'stop-market'
+                                  ? ' Stop'
+                                  : ' Stop Limit';
+                          return selectedSide === 'LONG'
+                            ? `Buy / Long${orderTypeLabel}`
+                            : `Sell / Short${orderTypeLabel}`;
+                        })()}
+                </button>
+
+                {/* ═══ Section B: Account Info (below submit) ═══ */}
+
+                {/* Deposit/Withdraw buttons */}
+                {isAuthenticated && isExchangeConnected && account && (
+                  <div className="flex gap-1.5 xl:gap-2 mt-3 xl:mt-4">
+                    <button
+                      onClick={() => setShowDepositModal(true)}
+                      className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
+                    >
+                      <FileDownloadIcon
+                        sx={{ fontSize: 12 }}
+                        className="text-surface-400 xl:text-base"
+                      />
+                      Deposit
                     </button>
-                    {showAccountStats && (
-                      <div className="pb-3 space-y-1.5 text-xs">
-                        <div className="flex justify-between"><span className="text-surface-400">Account Equity</span><span className="text-white font-mono">${equity.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-surface-400">Idle Balance</span><span className="text-white font-mono">${available.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-surface-400">Resting Order Value</span><span className="text-white font-mono">${restingOrderValue.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span className="text-surface-400">Fees</span><span className="text-white font-mono">{takerFeePercent}% / {makerFeePercent}%</span></div>
-                        <div className="flex justify-between">
-                          <span className="text-surface-400">Unrealized PnL</span>
-                          <span className={`font-mono ${realtimeUnrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                            {realtimeUnrealizedPnl >= 0 ? '+' : '-'}${Math.abs(realtimeUnrealizedPnl).toFixed(2)}
-                          </span>
+                    <button
+                      onClick={() => setShowWithdrawModal(true)}
+                      className="flex-1 flex items-center justify-center gap-1 xl:gap-1.5 py-1 xl:py-2 text-[10px] xl:text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
+                    >
+                      <FileUploadIcon
+                        sx={{ fontSize: 12 }}
+                        className="text-surface-400 xl:text-base"
+                      />
+                      Withdraw
+                    </button>
+                  </div>
+                )}
+
+                {/* Account Stats — collapsible */}
+                {isAuthenticated &&
+                  isExchangeConnected &&
+                  account &&
+                  (() => {
+                    // Dynamic fees from exchange API (change monthly, not hardcoded)
+                    const exchangeTakerFee = parseFloat(account.takerFee || '0.0007'); // Default fallback
+                    const exchangeMakerFee = parseFloat(account.makerFee || '0.000575'); // Default fallback
+                    const takerFeePercent = ((exchangeTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+                    const makerFeePercent = ((exchangeMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+
+                    const equity = parseFloat(account.accountEquity) || 0;
+                    const marginUsed = parseFloat(account.totalMarginUsed) || 0;
+                    const available = parseFloat(account.availableToSpend) || 0;
+                    const restingOrderValue = Math.max(
+                      0,
+                      equity - marginUsed - available - realtimeUnrealizedPnl
+                    );
+
+                    // Cross account leverage = total position value / equity
+                    const totalPositionValue = displayPositions.reduce((sum, p) => sum + p.size, 0);
+                    const crossAccountLeverage = equity > 0 ? totalPositionValue / equity : 0;
+
+                    // Maintenance margin from API
+                    const maintenanceMargin =
+                      parseFloat(account.crossMmr || '0') || marginUsed * 0.5;
+
+                    return (
+                      <div className="mt-3 xl:mt-4 border-t border-surface-800">
+                        <button
+                          onClick={() => setShowAccountStats(!showAccountStats)}
+                          className="w-full flex items-center justify-between py-2 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+                        >
+                          <span className="font-medium">Account Info</span>
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums tracking-tight text-white">
+                              ${equity.toFixed(2)}
+                            </span>
+                            <svg
+                              className={`w-3.5 h-3.5 transition-transform ${showAccountStats ? 'rotate-180' : ''}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </div>
+                        </button>
+                        {showAccountStats && (
+                          <div className="pb-3 space-y-1 xl:space-y-1.5 text-[10px] xl:text-xs">
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Account Equity
+                              </span>
+                              <span className="text-white font-mono">${equity.toFixed(2)}</span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Total account value including unrealized PnL and margin used
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Idle Balance
+                              </span>
+                              <span className="text-white font-mono">${available.toFixed(2)}</span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Available balance not used in positions or orders
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Resting Order Value
+                              </span>
+                              <span className="text-white font-mono">
+                                ${restingOrderValue.toFixed(2)}
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Total value locked in open limit orders
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Fees
+                              </span>
+                              <span className="text-white font-mono">
+                                {takerFeePercent}% / {makerFeePercent}%
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Trading fees: Taker (market orders) / Maker (limit orders). Includes
+                                0.05% TradeFightClub fee
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Unrealized PnL
+                              </span>
+                              <span
+                                className={`font-mono ${realtimeUnrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                              >
+                                {realtimeUnrealizedPnl >= 0 ? '+' : '-'}$
+                                {Math.abs(realtimeUnrealizedPnl).toFixed(2)}
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Profit or loss from open positions at current mark price
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Cross Account Leverage
+                              </span>
+                              <span className="text-white font-mono">
+                                {crossAccountLeverage.toFixed(2)}x
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Overall leverage across all positions in cross margin mode. Higher
+                                values indicate more risk
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Maintenance Margin
+                              </span>
+                              <span className="text-white font-mono">
+                                ${maintenanceMargin.toFixed(2)}
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                Minimum margin required to keep positions open. Liquidation occurs
+                                if equity falls below this
+                              </div>
+                            </div>
+                            <div className="flex justify-between group relative">
+                              <span className="text-surface-400 cursor-help border-b border-dotted border-surface-600">
+                                Real-time Updates
+                              </span>
+                              <span
+                                className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`}
+                                />
+                                {exchangeWsConnected ? 'Live' : 'Polling'}
+                              </span>
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-50 w-64 p-2 bg-surface-900 border border-surface-600 rounded text-xs text-surface-300 shadow-lg">
+                                {exchangeWsConnected
+                                  ? 'Connected to WebSocket for instant position and order updates'
+                                  : 'Using HTTP polling for updates (every 10 seconds). WebSocket connection not available.'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                {/* Challenge CTA */}
+                <div className="mt-3 xl:mt-4 pt-3 xl:pt-4 border-t border-surface-800">
+                  {isAuthenticated ? (
+                    <Link
+                      href="/lobby"
+                      className="block text-center py-2.5 xl:py-3 bg-surface-500/10 hover:bg-surface-500/20 rounded-lg text-surface-300 text-xs xl:text-sm font-semibold transition-colors"
+                    >
+                      Challenge a Trader
+                    </Link>
+                  ) : (
+                    <div className="block text-center py-2.5 xl:py-3 bg-surface-800/50 rounded-lg text-surface-500 text-xs xl:text-sm font-semibold cursor-not-allowed">
+                      Challenge a Trader
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══ Mobile Sticky Buy/Sell Buttons (CEX-style) ═══ */}
+        <div className="xl:hidden fixed bottom-14 left-0 right-0 z-40 bg-surface-900 border-surface-800 px-3 py-2 flex gap-3">
+          <button
+            onClick={() => {
+              setSelectedSide('LONG');
+              setShowOrderSheet(true);
+            }}
+            className="flex-1 py-3 rounded-lg bg-win-500 hover:bg-win-400 text-white font-bold text-sm transition-colors"
+          >
+            Buy / Long
+          </button>
+          <button
+            onClick={() => {
+              setSelectedSide('SHORT');
+              setShowOrderSheet(true);
+            }}
+            className="flex-1 py-3 rounded-lg bg-[#e8566d] hover:bg-[#ec6b7e] text-white font-bold text-sm transition-colors"
+          >
+            Sell / Short
+          </button>
+        </div>
+
+        {/* ═══ Mobile Order Form Bottom Sheet ═══ */}
+        {showOrderSheet && (
+          <div className="xl:hidden fixed inset-0 z-[70]">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/60 transition-opacity duration-500"
+              style={{ opacity: orderSheetVisible ? 1 : 0 }}
+              onClick={closeOrderSheet}
+            />
+            {/* Sheet wrapper — handles transform animation */}
+            <div
+              className="absolute left-0 right-0 bottom-0 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+              style={{ transform: orderSheetVisible ? 'translateY(0)' : 'translateY(100%)' }}
+            >
+              {/* Sheet content — handles scroll */}
+              <div className="bg-surface-900 rounded-t-2xl max-h-[85vh] overflow-y-auto pb-4">
+                {/* Drag handle + header */}
+                <div className="sticky top-0 bg-surface-900 pt-3 pb-2 z-10 rounded-t-2xl">
+                  <div className="flex justify-center mb-2">
+                    <div className="w-10 h-1 bg-surface-600 rounded-full" />
+                  </div>
+                  <div className="flex items-center justify-between px-4">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-display font-semibold text-sm text-white uppercase tracking-wide">
+                        Place Order
+                      </h3>
+                      <button
+                        onClick={() => {
+                          if (canTrade && !hasOpenPosition) setShowMarginModeModal(true);
+                        }}
+                        disabled={!canTrade || hasOpenPosition}
+                        className="flex items-center gap-1 px-2.5 py-1 bg-surface-800 rounded text-[10px] font-medium text-surface-300 hover:text-white hover:bg-surface-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {isIsolated ? 'Isolated' : 'Cross'}
+                        <svg
+                          className="w-3 h-3 text-surface-500"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                    <button
+                      onClick={closeOrderSheet}
+                      className="p-1.5 rounded hover:bg-surface-800 text-surface-400 hover:text-white transition-colors"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {/* Order form content */}
+                <div className="px-4 pb-8">
+                  {/* Warning Banners */}
+                  {/* ── Pacifica-specific warnings ── */}
+                  {exchangeType === 'pacifica' &&
+                    isAuthenticated &&
+                    !pacificaConnected &&
+                    pacificaFailReason === 'beta_required' && (
+                      <div className="mb-3 p-3 bg-orange-500/10 rounded border border-orange-500/30">
+                        <div className="text-xs text-orange-400 font-semibold mb-2 uppercase">
+                          Beta Access Required
                         </div>
-                        <div className="flex justify-between"><span className="text-surface-400">Cross Leverage</span><span className="text-white font-mono">{crossAccountLeverage.toFixed(2)}x</span></div>
-                        <div className="flex justify-between"><span className="text-surface-400">Maintenance Margin</span><span className="text-white font-mono">${maintenanceMargin.toFixed(2)}</span></div>
-                        <div className="flex justify-between">
-                          <span className="text-surface-400">Real-time Updates</span>
-                          <span className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`} />
-                            {exchangeWsConnected ? 'Live' : 'Polling'}
-                          </span>
-                        </div>
+                        <p className="text-xs text-surface-400 mb-2">
+                          Your wallet needs Pacifica beta access.
+                        </p>
+                        <a
+                          href="https://pacifica.fi"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded transition-colors text-center"
+                        >
+                          Visit Pacifica
+                        </a>
                       </div>
                     )}
+                  {exchangeType === 'pacifica' &&
+                    isAuthenticated &&
+                    !pacificaConnected &&
+                    pacificaFailReason !== 'beta_required' && (
+                      <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
+                        <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">
+                          No Pacifica Account
+                        </div>
+                        <p className="text-xs text-surface-400 mb-2">
+                          Deposit funds on Pacifica first.
+                        </p>
+                        <button
+                          onClick={() => setShowDepositModal(true)}
+                          className="block w-full py-2 bg-surface-500 hover:bg-surface-400 text-white text-xs font-semibold rounded transition-colors text-center"
+                        >
+                          Deposit on Pacifica
+                        </button>
+                      </div>
+                    )}
+                  {exchangeType === 'pacifica' &&
+                    isAuthenticated &&
+                    pacificaConnected &&
+                    !isLoadingBuilderCode &&
+                    !builderCodeApproved && (
+                      <div className="mb-3 p-3 bg-surface-800 rounded-xl">
+                        <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">
+                          Authorization Required
+                        </div>
+                        <p className="text-xs text-surface-400 mb-1.5">
+                          Authorize TFC builder code. One-time approval.
+                        </p>
+                        <p className="text-xs text-surface-400 mb-2">
+                          TFC fee: <span className="text-surface-300 font-semibold">0.05%</span>
+                        </p>
+                        <button
+                          onClick={() => approveBuilderCode.mutate('0.0005')}
+                          disabled={approveBuilderCode.isPending}
+                          className="w-full py-2 bg-orange-500 hover:bg-orange-400 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {approveBuilderCode.isPending ? 'Authorizing...' : 'Authorize Trading'}
+                        </button>
+                      </div>
+                    )}
+                  {/* ── Hyperliquid-specific warnings ── */}
+                  {exchangeType === 'hyperliquid' && isAuthenticated && !evmWalletAddress && (
+                    <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
+                      <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">
+                        Connect EVM Wallet
+                      </div>
+                      <p className="text-xs text-surface-400 mb-2">
+                        Connect your MetaMask or EVM wallet to trade on Hyperliquid.
+                      </p>
+                    </div>
+                  )}
+                  {exchangeType === 'hyperliquid' &&
+                    isAuthenticated &&
+                    evmWalletAddress &&
+                    (!agentApproved || !builderFeeApproved) && <HyperliquidSetupInline />}
+                  {exchangeType === 'nado' && isAuthenticated && !evmWalletAddress && (
+                    <div className="mb-3 p-3 bg-surface-800 rounded border-surface-700">
+                      <div className="text-xs text-surface-300 font-semibold mb-2 uppercase">
+                        Connect EVM Wallet
+                      </div>
+                      <p className="text-xs text-surface-400 mb-2">
+                        Connect your MetaMask or EVM wallet to trade on Nado.
+                      </p>
+                    </div>
+                  )}
+                  {exchangeType === 'nado' &&
+                    isAuthenticated &&
+                    evmWalletAddress &&
+                    !nadoAgentApproved && <NadoSetupInline />}
+                  {!canTrade && !isAuthenticated && (
+                    <div className="mb-3 p-3 bg-surface-800 rounded-lg text-center text-sm text-surface-400">
+                      {!connected ? 'Connect wallet to trade' : 'Authenticating...'}
+                    </div>
+                  )}
+
+                  {/* Order Type Selector */}
+                  <div className="mb-4 border-b border-surface-800">
+                    <div className="flex">
+                      {(['market', 'limit', 'stop-market', 'stop-limit'] as const).map((type) => (
+                        <button
+                          key={type}
+                          onClick={() => setOrderType(type)}
+                          disabled={!canTrade}
+                          className={`relative flex-1 pb-2.5 text-xs font-medium transition-colors ${
+                            orderType === type
+                              ? 'text-white'
+                              : 'text-surface-500 hover:text-surface-300'
+                          } disabled:opacity-50`}
+                        >
+                          <span className="whitespace-nowrap">
+                            {type === 'market'
+                              ? 'Market'
+                              : type === 'limit'
+                                ? 'Limit'
+                                : type === 'stop-market'
+                                  ? 'Stop'
+                                  : 'Stop Limit'}
+                          </span>
+                          {orderType === type && (
+                            <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[32px] h-[2px] bg-surface-300 rounded-full" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                );
-              })()}
-            </div>
-          </div>
-          </div>
-        </div>
-      )}
 
-      {/* Close Opposite Position Modal */}
-      {pendingOrder?.oppositePosition && (
-        <CloseOppositeModal
-          isOpen={showCloseOppositeModal}
-          onClose={() => {
-            setShowCloseOppositeModal(false);
-            setPendingOrder(null);
-          }}
-          onConfirm={executeOrder}
-          symbol={pendingOrder.symbol}
-          currentPositionSide={pendingOrder.oppositePosition.side}
-          currentPositionValue={pendingOrder.oppositePosition.size}
-          orderSide={pendingOrder.side}
-          orderValue={pendingOrder.positionValue}
-          isLoading={createMarketOrder.isPending}
-        />
-      )}
-
-      {/* Withdraw Modal */}
-      <WithdrawModal
-        isOpen={showWithdrawModal}
-        onClose={() => setShowWithdrawModal(false)}
-        availableBalance={account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null}
-      />
-
-      {/* Deposit Modal */}
-      <DepositModal
-        isOpen={showDepositModal}
-        onClose={() => setShowDepositModal(false)}
-      />
-
-      {/* Edit Order Modal */}
-      <EditOrderModal
-        isOpen={showEditOrderModal}
-        onClose={() => {
-          setShowEditOrderModal(false);
-          setEditingOrder(null);
-        }}
-        order={editingOrder}
-      />
-
-      {/* Margin Mode Confirmation Modal */}
-      {showMarginModeModal && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }}>
-          <div className="bg-surface-900 rounded-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex justify-between items-center px-6 pt-5 pb-3">
-              <h3 className="text-white font-semibold text-base">Margin Mode</h3>
-              <button onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }} className="text-surface-500 hover:text-white transition-colors">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-
-            {/* Radio Options */}
-            <div className="px-6 space-y-3">
-              {/* Isolated */}
-              <button
-                onClick={() => setPendingMarginMode(true)}
-                className={`w-full text-left p-4 rounded-xl transition-colors ${
-                  (pendingMarginMode ?? isIsolated)
-                    ? 'bg-surface-800 ring-1 ring-surface-600'
-                    : 'bg-surface-800/50 hover:bg-surface-800'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    (pendingMarginMode ?? isIsolated) ? 'border-white' : 'border-surface-600'
-                  }`}>
-                    {(pendingMarginMode ?? isIsolated) && <div className="w-2 h-2 rounded-full bg-white" />}
+                  {/* Buy/Long — Sell/Short Toggle */}
+                  <div className="grid grid-cols-2 gap-0 mb-4 border border-surface-700 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setSelectedSide('LONG')}
+                      disabled={!canTrade || (reduceOnly && currentMarketPosition?.side === 'LONG')}
+                      className={`py-2.5 font-semibold transition-all text-sm ${
+                        selectedSide === 'LONG'
+                          ? 'bg-win-500/15 text-win-400 border-r border-surface-700'
+                          : 'bg-transparent text-surface-500 hover:text-surface-300 border-r border-surface-700'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      Buy / Long
+                    </button>
+                    <button
+                      onClick={() => setSelectedSide('SHORT')}
+                      disabled={
+                        !canTrade || (reduceOnly && currentMarketPosition?.side === 'SHORT')
+                      }
+                      className={`py-2.5 font-semibold transition-all text-sm ${
+                        selectedSide === 'SHORT'
+                          ? 'bg-[#e8566d]/15 text-[#e8566d]'
+                          : 'bg-transparent text-surface-500 hover:text-surface-300'
+                      } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      Sell / Short
+                    </button>
                   </div>
-                  <span className="text-white font-semibold text-sm">Isolated</span>
-                </div>
-                <p className="text-surface-400 text-xs leading-relaxed pl-7">
-                  In isolated margin mode, a certain amount of margin will be added to the position. If the margin falls below the maintenance level, liquidation will take place.
-                </p>
-              </button>
 
-              {/* Cross */}
-              <button
-                onClick={() => setPendingMarginMode(false)}
-                className={`w-full text-left p-4 rounded-xl transition-colors ${
-                  pendingMarginMode === false || (pendingMarginMode === null && !isIsolated)
-                    ? 'bg-surface-800 ring-1 ring-surface-600'
-                    : 'bg-surface-800/50 hover:bg-surface-800'
-                }`}
-              >
-                <div className="flex items-center gap-3 mb-2">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                    pendingMarginMode === false || (pendingMarginMode === null && !isIsolated) ? 'border-white' : 'border-surface-600'
-                  }`}>
-                    {(pendingMarginMode === false || (pendingMarginMode === null && !isIsolated)) && <div className="w-2 h-2 rounded-full bg-white" />}
+                  {/* Fight Stake Limit Info */}
+                  {inFight && stake !== null && (
+                    <div className="mb-4 bg-surface-800 rounded border-surface-700 overflow-hidden">
+                      <button
+                        onClick={() => setShowFightCapital(!showFightCapital)}
+                        className="w-full flex items-center justify-between p-3 hover:bg-surface-700/50 transition-colors"
+                      >
+                        <span className="text-xs text-surface-300 font-semibold uppercase">
+                          Fight Capital
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}
+                          >
+                            $
+                            {(availableStake || 0).toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                          <svg
+                            className={`w-3 h-3 text-surface-400 transition-transform ${showFightCapital ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 9l-7 7-7-7"
+                            />
+                          </svg>
+                        </div>
+                      </button>
+                      {showFightCapital && (
+                        <div className="px-3 pb-3 space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Fight Stake</span>
+                            <span className="text-white font-mono">
+                              $
+                              {stake.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Current Positions</span>
+                            <span className="text-surface-300 font-mono">
+                              $
+                              {(currentExposure || 0).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Max Capital Used</span>
+                            <span className="text-surface-300 font-mono">
+                              $
+                              {(maxExposureUsed || 0).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Available to Trade</span>
+                            <span
+                              className={`font-mono font-semibold ${(availableStake || 0) > 0 ? 'text-win-400' : 'text-loss-400'}`}
+                            >
+                              $
+                              {(availableStake || 0).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          </div>
+                          <div className="mt-2">
+                            <div className="h-2 bg-surface-700 rounded overflow-hidden">
+                              <div
+                                className="h-full bg-surface-500 transition-all duration-300"
+                                style={{
+                                  width: `${Math.min(100, ((maxExposureUsed || 0) / stake) * 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-xs text-surface-500 mt-1">
+                              <span>
+                                {(((maxExposureUsed || 0) / stake) * 100).toFixed(0)}% used
+                              </span>
+                              <span>
+                                {(100 - ((maxExposureUsed || 0) / stake) * 100).toFixed(0)}%
+                                available
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Leverage Slider */}
+                  <div className="mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <label className="text-xs font-medium text-surface-400">Leverage</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-surface-300">
+                          {Math.min(leverage, maxLeverage)}x
+                        </span>
+                        {leverage !== savedLeverage && (
+                          <button
+                            onClick={handleSetLeverage}
+                            disabled={!canTrade || setLeverageMutation.isPending}
+                            className="px-2 py-0.5 text-xs font-medium bg-surface-500 hover:bg-surface-400 text-white rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {setLeverageMutation.isPending ? '...' : 'Set'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {(() => {
+                      const currentLev = Math.min(leverage, maxLeverage);
+                      const percent = ((currentLev - 1) / (maxLeverage - 1)) * 100;
+                      const ticks = [0, 25, 50, 75, 100];
+                      return (
+                        <div
+                          className={`relative w-full h-8 flex items-center select-none touch-none ${!canTrade ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}
+                          onPointerDown={(e) => {
+                            if (!canTrade) return;
+                            e.currentTarget.setPointerCapture(e.pointerId);
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const pad = 9;
+                            const pct = Math.max(
+                              0,
+                              Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2))
+                            );
+                            setLeverage(
+                              Math.max(
+                                1,
+                                Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))
+                              )
+                            );
+                          }}
+                          onPointerMove={(e) => {
+                            if (!canTrade || !e.currentTarget.hasPointerCapture(e.pointerId))
+                              return;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const pad = 9;
+                            const pct = Math.max(
+                              0,
+                              Math.min(1, (e.clientX - rect.left - pad) / (rect.width - pad * 2))
+                            );
+                            setLeverage(
+                              Math.max(
+                                1,
+                                Math.min(maxLeverage, Math.round(1 + pct * (maxLeverage - 1)))
+                              )
+                            );
+                          }}
+                        >
+                          <div className="absolute left-[9px] right-[9px] h-[3px] bg-surface-700 rounded-full" />
+                          <div
+                            className="absolute left-[9px] h-[3px] bg-surface-400 rounded-full"
+                            style={{ width: `calc(${percent / 100} * (100% - 18px))` }}
+                          />
+                          {ticks.map((t) => (
+                            <div
+                              key={t}
+                              className={`absolute w-2 h-2 rounded-full -translate-x-1/2 ${t <= percent ? 'bg-surface-400' : 'bg-surface-600'}`}
+                              style={{ left: `calc(9px + ${t / 100} * (100% - 18px))` }}
+                            />
+                          ))}
+                          <div
+                            className="absolute w-[18px] h-[18px] rounded-full -translate-x-1/2 bg-surface-400 shadow-lg shadow-surface-400/30"
+                            style={{ left: `calc(9px + ${percent / 100} * (100% - 18px))` }}
+                          >
+                            <div className="absolute inset-[3px] rounded-full bg-surface-900" />
+                            <div className="absolute inset-[5px] rounded-full bg-surface-300" />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="flex justify-between text-xs text-surface-500 mt-1">
+                      <span>1x</span>
+                      <span>{Math.floor(maxLeverage / 2)}x</span>
+                      <span>{maxLeverage}x</span>
+                    </div>
+                    {leverage !== savedLeverage && canTrade && (
+                      <p className="text-xs text-yellow-400 mt-1.5">
+                        Confirm leverage change with <span className="font-semibold">Set</span>
+                      </p>
+                    )}
                   </div>
-                  <span className="text-white font-semibold text-sm">Cross</span>
-                </div>
-                <p className="text-surface-400 text-xs leading-relaxed pl-7">
-                  In cross margin mode, margin will be shared across all positions. In the event of liquidation, traders might lose all the margin and positions settled using this asset.
-                </p>
-              </button>
-            </div>
 
-            {/* Footer Buttons */}
-            <div className="px-6 pt-5 pb-5 flex gap-3">
-              <button
-                onClick={() => { setShowMarginModeModal(false); setPendingMarginMode(null); }}
-                className="flex-1 py-2.5 bg-surface-700 hover:bg-surface-600 text-white font-semibold rounded-lg transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmMarginMode}
-                disabled={setMarginModeMutation.isPending || pendingMarginMode === null}
-                className="flex-1 py-2.5 bg-white hover:bg-surface-200 text-black font-semibold rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {setMarginModeMutation.isPending ? 'Confirming...' : 'Confirm'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                  {/* Price Inputs */}
+                  {orderType !== 'market' && (
+                    <div className="mb-4 space-y-3">
+                      {(orderType === 'stop-market' || orderType === 'stop-limit') && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-medium text-surface-400">
+                              Trigger Price
+                            </label>
+                            <button
+                              onClick={() => setTriggerPrice(currentPrice.toFixed(2))}
+                              disabled={!canTrade}
+                              className="text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 transition-colors"
+                            >
+                              Mid
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={triggerPrice}
+                              onChange={(e) => setTriggerPrice(e.target.value)}
+                              placeholder={
+                                selectedSide === 'LONG'
+                                  ? `> ${currentPrice.toFixed(2)}`
+                                  : `< ${currentPrice.toFixed(2)}`
+                              }
+                              disabled={!canTrade}
+                              className="input text-sm w-full pr-12"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
+                              USD
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-surface-500 mt-0.5">
+                            {selectedSide === 'LONG'
+                              ? 'Triggers when price rises above this level'
+                              : 'Triggers when price drops below this level'}
+                          </p>
+                        </div>
+                      )}
+                      {(orderType === 'limit' || orderType === 'stop-limit') && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-medium text-surface-400">
+                              {orderType === 'stop-limit' ? 'Limit Price' : 'Price'}
+                            </label>
+                            <button
+                              onClick={() => setLimitPrice(currentPrice.toFixed(2))}
+                              disabled={!canTrade}
+                              className="text-xs font-medium text-surface-300 hover:text-white disabled:opacity-50 transition-colors"
+                            >
+                              Mid
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              value={limitPrice}
+                              onChange={(e) => setLimitPrice(e.target.value)}
+                              placeholder={currentPrice.toFixed(2)}
+                              disabled={!canTrade}
+                              className="input text-sm w-full pr-12"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400">
+                              USD
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-      {/* Slippage Modal */}
-      {showSlippageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowSlippageModal(false)}>
-          <div className="bg-surface-900 rounded-2xl p-6 w-80" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="text-white font-semibold text-sm">Max Slippage</h3>
-              <button onClick={() => setShowSlippageModal(false)} className="text-surface-500 hover:text-white transition-colors">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <p className="text-surface-500 text-xs mb-4 leading-relaxed">
-              Applies to market orders from the order form. Close orders use 8% and TP/SL use 10%.
-            </p>
-            <div className="relative mb-5">
-              <input
-                type="number"
-                value={slippageInput}
-                onChange={(e) => setSlippageInput(e.target.value)}
-                min="0.01"
-                max="10"
-                step="0.1"
-                className="w-full bg-surface-800 rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:ring-1 focus:ring-surface-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const val = parseFloat(slippageInput);
-                    if (!isNaN(val) && val >= 0.01 && val <= 10) {
-                      setSlippage(val.toString());
-                      setShowSlippageModal(false);
+                  {/* Size Input */}
+                  <div className="mb-4">
+                    <label className="block text-xs font-medium text-surface-400 mb-2">Size</label>
+                    {(() => {
+                      const effectiveLeverage = Math.min(leverage, maxLeverage);
+                      const available = account ? parseFloat(account.availableToSpend) : 0;
+                      const MARGIN_BUFFER = 0.95;
+                      const closeablePosition = reduceOnly
+                        ? displayPositions.find(
+                            (p) =>
+                              getBaseToken(p.symbol) === getBaseToken(selectedMarket) &&
+                              p.side === (selectedSide === 'LONG' ? 'SHORT' : 'LONG')
+                          )
+                        : null;
+                      const maxMargin = reduceOnly
+                        ? closeablePosition
+                          ? closeablePosition.margin
+                          : 0
+                        : available * MARGIN_BUFFER;
+                      const margin = parseFloat(orderSize || '0');
+                      const positionSize = margin * effectiveLeverage;
+                      const tokenAmount = currentPrice > 0 ? positionSize / currentPrice : 0;
+                      return (
+                        <>
+                          <div className="flex flex-col gap-2 mb-2">
+                            <div className="flex-1 relative">
+                              <input
+                                type="number"
+                                value={tokenAmount > 0 ? tokenAmount.toFixed(5) : ''}
+                                onChange={(e) => {
+                                  const n = parseFloat(e.target.value) || 0;
+                                  setOrderSize(((n * currentPrice) / effectiveLeverage).toFixed(2));
+                                }}
+                                className="input text-sm w-full pr-12"
+                                placeholder="0.00"
+                                disabled={!canTrade}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-300 font-medium">
+                                {getBaseToken(selectedMarket)}
+                              </span>
+                            </div>
+                            <div className="flex-1 relative">
+                              <input
+                                type="number"
+                                value={positionSize > 0 ? positionSize.toFixed(2) : ''}
+                                onChange={(e) => {
+                                  const n = parseFloat(e.target.value) || 0;
+                                  setOrderSize((n / effectiveLeverage).toFixed(2));
+                                }}
+                                className="input text-sm w-full pr-12"
+                                placeholder="0.00"
+                                disabled={!canTrade}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-surface-400 font-medium">
+                                USD
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-surface-500 mb-2 flex justify-between">
+                            <span>Margin: ${margin.toFixed(2)}</span>
+                            <span>
+                              Max: ${maxMargin.toFixed(2)} ({effectiveLeverage}x)
+                            </span>
+                          </div>
+                          {/* Percentage buttons */}
+                          <div className="flex gap-2 mt-2">
+                            {[25, 50, 75, 100].map((percent) => {
+                              const currentPercent =
+                                maxMargin > 0 ? Math.round((margin / maxMargin) * 100) : 0;
+                              const isSelected = Math.abs(currentPercent - percent) <= 2;
+                              return (
+                                <button
+                                  key={percent}
+                                  onClick={() =>
+                                    setOrderSize(((maxMargin * percent) / 100).toFixed(2))
+                                  }
+                                  disabled={!canTrade}
+                                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-colors disabled:opacity-50 ${isSelected ? 'bg-surface-600 text-white border border-surface-500' : 'bg-surface-800 text-surface-400 hover:bg-surface-700 hover:text-white border border-transparent'}`}
+                                >
+                                  {percent}%
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Reduce Only */}
+                  <div className="mb-4">
+                    <Toggle
+                      checked={reduceOnly}
+                      onChange={(checked) => {
+                        setReduceOnly(checked);
+                        if (checked) {
+                          setTpEnabled(false);
+                          setSlEnabled(false);
+                          setTakeProfit('');
+                          setStopLoss('');
+                        }
+                      }}
+                      disabled={!canTrade}
+                      label="Reduce Only"
+                    />
+                  </div>
+
+                  {/* TP/SL */}
+                  {(orderType === 'market' || orderType === 'limit') && !reduceOnly && (
+                    <div className="mb-4 space-y-3">
+                      <Toggle
+                        checked={tpEnabled || slEnabled}
+                        onChange={(checked) => {
+                          setTpEnabled(checked);
+                          setSlEnabled(checked);
+                        }}
+                        disabled={!canTrade}
+                        label="Take Profit / Stop Loss"
+                      />
+                      {(tpEnabled || slEnabled) &&
+                        (() => {
+                          const refPrice =
+                            orderType === 'limit' && limitPrice
+                              ? parseFloat(limitPrice)
+                              : currentPrice;
+                          const effectiveLev = Math.min(leverage, maxLeverage);
+                          const roundToTickSize = (price: number) => {
+                            const r = Math.round(price / tickSize) * tickSize;
+                            const d = tickSize >= 1 ? 0 : Math.ceil(-Math.log10(tickSize));
+                            return r.toFixed(d);
+                          };
+                          const calcTpPrice = (g: number) => {
+                            const m = (g / 100 / effectiveLev) * refPrice;
+                            return roundToTickSize(
+                              selectedSide === 'LONG' ? refPrice + m : refPrice - m
+                            );
+                          };
+                          const calcSlPrice = (l: number) => {
+                            const m = (Math.abs(l) / 100 / effectiveLev) * refPrice;
+                            return roundToTickSize(
+                              selectedSide === 'LONG' ? refPrice - m : refPrice + m
+                            );
+                          };
+                          return (
+                            <>
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-medium text-surface-300">
+                                    TP Price
+                                  </span>
+                                  {takeProfit && (
+                                    <span className="text-xs text-surface-400">
+                                      {selectedSide === 'LONG'
+                                        ? `+${(((parseFloat(takeProfit) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                        : `+${(((refPrice - parseFloat(takeProfit)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`}
+                                    </span>
+                                  )}
+                                </div>
+                                <input
+                                  type="number"
+                                  value={takeProfit}
+                                  onChange={(e) => setTakeProfit(e.target.value)}
+                                  placeholder={
+                                    selectedSide === 'LONG'
+                                      ? `> ${roundToTickSize(refPrice)}`
+                                      : `< ${roundToTickSize(refPrice)}`
+                                  }
+                                  disabled={!canTrade}
+                                  className="input text-sm w-full mb-2"
+                                />
+                                <div className="flex gap-1">
+                                  {[25, 50, 75, 100].map((pct) => (
+                                    <button
+                                      key={pct}
+                                      onClick={() => setTakeProfit(calcTpPrice(pct))}
+                                      disabled={!canTrade}
+                                      className="flex-1 py-1 text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                    >
+                                      {pct}%
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-medium text-surface-300">
+                                    SL Price
+                                  </span>
+                                  {stopLoss && (
+                                    <span className="text-xs text-surface-400">
+                                      {selectedSide === 'LONG'
+                                        ? `-${(((refPrice - parseFloat(stopLoss)) / refPrice) * 100 * effectiveLev).toFixed(1)}%`
+                                        : `-${(((parseFloat(stopLoss) - refPrice) / refPrice) * 100 * effectiveLev).toFixed(1)}%`}
+                                    </span>
+                                  )}
+                                </div>
+                                <input
+                                  type="number"
+                                  value={stopLoss}
+                                  onChange={(e) => setStopLoss(e.target.value)}
+                                  placeholder={
+                                    selectedSide === 'LONG'
+                                      ? `< ${roundToTickSize(refPrice)}`
+                                      : `> ${roundToTickSize(refPrice)}`
+                                  }
+                                  disabled={!canTrade}
+                                  className="input text-sm w-full mb-2"
+                                />
+                                <div className="flex gap-1">
+                                  {[-25, -50, -75, -100].map((pct) => (
+                                    <button
+                                      key={pct}
+                                      onClick={() => setStopLoss(calcSlPrice(pct))}
+                                      disabled={!canTrade}
+                                      className="flex-1 py-1 text-xs font-medium bg-surface-800 text-surface-300 hover:bg-surface-700 rounded transition-colors disabled:opacity-50"
+                                    >
+                                      {Math.abs(pct)}%
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                    </div>
+                  )}
+
+                  {/* Slippage */}
+                  {orderType === 'market' && (
+                    <div className="mb-4 flex items-center justify-between text-xs">
+                      <span className="text-surface-400">Max Slippage</span>
+                      <button
+                        onClick={() => {
+                          setSlippageInput(slippage);
+                          setShowSlippageModal(true);
+                        }}
+                        className="text-surface-300 hover:text-white font-mono font-medium transition-colors"
+                      >
+                        {slippage}%
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Order Summary */}
+                  {parseFloat(orderSize || '0') > 0 &&
+                    (() => {
+                      const effectiveLeverage = Math.min(leverage, maxLeverage);
+                      const margin = parseFloat(orderSize || '0');
+                      const positionSize = margin * effectiveLeverage;
+                      const feeRate =
+                        orderType === 'market'
+                          ? parseFloat(takerFeePercent) / 100
+                          : parseFloat(makerFeePercent) / 100;
+                      const estimatedFee = positionSize * feeRate;
+                      const available = account ? parseFloat(account.availableToSpend) : 0;
+                      const marginDisplay = `$${margin.toFixed(2)}`;
+                      return (
+                        <div className="mb-4 p-3 bg-surface-800 rounded-lg space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Position Size</span>
+                            <span className="text-white font-mono">${positionSize.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Est. Fee</span>
+                            <span className="text-surface-300 font-mono">
+                              ${estimatedFee.toFixed(2)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Margin</span>
+                            <span className="text-white font-mono">{marginDisplay}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-surface-400">Available</span>
+                            <span className="text-white font-mono">${available.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                  {/* Blocked symbol warning */}
+                  {isSymbolBlocked && (
+                    <div className="mb-3 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-400 text-center">
+                      {getBaseToken(selectedMarket)} is blocked - you had a position before the
+                      fight started
+                    </div>
+                  )}
+
+                  {/* Submit Button */}
+                  <button
+                    onClick={() => {
+                      handlePlaceOrder();
+                      closeOrderSheet();
+                    }}
+                    disabled={
+                      !canTrade ||
+                      createMarketOrder.isPending ||
+                      createLimitOrder.isPending ||
+                      createStandaloneStopOrder.isPending ||
+                      leverage !== savedLeverage ||
+                      isSymbolBlocked
                     }
+                    className={`w-full py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                      selectedSide === 'LONG'
+                        ? 'bg-win-500 hover:bg-win-400 text-white'
+                        : 'bg-[#e8566d] hover:bg-[#ec6b7e] text-white'
+                    }`}
+                  >
+                    {isSymbolBlocked
+                      ? 'Symbol Blocked'
+                      : createMarketOrder.isPending ||
+                          createLimitOrder.isPending ||
+                          createStandaloneStopOrder.isPending
+                        ? 'Placing Order...'
+                        : (() => {
+                            const label =
+                              orderType === 'market'
+                                ? ''
+                                : orderType === 'limit'
+                                  ? ' Limit'
+                                  : orderType === 'stop-market'
+                                    ? ' Stop'
+                                    : ' Stop Limit';
+                            return selectedSide === 'LONG'
+                              ? `Buy / Long${label}`
+                              : `Sell / Short${label}`;
+                          })()}
+                  </button>
+
+                  {/* Deposit/Withdraw buttons */}
+                  {isAuthenticated && isExchangeConnected && account && (
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => {
+                          setShowDepositModal(true);
+                          closeOrderSheet();
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
+                      >
+                        <FileDownloadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
+                        Deposit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowWithdrawModal(true);
+                          closeOrderSheet();
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium bg-surface-700 hover:bg-surface-600 text-surface-200 hover:text-white rounded-lg transition-colors"
+                      >
+                        <FileUploadIcon sx={{ fontSize: 14 }} className="text-surface-400" />
+                        Withdraw
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Account Stats — collapsible */}
+                  {isAuthenticated &&
+                    isExchangeConnected &&
+                    account &&
+                    (() => {
+                      const exchangeTakerFee = parseFloat(account.takerFee || '0.0007');
+                      const exchangeMakerFee = parseFloat(account.makerFee || '0.000575');
+                      const takerFeePercent = ((exchangeTakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+                      const makerFeePercent = ((exchangeMakerFee + TRADECLUB_FEE) * 100).toFixed(4);
+                      const equity = parseFloat(account.accountEquity) || 0;
+                      const marginUsed = parseFloat(account.totalMarginUsed) || 0;
+                      const available = parseFloat(account.availableToSpend) || 0;
+                      const restingOrderValue = Math.max(
+                        0,
+                        equity - marginUsed - available - realtimeUnrealizedPnl
+                      );
+                      const totalPositionValue = displayPositions.reduce(
+                        (sum, p) => sum + p.size,
+                        0
+                      );
+                      const crossAccountLeverage = equity > 0 ? totalPositionValue / equity : 0;
+                      const maintenanceMargin =
+                        parseFloat(account.crossMmr || '0') || marginUsed * 0.5;
+
+                      return (
+                        <div className="mt-4 border-t border-surface-800">
+                          <button
+                            onClick={() => setShowAccountStats(!showAccountStats)}
+                            className="w-full flex items-center justify-between py-2 text-xs text-surface-400 hover:text-surface-200 transition-colors"
+                          >
+                            <span className="font-medium">Account Info</span>
+                            <div className="flex items-center gap-2">
+                              <span className="tabular-nums tracking-tight text-white">
+                                ${equity.toFixed(2)}
+                              </span>
+                              <svg
+                                className={`w-3.5 h-3.5 transition-transform ${showAccountStats ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 9l-7 7-7-7"
+                                />
+                              </svg>
+                            </div>
+                          </button>
+                          {showAccountStats && (
+                            <div className="pb-3 space-y-1.5 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Account Equity</span>
+                                <span className="text-white font-mono">${equity.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Idle Balance</span>
+                                <span className="text-white font-mono">
+                                  ${available.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Resting Order Value</span>
+                                <span className="text-white font-mono">
+                                  ${restingOrderValue.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Fees</span>
+                                <span className="text-white font-mono">
+                                  {takerFeePercent}% / {makerFeePercent}%
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Unrealized PnL</span>
+                                <span
+                                  className={`font-mono ${realtimeUnrealizedPnl >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                                >
+                                  {realtimeUnrealizedPnl >= 0 ? '+' : '-'}$
+                                  {Math.abs(realtimeUnrealizedPnl).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Cross Leverage</span>
+                                <span className="text-white font-mono">
+                                  {crossAccountLeverage.toFixed(2)}x
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Maintenance Margin</span>
+                                <span className="text-white font-mono">
+                                  ${maintenanceMargin.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-surface-400">Real-time Updates</span>
+                                <span
+                                  className={`font-mono flex items-center gap-1.5 ${exchangeWsConnected ? 'text-win-400' : 'text-surface-400'}`}
+                                >
+                                  <span
+                                    className={`w-1.5 h-1.5 rounded-full ${exchangeWsConnected ? 'bg-win-400 animate-pulse' : 'bg-surface-500'}`}
+                                  />
+                                  {exchangeWsConnected ? 'Live' : 'Polling'}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Close Opposite Position Modal */}
+        {pendingOrder?.oppositePosition && (
+          <CloseOppositeModal
+            isOpen={showCloseOppositeModal}
+            onClose={() => {
+              setShowCloseOppositeModal(false);
+              setPendingOrder(null);
+            }}
+            onConfirm={executeOrder}
+            symbol={pendingOrder.symbol}
+            currentPositionSide={pendingOrder.oppositePosition.side}
+            currentPositionValue={pendingOrder.oppositePosition.size}
+            orderSide={pendingOrder.side}
+            orderValue={pendingOrder.positionValue}
+            isLoading={createMarketOrder.isPending}
+          />
+        )}
+
+        {/* Withdraw Modal */}
+        <WithdrawModal
+          isOpen={showWithdrawModal}
+          onClose={() => setShowWithdrawModal(false)}
+          availableBalance={
+            account?.availableToWithdraw ? parseFloat(account.availableToWithdraw) : null
+          }
+        />
+
+        {/* Deposit Modal */}
+        <DepositModal isOpen={showDepositModal} onClose={() => setShowDepositModal(false)} />
+
+        {/* Edit Order Modal */}
+        <EditOrderModal
+          isOpen={showEditOrderModal}
+          onClose={() => {
+            setShowEditOrderModal(false);
+            setEditingOrder(null);
+          }}
+          order={editingOrder}
+        />
+
+        {/* Margin Mode Confirmation Modal */}
+        {showMarginModeModal && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              setShowMarginModeModal(false);
+              setPendingMarginMode(null);
+            }}
+          >
+            <div
+              className="bg-surface-900 rounded-2xl w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center px-6 pt-5 pb-3">
+                <h3 className="text-white font-semibold text-base">Margin Mode</h3>
+                <button
+                  onClick={() => {
+                    setShowMarginModeModal(false);
+                    setPendingMarginMode(null);
+                  }}
+                  className="text-surface-500 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Radio Options */}
+              <div className="px-6 space-y-3">
+                {/* Isolated */}
+                <button
+                  onClick={() => setPendingMarginMode(true)}
+                  className={`w-full text-left p-4 rounded-xl transition-colors ${
+                    (pendingMarginMode ?? isIsolated)
+                      ? 'bg-surface-800 ring-1 ring-surface-600'
+                      : 'bg-surface-800/50 hover:bg-surface-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        (pendingMarginMode ?? isIsolated) ? 'border-white' : 'border-surface-600'
+                      }`}
+                    >
+                      {(pendingMarginMode ?? isIsolated) && (
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span className="text-white font-semibold text-sm">Isolated</span>
+                  </div>
+                  <p className="text-surface-400 text-xs leading-relaxed pl-7">
+                    In isolated margin mode, a certain amount of margin will be added to the
+                    position. If the margin falls below the maintenance level, liquidation will take
+                    place.
+                  </p>
+                </button>
+
+                {/* Cross */}
+                <button
+                  onClick={() => setPendingMarginMode(false)}
+                  className={`w-full text-left p-4 rounded-xl transition-colors ${
+                    pendingMarginMode === false || (pendingMarginMode === null && !isIsolated)
+                      ? 'bg-surface-800 ring-1 ring-surface-600'
+                      : 'bg-surface-800/50 hover:bg-surface-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <div
+                      className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        pendingMarginMode === false || (pendingMarginMode === null && !isIsolated)
+                          ? 'border-white'
+                          : 'border-surface-600'
+                      }`}
+                    >
+                      {(pendingMarginMode === false ||
+                        (pendingMarginMode === null && !isIsolated)) && (
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span className="text-white font-semibold text-sm">Cross</span>
+                  </div>
+                  <p className="text-surface-400 text-xs leading-relaxed pl-7">
+                    In cross margin mode, margin will be shared across all positions. In the event
+                    of liquidation, traders might lose all the margin and positions settled using
+                    this asset.
+                  </p>
+                </button>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="px-6 pt-5 pb-5 flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowMarginModeModal(false);
+                    setPendingMarginMode(null);
+                  }}
+                  className="flex-1 py-2.5 bg-surface-700 hover:bg-surface-600 text-white font-semibold rounded-lg transition-colors text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmMarginMode}
+                  disabled={setMarginModeMutation.isPending || pendingMarginMode === null}
+                  className="flex-1 py-2.5 bg-white hover:bg-surface-200 text-black font-semibold rounded-lg transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {setMarginModeMutation.isPending ? 'Confirming...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Slippage Modal */}
+        {showSlippageModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowSlippageModal(false)}
+          >
+            <div
+              className="bg-surface-900 rounded-2xl p-6 w-80"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-5">
+                <h3 className="text-white font-semibold text-sm">Max Slippage</h3>
+                <button
+                  onClick={() => setShowSlippageModal(false)}
+                  className="text-surface-500 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-surface-500 text-xs mb-4 leading-relaxed">
+                Applies to market orders from the order form. Close orders use 8% and TP/SL use 10%.
+              </p>
+              <div className="relative mb-5">
+                <input
+                  type="number"
+                  value={slippageInput}
+                  onChange={(e) => setSlippageInput(e.target.value)}
+                  min="0.01"
+                  max="10"
+                  step="0.1"
+                  className="w-full bg-surface-800 rounded-lg px-3 py-2.5 text-white font-mono text-sm focus:outline-none focus:ring-1 focus:ring-surface-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = parseFloat(slippageInput);
+                      if (!isNaN(val) && val >= 0.01 && val <= 10) {
+                        setSlippage(val.toString());
+                        setShowSlippageModal(false);
+                      }
+                    }
+                  }}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 font-mono text-sm">
+                  %
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  const val = parseFloat(slippageInput);
+                  if (!isNaN(val) && val >= 0.01 && val <= 10) {
+                    setSlippage(val.toString());
+                    setShowSlippageModal(false);
                   }
                 }}
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 font-mono text-sm">%</span>
+                className="w-full py-2.5 bg-white text-black font-medium text-sm rounded-lg transition-colors hover:bg-surface-200"
+              >
+                Confirm
+              </button>
             </div>
-            <button
-              onClick={() => {
-                const val = parseFloat(slippageInput);
-                if (!isNaN(val) && val >= 0.01 && val <= 10) {
-                  setSlippage(val.toString());
-                  setShowSlippageModal(false);
-                }
-              }}
-              className="w-full py-2.5 bg-white text-black font-medium text-sm rounded-lg transition-colors hover:bg-surface-200"
-            >
-              Confirm
-            </button>
           </div>
-        </div>
-      )}
-      {/* AI Market Bias Widget */}
-      <AiBiasWidget selectedMarket={selectedMarket} currentPrice={currentPrice} tvWidget={tvWidget} />
-    </AppShell>
+        )}
+        {/* AI Market Bias Widget */}
+        <AiBiasWidget
+          selectedMarket={selectedMarket}
+          currentPrice={currentPrice}
+          tvWidget={tvWidget}
+        />
+      </AppShell>
     </BetaGate>
   );
 }

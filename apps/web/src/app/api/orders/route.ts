@@ -3,7 +3,13 @@
  * POST /api/orders - Place order (routes to exchange via ExchangeOrderRouter)
  * DELETE /api/orders - Cancel all orders
  */
-import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError, GatewayTimeoutError } from '@/lib/server/errors';
+import {
+  errorResponse,
+  BadRequestError,
+  StakeLimitError,
+  ServiceUnavailableError,
+  GatewayTimeoutError,
+} from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { validateStakeLimit } from '@/lib/server/orders';
 import { recordOrderAction } from '@/lib/server/order-actions';
@@ -44,17 +50,26 @@ export async function POST(request: Request) {
     // For client-signed exchanges (Pacifica), signature + timestamp are required
     if (!router.signsServerSide) {
       if (!account || !symbol || !side || !type || !amount || !signature || !timestamp) {
-        throw new BadRequestError('account, symbol, side, type, amount, signature, and timestamp are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
+        throw new BadRequestError(
+          'account, symbol, side, type, amount, signature, and timestamp are required',
+          ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS
+        );
       }
     } else {
       if (!account || !symbol || !side || !type || !amount) {
-        throw new BadRequestError('account, symbol, side, type, and amount are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
+        throw new BadRequestError(
+          'account, symbol, side, type, and amount are required',
+          ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS
+        );
       }
     }
 
     // Feature flag: Check if trading is enabled
     if (!FeatureFlags.isTradingEnabled()) {
-      throw new ServiceUnavailableError('Trading is temporarily disabled', ErrorCode.ERR_ORDER_TRADING_DISABLED);
+      throw new ServiceUnavailableError(
+        'Trading is temporarily disabled',
+        ErrorCode.ERR_ORDER_TRADING_DISABLED
+      );
     }
 
     // Validate stake limit for users in active fights
@@ -78,8 +93,8 @@ export async function POST(request: Request) {
 
     // Check if symbol is blocked for this user in their active fight
     if (fightValidation) {
-      const connection = await prisma.exchangeConnection.findUnique({
-        where: { accountAddress: account },
+      const connection = await prisma.exchangeConnection.findFirst({
+        where: { accountAddress: account, isActive: true },
         select: { userId: true },
       });
 
@@ -103,10 +118,21 @@ export async function POST(request: Request) {
 
     // Route to the correct exchange
     const result = await router.createOrder({
-      account, symbol, side, type, amount, price,
-      slippage_percent, reduce_only, post_only, tif,
-      builder_code, take_profit, stop_loss,
-      signature, timestamp,
+      account,
+      symbol,
+      side,
+      type,
+      amount,
+      price,
+      slippage_percent,
+      reduce_only,
+      post_only,
+      tif,
+      builder_code,
+      take_profit,
+      stop_loss,
+      signature,
+      timestamp,
     });
 
     if (!result.success) {
@@ -116,13 +142,26 @@ export async function POST(request: Request) {
 
     console.log('Order placed successfully', {
       exchange: exchangeType,
-      account, symbol, side, type, amount,
+      account,
+      symbol,
+      side,
+      type,
+      amount,
       orderId: result.data?.order_id,
     });
 
     // Record ALL trades to the Trade table for platform metrics
     if (type === 'MARKET' && result.data?.order_id) {
-      recordAllTrades(account, symbol, side, amount, result.data.order_id as number, fight_id, leverage, is_pre_fight_flip).catch(err => {
+      recordAllTrades(
+        account,
+        symbol,
+        side,
+        amount,
+        result.data.order_id as number,
+        fight_id,
+        leverage,
+        is_pre_fight_flip
+      ).catch((err) => {
         console.error('Failed to record trades:', err);
       });
     }
@@ -143,7 +182,7 @@ export async function POST(request: Request) {
       fightId: fight_id,
       exchangeType,
       success: true,
-    }).catch(err => console.error('Failed to record order action:', err));
+    }).catch((err) => console.error('Failed to record order action:', err));
 
     // If TP/SL was included with the order, also record a SET_TPSL action
     if ((take_profit || stop_loss) && fight_id) {
@@ -157,7 +196,7 @@ export async function POST(request: Request) {
         fightId: fight_id,
         exchangeType,
         success: true,
-      }).catch(err => console.error('Failed to record TP/SL action:', err));
+      }).catch((err) => console.error('Failed to record TP/SL action:', err));
     }
 
     return Response.json({ success: true, data: result.data });
@@ -180,11 +219,17 @@ export async function DELETE(request: Request) {
 
     if (!router.signsServerSide) {
       if (!account || !signature || !timestamp) {
-        throw new BadRequestError('account, signature, and timestamp are required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
+        throw new BadRequestError(
+          'account, signature, and timestamp are required',
+          ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS
+        );
       }
     } else {
       if (!account) {
-        throw new BadRequestError('account is required', ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS);
+        throw new BadRequestError(
+          'account is required',
+          ErrorCode.ERR_ORDER_MISSING_REQUIRED_FIELDS
+        );
       }
     }
 
@@ -213,7 +258,7 @@ export async function DELETE(request: Request) {
       symbol: symbol || 'ALL',
       exchangeType,
       success: true,
-    }).catch(err => console.error('Failed to record cancel all action:', err));
+    }).catch((err) => console.error('Failed to record cancel all action:', err));
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

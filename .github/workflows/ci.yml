@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  # TODO: Add main branch triggers when merging develop → main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build, Lint & Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx turbo db:generate
+      - run: npx turbo build
+      - run: npx tsc --noEmit --project apps/web/tsconfig.json
+      - run: npx tsc --noEmit --project apps/realtime/tsconfig.json
+      - run: npx tsc --noEmit --project apps/jobs/tsconfig.json
+      - run: npx turbo lint
+      - run: npx turbo test

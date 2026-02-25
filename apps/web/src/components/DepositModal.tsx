@@ -42,20 +42,36 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
   if (exchangeType === 'pacifica') {
     return (
       <Portal>
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-          <div className="bg-surface-900 rounded-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <div
+            className="bg-surface-900 rounded-2xl p-6 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-white font-semibold text-sm">Deposit</h3>
-              <button onClick={onClose} className="text-surface-500 hover:text-white transition-colors">
+              <button
+                onClick={onClose}
+                className="text-surface-500 hover:text-white transition-colors"
+              >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
 
             <div className="bg-surface-800 rounded-xl p-4 text-sm text-surface-300 mb-5">
               <p>Deposit USDC on Pacifica to start trading.</p>
-              <p className="text-surface-500 text-xs mt-2">You will be redirected to Pacifica&apos;s deposit page.</p>
+              <p className="text-surface-500 text-xs mt-2">
+                You will be redirected to Pacifica&apos;s deposit page.
+              </p>
             </div>
 
             <button
@@ -66,6 +82,57 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
               className="w-full py-2.5 bg-white text-black font-medium rounded-lg transition-colors hover:bg-surface-200"
             >
               Open Pacifica
+            </button>
+          </div>
+        </div>
+      </Portal>
+    );
+  }
+
+  // Nado: just open external link (deposits are on-chain)
+  if (exchangeType === 'nado') {
+    return (
+      <Portal>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <div
+            className="bg-surface-900 rounded-2xl p-6 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-white font-semibold text-sm">Deposit</h3>
+              <button
+                onClick={onClose}
+                className="text-surface-500 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="bg-surface-800 rounded-xl p-4 text-sm text-surface-300 mb-5">
+              <p>Deposit funds on Nado to start trading.</p>
+              <p className="text-surface-500 text-xs mt-2">
+                You will be redirected to the Nado portfolio page.
+              </p>
+            </div>
+
+            <button
+              onClick={() => {
+                window.open(exchangeConfig.depositUrl, '_blank');
+                onClose();
+              }}
+              className="w-full py-2.5 bg-white text-black font-medium rounded-lg transition-colors hover:bg-surface-200"
+            >
+              Deposit on Nado
             </button>
           </div>
         </div>
@@ -104,13 +171,27 @@ export function DepositModal({ isOpen, onClose }: DepositModalProps) {
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-surface-900 rounded-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          className="bg-surface-900 rounded-2xl p-6 w-full max-w-md mx-4"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-white font-semibold text-sm">Deposit</h3>
-            <button onClick={onClose} className="text-surface-500 hover:text-white transition-colors">
+            <button
+              onClick={onClose}
+              className="text-surface-500 hover:text-white transition-colors"
+            >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>

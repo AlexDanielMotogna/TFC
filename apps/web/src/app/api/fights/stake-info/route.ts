@@ -16,7 +16,8 @@ import {
   calculateAvailableCapital,
   updateMaxExposureIfHigher,
 } from '@/lib/server/fight-exposure';
-import { getPositions } from '@/lib/server/pacifica';
+import { ExchangeProvider } from '@/lib/server/exchanges/provider';
+import type { ExchangeType } from '@tfc/shared';
 
 export async function GET(request: Request) {
   try {
@@ -28,9 +29,10 @@ export async function GET(request: Request) {
       throw new BadRequestError('account is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
-    // Get user from account
-    const connection = await prisma.exchangeConnection.findUnique({
-      where: { accountAddress: account },
+    // Get user from account (case-insensitive for EVM addresses)
+    const connection = await prisma.exchangeConnection.findFirst({
+      where: { accountAddress: account.toLowerCase(), isActive: true },
+      select: { userId: true, exchangeType: true, accountAddress: true },
     });
 
     if (!connection) {
@@ -90,7 +92,7 @@ export async function GET(request: Request) {
       connection.userId
     );
 
-    // Also get live Pacifica positions for symbols traded during THIS fight
+    // Also get live positions for symbols traded during THIS fight (exchange-agnostic)
     // Only count positions in symbols where we have a TfcOrderAction for this fight
     let livePositionExposure = 0;
     try {
@@ -104,11 +106,13 @@ export async function GET(request: Request) {
       const fightSymbols = new Set(fightSymbolsRaw.map((r: any) => r.symbol));
 
       if (fightSymbols.size > 0) {
-        const positions = await getPositions(account);
+        const exchangeType = (connection.exchangeType || 'pacifica') as ExchangeType;
+        const adapter = ExchangeProvider.getAdapter(exchangeType);
+        const positions = await adapter.getPositions(account);
         livePositionExposure = positions
-          .filter((p: any) => fightSymbols.has(p.symbol))
-          .reduce((sum: number, p: any) => {
-            return sum + Math.abs(parseFloat(p.amount)) * parseFloat(p.entry_price);
+          .filter((p) => fightSymbols.has(p.symbol))
+          .reduce((sum, p) => {
+            return sum + Math.abs(parseFloat(p.amount)) * parseFloat(p.entryPrice);
           }, 0);
       }
     } catch (err) {
@@ -119,27 +123,21 @@ export async function GET(request: Request) {
     const currentExposure = Math.max(fightTradeExposure, livePositionExposure);
 
     const stake = participant.fight.stakeUsdc;
-    let maxExposureUsed = parseFloat(
-      participant.maxExposureUsed?.toString() || '0'
-    );
+    let maxExposureUsed = parseFloat(participant.maxExposureUsed?.toString() || '0');
 
     // If live exposure is higher than recorded, update the water mark
     if (livePositionExposure > maxExposureUsed) {
       maxExposureUsed = livePositionExposure;
-      updateMaxExposureIfHigher(participant.id, livePositionExposure).catch(err => {
+      updateMaxExposureIfHigher(participant.id, livePositionExposure).catch((err) => {
         console.error('[stake-info] Failed to update maxExposureUsed:', err);
       });
     }
 
     // Calculate available capital using centralized formula
-    const available = calculateAvailableCapital(
-      stake,
-      maxExposureUsed,
-      currentExposure
-    );
+    const available = calculateAvailableCapital(stake, maxExposureUsed, currentExposure);
 
     // Get blocked symbols (symbols with pre-fight positions that can't be traded)
-    const blockedSymbols = (participant as any).blockedSymbols as string[] || [];
+    const blockedSymbols = ((participant as any).blockedSymbols as string[]) || [];
 
     return Response.json({
       success: true,

@@ -1,15 +1,29 @@
 'use client';
 
 /**
- * usePrices — Exchange-agnostic price hook
+ * usePrices — Exchange-agnostic price hook (Zustand-backed)
  *
  * Uses the ExchangeWsAdapter for real-time price data.
- * Automatically connects to the correct exchange's WS based on ExchangeContext.
+ * Prices are stored in the global usePriceStore (Zustand) so that
+ * consumers can use fine-grained selectors and avoid unnecessary re-renders.
+ *
+ * Two hooks are provided:
+ *
+ * 1. `usePriceConnection()` — manages WS lifecycle only. Does NOT subscribe to
+ *    price state, so it never causes re-renders. Call this once in a top-level
+ *    component (e.g., TradePageContent) to ensure prices are flowing.
+ *
+ * 2. `usePrices()` — backward-compatible wrapper that manages WS lifecycle AND
+ *    subscribes to the full prices/markets state. Use this in components that
+ *    need the full price map (e.g., CryptoTickers, HeroSection).
+ *
+ * For granular subscriptions, use `usePrice(symbol)` from `@/lib/store` instead.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { createWsAdapter } from '@/lib/ws/ws-factory';
+import { usePriceStore } from '@/lib/store';
 import type { ExchangeWsAdapter, ExchangeWsCallbacks, WsPrice, WsMarket } from '@/lib/ws/types';
 
 // Re-export types for backward compatibility
@@ -20,18 +34,25 @@ interface UsePricesOptions {
   symbols?: string[];
 }
 
-export function usePrices(_options: UsePricesOptions = {}) {
+/**
+ * Manages WebSocket price connection lifecycle.
+ * Writes prices into usePriceStore but does NOT subscribe to the store,
+ * so this hook never causes re-renders on price ticks.
+ *
+ * Call this once in a top-level component to ensure prices are flowing.
+ * Then use `usePrice(symbol)` or `usePriceStore` selectors for reads.
+ */
+export function usePriceConnection() {
   const { exchangeType } = useExchangeContext();
 
-  const [prices, setPrices] = useState<Record<string, WsPrice>>({});
-  const [markets, setMarkets] = useState<WsMarket[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const adapterRef = useRef<ExchangeWsAdapter | null>(null);
   const callbacksRef = useRef<ExchangeWsCallbacks | null>(null);
   const currentExchangeRef = useRef(exchangeType);
 
   useEffect(() => {
+    const { updatePrices, setMarkets, setConnected, setError, clearPrices } =
+      usePriceStore.getState();
+
     // Remove old callbacks if exchange changed
     const exchangeChanged = currentExchangeRef.current !== exchangeType;
     if (adapterRef.current && exchangeChanged) {
@@ -40,8 +61,7 @@ export function usePrices(_options: UsePricesOptions = {}) {
       }
       adapterRef.current = null;
       callbacksRef.current = null;
-      setPrices({});
-      setMarkets([]);
+      clearPrices();
     }
 
     currentExchangeRef.current = exchangeType;
@@ -52,23 +72,21 @@ export function usePrices(_options: UsePricesOptions = {}) {
 
     const callbacks: ExchangeWsCallbacks = {
       onConnected: () => {
-        setIsConnected(true);
+        setConnected(true);
         setError(null);
       },
-      onDisconnected: () => setIsConnected(false),
+      onDisconnected: () => setConnected(false),
       onPrices: (newPrices, newMarkets) => {
-        setPrices(prev => {
-          const updated = { ...prev };
-          newPrices.forEach(p => { updated[p.symbol] = p; });
-          return updated;
-        });
+        // Write prices into the Zustand store (with change detection)
+        updatePrices(newPrices);
+
         // Set markets on first batch from new adapter (after exchange switch or initial load)
         if (!marketsReceived && newMarkets.length > 0) {
           marketsReceived = true;
           setMarkets(
-            newMarkets.sort((a, b) => {
-              const volA = newPrices.find(p => p.symbol === a.symbol)?.volume24h || 0;
-              const volB = newPrices.find(p => p.symbol === b.symbol)?.volume24h || 0;
+            [...newMarkets].sort((a, b) => {
+              const volA = newPrices.find((p) => p.symbol === a.symbol)?.volume24h || 0;
+              const volB = newPrices.find((p) => p.symbol === b.symbol)?.volume24h || 0;
               return volB - volA;
             })
           );
@@ -85,16 +103,40 @@ export function usePrices(_options: UsePricesOptions = {}) {
     adapter.subscribePrices();
 
     return () => {
-      // Only remove our callbacks — don't kill the shared connection
+      // Only remove our callbacks -- don't kill the shared connection
       adapter.removeCallbacks(callbacks);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exchangeType]);
+}
+
+/**
+ * Full backward-compatible price hook.
+ * Manages WS lifecycle AND subscribes to prices/markets state.
+ *
+ * Use this in components that need the full price map (CryptoTickers, HeroSection).
+ * For performance-sensitive components, prefer `usePriceConnection()` +
+ * `usePrice(symbol)` / `usePriceStore` selectors.
+ */
+export function usePrices(_options: UsePricesOptions = {}) {
+  // Manage WS lifecycle
+  usePriceConnection();
+
+  // Subscribe to the full Zustand store state (backward-compat)
+  const prices = usePriceStore((s) => s.prices);
+  const markets = usePriceStore((s) => s.markets);
+  const isConnected = usePriceStore((s) => s.isConnected);
+  const error = usePriceStore((s) => s.error);
 
   const getPrice = useCallback(
     (symbol: string): WsPrice | null => {
-      return prices[symbol] || null;
+      // Read directly from the store to get the latest value
+      return usePriceStore.getState().prices[symbol] || null;
     },
+    // Depend on prices so that useMemo/useCallback consumers that list
+    // getPrice as a dependency will re-evaluate when any price updates.
+    // This preserves backward-compat with existing code like:
+    //   useMemo(() => ..., [getPrice])
     [prices]
   );
 

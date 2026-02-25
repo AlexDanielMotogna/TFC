@@ -12,8 +12,8 @@ import type { ExchangeType } from '@tfc/shared';
 // ─────────────────────────────────────────────────────────────
 
 export interface WsPosition {
-  symbol: string;          // "BTC-USD" (normalized)
-  side: 'bid' | 'ask';    // Pacifica format (kept for backward compat)
+  symbol: string; // "BTC-USD" (normalized)
+  side: 'bid' | 'ask'; // Pacifica format (kept for backward compat)
   amount: string;
   entry_price: string;
   margin: string;
@@ -23,7 +23,7 @@ export interface WsPosition {
   updated_at: number;
   // Optional fields provided by Hyperliquid (not available on Pacifica)
   leverage?: number;
-  leverage_type?: string;  // 'cross' | 'isolated'
+  leverage_type?: string; // 'cross' | 'isolated'
   unrealized_pnl?: string;
   return_on_equity?: string;
   position_value?: string;
@@ -32,7 +32,7 @@ export interface WsPosition {
 export interface WsOrder {
   order_id: number;
   client_order_id: string | null;
-  symbol: string;          // "BTC-USD" (normalized)
+  symbol: string; // "BTC-USD" (normalized)
   side: 'bid' | 'ask';
   price: string;
   initial_amount: string;
@@ -49,27 +49,28 @@ export interface WsTrade {
   history_id: number;
   order_id: number;
   client_order_id: string | null;
-  symbol: string;          // "BTC-USD" (normalized)
+  symbol: string; // "BTC-USD" (normalized)
   price: string;
   entry_price: string;
   amount: string;
-  side: string;            // e.g., 'close_long', 'open_short'
+  side: string; // e.g., 'close_long', 'open_short'
   fee: string;
   pnl: string;
   created_at: number;
 }
 
 export interface WsPrice {
-  symbol: string;          // "BTC-USD" (normalized)
-  price: number;           // mark price
+  symbol: string; // "BTC-USD" (normalized)
+  price: number; // mark price
   oracle: number;
+  indexPrice?: number; // index/spot reference price (not all exchanges provide this)
   change24h: number;
   high24h: number;
   low24h: number;
   volume24h: number;
   openInterest: number;
-  funding: number;         // percentage
-  nextFunding: number;     // percentage
+  funding: number; // percentage
+  nextFunding: number; // percentage
   lastUpdate: number;
   maxLeverage: number;
   tickSize: number;
@@ -77,8 +78,8 @@ export interface WsPrice {
 }
 
 export interface WsMarket {
-  symbol: string;          // "BTC-USD"
-  name: string;            // "Bitcoin"
+  symbol: string; // "BTC-USD"
+  name: string; // "Bitcoin"
   maxLeverage: number;
 }
 
@@ -89,16 +90,16 @@ export interface WsOrderbookLevel {
 }
 
 export interface WsOrderbookSnapshot {
-  symbol: string;          // "BTC-USD" (normalized)
+  symbol: string; // "BTC-USD" (normalized)
   bids: WsOrderbookLevel[];
   asks: WsOrderbookLevel[];
   timestamp: number;
 }
 
 export interface WsCandle {
-  symbol: string;          // "BTC-USD" (normalized)
+  symbol: string; // "BTC-USD" (normalized)
   interval: string;
-  time: number;            // Unix seconds (for lightweight-charts)
+  time: number; // Unix seconds (for lightweight-charts)
   open: number;
   high: number;
   low: number;
@@ -111,7 +112,7 @@ export interface WsCandle {
 // ─────────────────────────────────────────────────────────────
 
 export interface WsAccountLeverage {
-  symbol: string;          // "BTC-USD" (normalized)
+  symbol: string; // "BTC-USD" (normalized)
   leverage: number;
   timestamp: number;
 }

@@ -1,4 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <rect width="128" height="128" rx="26" fill="#000"/>
-  <path d="M48.5 38.5h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm21 0h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm21 0h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm-42 21h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm21 0h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm21 0h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm-42 21h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm21 0h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2zm21 0h-10c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-10c0-1.1-.9-2-2-2z" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" fill="none">
+  <rect width="1024" height="1024" rx="200" fill="#000"/>
+  <rect x="284" y="284" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="442" y="284" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="600" y="284" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="284" y="442" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="600" y="442" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="284" y="600" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="442" y="600" width="140" height="140" rx="8" fill="#fff"/>
+  <rect x="600" y="600" width="140" height="140" rx="8" fill="#fff"/>
 </svg>
