@@ -40,9 +40,9 @@ ENV NEXT_PUBLIC_HYPERLIQUID_WS_URL=$NEXT_PUBLIC_HYPERLIQUID_WS_URL
 ENV NEXT_PUBLIC_TRADEFIGHTCLUB_FEE_WALLET=$NEXT_PUBLIC_TRADEFIGHTCLUB_FEE_WALLET
 ENV NEXT_PUBLIC_ENABLE_BUILDER_FEES=$NEXT_PUBLIC_ENABLE_BUILDER_FEES
 
-# Copy everything and install
+# Copy everything and install (skip husky prepare script — not needed in Docker)
 COPY . .
-RUN npm ci
+RUN npm ci --ignore-scripts && npm rebuild
 
 # Generate Prisma Client
 RUN npx prisma generate --schema=./packages/db/prisma/schema.prisma

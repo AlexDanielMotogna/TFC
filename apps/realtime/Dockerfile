@@ -15,8 +15,8 @@ COPY packages/logger/package.json ./packages/logger/
 COPY packages/tsconfig/package.json ./packages/tsconfig/
 COPY apps/realtime/package.json ./apps/realtime/
 
-# Install dependencies
-RUN npm ci --workspace=apps/realtime
+# Install dependencies (skip husky prepare script — not needed in Docker)
+RUN npm ci --workspace=apps/realtime --ignore-scripts && npm rebuild
 
 # Copy source files
 COPY packages/ ./packages/
