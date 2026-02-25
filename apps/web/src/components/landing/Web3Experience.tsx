@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { usePrices } from '@/hooks';
 import { TokenIcon, extractBaseSymbol } from '@/components/TokenIcon';
+import { createWsAdapter } from '@/lib/ws/ws-factory';
+import type { ExchangeWsCallbacks, WsMarket } from '@/lib/ws/types';
+import type { ExchangeType } from '@tfc/shared';
+import { getBaseToken } from '@tfc/shared';
 
 // Wallets supported - grouped by chain ecosystem
 const solanaWallets = [
@@ -32,7 +35,7 @@ const executionFeatures = [
       </svg>
     ),
     title: 'Real Execution',
-    description: 'All trades execute on Pacifica DEX with real liquidity',
+    description: 'All trades execute on-chain with real liquidity across multiple DEXs',
   },
   {
     icon: (
@@ -60,16 +63,70 @@ const executionFeatures = [
       </svg>
     ),
     title: 'Secure',
-    description: 'Battle-tested smart contracts on Solana',
+    description: 'Battle-tested smart contracts across Solana and EVM chains',
   },
 ];
 
 const ASSETS_PER_PAGE = 50;
 const AUTO_ADVANCE_MS = 5000;
 
+// All active exchanges to aggregate markets from
+const LANDING_EXCHANGES: ExchangeType[] = ['pacifica', 'hyperliquid', 'nado'];
+
+/**
+ * Connects to all active exchanges and returns a deduplicated, merged market list.
+ * Deduplicates by base token (e.g. BTC-USD and BTC-PERP merge), keeping the highest leverage.
+ */
+function useAllExchangeMarkets(): WsMarket[] {
+  const [marketsByExchange, setMarketsByExchange] = useState<Record<string, WsMarket[]>>({});
+
+  useEffect(() => {
+    const adapters: {
+      adapter: ReturnType<typeof createWsAdapter>;
+      callbacks: ExchangeWsCallbacks;
+    }[] = [];
+
+    for (const exchange of LANDING_EXCHANGES) {
+      const adapter = createWsAdapter(exchange);
+      let received = false;
+      const callbacks: ExchangeWsCallbacks = {
+        onPrices: (_prices, markets) => {
+          if (!received && markets.length > 0) {
+            received = true;
+            setMarketsByExchange((prev) => ({ ...prev, [exchange]: markets }));
+          }
+        },
+      };
+      adapters.push({ adapter, callbacks });
+      adapter.connect(callbacks);
+      adapter.subscribePrices();
+    }
+
+    return () => {
+      for (const { adapter, callbacks } of adapters) {
+        adapter.removeCallbacks(callbacks);
+      }
+    };
+  }, []);
+
+  return useMemo(() => {
+    const byBase = new Map<string, WsMarket>();
+    for (const exchange of LANDING_EXCHANGES) {
+      for (const market of marketsByExchange[exchange] || []) {
+        const base = getBaseToken(market.symbol);
+        const existing = byBase.get(base);
+        if (!existing || market.maxLeverage > existing.maxLeverage) {
+          byBase.set(base, { ...market, symbol: `${base}-USD` });
+        }
+      }
+    }
+    return Array.from(byBase.values());
+  }, [marketsByExchange]);
+}
+
 export function Web3Experience() {
-  // Get markets dynamically from Pacifica API
-  const { markets } = usePrices();
+  // Get deduplicated markets from all exchanges
+  const markets = useAllExchangeMarkets();
 
   // Dynamic fees from Pacifica API
   const [fees, setFees] = useState({ makerFeePercent: '0.0650', takerFeePercent: '0.0900' });
@@ -141,8 +198,8 @@ export function Web3Experience() {
             Trade anywhere, connect anything
           </h2>
           <p className="text-surface-400 text-lg">
-            Connect your favorite wallet and trade perpetuals on {markets.length || '40+'} assets
-            with real execution on Pacifica.
+            Connect your favorite wallet and trade perpetuals on {markets.length || '200+'} assets
+            across Pacifica, Hyperliquid, and Nado.
           </p>
         </div>
 
@@ -226,8 +283,8 @@ export function Web3Experience() {
               </span>
             </div>
             <p className="text-surface-400 mb-6">
-              Trade Bitcoin, Ethereum, Solana, memecoins and more with perpetual contracts powered
-              by Pacifica.
+              Trade Bitcoin, Ethereum, Solana, memecoins and more with perpetual contracts across
+              multiple DEXs.
             </p>
 
             {/* Assets Slider */}
