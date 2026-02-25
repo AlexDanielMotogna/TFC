@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAccount } from '@/hooks/useAccount';
 import { usePrices } from '@/hooks/usePrices';
+import { getBaseToken } from '@tfc/shared';
 import { QuickPositionModal } from './QuickPositionModal';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import type { Position } from '@/lib/api';
@@ -37,7 +38,7 @@ function usePositionMetrics(position: Position) {
   const markPrice = priceData?.price || entryPrice;
   const sizeInToken = parseFloat(position.size) || 0;
   const leverage = position.leverage || 10;
-  const margin = parseFloat(position.margin) || (sizeInToken * entryPrice / leverage);
+  const margin = parseFloat(position.margin) || (sizeInToken * entryPrice) / leverage;
 
   // Use HL-provided PnL if available, else calculate
   const apiPnl = parseFloat(position.unrealizedPnl) || 0;
@@ -50,7 +51,8 @@ function usePositionMetrics(position: Position) {
   }
 
   const apiRoe = parseFloat(position.unrealizedPnlPercent) || 0;
-  const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+  const unrealizedPnlPercent =
+    apiRoe !== 0 ? apiRoe : margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
 
   return { markPrice, unrealizedPnl, unrealizedPnlPercent, side: position.side };
 }
@@ -114,13 +116,13 @@ export function QuickPositionsBar() {
         className="hidden lg:flex items-center gap-2 ml-6 mr-6 flex-1 overflow-x-auto scrollbar-hide cursor-grab active:cursor-grabbing"
       >
         {positions.map((position) => {
-          const symbolBase = position.symbol.replace('-USD', '');
+          const symbolBase = getBaseToken(position.symbol);
           const priceData = getPrice(position.symbol);
           const entryPrice = parseFloat(position.entryPrice) || 0;
           const markPrice = priceData?.price || entryPrice;
           const sizeInToken = parseFloat(position.size) || 0;
           const leverage = position.leverage || 10;
-          const margin = parseFloat(position.margin) || (sizeInToken * entryPrice / leverage);
+          const margin = parseFloat(position.margin) || (sizeInToken * entryPrice) / leverage;
 
           // Use HL-provided PnL if available, else calculate
           const apiPnl = parseFloat(position.unrealizedPnl) || 0;
@@ -128,12 +130,14 @@ export function QuickPositionsBar() {
           if (apiPnl !== 0 || parseFloat(position.unrealizedPnl || '0') !== 0) {
             unrealizedPnl = parseFloat(position.unrealizedPnl || '0');
           } else {
-            const priceDiff = position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+            const priceDiff =
+              position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
             unrealizedPnl = priceDiff * sizeInToken;
           }
 
           const apiRoe = parseFloat(position.unrealizedPnlPercent) || 0;
-          const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+          const unrealizedPnlPercent =
+            apiRoe !== 0 ? apiRoe : margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
           const isProfitable = unrealizedPnl >= 0;
 
           return (
@@ -147,23 +151,26 @@ export function QuickPositionsBar() {
               }`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-white font-mono text-sm font-medium">
-                  {symbolBase}
-                </span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                  position.side === 'LONG'
-                    ? 'bg-win-500/30 text-win-400'
-                    : 'bg-loss-500/30 text-loss-400'
-                }`}>
+                <span className="text-white font-mono text-sm font-medium">{symbolBase}</span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    position.side === 'LONG'
+                      ? 'bg-win-500/30 text-win-400'
+                      : 'bg-loss-500/30 text-loss-400'
+                  }`}
+                >
                   {position.side}
                 </span>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className={`text-xs font-mono font-medium min-w-[55px] text-right ${
-                  isProfitable ? 'text-win-400' : 'text-loss-400'
-                }`}>
-                  {isProfitable ? '+' : ''}{unrealizedPnlPercent.toFixed(2)}%
+                <span
+                  className={`text-xs font-mono font-medium min-w-[55px] text-right ${
+                    isProfitable ? 'text-win-400' : 'text-loss-400'
+                  }`}
+                >
+                  {isProfitable ? '+' : ''}
+                  {unrealizedPnlPercent.toFixed(2)}%
                 </span>
                 <span className="text-xs text-surface-200 font-mono min-w-[60px] text-right">
                   ${formatQuickPrice(markPrice)}
@@ -176,7 +183,7 @@ export function QuickPositionsBar() {
 
       {selectedPosition && (
         <QuickPositionModal
-          position={selectedPosition as any}
+          position={selectedPosition}
           isOpen={showModal}
           onClose={handleCloseModal}
         />
@@ -235,25 +242,27 @@ export function QuickPositionsDropdown() {
         {showDropdown && (
           <div className="fixed sm:absolute left-4 sm:right-0 sm:left-auto top-14 sm:top-full sm:mt-2 w-[calc(100vw-32px)] sm:w-80 bg-surface-850 rounded-lg shadow-xl border border-surface-800 overflow-hidden z-50">
             {positions.map((position) => {
-              const symbolBase = position.symbol.replace('-USD', '');
+              const symbolBase = getBaseToken(position.symbol);
               const priceData = getPrice(position.symbol);
               const entryPrice = parseFloat(position.entryPrice) || 0;
               const markPrice = priceData?.price || entryPrice;
               const sizeInToken = parseFloat(position.size) || 0;
               const leverage = position.leverage || 10;
-              const margin = parseFloat(position.margin) || (sizeInToken * entryPrice / leverage);
+              const margin = parseFloat(position.margin) || (sizeInToken * entryPrice) / leverage;
 
               const apiPnl = parseFloat(position.unrealizedPnl) || 0;
               let unrealizedPnl: number;
               if (apiPnl !== 0 || parseFloat(position.unrealizedPnl || '0') !== 0) {
                 unrealizedPnl = parseFloat(position.unrealizedPnl || '0');
               } else {
-                const priceDiff = position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
+                const priceDiff =
+                  position.side === 'LONG' ? markPrice - entryPrice : entryPrice - markPrice;
                 unrealizedPnl = priceDiff * sizeInToken;
               }
 
               const apiRoe = parseFloat(position.unrealizedPnlPercent) || 0;
-              const unrealizedPnlPercent = apiRoe !== 0 ? apiRoe : (margin > 0 ? (unrealizedPnl / margin) * 100 : 0);
+              const unrealizedPnlPercent =
+                apiRoe !== 0 ? apiRoe : margin > 0 ? (unrealizedPnl / margin) * 100 : 0;
               const isProfitable = unrealizedPnl >= 0;
 
               return (
@@ -267,23 +276,26 @@ export function QuickPositionsDropdown() {
                   } border-b border-surface-800 last:border-b-0`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-mono text-sm font-medium">
-                      {symbolBase}
-                    </span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                      position.side === 'LONG'
-                        ? 'bg-win-500/30 text-win-400'
-                        : 'bg-loss-500/30 text-loss-400'
-                    }`}>
+                    <span className="text-white font-mono text-sm font-medium">{symbolBase}</span>
+                    <span
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        position.side === 'LONG'
+                          ? 'bg-win-500/30 text-win-400'
+                          : 'bg-loss-500/30 text-loss-400'
+                      }`}
+                    >
                       {position.side}
                     </span>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <span className={`text-xs font-mono font-medium min-w-[55px] text-right ${
-                      isProfitable ? 'text-win-400' : 'text-loss-400'
-                    }`}>
-                      {isProfitable ? '+' : ''}{unrealizedPnlPercent.toFixed(2)}%
+                    <span
+                      className={`text-xs font-mono font-medium min-w-[55px] text-right ${
+                        isProfitable ? 'text-win-400' : 'text-loss-400'
+                      }`}
+                    >
+                      {isProfitable ? '+' : ''}
+                      {unrealizedPnlPercent.toFixed(2)}%
                     </span>
                     <span className="text-xs text-surface-200 font-mono min-w-[60px] text-right">
                       ${formatQuickPrice(markPrice)}
@@ -298,7 +310,7 @@ export function QuickPositionsDropdown() {
 
       {selectedPosition && (
         <QuickPositionModal
-          position={selectedPosition as any}
+          position={selectedPosition}
           isOpen={showModal}
           onClose={handleCloseModal}
         />

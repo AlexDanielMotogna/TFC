@@ -52,10 +52,7 @@ async function request<T>(
     const data = (await response.json()) as PacificaResponse<T>;
 
     if (!response.ok || !data.success) {
-      throw new ApiError(
-        data.error || 'Pacifica API error',
-        response.status || 400
-      );
+      throw new ApiError(data.error || 'Pacifica API error', response.status || 400);
     }
 
     return data.data;
@@ -350,14 +347,20 @@ export async function approveBuilderCode(
 ): Promise<{ success: boolean }> {
   const signedPayload = PacificaSigning.signBuilderCodeApproval(keypair, BUILDER_CODE, maxFeeRate);
 
-  return request<{ success: boolean }>('POST', '/api/v1/account/builder_codes/approve', signedPayload);
+  return request<{ success: boolean }>(
+    'POST',
+    '/api/v1/account/builder_codes/approve',
+    signedPayload
+  );
 }
 
 /**
  * Check builder code approvals
  * GET /api/v1/account/builder_codes/approvals?account=...
  */
-export async function getBuilderCodeApprovals(accountAddress: string): Promise<BuilderCodeApproval[]> {
+export async function getBuilderCodeApprovals(
+  accountAddress: string
+): Promise<BuilderCodeApproval[]> {
   return request<BuilderCodeApproval[]>(
     'GET',
     `/api/v1/account/builder_codes/approvals?account=${accountAddress}`
@@ -382,7 +385,7 @@ export async function withdraw(
       body: JSON.stringify(signedPayload),
     });
 
-    const data = await response.json() as PacificaResponse<unknown>;
+    const data = (await response.json()) as PacificaResponse<unknown>;
 
     // For withdraw, success is indicated at the top level, not in data
     if (data.success) {
@@ -460,8 +463,8 @@ export interface RecentTrade {
 export interface AccountInfo {
   balance: string;
   fee_level: number;
-  maker_fee: string;  // Dynamic fee from Pacifica API (e.g., "0.000575" = 0.0575%)
-  taker_fee: string;  // Dynamic fee from Pacifica API (e.g., "0.0007" = 0.07%)
+  maker_fee: string; // Dynamic fee from Pacifica API (e.g., "0.000575" = 0.0575%)
+  taker_fee: string; // Dynamic fee from Pacifica API (e.g., "0.0007" = 0.07%)
   account_equity: string;
   available_to_spend: string;
   available_to_withdraw: string;
@@ -482,7 +485,6 @@ export interface Position {
   entry_price: string;
   margin: string;
   funding: string;
-  leverage: string;
   liq_price: string;
   isolated: boolean;
   created_at: number;
@@ -534,17 +536,17 @@ export interface OrderHistoryResponse {
   order_id: number;
   client_order_id: string | null;
   symbol: string;
-  side: string;                    // "bid" | "ask"
+  side: string; // "bid" | "ask"
   initial_price: string;
   average_filled_price: string;
   amount: string;
   filled_amount: string;
-  order_status: string;            // "open"|"partially_filled"|"filled"|"cancelled"|"rejected"
-  order_type: string;              // "limit"|"market"|"stop_limit"|"stop_market"|"take_profit_limit"|"stop_loss_limit"|"take_profit_market"|"stop_loss_market"
+  order_status: string; // "open"|"partially_filled"|"filled"|"cancelled"|"rejected"
+  order_type: string; // "limit"|"market"|"stop_limit"|"stop_market"|"take_profit_limit"|"stop_loss_limit"|"take_profit_market"|"stop_loss_market"
   stop_price: string | null;
   stop_parent_order_id: number | null;
   reduce_only: boolean;
-  reason: string | null;           // "cancel"|"force_cancel"|"expired"|"post_only_rejected"|"self_trade_prevented"
+  reason: string | null; // "cancel"|"force_cancel"|"expired"|"post_only_rejected"|"self_trade_prevented"
   created_at: number;
   updated_at: number;
 }

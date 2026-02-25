@@ -204,7 +204,7 @@ export class PacificaAdapter implements ExchangeAdapter {
       entryPrice: p.entry_price,
       markPrice: '0', // Not available in Position, would need to fetch from getPrices()
       margin: p.margin,
-      leverage: p.leverage,
+      leverage: '0', // Pacifica positions don't include leverage; resolved from account settings
       unrealizedPnl: '0', // Not available in Position response
       liquidationPrice: p.liq_price,
       funding: p.funding,
@@ -228,7 +228,11 @@ export class PacificaAdapter implements ExchangeAdapter {
       price: o.price,
       amount: o.initial_amount,
       filled: o.filled_amount,
-      remaining: (parseFloat(o.initial_amount) - parseFloat(o.filled_amount) - parseFloat(o.cancelled_amount || '0')).toString(),
+      remaining: (
+        parseFloat(o.initial_amount) -
+        parseFloat(o.filled_amount) -
+        parseFloat(o.cancelled_amount || '0')
+      ).toString(),
       status: this.inferOrderStatus(o),
       timeInForce: 'GTC', // Not available in OpenOrder, default to GTC
       reduceOnly: o.reduce_only,
@@ -369,10 +373,7 @@ export class PacificaAdapter implements ExchangeAdapter {
     return { orderId: result.order_id };
   }
 
-  async cancelOrder(
-    auth: AuthContext,
-    params: CancelOrderParams
-  ): Promise<{ success: boolean }> {
+  async cancelOrder(auth: AuthContext, params: CancelOrderParams): Promise<{ success: boolean }> {
     const keypair = this.extractKeypair(auth);
     const pacificaSymbol = this.denormalizeSymbol(params.symbol);
 
@@ -484,12 +485,18 @@ export class PacificaAdapter implements ExchangeAdapter {
 
   private normalizeOrderHistoryStatus(pacificaStatus: string): OrderHistoryStatus {
     switch (pacificaStatus) {
-      case 'open': return 'open';
-      case 'partially_filled': return 'open';
-      case 'filled': return 'filled';
-      case 'cancelled': return 'canceled';
-      case 'rejected': return 'rejected';
-      default: return 'filled';
+      case 'open':
+        return 'open';
+      case 'partially_filled':
+        return 'open';
+      case 'filled':
+        return 'filled';
+      case 'cancelled':
+        return 'canceled';
+      case 'rejected':
+        return 'rejected';
+      default:
+        return 'filled';
     }
   }
 

@@ -3,10 +3,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useCreateMarketOrder, useCreateLimitOrder, useSetPositionTpSl } from '@/hooks/useOrders';
 import { usePrices } from '@/hooks/usePrices';
+import { useFight } from '@/hooks/useFight';
+import { useExchangeContext } from '@/contexts/ExchangeContext';
+import { getBaseToken } from '@tfc/shared';
+import { toast } from 'sonner';
 import { Slider } from './Slider';
 import CloseIcon from '@mui/icons-material/Close';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
+import type { Position } from '@/lib/api';
 import {
   calculateTpPrice,
   calculateSlPrice,
@@ -19,7 +24,7 @@ import {
 } from '@/lib/trading/utils';
 
 interface QuickPositionModalProps {
-  position: RawPosition;
+  position: Position;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -33,6 +38,8 @@ interface QuickPositionModalProps {
  */
 export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionModalProps) {
   const { getPrice } = usePrices();
+  const { exchangeType } = useExchangeContext();
+  const { fightId } = useFight();
   const createMarketOrder = useCreateMarketOrder();
   const createLimitOrder = useCreateLimitOrder();
   const setTpSl = useSetPositionTpSl();
@@ -49,20 +56,47 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   const [limitClosePercentage, setLimitClosePercentage] = useState(0);
 
   const symbol = position.symbol;
-  const symbolBase = symbol.replace('-USD', '');
-  const priceData = getPrice(`${symbolBase}-USD`);
-  const markPrice = priceData?.price || parseFloat(position.entry_price || position.entryPrice || '0');
-  const leverage = priceData?.maxLeverage || 10; // Default leverage
+  const symbolBase = getBaseToken(symbol);
+  const priceData = getPrice(symbol);
+  const markPrice = priceData?.price || parseFloat(position.entryPrice || '0');
+  const leverage = position.leverage || priceData?.maxLeverage || 10;
+
+  // Normalize Position → RawPosition for calculatePositionMetrics
+  // Only pass unrealized_pnl/return_on_equity when non-zero — "0" from Pacifica
+  // means "not server-computed", and we want calculatePositionMetrics to compute
+  // from live markPrice instead of trusting a stale zero.
+  const apiPnl = parseFloat(position.unrealizedPnl || '0');
+  const apiRoe = parseFloat(position.unrealizedPnlPercent || '0');
+  const rawPosition: RawPosition = {
+    symbol: position.symbol,
+    side: position.side,
+    amount: position.size,
+    entryPrice: position.entryPrice,
+    margin: position.margin,
+    funding: position.funding || '0',
+    isolated: position.isolated ?? false,
+    liquidationPrice: position.liquidationPrice,
+    leverage: position.leverage,
+    unrealized_pnl: apiPnl !== 0 ? position.unrealizedPnl : undefined,
+    return_on_equity: apiRoe !== 0 ? (apiRoe / 100).toString() : undefined,
+  };
 
   // Use centralized calculation (same as QuickPositionsBar and Terminal)
   const metrics = calculatePositionMetrics({
-    position,
+    position: rawPosition,
     markPrice,
     leverage,
   });
 
   // Extract calculated values
-  const { entryPrice, amount: positionSize, side, margin, unrealizedPnl: pnl, unrealizedPnlPercent: pnlPercent } = metrics;
+  const {
+    entryPrice,
+    amount: positionSize,
+    side,
+    margin,
+    unrealizedPnl: pnl,
+    unrealizedPnlPercent: pnlPercent,
+  } = metrics;
   const currentPrice = markPrice;
   const isLong = side === 'LONG';
   const isProfitable = pnl >= 0;
@@ -80,9 +114,12 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   }, [lotSize]);
 
   // Helper: round to lot size locally (floor, same as MarketCloseModal)
-  const floorToLotSize = useCallback((value: number): number => {
-    return Math.floor(value / lotSize) * lotSize;
-  }, [lotSize]);
+  const floorToLotSize = useCallback(
+    (value: number): number => {
+      return Math.floor(value / lotSize) * lotSize;
+    },
+    [lotSize]
+  );
 
   // Position info for TP/SL calculations (margin-based)
   const positionInfo: PositionInfo = {
@@ -104,9 +141,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   const limitEstimatedPnl = useMemo(() => {
     const closePrice = parseFloat(limitPrice) || 0;
     if (!closePrice || !limitCloseAmountTokens) return 0;
-    const priceDiff = isLong
-      ? closePrice - entryPrice
-      : entryPrice - closePrice;
+    const priceDiff = isLong ? closePrice - entryPrice : entryPrice - closePrice;
     return priceDiff * limitCloseAmountTokens;
   }, [limitPrice, limitCloseAmountTokens, isLong, entryPrice]);
 
@@ -116,12 +151,15 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
   }, [limitCloseAmountTokens, limitPrice, currentPrice]);
 
   // Limit close handlers (same logic as LimitCloseModal)
-  const handleLimitPercentageChange = useCallback((pct: number) => {
-    setLimitClosePercentage(pct);
-    const rawAmount = positionSize * pct / 100;
-    const roundedAmount = floorToLotSize(rawAmount);
-    setLimitCloseAmount(formatAmount(roundedAmount));
-  }, [positionSize, floorToLotSize, formatAmount]);
+  const handleLimitPercentageChange = useCallback(
+    (pct: number) => {
+      setLimitClosePercentage(pct);
+      const rawAmount = (positionSize * pct) / 100;
+      const roundedAmount = floorToLotSize(rawAmount);
+      setLimitCloseAmount(formatAmount(roundedAmount));
+    },
+    [positionSize, floorToLotSize, formatAmount]
+  );
 
   const handleLimitAmountChange = (value: string) => {
     setLimitCloseAmount(value);
@@ -170,11 +208,16 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         amount: formatAmount(closeAmountTokens),
         reduceOnly: true,
         slippage_percent: '1',
+        fightId: fightId || undefined,
       });
 
+      toast.success(`Closed ${closePercentage.toFixed(0)}% of ${symbolBase} position`);
       onClose();
     } catch (error) {
       console.error('Failed to close position:', error);
+      toast.error(
+        `Failed to close position: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -186,18 +229,22 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
     try {
       setIsSubmitting(true);
 
-      const tokenSymbol = symbol.replace('-USD', '');
       await createLimitOrder.mutateAsync({
-        symbol: tokenSymbol,
+        symbol: symbol,
         side: isLong ? 'ask' : 'bid', // Opposite side to close
         amount: limitCloseAmount,
         price: limitPrice,
         reduceOnly: true,
+        fightId: fightId || undefined,
       });
 
+      toast.success(`Limit close order placed for ${symbolBase} at $${limitPrice}`);
       onClose();
     } catch (error) {
       console.error('Failed to limit close position:', error);
+      toast.error(
+        `Failed to place limit close: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -210,25 +257,32 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
       setIsSubmitting(true);
 
       // Round prices to tick size before submitting (same as TpSlModal)
-      const takeProfit = takeProfitPrice && parseFloat(takeProfitPrice) > 0
-        ? { stop_price: roundToTickSize(parseFloat(takeProfitPrice), tickSize) }
-        : null;
+      const takeProfit =
+        takeProfitPrice && parseFloat(takeProfitPrice) > 0
+          ? { stop_price: roundToTickSize(parseFloat(takeProfitPrice), tickSize) }
+          : null;
 
-      const stopLoss = stopLossPrice && parseFloat(stopLossPrice) > 0
-        ? { stop_price: roundToTickSize(parseFloat(stopLossPrice), tickSize) }
-        : null;
+      const stopLoss =
+        stopLossPrice && parseFloat(stopLossPrice) > 0
+          ? { stop_price: roundToTickSize(parseFloat(stopLossPrice), tickSize) }
+          : null;
 
       await setTpSl.mutateAsync({
         symbol: symbol,
         side: isLong ? 'LONG' : 'SHORT',
-        size: position.amount,
+        size: position.size,
         take_profit: takeProfit,
         stop_loss: stopLoss,
+        fightId: fightId || undefined,
       });
 
+      toast.success('TP/SL updated successfully');
       onClose();
     } catch (error) {
       console.error('Failed to set TP/SL:', error);
+      toast.error(
+        `Failed to set TP/SL: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -250,11 +304,16 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         amount: doubleAmount,
         reduceOnly: false,
         slippage_percent: '1',
+        fightId: fightId || undefined,
       });
 
+      toast.success(`Flipped ${symbolBase} to ${!isLong ? 'LONG' : 'SHORT'}`);
       onClose();
     } catch (error) {
       console.error('Failed to flip position:', error);
+      toast.error(
+        `Failed to flip position: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -273,14 +332,12 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-white font-mono text-lg font-bold">
-                {symbol}
-              </span>
-              <span className={`text-xs font-bold px-2 py-1 rounded ${
-                isLong
-                  ? 'bg-win-500/30 text-win-400'
-                  : 'bg-loss-500/30 text-loss-400'
-              }`}>
+              <span className="text-white font-mono text-lg font-bold">{symbol}</span>
+              <span
+                className={`text-xs font-bold px-2 py-1 rounded ${
+                  isLong ? 'bg-win-500/30 text-win-400' : 'bg-loss-500/30 text-loss-400'
+                }`}
+              >
                 {isLong ? 'LONG' : 'SHORT'}
               </span>
             </div>
@@ -289,7 +346,14 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
             onClick={onClose}
             className="text-surface-500 hover:text-white transition-colors p-1"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
           </button>
         </div>
 
@@ -299,13 +363,21 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
             <div className="text-center">
               <div className="text-[10px] text-surface-500">Entry</div>
               <div className="text-xs text-white font-mono">
-                ${entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+                $
+                {entryPrice.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 3,
+                })}
               </div>
             </div>
             <div className="text-center">
               <div className="text-[10px] text-surface-500">Mark</div>
               <div className="text-xs text-white font-mono">
-                ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+                $
+                {currentPrice.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 3,
+                })}
               </div>
             </div>
             <div className="text-center">
@@ -314,7 +386,10 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 Liq
               </div>
               <div className="text-xs text-loss-400 font-mono">
-                ${(position.liq_price || position.liquidationPrice) ? parseFloat((position.liq_price || position.liquidationPrice)!).toLocaleString() : 'N/A'}
+                $
+                {position.liquidationPrice
+                  ? parseFloat(position.liquidationPrice).toLocaleString()
+                  : 'N/A'}
               </div>
             </div>
             <div className="text-center">
@@ -325,16 +400,15 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
             </div>
             <div className="text-center">
               <div className="text-[10px] text-surface-500">Margin</div>
-              <div className="text-xs text-white font-mono">
-                ${margin.toFixed(2)}
-              </div>
+              <div className="text-xs text-white font-mono">${margin.toFixed(2)}</div>
             </div>
             <div className="text-center">
               <div className="text-[10px] text-surface-500">PnL</div>
-              <div className={`text-xs font-mono ${
-                isProfitable ? 'text-win-400' : 'text-loss-400'
-              }`}>
-                {isProfitable ? '+' : ''}{pnlPercent.toFixed(2)}% (${pnl.toFixed(2)})
+              <div
+                className={`text-xs font-mono ${isProfitable ? 'text-win-400' : 'text-loss-400'}`}
+              >
+                {isProfitable ? '+' : ''}
+                {pnlPercent.toFixed(2)}% (${pnl.toFixed(2)})
               </div>
             </div>
           </div>
@@ -362,7 +436,12 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
             }`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+              />
             </svg>
             Limit
           </button>
@@ -374,13 +453,13 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 : 'text-surface-400 hover:text-white hover:bg-surface-800/50'
             }`}
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+              />
             </svg>
             TP/SL
           </button>
@@ -403,9 +482,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
             <div className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs text-surface-400">
-                    Close Amount
-                  </label>
+                  <label className="text-xs text-surface-400">Close Amount</label>
                   <span className="text-sm font-mono font-medium text-white">
                     {closePercentage.toFixed(0)}%
                   </span>
@@ -436,7 +513,8 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                   color="orange"
                 />
                 <div className="text-xs text-surface-500 mt-2">
-                  {formatAmount(closeAmountTokens)} {symbolBase} (${(closeAmountTokens * currentPrice).toFixed(2)})
+                  {formatAmount(closeAmountTokens)} {symbolBase} ($
+                  {(closeAmountTokens * currentPrice).toFixed(2)})
                 </div>
               </div>
             </div>
@@ -512,9 +590,11 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               {/* Estimated PnL */}
               <div className="flex justify-end items-center gap-2 text-xs">
                 <span className="text-surface-400">Estimated PnL:</span>
-                <span className={`font-mono font-semibold ${
-                  limitEstimatedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
-                }`}>
+                <span
+                  className={`font-mono font-semibold ${
+                    limitEstimatedPnl >= 0 ? 'text-win-400' : 'text-loss-400'
+                  }`}
+                >
                   {limitEstimatedPnl >= 0 ? '+' : '-'}${Math.abs(limitEstimatedPnl).toFixed(2)}
                 </span>
               </div>
@@ -527,25 +607,31 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-surface-400">TP Price</label>
-                  {takeProfitPrice && (() => {
-                    const tp = parseFloat(takeProfitPrice);
-                    const tpGain = isLong
-                      ? (tp - entryPrice) * positionSize
-                      : (entryPrice - tp) * positionSize;
-                    const tpPercent = margin > 0 ? (tpGain / margin) * 100 : 0;
-                    return (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-surface-500">Gain</span>
-                        <span className={`font-mono ${tpGain >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                          ${tpGain.toFixed(2)}
-                        </span>
-                        <span className="text-surface-600">|</span>
-                        <span className={`font-mono ${tpPercent >= 0 ? 'text-win-400' : 'text-loss-400'}`}>
-                          {tpPercent >= 0 ? '+' : ''}{tpPercent.toFixed(0)}%
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {takeProfitPrice &&
+                    (() => {
+                      const tp = parseFloat(takeProfitPrice);
+                      const tpGain = isLong
+                        ? (tp - entryPrice) * positionSize
+                        : (entryPrice - tp) * positionSize;
+                      const tpPercent = margin > 0 ? (tpGain / margin) * 100 : 0;
+                      return (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-surface-500">Gain</span>
+                          <span
+                            className={`font-mono ${tpGain >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                          >
+                            ${tpGain.toFixed(2)}
+                          </span>
+                          <span className="text-surface-600">|</span>
+                          <span
+                            className={`font-mono ${tpPercent >= 0 ? 'text-win-400' : 'text-loss-400'}`}
+                          >
+                            {tpPercent >= 0 ? '+' : ''}
+                            {tpPercent.toFixed(0)}%
+                          </span>
+                        </div>
+                      );
+                    })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -578,25 +664,30 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="text-sm text-surface-400">SL Price</label>
-                  {stopLossPrice && (() => {
-                    const sl = parseFloat(stopLossPrice);
-                    const slLoss = isLong
-                      ? (sl - entryPrice) * positionSize
-                      : (entryPrice - sl) * positionSize;
-                    const slPercent = margin > 0 ? (slLoss / margin) * 100 : 0;
-                    return (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-surface-500">Loss</span>
-                        <span className={`font-mono ${slLoss <= 0 ? 'text-loss-400' : 'text-win-400'}`}>
-                          ${slLoss.toFixed(2)}
-                        </span>
-                        <span className="text-surface-600">|</span>
-                        <span className={`font-mono ${slPercent <= 0 ? 'text-loss-400' : 'text-win-400'}`}>
-                          {slPercent.toFixed(0)}%
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {stopLossPrice &&
+                    (() => {
+                      const sl = parseFloat(stopLossPrice);
+                      const slLoss = isLong
+                        ? (sl - entryPrice) * positionSize
+                        : (entryPrice - sl) * positionSize;
+                      const slPercent = margin > 0 ? (slLoss / margin) * 100 : 0;
+                      return (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-surface-500">Loss</span>
+                          <span
+                            className={`font-mono ${slLoss <= 0 ? 'text-loss-400' : 'text-win-400'}`}
+                          >
+                            ${slLoss.toFixed(2)}
+                          </span>
+                          <span className="text-surface-600">|</span>
+                          <span
+                            className={`font-mono ${slPercent <= 0 ? 'text-loss-400' : 'text-win-400'}`}
+                          >
+                            {slPercent.toFixed(0)}%
+                          </span>
+                        </div>
+                      );
+                    })()}
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -624,7 +715,6 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                   })}
                 </div>
               </div>
-
             </div>
           )}
 
@@ -632,7 +722,8 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
             <div className="space-y-4">
               <div className="bg-surface-800 rounded-lg p-4">
                 <div className="text-sm text-surface-400 mb-2">
-                  Flipping will close your current position and open a new position in the opposite direction with the same size.
+                  Flipping will close your current position and open a new position in the opposite
+                  direction with the same size.
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-surface-400">Current:</span>
@@ -647,7 +738,6 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                   </span>
                 </div>
               </div>
-
             </div>
           )}
         </div>
@@ -661,11 +751,13 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
                 disabled={isSubmitting || closeAmountTokens === 0}
                 className="w-full bg-orange-500 hover:bg-orange-400 disabled:bg-surface-700 disabled:text-surface-500 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
               >
-                {isSubmitting ? 'Closing Position...' : `Close ${closePercentage.toFixed(0)}% at Market`}
+                {isSubmitting
+                  ? 'Closing Position...'
+                  : `Close ${closePercentage.toFixed(0)}% at Market`}
               </button>
               <button
                 onClick={() => {
-                  window.location.href = `/trade?symbol=${symbolBase}`;
+                  window.location.href = `/trade?symbol=${symbol}&exchange=${exchangeType}`;
                 }}
                 className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
@@ -685,7 +777,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               </button>
               <button
                 onClick={() => {
-                  window.location.href = `/trade?symbol=${symbolBase}`;
+                  window.location.href = `/trade?symbol=${symbol}&exchange=${exchangeType}`;
                 }}
                 className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
@@ -705,7 +797,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               </button>
               <button
                 onClick={() => {
-                  window.location.href = `/trade?symbol=${symbolBase}`;
+                  window.location.href = `/trade?symbol=${symbol}&exchange=${exchangeType}`;
                 }}
                 className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >
@@ -725,7 +817,7 @@ export function QuickPositionModal({ position, isOpen, onClose }: QuickPositionM
               </button>
               <button
                 onClick={() => {
-                  window.location.href = `/trade?symbol=${symbolBase}`;
+                  window.location.href = `/trade?symbol=${symbol}&exchange=${exchangeType}`;
                 }}
                 className="w-full bg-surface-700 hover:bg-surface-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
               >

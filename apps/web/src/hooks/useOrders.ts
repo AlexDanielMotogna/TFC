@@ -13,7 +13,19 @@ import { toast } from 'sonner';
 import { useExchangeContext } from '@/contexts/ExchangeContext';
 import { useAuthStore } from '@/lib/store';
 import { useExchangeWsStore } from '@/hooks/useExchangeWebSocket';
-import { createSignedMarketOrder, createSignedLimitOrder, createSignedCancelOrder, createSignedCancelStopOrder, createSignedCancelAllOrders, createSignedSetPositionTpsl, createSignedStopOrder, createSignedUpdateLeverage, createSignedUpdateMarginMode, createSignedWithdraw, createSignedEditOrder } from '@/lib/pacifica/signing';
+import {
+  createSignedMarketOrder,
+  createSignedLimitOrder,
+  createSignedCancelOrder,
+  createSignedCancelStopOrder,
+  createSignedCancelAllOrders,
+  createSignedSetPositionTpsl,
+  createSignedStopOrder,
+  createSignedUpdateLeverage,
+  createSignedUpdateMarginMode,
+  createSignedWithdraw,
+  createSignedEditOrder,
+} from '@/lib/pacifica/signing';
 import { notify } from '@/lib/notify';
 import { IS_HL_TESTNET } from '@/lib/hyperliquid/transfers';
 
@@ -100,7 +112,7 @@ export function useCreateMarketOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateMarketOrderParams) => {
@@ -121,7 +133,7 @@ export function useCreateMarketOrder() {
         const builderCode = params.builder_code || BUILDER_CODE;
 
         const signed = await createSignedMarketOrder(wallet, {
-          symbol: params.symbol,
+          symbol: params.symbol.replace('-USD', ''),
           side: params.side,
           amount: params.amount,
           slippage_percent: slippagePercent,
@@ -142,6 +154,9 @@ export function useCreateMarketOrder() {
       const slippagePercent = params.slippage_percent || '0.5';
       const builderCode = params.builder_code || BUILDER_CODE;
 
+      // Send to backend — Pacifica expects base symbol (e.g. "ETH"), not "ETH-USD"
+      const orderSymbol = clientSigned ? params.symbol.replace('-USD', '') : params.symbol;
+
       // Send to backend
       const response = await fetch('/api/orders', {
         method: 'POST',
@@ -152,7 +167,7 @@ export function useCreateMarketOrder() {
         body: JSON.stringify({
           exchange: exchangeType,
           account,
-          symbol: params.symbol,
+          symbol: orderSymbol,
           side: params.side,
           type: 'MARKET',
           amount: params.amount,
@@ -208,10 +223,17 @@ export function useCreateMarketOrder() {
       }
 
       if (data?.status === 'resting') {
-        notify('TRADE', 'Order Placed', `${variables.amount} ${variables.symbol} order resting`, { variant: 'success' });
+        notify('TRADE', 'Order Placed', `${variables.amount} ${variables.symbol} order resting`, {
+          variant: 'success',
+        });
       } else {
         const avgPrice = data?.avg_price || data?.price || 'market';
-        notify('TRADE', 'Order Filled', `${variables.amount} ${variables.symbol} filled at ${avgPrice}`, { variant: 'success' });
+        notify(
+          'TRADE',
+          'Order Filled',
+          `${variables.amount} ${variables.symbol} filled at ${avgPrice}`,
+          { variant: 'success' }
+        );
       }
     },
     onError: (error: Error) => {
@@ -232,7 +254,7 @@ export function useCreateLimitOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateLimitOrderParams) => {
@@ -252,7 +274,7 @@ export function useCreateLimitOrder() {
         const tif = params.tif || 'GTC';
 
         const signed = await createSignedLimitOrder(wallet, {
-          symbol: params.symbol,
+          symbol: params.symbol.replace('-USD', ''),
           side: params.side,
           price: params.price,
           amount: params.amount,
@@ -272,6 +294,9 @@ export function useCreateLimitOrder() {
 
       const builderCode = params.builder_code || BUILDER_CODE;
 
+      // Pacifica expects base symbol (e.g. "ETH"), not "ETH-USD"
+      const orderSymbol = clientSigned ? params.symbol.replace('-USD', '') : params.symbol;
+
       const response = await fetch('/api/orders', {
         method: 'POST',
         headers: {
@@ -281,7 +306,7 @@ export function useCreateLimitOrder() {
         body: JSON.stringify({
           exchange: exchangeType,
           account,
-          symbol: params.symbol,
+          symbol: orderSymbol,
           side: params.side,
           type: 'LIMIT',
           price: params.price,
@@ -319,14 +344,21 @@ export function useCreateLimitOrder() {
         }, 2500);
       }
 
-      notify('ORDER', 'Limit Order', `Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`, { variant: 'success' });
+      notify(
+        'ORDER',
+        'Limit Order',
+        `Limit order: ${variables.amount} ${variables.symbol} at ${variables.price}`,
+        { variant: 'success' }
+      );
     },
     onError: (error: Error) => {
       console.error('Failed to create limit order:', error);
       if (error.message.includes('Builder fee has not been approved')) {
         useAuthStore.getState().setHyperliquidStatus(true, true, false);
       }
-      notify('ORDER', 'Limit Order Failed', `Limit order failed: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'Limit Order Failed', `Limit order failed: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -338,7 +370,7 @@ export function useCancelOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: CancelOrderParams) => {
@@ -391,14 +423,16 @@ export function useCancelOrder() {
     onSuccess: (_, variables) => {
       // Optimistically remove cancelled order from WS store so UI updates immediately
       const currentOrders = useExchangeWsStore.getState().orders;
-      useExchangeWsStore.getState().setOrders(
-        currentOrders.filter(o => String(o.order_id) !== String(variables.orderId))
-      );
+      useExchangeWsStore
+        .getState()
+        .setOrders(currentOrders.filter((o) => String(o.order_id) !== String(variables.orderId)));
 
       // Force refetch HTTP orders to sync
       queryClient.refetchQueries({ queryKey: ['orders'] });
 
-      notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
+      notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, {
+        variant: 'success',
+      });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel order:', error);
@@ -414,7 +448,7 @@ export function useCancelStopOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: CancelOrderParams) => {
@@ -469,15 +503,17 @@ export function useCancelStopOrder() {
     onSuccess: (_, variables) => {
       // Optimistically remove cancelled order from WS store so UI updates immediately
       const currentOrders = useExchangeWsStore.getState().orders;
-      useExchangeWsStore.getState().setOrders(
-        currentOrders.filter(o => String(o.order_id) !== String(variables.orderId))
-      );
+      useExchangeWsStore
+        .getState()
+        .setOrders(currentOrders.filter((o) => String(o.order_id) !== String(variables.orderId)));
 
       // Force refetch to sync with server
       queryClient.refetchQueries({ queryKey: ['orders'] });
       queryClient.refetchQueries({ queryKey: ['positions'] });
 
-      notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, { variant: 'success' });
+      notify('ORDER', 'Order Cancelled', `Order #${variables.orderId} cancelled`, {
+        variant: 'success',
+      });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel stop order:', error);
@@ -493,7 +529,7 @@ export function useCancelAllOrders() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params?: CancelAllOrdersParams) => {
@@ -548,9 +584,13 @@ export function useCancelAllOrders() {
       // Optimistically clear orders from WS store so UI updates immediately
       if (params?.symbol) {
         const currentOrders = useExchangeWsStore.getState().orders;
-        useExchangeWsStore.getState().setOrders(
-          currentOrders.filter(o => o.symbol !== params.symbol && o.symbol !== params.symbol?.replace('-USD', ''))
-        );
+        useExchangeWsStore
+          .getState()
+          .setOrders(
+            currentOrders.filter(
+              (o) => o.symbol !== params.symbol && o.symbol !== params.symbol?.replace('-USD', '')
+            )
+          );
       } else {
         useExchangeWsStore.getState().setOrders([]);
       }
@@ -558,14 +598,14 @@ export function useCancelAllOrders() {
       // Force refetch to sync with server
       queryClient.refetchQueries({ queryKey: ['orders'] });
 
-      const msg = params?.symbol
-        ? `All ${params.symbol} orders cancelled`
-        : 'All orders cancelled';
+      const msg = params?.symbol ? `All ${params.symbol} orders cancelled` : 'All orders cancelled';
       notify('ORDER', 'Orders Cancelled', msg, { variant: 'success' });
     },
     onError: (error: Error) => {
       console.error('Failed to cancel orders:', error);
-      notify('ORDER', 'Cancel Failed', `Failed to cancel orders: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'Cancel Failed', `Failed to cancel orders: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -577,7 +617,7 @@ export function useSetPositionTpSl() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: SetPositionTpSlParams) => {
@@ -700,11 +740,15 @@ export function useSetPositionTpSl() {
       if (variables.stop_loss) {
         parts.push(`SL: $${variables.stop_loss.stop_price}`);
       }
-      notify('ORDER', 'TP/SL Set', `${variables.symbol} ${parts.join(', ')} set`, { variant: 'success' });
+      notify('ORDER', 'TP/SL Set', `${variables.symbol} ${parts.join(', ')} set`, {
+        variant: 'success',
+      });
     },
     onError: (error: Error) => {
       console.error('Failed to set TP/SL:', error);
-      notify('ORDER', 'TP/SL Failed', `Failed to set TP/SL: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'TP/SL Failed', `Failed to set TP/SL: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -716,7 +760,7 @@ export function useCreateStopOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateStopOrderParams) => {
@@ -846,11 +890,18 @@ export function useCreateStopOrder() {
 
       const typeLabel = variables.type === 'TAKE_PROFIT' ? 'TP' : 'SL';
       const orderType = variables.type === 'TAKE_PROFIT' ? 'Limit' : 'Stop';
-      notify('ORDER', `${typeLabel} Order Created`, `${variables.symbol} ${typeLabel} (${orderType}): $${variables.stopPrice} (${variables.amount})`, { variant: 'success' });
+      notify(
+        'ORDER',
+        `${typeLabel} Order Created`,
+        `${variables.symbol} ${typeLabel} (${orderType}): $${variables.stopPrice} (${variables.amount})`,
+        { variant: 'success' }
+      );
     },
     onError: (error: Error) => {
       console.error('Failed to create partial TP/SL:', error);
-      notify('ORDER', 'Order Failed', `Failed to create order: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'Order Failed', `Failed to create order: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -859,12 +910,12 @@ export function useCreateStopOrder() {
  * Hook to create standalone stop orders from the order form
  */
 interface CreateStandaloneStopOrderParams {
-  symbol: string;          // 'BTC-USD'
-  side: 'bid' | 'ask';    // bid=LONG, ask=SHORT
-  stopPrice: string;       // trigger price
-  amount: string;          // token amount (string)
-  limitPrice?: string;     // for stop-limit only
-  reduceOnly?: boolean;    // default false
+  symbol: string; // 'BTC-USD'
+  side: 'bid' | 'ask'; // bid=LONG, ask=SHORT
+  stopPrice: string; // trigger price
+  amount: string; // token amount (string)
+  limitPrice?: string; // for stop-limit only
+  reduceOnly?: boolean; // default false
   fightId?: string;
   leverage?: number;
 }
@@ -873,7 +924,7 @@ export function useCreateStandaloneStopOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: CreateStandaloneStopOrderParams) => {
@@ -952,11 +1003,18 @@ export function useCreateStandaloneStopOrder() {
 
       const typeLabel = variables.limitPrice ? 'Stop Limit' : 'Stop Market';
       const sideLabel = variables.side === 'bid' ? 'Long' : 'Short';
-      notify('ORDER', `${typeLabel} Order`, `${sideLabel} ${typeLabel}: trigger $${variables.stopPrice}${variables.limitPrice ? ` limit $${variables.limitPrice}` : ''} (${variables.amount} ${variables.symbol.replace('-USD', '')})`, { variant: 'success' });
+      notify(
+        'ORDER',
+        `${typeLabel} Order`,
+        `${sideLabel} ${typeLabel}: trigger $${variables.stopPrice}${variables.limitPrice ? ` limit $${variables.limitPrice}` : ''} (${variables.amount} ${variables.symbol.replace('-USD', '')})`,
+        { variant: 'success' }
+      );
     },
     onError: (error: Error) => {
       console.error('Failed to create stop order:', error);
-      notify('ORDER', 'Stop Order Failed', `Stop order failed: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'Stop Order Failed', `Stop order failed: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -968,7 +1026,7 @@ export function useSetLeverage() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: SetLeverageParams) => {
@@ -1025,14 +1083,20 @@ export function useSetLeverage() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['account-settings'] });
       const symbol = variables.symbol.replace('-USD', '');
-      notify('ORDER', 'Leverage Set', `Leverage set to ${variables.leverage}x for ${symbol}`, { variant: 'success' });
+      notify('ORDER', 'Leverage Set', `Leverage set to ${variables.leverage}x for ${symbol}`, {
+        variant: 'success',
+      });
     },
     onError: (error: Error) => {
       console.error('Failed to set leverage:', error);
       if (error.message.includes('InvalidLeverage')) {
-        notify('ORDER', 'Leverage Failed', 'Cannot decrease leverage while position is open', { variant: 'error' });
+        notify('ORDER', 'Leverage Failed', 'Cannot decrease leverage while position is open', {
+          variant: 'error',
+        });
       } else {
-        notify('ORDER', 'Leverage Failed', `Failed to set leverage: ${error.message}`, { variant: 'error' });
+        notify('ORDER', 'Leverage Failed', `Failed to set leverage: ${error.message}`, {
+          variant: 'error',
+        });
       }
     },
   });
@@ -1046,7 +1110,7 @@ export function useSetMarginMode() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: { symbol: string; isIsolated: boolean }) => {
@@ -1109,9 +1173,13 @@ export function useSetMarginMode() {
     onError: (error: Error) => {
       console.error('Failed to set margin mode:', error);
       if (error.message.includes('open position') || error.message.includes('OpenPosition')) {
-        notify('ORDER', 'Margin Mode Failed', 'Close position first to change margin mode', { variant: 'error' });
+        notify('ORDER', 'Margin Mode Failed', 'Close position first to change margin mode', {
+          variant: 'error',
+        });
       } else {
-        notify('ORDER', 'Margin Mode Failed', `Failed to set margin mode: ${error.message}`, { variant: 'error' });
+        notify('ORDER', 'Margin Mode Failed', `Failed to set margin mode: ${error.message}`, {
+          variant: 'error',
+        });
       }
     },
   });
@@ -1124,7 +1192,7 @@ export function useEditOrder() {
   const wallet = useWallet();
   const queryClient = useQueryClient();
   const { exchangeType, exchangeConfig } = useExchangeContext();
-  const token = useAuthStore(s => s.token);
+  const token = useAuthStore((s) => s.token);
 
   return useMutation({
     mutationFn: async (params: EditOrderParams) => {
@@ -1186,11 +1254,15 @@ export function useEditOrder() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
 
-      notify('ORDER', 'Order Edited', `Order price updated to $${variables.price}`, { variant: 'success' });
+      notify('ORDER', 'Order Edited', `Order price updated to $${variables.price}`, {
+        variant: 'success',
+      });
     },
     onError: (error: Error) => {
       console.error('Failed to edit order:', error);
-      notify('ORDER', 'Edit Failed', `Failed to edit order: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'Edit Failed', `Failed to edit order: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -1278,9 +1350,16 @@ export function useBatchOrders() {
       const failures = data.results.filter((r) => !r.success).length;
 
       if (failures === 0) {
-        notify('ORDER', 'Batch Complete', `${successes} action${successes > 1 ? 's' : ''} executed`, { variant: 'success' });
+        notify(
+          'ORDER',
+          'Batch Complete',
+          `${successes} action${successes > 1 ? 's' : ''} executed`,
+          { variant: 'success' }
+        );
       } else {
-        notify('ORDER', 'Batch Partial', `${successes} succeeded, ${failures} failed`, { variant: 'warning' });
+        notify('ORDER', 'Batch Partial', `${successes} succeeded, ${failures} failed`, {
+          variant: 'warning',
+        });
       }
     },
     onError: (error: Error) => {
@@ -1311,7 +1390,13 @@ export function useWithdraw() {
         // Hyperliquid: EIP-712 signing with main EVM wallet → direct to HL API
         // Agent wallet CANNOT sign withdrawals — must use main wallet
         const { switchChain, getWalletClient } = await import('@wagmi/core');
-        const { IS_HL_TESTNET, getHlChainId, buildWithdraw3TypedData, splitSignature, postHyperliquidExchange } = await import('@/lib/hyperliquid/transfers');
+        const {
+          IS_HL_TESTNET,
+          getHlChainId,
+          buildWithdraw3TypedData,
+          splitSignature,
+          postHyperliquidExchange,
+        } = await import('@/lib/hyperliquid/transfers');
 
         const evmAddress = useAuthStore.getState().evmWalletAddress;
         if (!evmAddress) throw new Error('EVM wallet not connected');
@@ -1327,7 +1412,7 @@ export function useWithdraw() {
         // Build EIP-712 typed data
         const { domain, types, primaryType, message, nonce } = buildWithdraw3TypedData(
           params.amount,
-          evmAddress,
+          evmAddress
         );
 
         // Sign with main wallet
@@ -1353,7 +1438,7 @@ export function useWithdraw() {
             time: nonce,
           },
           nonce,
-          sig,
+          sig
         );
 
         return result;
@@ -1392,21 +1477,30 @@ export function useWithdraw() {
       queryClient.invalidateQueries({ queryKey: ['account'] });
       queryClient.invalidateQueries({ queryKey: ['pacifica-account'] });
       if (exchangeType === 'hyperliquid') {
-        const hlApp = IS_HL_TESTNET ? 'https://app.hyperliquid-testnet.xyz' : 'https://app.hyperliquid.xyz';
-        toast.success(`Withdrawal of $${variables.amount} USDC submitted. ~5 min to arrive on Arbitrum.`, {
-          duration: 8000,
-          action: {
-            label: 'View on Hyperliquid',
-            onClick: () => window.open(hlApp, '_blank'),
-          },
-        });
+        const hlApp = IS_HL_TESTNET
+          ? 'https://app.hyperliquid-testnet.xyz'
+          : 'https://app.hyperliquid.xyz';
+        toast.success(
+          `Withdrawal of $${variables.amount} USDC submitted. ~5 min to arrive on Arbitrum.`,
+          {
+            duration: 8000,
+            action: {
+              label: 'View on Hyperliquid',
+              onClick: () => window.open(hlApp, '_blank'),
+            },
+          }
+        );
       } else {
-        notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, { variant: 'success' });
+        notify('ORDER', 'Withdrawal Requested', `Withdrawal of $${variables.amount} requested`, {
+          variant: 'success',
+        });
       }
     },
     onError: (error: Error) => {
       console.error('Failed to withdraw:', error);
-      notify('ORDER', 'Withdrawal Failed', `Failed to withdraw: ${error.message}`, { variant: 'error' });
+      notify('ORDER', 'Withdrawal Failed', `Failed to withdraw: ${error.message}`, {
+        variant: 'error',
+      });
     },
   });
 }
@@ -1431,8 +1525,10 @@ export function useDeposit() {
 
   return useMutation({
     mutationFn: async (params: DepositParams) => {
-      const { readContract, writeContract, waitForTransactionReceipt, switchChain } = await import('@wagmi/core');
-      const { getHlContracts, ERC20_APPROVE_ABI, BRIDGE_DEPOSIT_ABI, parseUsdcAmount } = await import('@/lib/hyperliquid/transfers');
+      const { readContract, writeContract, waitForTransactionReceipt, switchChain } =
+        await import('@wagmi/core');
+      const { getHlContracts, ERC20_APPROVE_ABI, BRIDGE_DEPOSIT_ABI, parseUsdcAmount } =
+        await import('@/lib/hyperliquid/transfers');
 
       const evmAddress = useAuthStore.getState().evmWalletAddress;
       if (!evmAddress) throw new Error('EVM wallet not connected');
@@ -1448,12 +1544,12 @@ export function useDeposit() {
       }
 
       // Step 2: Check USDC allowance
-      const allowance = await readContract(wagmiConfig, {
+      const allowance = (await readContract(wagmiConfig, {
         address: contracts.usdc,
         abi: ERC20_APPROVE_ABI,
         functionName: 'allowance',
         args: [evmAddress as `0x${string}`, contracts.bridge],
-      }) as bigint;
+      })) as bigint;
 
       // Step 3: Approve if needed
       if (allowance < amountRaw) {
@@ -1496,9 +1592,13 @@ export function useDeposit() {
     onError: (error: Error) => {
       console.error('Failed to deposit:', error);
       if (error.message.includes('User rejected') || error.message.includes('rejected')) {
-        notify('ORDER', 'Deposit Cancelled', 'Transaction rejected by wallet', { variant: 'error' });
+        notify('ORDER', 'Deposit Cancelled', 'Transaction rejected by wallet', {
+          variant: 'error',
+        });
       } else {
-        notify('ORDER', 'Deposit Failed', `Failed to deposit: ${error.message}`, { variant: 'error' });
+        notify('ORDER', 'Deposit Failed', `Failed to deposit: ${error.message}`, {
+          variant: 'error',
+        });
       }
     },
   });

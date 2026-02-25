@@ -21,7 +21,7 @@ export interface WsPosition {
   isolated: boolean;
   liq_price: string | null;
   updated_at: number;
-  // Optional fields provided by Hyperliquid (not available on Pacifica)
+  // Optional fields (Pacifica sends leverage via `li`, HL sends all)
   leverage?: number;
   leverage_type?: string; // 'cross' | 'isolated'
   unrealized_pnl?: string;
