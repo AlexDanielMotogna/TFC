@@ -57,6 +57,63 @@ export function calculateScore(input: ScoringInput): ScoringResult {
 }
 
 /**
+ * Live fight score, computed the way the realtime engine does it.
+ *
+ * Unlike `calculateScore` (Master-doc formula, denominator = stake), this matches what
+ * the realtime engine emits in PNL_TICK and writes at endFight: the denominator is the
+ * EFFECTIVE MARGIN actually committed during the fight (max of currentMargin,
+ * maxExposureUsed water-mark, and notional from trades). Used by reconcile-fights so
+ * both code paths converge on the same winner.
+ *
+ * Returns pnlPercent as a percentage (e.g. 5.0 = 5%), NOT a fraction.
+ */
+export interface LiveScoreInput {
+  stake: number;
+  realizedPnl: number;
+  fees: number;
+  /** Water-mark of capital used during the fight (FightParticipant.maxExposureUsed). */
+  maxExposureUsed: number;
+  /** Optional: notional of currently-open positions. realtime sets this; reconcile cannot. */
+  currentMargin?: number;
+  /** Optional: cumulative opening notional reconstructed from trades. */
+  maxExposureFromTrades?: number;
+}
+
+export interface LiveScoreResult {
+  pnlPercent: number;
+  scoreUsdc: number;
+  effectiveMargin: number;
+}
+
+export function calculateLiveScore(input: LiveScoreInput): LiveScoreResult {
+  const {
+    stake,
+    realizedPnl,
+    fees,
+    maxExposureUsed,
+    currentMargin = 0,
+    maxExposureFromTrades = 0,
+  } = input;
+
+  if (stake <= 0) {
+    throw new Error('Stake must be positive');
+  }
+
+  const totalPnl = realizedPnl - fees;
+  // Fall back to stake when nothing was ever opened, so pnlPercent doesn't divide by 0
+  // and reconcile gives a sane answer for fights that ended with no exposure.
+  const effectiveMargin = Math.max(currentMargin, maxExposureUsed, maxExposureFromTrades) || stake;
+  const pnlPercent = (totalPnl / effectiveMargin) * 100;
+  const scoreUsdc = stake * (pnlPercent / 100);
+
+  if (!Number.isFinite(pnlPercent) || !Number.isFinite(scoreUsdc)) {
+    throw new Error('Live score calculation produced invalid result');
+  }
+
+  return { pnlPercent, scoreUsdc, effectiveMargin };
+}
+
+/**
  * Format PnL percentage for display
  * @param pnlPercent - Raw PnL percentage (e.g., 0.05 for 5%)
  * @returns Formatted string (e.g., "+5.00%" or "-2.50%")

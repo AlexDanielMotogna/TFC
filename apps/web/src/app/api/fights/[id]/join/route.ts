@@ -4,7 +4,7 @@
  */
 import { withAuth } from '@/lib/server/auth';
 import { prisma } from '@/lib/server/db';
-import { errorResponse, BadRequestError, NotFoundError, ConflictError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, NotFoundError, ConflictError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ExchangeProvider } from '@/lib/server/exchanges/provider';
 import { canUsersMatch, recordFightSession } from '@/lib/server/anti-cheat';
 import { ErrorCode } from '@/lib/server/error-codes';
@@ -125,42 +125,37 @@ export async function POST(
         }),
       ]);
 
-      // Snapshot current positions from Pacifica (to exclude from fight PnL calculation)
-      // IMPORTANT: Log errors instead of silently failing - this caused Bug #2
+      // Snapshot current positions from Pacifica (to exclude from fight PnL calculation).
+      // CRITICAL: if Pacifica is unavailable we MUST refuse to join. Silently joining with
+      // an empty snapshot would treat the user's pre-existing positions as fight-relevant
+      // and contaminate the PnL.
       let creatorPositions, joinerPositions;
+      const failJoinOnPacificaError = (who: string) => (err: unknown) => {
+        console.error(`[JoinFight] Failed to get ${who} positions for fight ${params.id}:`, err);
+        throw new ServiceUnavailableError(
+          `Could not read ${who} positions from Pacifica. Try again in a moment.`,
+          ErrorCode.ERR_EXTERNAL_PACIFICA_API
+        );
+      };
 
       if (USE_EXCHANGE_ADAPTER) {
-        // Use Exchange Adapter (with caching if Redis configured)
         const adapter = await ExchangeProvider.getUserAdapter(user.userId);
         [creatorPositions, joinerPositions] = await Promise.all([
           creatorConnection?.accountAddress
-            ? adapter.getPositions(creatorConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
-                return [];
-              })
+            ? adapter.getPositions(creatorConnection.accountAddress).catch(failJoinOnPacificaError('creator'))
             : Promise.resolve([]),
           joinerConnection?.accountAddress
-            ? adapter.getPositions(joinerConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
-                return [];
-              })
+            ? adapter.getPositions(joinerConnection.accountAddress).catch(failJoinOnPacificaError('joiner'))
             : Promise.resolve([]),
         ]);
       } else {
-        // Fallback to direct Pacifica calls
         const Pacifica = await import('@/lib/server/pacifica');
         [creatorPositions, joinerPositions] = await Promise.all([
           creatorConnection?.accountAddress
-            ? Pacifica.getPositions(creatorConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get creator positions for fight ${params.id}:`, err);
-                return [];
-              })
+            ? Pacifica.getPositions(creatorConnection.accountAddress).catch(failJoinOnPacificaError('creator'))
             : Promise.resolve([]),
           joinerConnection?.accountAddress
-            ? Pacifica.getPositions(joinerConnection.accountAddress).catch((err) => {
-                console.error(`[JoinFight] Failed to get joiner positions for fight ${params.id}:`, err);
-                return [];
-              })
+            ? Pacifica.getPositions(joinerConnection.accountAddress).catch(failJoinOnPacificaError('joiner'))
             : Promise.resolve([]),
         ]);
       }
@@ -254,6 +249,50 @@ export async function POST(
       });
 
       console.log(`[JoinFight] User ${user.userId} joined fight ${params.id}, fight is now LIVE`);
+
+      // Race-window defense: re-snapshot positions immediately after the fight goes LIVE.
+      // If any symbol shows up now that wasn't in the pre-tx snapshot, the user opened it
+      // during the join window — extend blockedSymbols so those positions can't contaminate
+      // the fight PnL. Non-blocking: if the re-snapshot fails we keep the original blocks.
+      (async () => {
+        try {
+          const Pacifica = await import('@/lib/server/pacifica');
+          const [creatorPos2, joinerPos2] = await Promise.all([
+            creatorConnection?.accountAddress
+              ? Pacifica.getPositions(creatorConnection.accountAddress).catch(() => null)
+              : Promise.resolve([]),
+            joinerConnection?.accountAddress
+              ? Pacifica.getPositions(joinerConnection.accountAddress).catch(() => null)
+              : Promise.resolve([]),
+          ]);
+          if (!creatorPos2 || !joinerPos2) return;
+
+          const toTfcSym = (s: string) => (s.includes('-USD') ? s : `${s}-USD`);
+          const symbolsFrom = (pos: any[]) => new Set(pos.map((p: any) => toTfcSym(p.symbol)));
+          const creatorNow = symbolsFrom(creatorPos2);
+          const joinerNow = symbolsFrom(joinerPos2);
+
+          const creatorAdded = [...creatorNow].filter(s => !creatorBlockedSymbols.includes(s));
+          const joinerAdded = [...joinerNow].filter(s => !joinerBlockedSymbols.includes(s));
+
+          if (creatorAdded.length > 0) {
+            console.warn(`[JoinFight] Race window: creator opened symbols during join`, creatorAdded);
+            await prisma.fightParticipant.updateMany({
+              where: { fightId: params.id, slot: 'A' },
+              data: { blockedSymbols: [...creatorBlockedSymbols, ...creatorAdded] },
+            });
+          }
+          if (joinerAdded.length > 0) {
+            console.warn(`[JoinFight] Race window: joiner opened symbols during join`, joinerAdded);
+            await prisma.fightParticipant.updateMany({
+              where: { fightId: params.id, slot: 'B' },
+              data: { blockedSymbols: [...joinerBlockedSymbols, ...joinerAdded] },
+            });
+          }
+        } catch (err) {
+          console.error('[JoinFight] Post-tx re-snapshot failed:', err);
+        }
+      })();
 
       // Notify realtime server - fight has started
       notifyRealtime('fight-started', params.id);

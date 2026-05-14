@@ -7,7 +7,7 @@ import {
   SETTLEMENT_LOCK_PREFIX,
 } from '@tfc/db';
 import { createLogger } from '@tfc/logger';
-import { LOG_EVENTS, calculateScore, ScoringInput } from '@tfc/shared';
+import { LOG_EVENTS, calculateLiveScore } from '@tfc/shared';
 
 const logger = createLogger({ service: 'job' });
 
@@ -45,7 +45,9 @@ async function callAntiCheatSettle(
         fightId,
         status: response.status,
       });
-      return { finalStatus: 'FINISHED', winnerId, isDraw };
+      // FAIL SAFE: when anti-cheat is unavailable, treat as NO_CONTEST so cheaters
+      // cannot slip through during an outage. Matches fight-engine.ts:1094.
+      return { finalStatus: 'NO_CONTEST', winnerId, isDraw };
     }
 
     const result = await response.json() as {
@@ -54,7 +56,8 @@ async function callAntiCheatSettle(
       isDraw?: boolean;
     };
     return {
-      finalStatus: result.finalStatus || 'FINISHED',
+      // FAIL SAFE: if the API responded without a finalStatus, treat as NO_CONTEST.
+      finalStatus: result.finalStatus || 'NO_CONTEST',
       winnerId: result.winnerId ?? winnerId,
       isDraw: result.isDraw ?? isDraw,
     };
@@ -152,29 +155,32 @@ async function finalizeFight(
     new Map();
 
   for (const participant of participants) {
-    // Get trades for this participant
-    const trades = await prisma.fightTrade.findMany({
-      where: {
-        fightId,
-        participantUserId: participant.userId,
-      },
-    });
+    // Get trades and the maxExposureUsed water-mark for this participant
+    const [trades, participantRow] = await Promise.all([
+      prisma.fightTrade.findMany({
+        where: { fightId, participantUserId: participant.userId },
+      }),
+      prisma.fightParticipant.findFirst({
+        where: { fightId, userId: participant.userId },
+        select: { maxExposureUsed: true },
+      }),
+    ]);
 
     const realizedPnl = trades.reduce((sum, t) => sum + (t.pnl ? Number(t.pnl) : 0), 0);
     const fees = trades.reduce((sum, t) => sum + Number(t.fee), 0);
+    const maxExposureUsed = Number(participantRow?.maxExposureUsed || 0);
 
-    const scoringInput: ScoringInput = {
+    // Use the SAME formula as the realtime engine (effectiveMargin denominator) so the
+    // reconcile fallback produces the same winner as the live settle would have.
+    const score = calculateLiveScore({
       stake: stakeUsdc,
       realizedPnl,
-      unrealizedPnl: 0, // Not available in reconciliation
       fees,
-      funding: 0,
-    };
-
-    const score = calculateScore(scoringInput);
+      maxExposureUsed,
+    });
 
     scores.set(participant.userId, {
-      pnlPercent: score.pnlPercent * 100,
+      pnlPercent: score.pnlPercent,
       scoreUsdc: score.scoreUsdc,
       tradesCount: trades.length,
     });
