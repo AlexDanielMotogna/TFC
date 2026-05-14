@@ -135,7 +135,7 @@ export function LandingFooter() {
         </div>
 
         {/* Powered by Pacifica */}
-        <div className="flex items-center justify-center gap-2 mb-8 py-4 border-y border-surface-800">
+        <div className="flex items-center justify-center gap-2 mb-4 py-4 border-t border-surface-800">
           <span className="text-sm text-surface-500">Powered by</span>
           <a
             href="https://pacifica.fi"
@@ -149,6 +149,29 @@ export function LandingFooter() {
             <span className="font-medium">Pacifica DEX</span>
           </a>
         </div>
+
+        {/* TradingView attribution */}
+        <p className="text-sm text-surface-400 text-center max-w-3xl mx-auto mb-8 pb-4 border-b border-surface-800">
+          Every battle on Trade Fight Club is fought on professional-grade charts provided by{' '}
+          <a
+            href="https://www.tradingview.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-400 hover:text-primary-300 underline transition-colors"
+          >
+            TradingView
+          </a>
+          , a charting platform and social network used by 50+ million traders and investors worldwide to track financial markets. Explore advanced{' '}
+          <a
+            href="https://www.tradingview.com/symbols/BTCUSD/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary-400 hover:text-primary-300 underline transition-colors"
+          >
+            BTC USD charts
+          </a>{' '}
+          and live quotes for thousands of assets on TradingView.
+        </p>
 
         {/* Bottom Bar */}
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
