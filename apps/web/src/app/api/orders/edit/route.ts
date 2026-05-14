@@ -2,9 +2,12 @@
  * Edit Order endpoint
  * POST /api/orders/edit - Edit limit order price/amount (proxies to Pacifica)
  */
-import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
+import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
+import { validateStakeLimit, assertSymbolNotBlocked } from '@/lib/server/orders';
+import { getOpenOrders } from '@/lib/server/pacifica';
+import { emitStakeInfoForUser } from '@/lib/server/trade-recording';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -28,6 +31,77 @@ export async function POST(request: Request) {
 
     if (!order_id && !client_order_id) {
       throw new BadRequestError('Either order_id or client_order_id is required', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
+    }
+
+    // Look up the existing order from Pacifica so we can compute the notional delta.
+    // If the symbol is blocked or the new size exceeds available capital, reject before
+    // touching Pacifica — without this, edit silently bypassed all fight enforcement.
+    let oldNotional = 0;
+    let oldReduceOnly = false;
+    let oldSide: 'bid' | 'ask' | undefined;
+    let fightIdFromBody: string | undefined = body.fight_id;
+    try {
+      const openOrders = await getOpenOrders(account);
+      const target = openOrders.find(
+        o => o.order_id?.toString() === String(order_id) ||
+             (client_order_id && (o as any).client_order_id?.toString() === String(client_order_id))
+      );
+      if (target) {
+        const remaining = Math.max(
+          0,
+          parseFloat(target.initial_amount) -
+            parseFloat(target.filled_amount) -
+            parseFloat(target.cancelled_amount || '0')
+        );
+        const tgtPrice = parseFloat(target.price) || parseFloat((target as any).stop_price || '0');
+        oldNotional = remaining * tgtPrice;
+        oldReduceOnly = !!target.reduce_only;
+        oldSide = target.side === 'bid' || target.side === 'ask' ? target.side : undefined;
+      }
+    } catch (err) {
+      console.error('[orders/edit] Failed to read old order from Pacifica:', err);
+      // Fail closed: without the old order we cannot compute a safe delta.
+      throw new ServiceUnavailableError(
+        'Could not verify existing order before edit; please cancel and re-create',
+        ErrorCode.ERR_EXTERNAL_PACIFICA_API
+      );
+    }
+
+    const newNotional = parseFloat(amount) * parseFloat(price);
+    const deltaNotional = Math.max(0, newNotional - oldNotional);
+
+    if (!oldReduceOnly) {
+      // Symbol-blocked check (skip for reduce-only edits, which only close positions).
+      try {
+        await assertSymbolNotBlocked(account, symbol, fightIdFromBody, false);
+      } catch (error: any) {
+        if (error.code === 'SYMBOL_BLOCKED') {
+          throw new BadRequestError(error.message, ErrorCode.ERR_ORDER_SYMBOL_BLOCKED);
+        }
+        throw error;
+      }
+
+      // Stake-limit check only on the INCREASE in notional. Edits that shrink the order
+      // or leave size unchanged but reprice cannot consume additional capital.
+      if (deltaNotional > 0) {
+        try {
+          await validateStakeLimit(
+            account,
+            symbol,
+            (deltaNotional / parseFloat(price)).toString(),
+            price,
+            'LIMIT',
+            false,
+            fightIdFromBody,
+            oldSide
+          );
+        } catch (error: any) {
+          if (error.code === 'STAKE_LIMIT_EXCEEDED') {
+            throw new StakeLimitError(error.message, error.details);
+          }
+          throw error;
+        }
+      }
     }
 
     // Build request body for Pacifica
@@ -92,6 +166,11 @@ export async function POST(request: Request) {
       pacificaOrderId: result.data?.order_id,
       success: true,
     }).catch(err => console.error('Failed to record edit order action:', err));
+
+    // Push a fresh STAKE_INFO so the UI updates available capital immediately
+    emitStakeInfoForUser(account, fightIdFromBody).catch(err =>
+      console.error('Failed to emit stake info after edit:', err)
+    );
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

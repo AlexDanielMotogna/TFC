@@ -5,10 +5,9 @@
  */
 import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError, GatewayTimeoutError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
-import { validateStakeLimit } from '@/lib/server/orders';
+import { validateStakeLimit, assertSymbolNotBlocked } from '@/lib/server/orders';
 import { recordOrderAction } from '@/lib/server/order-actions';
-import { recordAllTrades } from '@/lib/server/trade-recording';
-import { prisma } from '@tfc/db';
+import { recordAllTrades, emitStakeInfoForUser } from '@/lib/server/trade-recording';
 import { FeatureFlags } from '@/lib/server/feature-flags';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
@@ -46,6 +45,17 @@ export async function POST(request: Request) {
       throw new ServiceUnavailableError('Trading is temporarily disabled', ErrorCode.ERR_ORDER_TRADING_DISABLED);
     }
 
+    // Block trading symbols where the user already had a position when the fight started.
+    // Runs first so the user sees the right error even if they would also fail stake limits.
+    try {
+      await assertSymbolNotBlocked(account, symbol, fight_id || undefined, !!is_pre_fight_flip);
+    } catch (error: any) {
+      if (error.code === 'SYMBOL_BLOCKED') {
+        throw new BadRequestError(error.message, ErrorCode.ERR_ORDER_SYMBOL_BLOCKED);
+      }
+      throw error;
+    }
+
     // Validate stake limit for users in active fights
     // Returns fight info if user is in a fight (used to update maxExposure after order)
     // If fight_id is provided, validates against that specific fight
@@ -58,41 +68,14 @@ export async function POST(request: Request) {
         price,
         type,
         reduce_only || false,
-        fight_id || undefined // Pass specific fight ID if provided
+        fight_id || undefined,
+        side as 'bid' | 'ask' | undefined
       );
     } catch (error: any) {
       if (error.code === 'STAKE_LIMIT_EXCEEDED') {
         throw new StakeLimitError(error.message, error.details);
       }
       throw error;
-    }
-
-    // Check if symbol is blocked for this user in their active fight
-    // Blocked symbols = symbols with pre-fight open positions (to avoid PnL contamination)
-    if (fightValidation) {
-      const connection = await prisma.pacificaConnection.findUnique({
-        where: { accountAddress: account },
-        select: { userId: true },
-      });
-
-      if (connection) {
-        const participant = await prisma.fightParticipant.findFirst({
-          where: {
-            userId: connection.userId,
-            fightId: fightValidation.fightId,
-          },
-        });
-
-        // blockedSymbols is String[] - check if symbol is in the list
-        // Allow pre-fight flip trades to bypass this check (they close pre-existing positions)
-        const blockedSymbols = (participant as any)?.blockedSymbols as string[] | undefined;
-        if (blockedSymbols?.includes(symbol) && !is_pre_fight_flip) {
-          throw new BadRequestError(
-            `Symbol ${symbol} is blocked for this fight. You had an open position in this symbol before the fight started. Close pre-fight positions before joining a fight to trade that symbol.`,
-            ErrorCode.ERR_ORDER_SYMBOL_BLOCKED
-          );
-        }
-      }
     }
 
     // Proxy to Pacifica API
@@ -304,6 +287,11 @@ export async function DELETE(request: Request) {
       symbol: symbol || 'ALL',
       success: true,
     }).catch(err => console.error('Failed to record cancel all action:', err));
+
+    // Push a fresh STAKE_INFO so the UI updates available capital immediately
+    emitStakeInfoForUser(account).catch(err =>
+      console.error('Failed to emit stake info after cancel-all:', err)
+    );
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

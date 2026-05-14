@@ -11,6 +11,8 @@
 import {
   calculateFightExposure,
   updateMaxExposureIfHigher,
+  getUserIdFromAccount,
+  getActiveFightForUser,
 } from '@/lib/server/fight-exposure';
 import { calculateReferralCommissions } from '@/lib/server/services/referral';
 import { broadcastAdminTrade } from '@/lib/server/admin-realtime';
@@ -86,6 +88,30 @@ export async function emitPlatformStats() {
     console.log('[emitPlatformStats] Stats emitted successfully');
   } catch (error) {
     console.error('[emitPlatformStats] Failed to emit stats:', error);
+  }
+}
+
+/**
+ * Lookup the user's active fight and emit a fresh STAKE_INFO event.
+ * Used by cancel/edit endpoints so the UI updates available capital without
+ * waiting for the next websocket tick.
+ */
+export async function emitStakeInfoForUser(accountAddress: string, fightId?: string) {
+  try {
+    const userId = await getUserIdFromAccount(accountAddress);
+    if (!userId) return;
+    const fight = await getActiveFightForUser(userId, fightId);
+    if (!fight) return;
+    const { currentExposure } = await calculateFightExposure(fight.fightId, userId);
+    await emitStakeInfo(
+      fight.fightId,
+      userId,
+      fight.stakeUsdc,
+      currentExposure,
+      fight.maxExposureUsed
+    );
+  } catch (err) {
+    console.error('[emitStakeInfoForUser] Failed:', err);
   }
 }
 
@@ -256,6 +282,9 @@ export async function recordAllTrades(
         fee,
         pnl,
         leverage: leverage || null,
+        // Explicit intent: presence of leverage indicates this was an opening trade
+        // (the frontend only sends leverage when opening a new position).
+        kind: leverage ? 'OPEN' : 'CLOSE',
         fightId: shouldAssignFightId ? resolvedFightId : null,
         executedAt: new Date(),
       },
@@ -403,6 +432,7 @@ export async function recordAllTradesWithDetails(
         fee: execDetails.fee,
         pnl: execDetails.pnl,
         leverage: leverage || null,
+        kind: leverage ? 'OPEN' : 'CLOSE',
         fightId: shouldAssignFightId ? resolvedFightId : null,
         executedAt: new Date(),
       },
@@ -534,13 +564,22 @@ export async function recordFightTradeWithDetails(
   const fight = activeFight.fight;
   const now = Date.now();
 
-  // Verify trade is within fight window
+  // Verify trade is within fight window.
+  // Prefer fight.endedAt when set — that's the authoritative settlement timestamp.
+  // Falls back to the nominal end (startedAt + durationMinutes) for fights still LIVE.
+  // Rejects late-arriving fills that the realtime engine already settled.
   if (!fight.startedAt) return;
   const fightStart = fight.startedAt.getTime();
-  const fightEnd = fightStart + fight.durationMinutes * 60 * 1000;
+  const fightNominalEnd = fightStart + fight.durationMinutes * 60 * 1000;
+  const fightEnd = fight.endedAt ? Math.min(fight.endedAt.getTime(), fightNominalEnd) : fightNominalEnd;
 
   if (now < fightStart || now > fightEnd) {
-    console.log('Trade outside fight window');
+    console.log('[FightTrade] Trade outside fight window', {
+      now: new Date(now).toISOString(),
+      fightStart: new Date(fightStart).toISOString(),
+      fightEnd: new Date(fightEnd).toISOString(),
+      endedAt: fight.endedAt?.toISOString(),
+    });
     return;
   }
 
@@ -607,6 +646,20 @@ export async function recordFightTradeWithDetails(
   } catch (err) {
     console.error('[RULE 35] Failed to fetch Pacifica position:', err);
     pacificaFetchFailed = true;
+  }
+
+  // M3: If this symbol was in blockedSymbols (pre-fight position) and the position is
+  // now flat in Pacifica, the user closed it — they should be allowed to trade it again.
+  // Fire-and-forget: don't block trade recording on the unblock.
+  const currentBlocked = (activeFight as { blockedSymbols?: string[] }).blockedSymbols || [];
+  const tfcSymbol = symbol.includes('-USD') ? symbol : `${symbol}-USD`;
+  if (pacificaPositionAfter === 0 && currentBlocked.includes(tfcSymbol)) {
+    const newBlocked = currentBlocked.filter(s => s !== tfcSymbol);
+    prisma.fightParticipant.update({
+      where: { id: activeFight.id },
+      data: { blockedSymbols: newBlocked },
+    }).catch(err => console.error('[M3] Failed to unblock symbol:', err));
+    console.log(`[M3] Pre-fight position in ${tfcSymbol} closed — symbol unblocked for this participant`);
   }
 
   // Calculate position BEFORE this trade executed
@@ -795,6 +848,13 @@ export async function recordFightTradeWithDetails(
   const adjustedPnl = pnl ? (parseFloat(pnl) * adjustmentRatio).toString() : null;
 
   // Record the trade with real execution details (using adjusted amount for fight portion only)
+  // Derive explicit kind from the RULE 35 analysis: if the trade meaningfully opens
+  // (positionBefore on the opposite side or flat), tag it OPEN; otherwise CLOSE.
+  const isOpeningTrade =
+    (tradeSide === 'BUY' && positionBefore >= 0) ||
+    (tradeSide === 'SELL' && positionBefore <= 0);
+  const tradeKind = isOpeningTrade ? 'OPEN' : 'CLOSE';
+
   await prisma.fightTrade.create({
     data: {
       fightId: fight.id,
@@ -807,8 +867,9 @@ export async function recordFightTradeWithDetails(
       price: executionPrice,
       fee: adjustedFee,
       pnl: adjustedPnl,
-      leverage: leverage || null, // Store leverage for accurate ROI calculation
-      executedAt, // Use actual execution time from Pacifica
+      leverage: leverage || null,
+      kind: tradeKind,
+      executedAt,
     },
   });
 

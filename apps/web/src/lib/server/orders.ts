@@ -9,7 +9,6 @@ import {
   getActiveFightForUser,
   getUserIdFromAccount,
   calculateAvailableCapital,
-  updateMaxExposureIfHigher,
 } from './fight-exposure';
 import { prisma } from '@tfc/db';
 
@@ -44,6 +43,44 @@ export async function getCurrentPrice(symbol: string): Promise<number> {
  * @param fightId - Optional specific fight ID. If provided, validates against that fight only.
  *                  If not provided, validates against any active fight the user is in.
  */
+/**
+ * Assert that a symbol is not in the participant's blockedSymbols list.
+ * Blocked symbols are symbols where the user had open positions BEFORE the fight
+ * started — those positions are excluded from PnL, so trading them during the fight
+ * would contaminate the score.
+ *
+ * Throws BlockedSymbolError if blocked. No-op if user is not in a fight, the symbol
+ * is not blocked, or this is a pre-fight-flip (closing the pre-existing position).
+ */
+export async function assertSymbolNotBlocked(
+  accountAddress: string,
+  symbol: string,
+  fightId?: string,
+  isPreFightFlip = false
+): Promise<void> {
+  if (isPreFightFlip) return;
+
+  const userId = await getUserIdFromAccount(accountAddress);
+  if (!userId) return;
+
+  const activeFight = await getActiveFightForUser(userId, fightId);
+  if (!activeFight) return;
+
+  const participant = await prisma.fightParticipant.findFirst({
+    where: { userId, fightId: activeFight.fightId },
+    select: { blockedSymbols: true },
+  });
+
+  const blockedSymbols = (participant as { blockedSymbols?: string[] } | null)?.blockedSymbols;
+  if (blockedSymbols?.includes(symbol)) {
+    const error = new Error(
+      `Symbol ${symbol} is blocked for this fight. You had an open position in this symbol before the fight started. Close pre-fight positions before joining a fight to trade that symbol.`
+    );
+    (error as unknown as { code: string }).code = 'SYMBOL_BLOCKED';
+    throw error;
+  }
+}
+
 export async function validateStakeLimit(
   accountAddress: string,
   symbol: string,
@@ -51,7 +88,8 @@ export async function validateStakeLimit(
   price: string | undefined,
   type: 'MARKET' | 'LIMIT',
   reduceOnly: boolean,
-  fightId?: string
+  fightId?: string,
+  side?: 'bid' | 'ask'
 ): Promise<{
   inFight: boolean;
   fightId?: string;
@@ -119,14 +157,10 @@ export async function validateStakeLimit(
   // This ensures we don't under-count when fill detector hasn't caught up
   const currentExposure = Math.max(fightTradeExposure, livePositionExposure);
 
-  // If live exposure is higher than recorded maxExposureUsed, update the water mark
-  if (livePositionExposure > maxExposureUsed) {
-    maxExposureUsed = livePositionExposure;
-    // Fire-and-forget update to DB
-    updateMaxExposureIfHigher(activeFight.participantId, livePositionExposure).catch(err => {
-      console.error('[validateStakeLimit] Failed to update maxExposureUsed:', err);
-    });
-  }
+  // NOTE: maxExposureUsed is updated ONLY by recordFightTradeWithDetails (from real fills).
+  // Previously this function also bumped maxExposureUsed from livePositionExposure, but
+  // that caused a permanent water-mark inflation when pending orders were later cancelled
+  // or liquidated, leaving capital "spent" that was never actually used.
 
   // Calculate order notional value
   let orderPrice: number;
@@ -137,7 +171,30 @@ export async function validateStakeLimit(
   }
 
   const orderAmount = Math.abs(parseFloat(amount));
-  const orderNotional = orderPrice * orderAmount;
+  let orderNotional = orderPrice * orderAmount;
+
+  // If the order is on the opposite side of an existing position, treat the closing
+  // portion as exposure-reducing (i.e. it shouldn't count against available capital).
+  // Without this, a user trying to close a $5k LONG with a $5k SELL would be rejected
+  // when stake = $5k even though the trade only reduces exposure.
+  if (side && livePositionExposure > 0) {
+    try {
+      const positions = await getPositions(accountAddress);
+      const pos = positions.find((p: any) => p.symbol === symbol);
+      if (pos) {
+        const signedAmount = parseFloat(pos.amount);
+        const isLong = signedAmount > 0;
+        const isOpposite = (isLong && side === 'ask') || (!isLong && side === 'bid');
+        if (isOpposite) {
+          const closingAmount = Math.min(orderAmount, Math.abs(signedAmount));
+          const closingNotional = closingAmount * orderPrice;
+          orderNotional = Math.max(0, orderNotional - closingNotional);
+        }
+      }
+    } catch (err) {
+      console.error('[validateStakeLimit] Failed to read positions for close detection:', err);
+    }
+  }
 
   // Calculate pending notional from unfilled limit/stop orders placed during this fight
   let pendingNotional = 0;
@@ -163,8 +220,9 @@ export async function validateStakeLimit(
     // Sum notional of open orders that were placed during this fight
     // Use remaining amount (initial - filled - cancelled) for partially filled orders
     // For stop orders, use stop_price when price is 0 (stop market orders have no limit price)
+    // Exclude reduce-only orders (TP/SL) — they cannot increase exposure, only decrease it.
     pendingNotional = openOrders
-      .filter(o => fightOrderIds.has(o.order_id?.toString()))
+      .filter(o => fightOrderIds.has(o.order_id?.toString()) && !o.reduce_only)
       .reduce((sum, o) => {
         const remaining = parseFloat(o.initial_amount) - parseFloat(o.filled_amount) - parseFloat(o.cancelled_amount || '0');
         const orderPrice = parseFloat(o.price) || parseFloat(o.stop_price || '0');

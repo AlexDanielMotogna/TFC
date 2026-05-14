@@ -5,6 +5,7 @@
 import { errorResponse, BadRequestError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
+import { emitStakeInfoForUser } from '@/lib/server/trade-recording';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -72,6 +73,11 @@ export async function DELETE(
       pacificaOrderId: parseInt(orderId, 10),
       success: true,
     }).catch(err => console.error('Failed to record cancel action:', err));
+
+    // Push a fresh STAKE_INFO so the UI updates available capital immediately
+    emitStakeInfoForUser(account).catch(err =>
+      console.error('Failed to emit stake info after cancel:', err)
+    );
 
     return Response.json({ success: true, data: result.data });
   } catch (error) {

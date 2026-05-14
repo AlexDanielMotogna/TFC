@@ -210,6 +210,11 @@ model FightTrade {
   pnl      Decimal? @db.Decimal(18, 8) // Realized PnL from this trade
   leverage Int? // Leverage used for this trade (from frontend)
 
+  // Explicit intent of the trade so external-trade detection doesn't need to infer
+  // from `leverage !== null`. Values: 'OPEN' | 'CLOSE'. Null for legacy rows or
+  // truly ambiguous fills — callers should fall back to the leverage heuristic then.
+  kind String? @map("kind")
+
   executedAt DateTime @map("executed_at") // Pacifica's created_at
   recordedAt DateTime @default(now()) @map("recorded_at")
 
@@ -240,6 +245,9 @@ model Trade {
   fee      Decimal  @db.Decimal(18, 8)
   pnl      Decimal? @db.Decimal(18, 8)
   leverage Int?
+
+  // Explicit intent of the trade: 'OPEN' | 'CLOSE'. Null for legacy rows.
+  kind String? @map("kind")
 
   // Optional fight reference (if trade was during a fight)
   fightId String? @map("fight_id")

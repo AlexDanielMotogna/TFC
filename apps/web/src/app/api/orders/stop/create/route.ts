@@ -8,7 +8,7 @@
 import { errorResponse, BadRequestError, StakeLimitError, ServiceUnavailableError } from '@/lib/server/errors';
 import { ErrorCode } from '@/lib/server/error-codes';
 import { recordOrderAction } from '@/lib/server/order-actions';
-import { validateStakeLimit } from '@/lib/server/orders';
+import { validateStakeLimit, assertSymbolNotBlocked } from '@/lib/server/orders';
 
 const PACIFICA_API_URL = process.env.PACIFICA_API_URL || 'https://api.pacifica.fi';
 
@@ -25,6 +25,19 @@ export async function POST(request: Request) {
       throw new BadRequestError('stop_order must contain stop_price and amount', ErrorCode.ERR_VALIDATION_MISSING_FIELD);
     }
 
+    // Block trading symbols where the user already had a position when the fight started
+    // (does not apply to reduce-only TP/SL, which only close existing positions).
+    if (!reduce_only) {
+      try {
+        await assertSymbolNotBlocked(account, symbol, fight_id || undefined, false);
+      } catch (error: any) {
+        if (error.code === 'SYMBOL_BLOCKED') {
+          throw new BadRequestError(error.message, ErrorCode.ERR_ORDER_SYMBOL_BLOCKED);
+        }
+        throw error;
+      }
+    }
+
     // Validate stake limit for users in active fights (stop orders can open positions)
     if (!reduce_only) {
       try {
@@ -35,7 +48,8 @@ export async function POST(request: Request) {
           stop_order.stop_price,
           'LIMIT', // Treat stop orders like limit orders for notional calculation
           false,
-          fight_id || undefined
+          fight_id || undefined,
+          side as 'bid' | 'ask' | undefined
         );
       } catch (error: any) {
         if (error.code === 'STAKE_LIMIT_EXCEEDED') {
