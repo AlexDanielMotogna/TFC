@@ -26,6 +26,11 @@ const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key';
 // A 5-minute fight = 60 snapshots instead of 300
 const SNAPSHOT_SAVE_INTERVAL = 5;
 
+// External-trades sanity check during the fight. The check is DB-only (reads `trade`
+// table; no Pacifica API call), so it's cheap to run periodically. Detecting external
+// trades mid-fight lets us warn the opponent (and flag the cheater) before settlement.
+const EXTERNAL_CHECK_INTERVAL = 60;
+
 // Snapshot cleanup interval (every hour)
 const SNAPSHOT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -277,8 +282,14 @@ async function calculateUnrealizedPnlFromFightTrades(
       totalMargin += margin;
     }
 
-    // Note: Funding is tracked per-position on Pacifica, not per-fight
-    // For fight-specific calculations, we don't include funding
+    // KNOWN BEHAVIOR (M7): Funding payments are tracked per-position on Pacifica and
+    // are NOT included in the fight PnL. A user holding a long-running position during
+    // a long fight (e.g. 4h) will see Pacifica's funding flow into/out of their wallet
+    // but the fight scoreboard will ignore it. This is intentional for now so opening
+    // a fresh position during a fight isn't penalised relative to a pre-existing one,
+    // but the trade-off is that the fight PnL won't match the Pacifica terminal PnL.
+    // If this changes, fetch funding per-position from Pacifica and subtract here AND
+    // mirror the change in apps/jobs/src/jobs/reconcile-fights.ts.
 
     // Note: Platform fee (0.05%) is already included in Pacifica's fee via Builder Code
     // Pacifica combines base fee + builder fee in the trade.fee field
@@ -340,15 +351,20 @@ async function detectExternalTrades(
       tradesCount: trades.length,
     });
 
-    // Calculate OPENING vs CLOSING totals per symbol
-    // Opening = trades with leverage field set
-    // Closing = trades without leverage field (null)
+    // Calculate OPENING vs CLOSING totals per symbol.
+    // Prefer the explicit `kind` field (set at trade-recording time) so we don't infer
+    // intent from the legacy `leverage !== null` heuristic — that misfires when the
+    // frontend forgets to send leverage on an opening trade, which used to produce
+    // false-positive EXTERNAL_TRADES detections.
     const symbolTotals: Record<string, { opening: number; closing: number }> = {};
 
     for (const trade of trades) {
       const symbol = trade.symbol;
       const amount = parseFloat(trade.amount.toString());
-      const isOpening = trade.leverage !== null && trade.leverage !== undefined;
+      const kindField = (trade as { kind?: string | null }).kind;
+      const isOpening = kindField
+        ? kindField === 'OPEN'
+        : trade.leverage !== null && trade.leverage !== undefined;
 
       if (!symbolTotals[symbol]) {
         symbolTotals[symbol] = { opening: 0, closing: 0 };
@@ -550,10 +566,6 @@ export class FightEngine {
       },
     });
 
-    // MVP-9: External trades check moved to end-of-fight only
-    // This reduces Pacifica API calls by ~95% during fights
-    // @see MVP-SIMPLIFIED-RULES.md
-
     // Save snapshots every 5 seconds (not every tick to reduce DB load)
     const shouldSaveSnapshot = this.tickCount % SNAPSHOT_SAVE_INTERVAL === 0;
 
@@ -562,6 +574,23 @@ export class FightEngine {
       this.fillDetector.checkForFilledOrders(liveFights).catch(err => {
         logger.error(LOG_EVENTS.API_ERROR, 'Fill detection failed', err as Error);
       });
+    }
+
+    // Periodic external-trades check (DB-only, cheap). MVP-9 deferred this to endFight
+    // for cost reasons, but the check reads only the local `trade` table — there is no
+    // Pacifica API hit — so running it every EXTERNAL_CHECK_INTERVAL ticks during the
+    // fight lets us catch cheaters mid-fight without ~95% extra Pacifica calls.
+    if (this.tickCount % EXTERNAL_CHECK_INTERVAL === 0 && liveFights.length > 0) {
+      for (const f of liveFights) {
+        if (!f.startedAt || this.settlingFights.has(f.id)) continue;
+        this.checkExternalTrades({
+          id: f.id,
+          startedAt: f.startedAt,
+          participants: f.participants,
+        }).catch(err => {
+          logger.error(LOG_EVENTS.API_ERROR, 'Periodic external-trades check failed', err as Error, { fightId: f.id });
+        });
+      }
     }
 
     // Collect arena PnL data for all live fights

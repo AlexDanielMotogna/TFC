@@ -410,18 +410,17 @@ export class FightsService {
       throw new HttpException('Only waiting fights can be cancelled', HttpStatus.BAD_REQUEST);
     }
 
-    // Cancel the fight
+    // Cancel the fight — soft delete so the row survives for analytics/audit and so
+    // status filters (e.g. "fights cancelled this week") return consistent counts.
+    // The stale-cleanup job already uses status='CANCELLED'; this matches that path.
     const cancelledFight = await prisma.$transaction(async (tx) => {
-      // Delete participants
-      await tx.fightParticipant.deleteMany({
-        where: { fightId },
-      });
-
-      // Delete the fight
-      await tx.fight.delete({
+      await tx.fight.update({
         where: { id: fightId },
+        data: {
+          status: FightStatus.CANCELLED,
+          endedAt: new Date(),
+        },
       });
-
       return { id: fightId };
     });
 

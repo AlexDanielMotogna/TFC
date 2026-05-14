@@ -26,6 +26,8 @@
    * Cálculo de PnL
 4. Cualquier acción que ocurra fuera de la app, aunque sea ejecutada en Pacifica, **no forma parte del fight**.
 
+> **Funding rate:** El funding que Pacifica paga/cobra por mantener una posición **no se incluye en el PnL del fight**. Esto es intencional: que abrir una posición fresca durante el fight no quede en desventaja frente a una posición pre-existente. Consecuencia: el PnL del fight no necesariamente coincide con el PnL que el terminal de Pacifica muestra cuando hay funding acumulado. Ver `apps/realtime/src/fight-engine.ts` (comentario M7) para detalle de implementación.
+
 ---
 
 ## 2. Reglas temporales del fight
