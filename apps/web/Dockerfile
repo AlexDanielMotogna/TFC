@@ -12,11 +12,12 @@ FROM base AS builder
 WORKDIR /app
 
 # Build-time args for NEXT_PUBLIC_ variables (embedded at build time)
-ARG NEXT_PUBLIC_WS_URL=wss://tfcrealtime-staging.up.railway.app
-ARG NEXT_PUBLIC_REALTIME_URL=wss://tfcrealtime-staging.up.railway.app
-ARG NEXT_PUBLIC_PACIFICA_API_URL=https://api.pacifica.fi
-ARG NEXT_PUBLIC_PACIFICA_WS_URL=wss://ws.pacifica.fi/ws
-ARG NEXT_PUBLIC_SOLANA_NETWORK=devnet
+# These MUST be provided by the deployment platform (e.g. Railway service variables)
+ARG NEXT_PUBLIC_WS_URL
+ARG NEXT_PUBLIC_REALTIME_URL
+ARG NEXT_PUBLIC_PACIFICA_API_URL
+ARG NEXT_PUBLIC_PACIFICA_WS_URL
+ARG NEXT_PUBLIC_SOLANA_NETWORK
 
 # Set as ENV for build process
 ENV NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL
